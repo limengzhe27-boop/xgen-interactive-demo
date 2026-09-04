@@ -1196,12 +1196,14 @@ export default function Home() {
 
   async function runAI<T>(operation: (adapter: AIAdapter) => Promise<T>): Promise<T> {
     if (modelMode === 'real' || modelMode === 'fallback') {
-      try {
-        const result = await operation(remoteAIAdapter);
-        setModelMode('real');
-        return result;
-      } catch {
-        setModelMode('fallback');
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        try {
+          const result = await operation(remoteAIAdapter);
+          setModelMode('real');
+          return result;
+        } catch {
+          if (attempt === 1) setModelMode('fallback');
+        }
       }
     }
     return operation(mockAIAdapter);
