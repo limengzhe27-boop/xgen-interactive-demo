@@ -1,4 +1,5 @@
 import type {
+  CreatorAgentResponse,
   PersonalAgentResponse,
   WorldGenerationResponse,
   WorldTurnResponse,
@@ -6,6 +7,29 @@ import type {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function isCreatorBrief(value: unknown) {
+  if (!isRecord(value)
+    || typeof value.coreGoal !== 'string'
+    || typeof value.successCondition !== 'string'
+    || typeof value.failureCondition !== 'string'
+    || ![1, 2, 3, 4].includes(value.complexityLevel as number)
+    || !Array.isArray(value.tasks)
+    || !isStringArray(value.difficulties)
+    || !Array.isArray(value.scheduledEvents)) return false;
+  return value.tasks.every((task) => isRecord(task)
+    && typeof task.id === 'string'
+    && typeof task.title === 'string'
+    && typeof task.description === 'string'
+    && (task.kind === 'main' || task.kind === 'side')
+    && isStringArray(task.prerequisiteTaskIds)
+    && typeof task.successCondition === 'string'
+    && typeof task.difficulty === 'string')
+    && value.scheduledEvents.every((event) => isRecord(event)
+      && typeof event.title === 'string'
+      && typeof event.trigger === 'string'
+      && typeof event.effect === 'string');
 }
 
 function isStringArray(value: unknown): value is string[] {
@@ -23,6 +47,17 @@ export function isPersonalAgentResponse(value: unknown): value is PersonalAgentR
       && typeof recommendation.worldId === 'string'
       && typeof recommendation.reason === 'string'
       && isStringArray(recommendation.matchedMemoryIds));
+}
+
+export function isCreatorAgentResponse(value: unknown): value is CreatorAgentResponse {
+  return isRecord(value)
+    && typeof value.reply === 'string'
+    && isRecord(value.proposal)
+    && typeof value.proposal.title === 'string'
+    && typeof value.proposal.premise === 'string'
+    && isCreatorBrief(value.proposal.brief)
+    && isStringArray(value.nextQuestions)
+    && (value.readiness === 'needs_detail' || value.readiness === 'ready');
 }
 
 export function isWorldGenerationResponse(value: unknown): value is WorldGenerationResponse {
@@ -44,7 +79,45 @@ export function isWorldGenerationResponse(value: unknown): value is WorldGenerat
     && Array.isArray(world.rules)
     && typeof world.coreEvent === 'string'
     && [1, 2, 3, 4].includes(world.surpriseLevel as number)
+    && Array.isArray(world.goals)
+    && world.goals.length >= 1
+    && world.goals.every((goal) => isRecord(goal)
+      && typeof goal.id === 'string'
+      && typeof goal.title === 'string'
+      && typeof goal.description === 'string'
+      && (goal.scope === 'world' || goal.scope === 'role')
+      && isStringArray(goal.requiredTaskIds))
+    && Array.isArray(world.tasks)
+    && world.tasks.length >= 1
+    && world.tasks.every((task) => isRecord(task)
+      && typeof task.id === 'string'
+      && typeof task.title === 'string'
+      && typeof task.description === 'string'
+      && (task.kind === 'main' || task.kind === 'side')
+      && isStringArray(task.assignedRoleIds)
+      && isStringArray(task.prerequisiteTaskIds)
+      && typeof task.successCondition === 'string'
+      && typeof task.difficulty === 'string')
+    && Array.isArray(world.difficultyConstraints)
+    && world.difficultyConstraints.every((constraint) => isRecord(constraint)
+      && typeof constraint.id === 'string'
+      && typeof constraint.description === 'string'
+      && typeof constraint.bypassCondition === 'string'
+      && typeof constraint.consequence === 'string')
+    && Array.isArray(world.scheduledEvents)
+    && world.scheduledEvents.every((event) => isRecord(event)
+      && typeof event.id === 'string'
+      && typeof event.title === 'string'
+      && typeof event.trigger === 'string'
+      && typeof event.earliestTurn === 'number'
+      && typeof event.effect === 'string')
     && Array.isArray(world.endingConditions)
+    && world.endingConditions.length >= 1
+    && world.endingConditions.every((condition) => isRecord(condition)
+      && typeof condition.id === 'string'
+      && typeof condition.description === 'string'
+      && isStringArray(condition.requiredTaskIds)
+      && isStringArray(condition.requiredFacts))
     && isRecord(world.openingScene)
     && Array.isArray(world.openingScene.choices)
     && world.openingScene.choices.length >= 2
@@ -66,6 +139,10 @@ export function isWorldTurnResponse(value: unknown): value is WorldTurnResponse 
     && typeof value.image.required === 'boolean'
     && typeof value.image.reason === 'string'
     && typeof value.image.sceneId === 'string'
+    && isRecord(value.goalProgress)
+    && isStringArray(value.goalProgress.activeTaskIds)
+    && isStringArray(value.goalProgress.completedTaskIds)
+    && typeof value.goalProgress.summary === 'string'
     && typeof value.ending.reached === 'boolean'
     && typeof value.ending.canContinue === 'boolean';
 }

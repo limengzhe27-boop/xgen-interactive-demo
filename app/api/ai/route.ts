@@ -1,20 +1,23 @@
 import { AI_CONTRACT_VERSION } from '@/lib/ai-contracts';
 import {
+  isCreatorAgentResponse,
   isPersonalAgentResponse,
   isWorldGenerationResponse,
   isWorldTurnResponse,
 } from '@/lib/ai-validation';
 
-type Operation = 'personal-agent' | 'generate-world' | 'advance-world';
+type Operation = 'personal-agent' | 'co-create-world' | 'generate-world' | 'advance-world';
 type DeepSeekProvider = { apiKey: string; endpoint: string; model: string };
 
 const operationInstructions: Record<Operation, string> = {
   'personal-agent': `你是用户的个人 Agent，只根据输入中明确给出的偏好和体验记录了解用户，不猜测敏感信息。你必须阅读 availableWorlds，并从中选择最符合用户本轮要求的世界；不得推荐列表外的 worldId。回复中说清匹配的题材、人物关系或意外程度。输出 JSON：
 {"reply":"简洁中文回复","memoryCandidates":[{"id":"memory-id","category":"genre|tone|character|interaction|surprise","value":"用户明确表达的偏好","confidence":0.0,"source":"explicit|behavior","requiresConfirmation":false}],"recommendations":[{"worldId":"输入中存在的世界ID","reason":"推荐理由","matchedMemoryIds":["memory-id"]}]}`,
-  'generate-world': `你是统一的世界设计模块，不要把每个角色设定为独立 Agent。根据创作者输入生成一个局部、可运行、遵守因果的小世界，而不是套用灯塔、山庄等固定剧情。开场正文不少于 450 个中文字符，剧情草案包含 4—6 幕，每一幕都由输入角色、关系和故事种子推导。openingScene.choices 是所有可选角色共用的入场动作，只能用“观察、询问、检查、暂不表态”等体验者本人可以执行的中性动作，不能把某个具体角色写成行动主体。输出 JSON：
-{"world":{"id":"world-id","title":"标题","premise":"不少于200字的世界前提","timeSetting":"时间","locations":[{"id":"location-id","name":"地点","description":"描述","connectedLocationIds":[]}],"characters":[{"id":"character-id","name":"姓名","identity":"身份","persona":"性格","publicBackground":"公开背景","privateKnowledge":[],"secrets":[],"goal":"目标","startLocationId":"location-id","imagePrompt":"包含固定年龄发型服装配饰的角色立绘提示"}],"relationships":[{"fromCharacterId":"character-id","toCharacterId":"character-id","publicLabel":"关系","privateContext":"私密背景","initialTrust":42}],"rules":[{"id":"rule-id","description":"规则","kind":"physical|social|knowledge|story","immutable":true}],"coreEvent":"核心事件","surpriseLevel":2,"endingConditions":[{"id":"ending-id","description":"结束条件","requiredFacts":[],"forbiddenFacts":[]}],"openingScene":{"locationId":"location-id","narrative":"不少于450字的开场","presentCharacterIds":[],"choices":[{"id":"choice-id","label":"具体行动","intent":"行动意图"}]}},"storyOutline":[{"id":"beat-id","title":"幕标题","location":"地点","objective":"本幕目标","turningPoint":"由角色关系推动的转折"}],"generationNotes":[],"unresolvedQuestions":[]}`,
-  'advance-world': `你是统一的世界演绎模块。体验者代入 selectedRoleId；其他角色都由你依据世界定义统一演绎，而不是多个独立 Agent。严格遵守物理规则、角色知识边界、已提交事实和当前状态。nextScene 只是创作者确认过的剧情草案方向，不是要照抄的固定正文；必须根据用户当前行动生成新的过程、对话和结果。每次 narrative 输出 350—650 个中文字符，包含环境变化、行动结果和可继续追问的信息；生成 2—4 段符合 Persona 的角色对话和 3—4 个真正不同的下一步选项。所有 nextChoices 的行动主体必须是 selectedRoleId 对应的体验角色，label 必须以该角色姓名开头；绝不能让其他角色成为选项中的行动主体，其他角色只能作为询问、观察、帮助或对抗的对象。场景地点变化、主要在场角色发生明显变化或重大事件发生时，将 image.required 设为 true，并给出一段不含文字、水印和界面元素的电影感场景图提示词；普通对话尽量复用上一张图。输出 JSON：
-{"actionDecision":{"allowed":true,"reason":"可选","suggestedAlternative":"可选"},"narrative":"中文剧情回应","dialogue":[{"characterId":"character-id","text":"台词","visibleToRoleIds":["role-id"]}],"statePatch":{"clock":"可选","locationId":"可选","addInventory":[],"removeInventory":[],"addClues":[],"addKnownSecrets":[],"relationshipDeltas":{"character-id":0},"committedFacts":[]},"nextChoices":[{"id":"choice-id","label":"行动文本","intent":"意图"}],"image":{"required":false,"reason":"opening|location_changed|character_changed|major_event|reuse","sceneId":"scene-id","prompt":"可选","reuseAssetId":"可选"},"ending":{"reached":false,"endingId":"可选","canContinue":true}}`,
+  'co-create-world': `你是创作者的世界创作 Agent。你的任务不是一次性替用户写完剧本，而是通过对话与创作者互相激发，把想法收敛成可运行的世界框架。优先弄清：用户的欲望/情绪钩子、最终奖励、主要阻力、捷径代价、成功/失败条件。不预设“玩几分钟”；长度由任务数量、前置关系、困难与玩家路线决定。不需要设计每一幕，而要产出目标、主/支线任务、前置条件、困难、定时事件和结局条件。保留用户已明确的设定，只改善结构。输出 JSON：
+{"reply":"回应本轮想法，解释你收敛了什么","proposal":{"title":"世界名称","premise":"世界设定与冲突","brief":{"coreGoal":"核心目标","successCondition":"成功条件","failureCondition":"失败条件","complexityLevel":2,"tasks":[{"id":"task-id","title":"任务名","description":"任务内容","kind":"main|side","prerequisiteTaskIds":[],"successCondition":"可判定的完成条件","difficulty":"不能一句话跳过的障碍"}],"difficulties":["世界级困难"],"scheduledEvents":[{"title":"事件","trigger":"触发条件","effect":"对世界的影响"}]}},"nextQuestions":["建议继续讨论的问题"],"readiness":"needs_detail|ready"}`,
+  'generate-world': `你是统一的世界设计模块，不要把每个角色设定为独立 Agent。根据创作者输入和 creatorBrief 生成局部、可运行、遵守因果的小世界。creatorBrief 中的目标、任务、前置、困难和结局条件是核心；storyOutline 只是可选的推进参考，不能决定故事何时结束。用户的剧情原文和明确设定必须保留。为每个角色生成不同目标、知识和秘密；为主线任务保留 prerequisiteTaskIds，让玩家不能一句话直接跳到终局。开场正文不少于 450 个中文字符，参考推进包含 3—6 个节点。openingScene.choices 是体验者本人可执行的中性动作。输出 JSON：
+{"world":{"id":"world-id","title":"标题","premise":"不少于200字的世界前提","timeSetting":"时间","locations":[{"id":"location-id","name":"地点","description":"描述","connectedLocationIds":[]}],"characters":[{"id":"character-id","name":"姓名","identity":"身份","persona":"性格","publicBackground":"公开背景","privateKnowledge":[],"secrets":[],"goal":"目标","startLocationId":"location-id","imagePrompt":"角色立绘提示"}],"relationships":[{"fromCharacterId":"character-id","toCharacterId":"character-id","publicLabel":"关系","privateContext":"私密背景","initialTrust":42}],"rules":[{"id":"rule-id","description":"规则","kind":"physical|social|knowledge|story","immutable":true}],"coreEvent":"核心事件","surpriseLevel":2,"goals":[{"id":"goal-id","title":"目标","description":"成功的定义","scope":"world|role","roleId":"可选角色ID","requiredTaskIds":["task-id"]}],"tasks":[{"id":"task-id","title":"任务","description":"内容","kind":"main|side","assignedRoleIds":["character-id"],"prerequisiteTaskIds":[],"successCondition":"可判定条件","difficulty":"障碍"}],"difficultyConstraints":[{"id":"difficulty-id","description":"困难","blocksTaskId":"task-id","bypassCondition":"克服条件","consequence":"强行跳过的后果"}],"scheduledEvents":[{"id":"event-id","title":"事件","trigger":"触发条件","earliestTurn":2,"effect":"影响"}],"endingConditions":[{"id":"ending-id","description":"结束条件","requiredTaskIds":["task-id"],"requiredFacts":[],"forbiddenFacts":[]}],"openingScene":{"locationId":"location-id","narrative":"不少于450字的开场","presentCharacterIds":[],"choices":[{"id":"choice-id","label":"具体行动","intent":"行动意图"}]}},"storyOutline":[{"id":"beat-id","title":"推进参考","location":"地点","objective":"可能目标","turningPoint":"可能转折"}],"generationNotes":[],"unresolvedQuestions":[]}`,
+  'advance-world': `你是统一的世界 Agent。体验者代入 selectedRoleId；其他角色由你依据世界定义统一演绎，不是多个独立 Agent。严格遵守物理规则、角色知识边界、已提交事实、当前状态、tasks 的前置条件和 difficultyConstraints。nextScene 只是创作者的参考方向，不是固定剧情；即使 nextScene 不存在也必须继续动态推演。只有 endingConditions 的 requiredTaskIds 和 requiredFacts 真正满足，或明确失败条件发生时，ending.reached 才能为 true；绝不能因为分幕用完或回合数到达就结束。goalProgress.activeTaskIds 只能包含“尚未完成且所有 prerequisiteTaskIds 已完成”的任务，不能把未解锁任务写入 activeTaskIds。对一句话跳过 Boss/条件的行动，必须根据前置和角色能力判定失败、部分成功或引发代价，不得直接完成所有任务。每轮同步推进至少一名非玩家角色的状态，写入 characterUpdates，但不泄露体验者不应知道的内容。每次 narrative 输出 350—650 个中文字符，生成 2—4 段角色对话和 3—4 个不同策略的下一步建议。自由输入是主行动方式，选项只是灵感。所有 nextChoices.label 必须以体验角色姓名开头。场景或重大事件变化时生成新图，普通对话复用图片。输出 JSON：
+{"actionDecision":{"allowed":true,"reason":"可选","suggestedAlternative":"可选"},"narrative":"中文剧情回应","dialogue":[{"characterId":"character-id","text":"台词","visibleToRoleIds":["role-id"]}],"statePatch":{"clock":"可选","locationId":"可选","addInventory":[],"removeInventory":[],"addClues":[],"addKnownSecrets":[],"completeTaskIds":["task-id"],"failTaskIds":[],"taskNotes":{"task-id":"进度说明"},"characterUpdates":{"character-id":{"locationId":"location-id","status":"状态","lastAction":"私下行动的可见摘要"}},"relationshipDeltas":{"character-id":0},"committedFacts":[]},"nextChoices":[{"id":"choice-id","label":"行动文本","intent":"意图"}],"image":{"required":false,"reason":"opening|location_changed|character_changed|major_event|reuse","sceneId":"scene-id","prompt":"可选","reuseAssetId":"可选"},"goalProgress":{"activeTaskIds":["task-id"],"completedTaskIds":[],"summary":"目标进度"},"ending":{"reached":false,"endingId":"可选","canContinue":true}}`,
 };
 
 function getDeepSeekProvider(): DeepSeekProvider | null {
@@ -28,11 +31,12 @@ function getDeepSeekProvider(): DeepSeekProvider | null {
 }
 
 function isOperation(value: unknown): value is Operation {
-  return value === 'personal-agent' || value === 'generate-world' || value === 'advance-world';
+  return value === 'personal-agent' || value === 'co-create-world' || value === 'generate-world' || value === 'advance-world';
 }
 
 function isValidOutput(operation: Operation, value: unknown) {
   if (operation === 'personal-agent') return isPersonalAgentResponse(value);
+  if (operation === 'co-create-world') return isCreatorAgentResponse(value);
   if (operation === 'generate-world') return isWorldGenerationResponse(value);
   return isWorldTurnResponse(value);
 }
@@ -61,8 +65,8 @@ async function callDeepSeek(provider: DeepSeekProvider, operation: Operation, in
         response_format: { type: 'json_object' },
         thinking: { type: 'disabled' },
         stream: false,
-        temperature: operation === 'advance-world' ? 0.7 : 0.5,
-        max_tokens: operation === 'generate-world' ? 5000 : 2600,
+        temperature: operation === 'advance-world' || operation === 'co-create-world' ? 0.7 : 0.5,
+        max_tokens: operation === 'generate-world' ? 5600 : operation === 'co-create-world' ? 3000 : 2800,
       }),
       signal: controller.signal,
     });

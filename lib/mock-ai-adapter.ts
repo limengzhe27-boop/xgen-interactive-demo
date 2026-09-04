@@ -2,6 +2,9 @@ import {
   AI_CONTRACT_VERSION,
   type AgentMemory,
   type AIAdapter,
+  type CreatorAgentRequest,
+  type CreatorAgentResponse,
+  type CreatorBrief,
   type PersonalAgentRequest,
   type PersonalAgentResponse,
   type WorldGenerationRequest,
@@ -52,6 +55,54 @@ function slug(value: string, index: number) {
   return value.trim().toLowerCase().replace(/\s+/g, '-') || `character-${index + 1}`;
 }
 
+function buildCreatorBrief(input: CreatorAgentRequest): CreatorBrief {
+  const current = input.currentDraft.brief;
+  const names = input.characters.map((character) => character.name || character.identity).filter(Boolean);
+  const subject = input.currentDraft.premise.trim() || input.userMessage.trim() || `${names.join('、')}进入同一场冲突`;
+  const existingTasks = current.tasks.length > 0 ? current.tasks : [
+    {
+      id: 'task-establish',
+      title: '确认各方真实诉求',
+      description: '通过观察或对话，找出每个人最想得到与最害怕失去的东西。',
+      kind: 'main' as const,
+      prerequisiteTaskIds: [],
+      successCondition: '至少确认两名角色的真实立场',
+      difficulty: '角色会因自身利益保留关键信息',
+    },
+    {
+      id: 'task-breakthrough',
+      title: '突破关系或现实障碍',
+      description: `找到推动“${subject.slice(0, 42)}”的条件，不能只用一句宣告跳到结果。`,
+      kind: 'main' as const,
+      prerequisiteTaskIds: ['task-establish'],
+      successCondition: '获得至少一个可验证的关键条件',
+      difficulty: '快速捷径会引发代价，需要交换信任、资源或风险',
+    },
+    {
+      id: 'task-final-choice',
+      title: '完成目标并承担代价',
+      description: '在条件具备后作出最终行动，让世界根据之前的事实给出结局。',
+      kind: 'main' as const,
+      prerequisiteTaskIds: ['task-breakthrough'],
+      successCondition: '核心目标达成，且一个关键代价已被确认',
+      difficulty: '不同角色的目标存在冲突，不会所有人同时满意',
+    },
+  ];
+  return {
+    coreGoal: current.coreGoal || `推动“${subject.slice(0, 52)}”并让所选角色达成自己的目标`,
+    successCondition: current.successCondition || '完成所有主线任务，并对核心冲突作出不可撤回的选择',
+    failureCondition: current.failureCondition || '关键时限到达，或行动导致核心目标已无法达成',
+    complexityLevel: current.complexityLevel || 2,
+    tasks: existingTasks,
+    difficulties: current.difficulties.length > 0
+      ? current.difficulties
+      : ['信息分散在不同角色手中', '关键行动需要先取得信任或工具', '捷径可行，但会引发明确代价'],
+    scheduledEvents: current.scheduledEvents.length > 0
+      ? current.scheduledEvents
+      : [{ title: '外部压力逼近', trigger: '当玩家停滞或接近关键任务时', effect: '改变可用路线与角色立场，但不直接交付答案' }],
+  };
+}
+
 class MockAIAdapter implements AIAdapter {
   async talkToPersonalAgent(input: PersonalAgentRequest): Promise<PersonalAgentResponse> {
     const memory = createMemory(input.userMessage, input.currentMemories);
@@ -65,6 +116,18 @@ class MockAIAdapter implements AIAdapter {
         reason,
         matchedMemoryIds: [memory.id],
       }],
+    });
+  }
+
+  async coCreateWorld(input: CreatorAgentRequest): Promise<CreatorAgentResponse> {
+    const brief = buildCreatorBrief(input);
+    const title = input.currentDraft.title.trim() || `${input.characters[0]?.name || '主角'}的选择`;
+    const premise = input.currentDraft.premise.trim() || input.userMessage.trim();
+    return Promise.resolve({
+      reply: `我把你刚才的想法先收敛成“目标—条件—代价”。核心不是预先定好玩多久，而是让玩家必须完成 ${brief.tasks.filter((task) => task.kind === 'main').length} 个主线条件才能抵达结局。你可以先采纳，再继续让我加副线、时限或角色冲突。`,
+      proposal: { title, premise, brief },
+      nextQuestions: ['玩家最终获得什么？', '哪个角色最希望阻止他？', '走捷径应该付出什么代价？'],
+      readiness: premise ? 'ready' : 'needs_detail',
     });
   }
 
@@ -89,6 +152,21 @@ class MockAIAdapter implements AIAdapter {
       imagePrompt: `${character.identity || '事件当事人'}，${character.persona || '神情克制而警觉'}，${character.name || `角色 ${index + 1}`}，现代现实主义电影角色立绘，明确年龄、发型、服装和随身物品，半身像，无文字无水印`,
     }));
     const premise = `${seed}\n\n故事从一次无法回避的正面相遇开始。${roleNames.join('、')}都带着各自的目标进入现场：表面上，他们需要一起处理眼前的问题；实际上，每个人都在衡量应该公开多少真相。体验者选择其中任意角色后，都将从这个角色掌握的信息和关系位置出发，经历不同的调查、对话与抉择。`;
+    const draftTasks = input.creatorBrief.tasks.length > 0
+      ? input.creatorBrief.tasks
+      : buildCreatorBrief({
+        contractVersion: AI_CONTRACT_VERSION,
+        userMessage: seed,
+        conversation: [],
+        characters: input.characters,
+        relationshipNotes: input.relationshipNotes,
+        currentDraft: { title, premise: seed, surpriseLevel: input.surpriseLevel, brief: input.creatorBrief },
+      }).tasks;
+    const tasks = draftTasks.map((task) => ({
+      ...task,
+      assignedRoleIds: characters.map((character) => character.id),
+    }));
+    const mainTaskIds = tasks.filter((task) => task.kind === 'main').map((task) => task.id);
     return Promise.resolve({
       world: {
         id: `draft-${slug(title, 0)}`,
@@ -114,7 +192,33 @@ class MockAIAdapter implements AIAdapter {
         ],
         coreEvent: seed,
         surpriseLevel: input.surpriseLevel,
-        endingConditions: [{ id: 'core-choice', description: '确认关键事实，并对核心关系或事件作出明确选择。', requiredFacts: ['核心事件的真实动机', '至少一名角色隐瞒的信息'] }],
+        goals: [{
+          id: 'world-goal',
+          title: input.creatorBrief.coreGoal || '解决核心事件',
+          description: input.creatorBrief.successCondition || '完成主线任务并作出最终选择',
+          scope: 'world',
+          requiredTaskIds: mainTaskIds,
+        }],
+        tasks,
+        difficultyConstraints: input.creatorBrief.difficulties.map((description, index) => ({
+          id: `difficulty-${index + 1}`,
+          description,
+          blocksTaskId: mainTaskIds[Math.min(index, mainTaskIds.length - 1)],
+          bypassCondition: draftTasks[Math.min(index, draftTasks.length - 1)]?.successCondition || '找到合理条件',
+          consequence: '强行跳过会失败、损失信任或触发新风险',
+        })),
+        scheduledEvents: input.creatorBrief.scheduledEvents.map((event, index) => ({
+          id: `scheduled-${index + 1}`,
+          ...event,
+          earliestTurn: Math.max(2, index + 2),
+        })),
+        endingConditions: [{
+          id: 'core-choice',
+          description: input.creatorBrief.successCondition || '确认关键事实并对核心事件作出明确选择。',
+          requiredTaskIds: mainTaskIds,
+          requiredFacts: [],
+          forbiddenFacts: input.creatorBrief.failureCondition ? [input.creatorBrief.failureCondition] : [],
+        }],
         openingScene: {
           locationId: 'opening-location',
           narrative: `${premise}\n\n此刻，${leadName}先察觉到现场气氛不对：${counterpartName}的反应与平时不同，而另一名在场者似乎故意把一个重要细节轻描淡写地带过。没有超自然力量替任何人解释动机，也没有凭空出现的答案；能推动故事的，只有体验者接下来选择相信谁、追问什么，以及愿意承担怎样的关系后果。`,
@@ -142,6 +246,7 @@ class MockAIAdapter implements AIAdapter {
     const validation = validateAction(input.userAction, input.state, input.currentScene.choices.map((choice) => choice.label));
     const selectedChoice = input.currentScene.choices.find((choice) => choice.label === input.userAction);
     if (!validation.allowed) {
+      const completedTaskIds = input.state.completedTaskIds ?? [];
       return Promise.resolve({
         actionDecision: { allowed: false, reason: validation.reason, suggestedAlternative: validation.suggestion },
         narrative: '',
@@ -149,21 +254,41 @@ class MockAIAdapter implements AIAdapter {
         statePatch: { committedFacts: [] },
         nextChoices: input.currentScene.choices,
         image: { required: false, reason: 'reuse', sceneId: input.currentScene.id },
+        goalProgress: {
+          activeTaskIds: input.world.tasks
+            .filter((task) => task.kind === 'main'
+              && !completedTaskIds.includes(task.id)
+              && task.prerequisiteTaskIds.every((id) => completedTaskIds.includes(id)))
+            .map((task) => task.id),
+          completedTaskIds,
+          summary: '行动未通过，任务进度未改变',
+        },
         ending: { reached: false, canContinue: true },
       });
     }
 
     const nextTurn = input.state.turn + 1;
     const worldKind = input.world.id === 'storm-manor' ? 'storm' : 'draft';
-    const incident = input.nextScene ? selectIncident(worldKind, input.world.surpriseLevel, nextTurn) : null;
+    const incident = selectIncident(worldKind, input.world.surpriseLevel, nextTurn);
     const actionResult = selectedChoice?.outcomeHint || `你选择了“${input.userAction}”，世界记住了这个行动。`;
-    const narrative = input.nextScene ? `${actionResult}\n\n${input.nextScene.narrative}` : actionResult;
+    const narrative = input.nextScene
+      ? `${actionResult}\n\n${input.nextScene.narrative}`
+      : `${actionResult}\n\n这个行动没有把世界推向预写的下一幕，而是打开了一条新路线。其他角色也在利用这段时间推进各自的目标。`;
     const sceneChanged = Boolean(input.nextScene && input.nextScene.id !== input.currentScene.id);
     const imageRequired = sceneChanged || incident?.impact === 'major';
     const imageReason = incident?.impact === 'major' ? 'major_event' : sceneChanged ? 'location_changed' : 'reuse';
     const visibleCharacters = input.world.characters
       .map((character) => `${character.name}（${character.identity}，${character.persona}）`)
       .join('、');
+    const completedBefore = input.state.completedTaskIds ?? [];
+    const availableTasks = input.world.tasks.filter((task) => task.kind === 'main'
+      && !completedBefore.includes(task.id)
+      && task.prerequisiteTaskIds.every((id) => completedBefore.includes(id)));
+    const completedNow = availableTasks[0] ? [availableTasks[0].id] : [];
+    const completedAfter = [...new Set([...completedBefore, ...completedNow])];
+    const requiredTaskIds = input.world.goals[0]?.requiredTaskIds ?? input.world.tasks.filter((task) => task.kind === 'main').map((task) => task.id);
+    const endingReached = requiredTaskIds.length > 0 && requiredTaskIds.every((id) => completedAfter.includes(id));
+    const remainingTasks = input.world.tasks.filter((task) => task.kind === 'main' && !completedAfter.includes(task.id));
     return Promise.resolve({
       actionDecision: { allowed: true },
       narrative: incident ? `${narrative}\n\n意外发生·${incident.title}\n${incident.narrative}` : narrative,
@@ -173,6 +298,11 @@ class MockAIAdapter implements AIAdapter {
       statePatch: {
         locationId: input.nextScene?.title,
         addClues: selectedChoice?.statePatchHint?.addClues ?? (selectedChoice ? [selectedChoice.intent] : ['你的自由行动改变了调查方向']),
+        completeTaskIds: completedNow,
+        taskNotes: availableTasks[0] ? { [availableTasks[0].id]: `通过行动“${input.userAction}”推进` } : {},
+        characterUpdates: Object.fromEntries(input.world.characters
+          .filter((character) => character.id !== input.selectedRoleId)
+          .map((character) => [character.id, { status: '同步推进个人目标', lastAction: '根据当前信息调整下一步' }])),
         relationshipDeltas: selectedChoice?.statePatchHint?.relationshipDeltas ?? { world: selectedChoice ? 5 : 3 },
         committedFacts: [actionResult],
       },
@@ -187,7 +317,12 @@ class MockAIAdapter implements AIAdapter {
           : undefined,
         reuseAssetId: imageRequired ? undefined : `${worldKind}-cover`,
       },
-      ending: { reached: !input.nextScene, endingId: input.nextScene ? undefined : `${worldKind}-ending-${nextTurn}`, canContinue: true },
+      goalProgress: {
+        activeTaskIds: remainingTasks.filter((task) => task.prerequisiteTaskIds.every((id) => completedAfter.includes(id))).map((task) => task.id),
+        completedTaskIds: completedAfter,
+        summary: endingReached ? '核心目标的所有必要条件已达成' : `已完成 ${completedAfter.length}/${requiredTaskIds.length} 个主线条件`,
+      },
+      ending: { reached: endingReached, endingId: endingReached ? `${worldKind}-ending-${nextTurn}` : undefined, canContinue: true },
     });
   }
 }

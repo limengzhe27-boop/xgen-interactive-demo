@@ -1,6 +1,6 @@
 import type { WorldIncident, WorldState } from '@/lib/world-state';
 
-export const AI_CONTRACT_VERSION = '2026-09-04.v1';
+export const AI_CONTRACT_VERSION = '2026-09-04.v2';
 
 export type AgentMemory = {
   id: string;
@@ -76,8 +76,45 @@ export type WorldRule = {
 export type EndingCondition = {
   id: string;
   description: string;
+  requiredTaskIds: string[];
   requiredFacts: string[];
   forbiddenFacts?: string[];
+};
+
+export type WorldGoal = {
+  id: string;
+  title: string;
+  description: string;
+  scope: 'world' | 'role';
+  roleId?: string;
+  requiredTaskIds: string[];
+};
+
+export type WorldTask = {
+  id: string;
+  title: string;
+  description: string;
+  kind: 'main' | 'side';
+  assignedRoleIds: string[];
+  prerequisiteTaskIds: string[];
+  successCondition: string;
+  difficulty: string;
+};
+
+export type DifficultyConstraint = {
+  id: string;
+  description: string;
+  blocksTaskId?: string;
+  bypassCondition: string;
+  consequence: string;
+};
+
+export type ScheduledWorldEvent = {
+  id: string;
+  title: string;
+  trigger: string;
+  earliestTurn: number;
+  effect: string;
 };
 
 export type WorldDefinition = {
@@ -91,6 +128,10 @@ export type WorldDefinition = {
   rules: WorldRule[];
   coreEvent: string;
   surpriseLevel: 1 | 2 | 3 | 4;
+  goals: WorldGoal[];
+  tasks: WorldTask[];
+  difficultyConstraints: DifficultyConstraint[];
+  scheduledEvents: ScheduledWorldEvent[];
   endingConditions: EndingCondition[];
   openingScene: {
     locationId: string;
@@ -108,6 +149,56 @@ export type StoryOutlineBeat = {
   turningPoint: string;
 };
 
+export type CreatorTaskDraft = {
+  id: string;
+  title: string;
+  description: string;
+  kind: 'main' | 'side';
+  prerequisiteTaskIds: string[];
+  successCondition: string;
+  difficulty: string;
+};
+
+export type CreatorBrief = {
+  coreGoal: string;
+  successCondition: string;
+  failureCondition: string;
+  complexityLevel: 1 | 2 | 3 | 4;
+  tasks: CreatorTaskDraft[];
+  difficulties: string[];
+  scheduledEvents: { title: string; trigger: string; effect: string }[];
+};
+
+export type CreatorChatMessage = {
+  role: 'creator' | 'agent';
+  content: string;
+};
+
+export type CreatorAgentRequest = {
+  contractVersion: typeof AI_CONTRACT_VERSION;
+  userMessage: string;
+  conversation: CreatorChatMessage[];
+  characters: Pick<CharacterDefinition, 'name' | 'identity' | 'persona'>[];
+  relationshipNotes: string[];
+  currentDraft: {
+    title: string;
+    premise: string;
+    surpriseLevel: 1 | 2 | 3 | 4;
+    brief: CreatorBrief;
+  };
+};
+
+export type CreatorAgentResponse = {
+  reply: string;
+  proposal: {
+    title: string;
+    premise: string;
+    brief: CreatorBrief;
+  };
+  nextQuestions: string[];
+  readiness: 'needs_detail' | 'ready';
+};
+
 export type WorldGenerationRequest = {
   contractVersion: typeof AI_CONTRACT_VERSION;
   creatorIntent?: string;
@@ -115,7 +206,7 @@ export type WorldGenerationRequest = {
   relationshipNotes: string[];
   storySeed?: string;
   surpriseLevel: 1 | 2 | 3 | 4;
-  targetDurationMinutes: number;
+  creatorBrief: CreatorBrief;
 };
 
 export type WorldGenerationResponse = {
@@ -132,6 +223,10 @@ export type StatePatch = {
   removeInventory?: string[];
   addClues?: string[];
   addKnownSecrets?: string[];
+  completeTaskIds?: string[];
+  failTaskIds?: string[];
+  taskNotes?: Record<string, string>;
+  characterUpdates?: Record<string, { locationId?: string; status?: string; lastAction?: string }>;
   relationshipDeltas?: Record<string, number>;
   committedFacts: string[];
 };
@@ -188,11 +283,17 @@ export type WorldTurnResponse = {
   nextChoices: { id: string; label: string; intent: string }[];
   incident?: WorldIncident;
   image: ImageDirective;
+  goalProgress: {
+    activeTaskIds: string[];
+    completedTaskIds: string[];
+    summary: string;
+  };
   ending: { reached: boolean; endingId?: string; canContinue: boolean };
 };
 
 export interface AIAdapter {
   talkToPersonalAgent(input: PersonalAgentRequest): Promise<PersonalAgentResponse>;
+  coCreateWorld(input: CreatorAgentRequest): Promise<CreatorAgentResponse>;
   generateWorld(input: WorldGenerationRequest): Promise<WorldGenerationResponse>;
   advanceWorld(input: WorldTurnRequest, signal?: AbortSignal): Promise<WorldTurnResponse>;
 }

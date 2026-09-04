@@ -16,6 +16,11 @@ export type WorldState = {
   inventory: string[];
   clues: string[];
   knownSecrets: string[];
+  activeGoalId?: string;
+  completedTaskIds: string[];
+  failedTaskIds: string[];
+  taskNotes: Record<string, string>;
+  characterStates: Record<string, { locationId?: string; status?: string; lastAction?: string }>;
   relationshipTrust: number;
   eventLedger: EventRecord[];
 };
@@ -46,6 +51,10 @@ type CommitTurnInput = {
   addInventory?: string[];
   removeInventory?: string[];
   addKnownSecrets?: string[];
+  completeTaskIds?: string[];
+  failTaskIds?: string[];
+  taskNotes?: Record<string, string>;
+  characterUpdates?: Record<string, { locationId?: string; status?: string; lastAction?: string }>;
 };
 
 function unique(items: string[]) {
@@ -66,7 +75,13 @@ export function createInitialWorldState(
   roleId: string,
   roleSecret: string,
   initialLocation: string,
-  generated?: { timeSetting: string; coreEvent: string },
+  generated?: {
+    timeSetting: string;
+    coreEvent: string;
+    activeGoalId?: string;
+    characterIds?: string[];
+    openingLocationId?: string;
+  },
 ): WorldState {
   const inventoryByRole: Record<string, string[]> = {
     'lin-xia': ['弟弟留下的录音', '手机'],
@@ -80,6 +95,15 @@ export function createInitialWorldState(
     inventory: generated ? [] : worldKind === 'draft' ? ['航海日志', '手电'] : (inventoryByRole[roleId] ?? []),
     clues: [generated ? `核心事件：${generated.coreEvent}` : worldKind === 'draft' ? '雾潮将在凌晨三点达到顶峰' : '遗嘱公布时间：午夜'],
     knownSecrets: [roleSecret],
+    activeGoalId: generated?.activeGoalId,
+    completedTaskIds: [],
+    failedTaskIds: [],
+    taskNotes: {},
+    characterStates: Object.fromEntries((generated?.characterIds ?? []).map((characterId) => [characterId, {
+      locationId: generated?.openingLocationId,
+      status: '行动中',
+      lastAction: '等待世界开始',
+    }])),
     relationshipTrust: 42,
     eventLedger: [],
   };
@@ -128,7 +152,7 @@ export function commitTurn(state: WorldState, input: CommitTurnInput): WorldStat
     turn: nextTurn,
     clock: input.clock || (/^\d{2}:\d{2}$/.test(state.clock)
       ? `${state.clock.slice(0, 3)}${Math.min(59, Number(state.clock.slice(3)) + nextTurn * 5).toString().padStart(2, '0')}`
-      : `${state.clock.replace(/ · 第 \d+ 幕$/, '')} · 第 ${nextTurn + 1} 幕`),
+      : `${state.clock.replace(/ · 第 \d+ [幕轮]$/, '')} · 第 ${nextTurn + 1} 轮`),
     location: input.nextLocation,
     inventory: unique([
       ...state.inventory.filter((item) => !input.removeInventory?.includes(item)),
@@ -137,6 +161,16 @@ export function commitTurn(state: WorldState, input: CommitTurnInput): WorldStat
     ]),
     clues: unique([...state.clues, input.clue, ...(input.incident ? [input.incident.clue] : [])]),
     knownSecrets: unique([...state.knownSecrets, ...(input.addKnownSecrets ?? [])]),
+    completedTaskIds: unique([...(state.completedTaskIds ?? []), ...(input.completeTaskIds ?? [])]),
+    failedTaskIds: unique([...(state.failedTaskIds ?? []), ...(input.failTaskIds ?? [])]),
+    taskNotes: { ...state.taskNotes, ...input.taskNotes },
+    characterStates: {
+      ...state.characterStates,
+      ...Object.fromEntries(Object.entries(input.characterUpdates ?? {}).map(([characterId, update]) => [
+        characterId,
+        { ...state.characterStates?.[characterId], ...update },
+      ])),
+    },
     relationshipTrust: Math.max(12, Math.min(92, state.relationshipTrust + input.relationshipDelta + (input.incident?.relationshipDelta ?? 0))),
     eventLedger: [...state.eventLedger, {
       id: `event-${nextTurn}-${state.eventLedger.length}`,

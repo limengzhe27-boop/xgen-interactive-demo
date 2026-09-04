@@ -1,5 +1,7 @@
 import type {
   AIAdapter,
+  CreatorAgentRequest,
+  CreatorAgentResponse,
   PersonalAgentRequest,
   PersonalAgentResponse,
   WorldGenerationRequest,
@@ -8,12 +10,13 @@ import type {
   WorldTurnResponse,
 } from '@/lib/ai-contracts';
 import {
+  isCreatorAgentResponse,
   isPersonalAgentResponse,
   isWorldGenerationResponse,
   isWorldTurnResponse,
 } from '@/lib/ai-validation';
 
-type AIOperation = 'personal-agent' | 'generate-world' | 'advance-world';
+type AIOperation = 'personal-agent' | 'co-create-world' | 'generate-world' | 'advance-world';
 
 async function callRemote<T>(
   operation: AIOperation,
@@ -37,6 +40,10 @@ async function callRemote<T>(
 class RemoteAIAdapter implements AIAdapter {
   talkToPersonalAgent(input: PersonalAgentRequest): Promise<PersonalAgentResponse> {
     return callRemote('personal-agent', input, isPersonalAgentResponse);
+  }
+
+  coCreateWorld(input: CreatorAgentRequest): Promise<CreatorAgentResponse> {
+    return callRemote('co-create-world', input, isCreatorAgentResponse);
   }
 
   generateWorld(input: WorldGenerationRequest): Promise<WorldGenerationResponse> {
