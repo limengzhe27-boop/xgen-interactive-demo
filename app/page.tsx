@@ -1,0 +1,1868 @@
+'use client';
+/* oxlint-disable next/no-img-element -- local prototype assets avoid vinext/next-image runtime duplication */
+
+import { SyntheticEvent, useEffect, useRef, useState } from 'react';
+import {
+  ArrowLeft,
+  ArrowRight,
+  BookOpen,
+  Check,
+  ChevronRight,
+  Clock3,
+  Compass,
+  Eye,
+  ImageIcon,
+  Lightbulb,
+  LoaderCircle,
+  MapPin,
+  MessageCircleMore,
+  Pencil,
+  Plus,
+  RefreshCw,
+  Send,
+  Sparkles,
+  Target,
+  Trash2,
+  UserRound,
+  UsersRound,
+  WandSparkles,
+  X,
+} from 'lucide-react';
+
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Slider } from '@/components/ui/slider';
+import { Switch } from '@/components/ui/switch';
+import { Textarea } from '@/components/ui/textarea';
+import { AI_CONTRACT_VERSION, mockAIAdapter } from '@/lib/mock-ai-adapter';
+import { cacheSceneImage, getCachedSceneImage } from '@/lib/image-cache';
+import { createInitialImageTask, finishImageTask, startImageTask } from '@/lib/image-task';
+import { getRemoteAIStatus, remoteAIAdapter } from '@/lib/remote-ai-adapter';
+import { generateSceneImage, getRemoteImageStatus } from '@/lib/remote-image-service';
+import {
+  commitTurn,
+  createInitialWorldState,
+  recordInterruptedEvent,
+  recordRejectedEvent,
+  validateAction,
+} from '@/lib/world-state';
+import { normalizeSurpriseLevel } from '@/lib/surprise-engine';
+import type { AgentMemory, AIAdapter, ImageDirective, StoryOutlineBeat, WorldDefinition, WorldTurnRequest, WorldTurnResponse } from '@/lib/ai-contracts';
+import type { ImageTask } from '@/lib/image-task';
+import type { ActionValidation, EventRecord, WorldIncident, WorldState } from '@/lib/world-state';
+
+type View = 'home' | 'roles' | 'play' | 'create' | 'ending';
+type ModelMode = 'checking' | 'real' | 'mock' | 'fallback';
+type ImageModelMode = 'checking' | 'real' | 'off' | 'fallback';
+type Role = {
+  id: string;
+  name: string;
+  identity: string;
+  personality: string;
+  publicStory: string;
+  secret: string;
+  goal: string;
+  crop: string;
+  visualAnchor: string;
+  imageUrl?: string;
+};
+
+type StoryChoice = {
+  label: string;
+  result: string;
+  clue: string;
+  relationDelta: number;
+};
+
+type StoryBeat = {
+  title: string;
+  location: string;
+  text: string;
+  speaker: string;
+  dialogue: string;
+  choices: StoryChoice[];
+};
+
+type DraftRole = {
+  name: string;
+  identity: string;
+  personality: string;
+  relationship: string;
+  appearance: string;
+};
+
+type SavedRun = {
+  version: 1;
+  worldKind: 'storm' | 'draft';
+  worldTitle: string;
+  surpriseLevel: number;
+  roleId: string;
+  turn: number;
+  narrative: string;
+  lastAction: string;
+  lastIncident: WorldIncident | null;
+  endingDecision: string;
+  worldState: WorldState;
+  status: 'playing' | 'ending';
+  imageCacheKey?: string;
+  currentBeat?: StoryBeat;
+  savedAt: number;
+};
+
+type PersistedDemoState = {
+  memories: string[];
+  liveMode: boolean;
+  surprise: number;
+  worldTitle: string;
+  worldSeed: string;
+  generated: boolean;
+  publishedWorld: boolean;
+  draftRoles: DraftRole[];
+  generatedWorld?: WorldDefinition;
+  generatedStoryOutline?: StoryOutlineBeat[];
+  savedRun?: SavedRun;
+};
+
+type RegisteredTool = {
+  name: string;
+  title?: string;
+  description: string;
+  inputSchema: Record<string, unknown>;
+  annotations?: { readOnlyHint?: boolean; untrustedContentHint?: boolean };
+  execute: (input: unknown) => unknown;
+};
+
+declare global {
+  interface Document {
+    modelContext?: {
+      registerTool: (tool: RegisteredTool, options?: { signal?: AbortSignal }) => void | Promise<void>;
+    };
+  }
+}
+
+const starterPrompts = ['我想玩一段悬疑故事', '更喜欢观察和推理', '偶尔来点意外'];
+const demoStorageKey = 'xgen-small-world-demo-v1';
+
+function isSavedRun(value: unknown): value is SavedRun {
+  if (!value || typeof value !== 'object') return false;
+  const run = value as Partial<SavedRun>;
+  const state = run.worldState as Partial<WorldState> | undefined;
+  return run.version === 1
+    && (run.worldKind === 'storm' || run.worldKind === 'draft')
+    && typeof run.worldTitle === 'string'
+    && typeof run.surpriseLevel === 'number'
+    && typeof run.roleId === 'string'
+    && typeof run.turn === 'number'
+    && typeof run.narrative === 'string'
+    && typeof run.lastAction === 'string'
+    && (run.lastIncident === null || typeof run.lastIncident === 'object')
+    && typeof run.endingDecision === 'string'
+    && (run.status === 'playing' || run.status === 'ending')
+    && (run.imageCacheKey === undefined || typeof run.imageCacheKey === 'string')
+    && (run.currentBeat === undefined || (typeof run.currentBeat === 'object' && run.currentBeat !== null))
+    && typeof run.savedAt === 'number'
+    && Boolean(state)
+    && typeof state?.turn === 'number'
+    && typeof state?.clock === 'string'
+    && typeof state?.location === 'string'
+    && Array.isArray(state?.clues)
+    && Array.isArray(state?.inventory)
+    && Array.isArray(state?.eventLedger);
+}
+
+const roles: Role[] = [
+  {
+    id: 'lin-xia',
+    name: '林夏',
+    identity: '失踪者的姐姐',
+    personality: '敏锐、克制、不轻易相信别人',
+    publicStory: '为了参加弟弟的遗嘱公布仪式回到阔别十年的山庄。',
+    secret: '你收到过弟弟在失踪前发来的空白录音，里面只有三次钟声。',
+    goal: '在天亮前找到弟弟，并确认律师是否隐瞒了遗嘱内容。',
+    crop: 'left',
+    visualAnchor: '二十八岁东亚女性，齐肩黑发，酒红色防雨风衣，银色细链，目光锐利',
+  },
+  {
+    id: 'gu-huai',
+    name: '顾淮',
+    identity: '家族律师',
+    personality: '冷静、谨慎、擅长隐藏情绪',
+    publicStory: '受托在午夜公布一份改变所有人命运的新遗嘱。',
+    secret: '你知道遗嘱在三天前被替换，但签名看起来完全真实。',
+    goal: '找出替换遗嘱的人，同时确保自己保管的原件不被发现。',
+    crop: 'center',
+    visualAnchor: '三十二岁东亚男性，黑色短发，深灰三件套西装，窄框眼镜，随身携带黑色公文包',
+  },
+  {
+    id: 'zhou-bo',
+    name: '周伯',
+    identity: '山庄管家',
+    personality: '沉默、守序、对旧主人极度忠诚',
+    publicStory: '在这座山庄服务了三十年，熟悉每一道门和每一条旧规矩。',
+    secret: '你保管着地下酒窖的铜钥匙，昨晚却发现门从里面被打开过。',
+    goal: '在警察抵达前封住地下通道，并判断谁值得托付真相。',
+    crop: 'right',
+    visualAnchor: '六十岁东亚男性，灰白短发与修整胡须，深棕管家制服，右手戴旧皮手套',
+  },
+];
+
+const sharedFinalChoices: StoryChoice[] = [
+  { label: '带上铜钥匙进入地下', result: '你把钥匙握在掌心，率先走进潮湿的地下通道。', clue: '铜钥匙可以打开地下档案室', relationDelta: 12 },
+  { label: '要求先公开遗嘱内容', result: '你拦住众人，迫使顾淮说出遗嘱中关于山庄所有权的附加条款。', clue: '遗嘱附加条款：失踪者必须亲自到场', relationDelta: -5 },
+  { label: '回到大厅观察谁想离开', result: '你假装放弃调查，却看见一道人影将一张纸塞进了壁炉。', clue: '壁炉里没有烧尽的旧遗嘱', relationDelta: 4 },
+];
+
+const roleStoryBeats: Record<string, StoryBeat[]> = {
+  'lin-xia': [
+    {
+      title: '空白录音中的钟声', location: '山庄主厅',
+      text: '大厅的座钟敲过十一下，整座山庄忽然断电。黑暗里传来瓷器碎裂的声音。应急灯亮起时，顾淮手中的遗嘱袋不见了。你想起弟弟留下的那段录音，钟声的间隔和刚才一模一样。',
+      speaker: '周伯', dialogue: '林小姐，今晚最好不要独自行动。',
+      choices: [
+        { label: '播放弟弟留下的空白录音', result: '录音里的钟声与大厅座钟重合，但第三声后多出一次金属摩擦声。', clue: '录音暗示座钟内有机关', relationDelta: 8 },
+        { label: '追问顾淮为何提前拆封遗嘱', result: '顾淮没有否认，只是把空信封推到你面前：他在断电前就知道里面是空的。', clue: '遗嘱在断电前已被替换', relationDelta: -4 },
+        { label: '检查碎瓷片附近的脚印', result: '你在瓷片下找到一点潮湿的红泥，这种泥只出现在山庄西坡。', clue: '来自西坡的红泥', relationDelta: 3 },
+      ],
+    },
+    {
+      title: '封闭的西侧走廊', location: '西侧门厅',
+      text: '侧门被风吹开，一串带钉靴印延伸向西侧走廊。你的弟弟从不穿这种鞋，但靴印的步幅却与他异常相似。',
+      speaker: '顾淮', dialogue: '如果你真的在找他，先想想他为什么希望你听见钟声。',
+      choices: [
+        { label: '沿靴印直接追进走廊', result: '脚印在一幅旧主人画像前消失，画框后传来极轻的呼吸声。', clue: '脚印在可移动画像前中断', relationDelta: 6 },
+        { label: '把红泥拿给周伯辨认', result: '周伯承认西坡有一座封闭的钟楼，而钥匙一直在他手中。', clue: '西坡钟楼与地下通道相连', relationDelta: 12 },
+        { label: '当面拆穿顾淮知道录音内容', result: '顾淮的表情第一次失控。他从公文包里取出一把本不该属于他的铜钥匙。', clue: '顾淮也拥有地下区域的钥匙', relationDelta: -8 },
+      ],
+    },
+    { title: '三声钟响之后', location: '画像后的石阶', text: '画像后的窄门打开了。向下的石阶尽头传来三声钟响，与弟弟留下的录音完全一致。', speaker: '周伯', dialogue: '走下去之前，你要决定更相信真相，还是更想保护你弟弟。', choices: sharedFinalChoices },
+  ],
+  'gu-huai': [
+    {
+      title: '被替换的遗嘱', location: '山庄主厅',
+      text: '十一点的钟声响起，山庄忽然断电。你下意识按住公文包，手中用来掩人耳目的遗嘱袋却被人抽走了。你知道真正的原件还在夹层里。',
+      speaker: '林夏', dialogue: '顾律师，你似乎并不惊讶。',
+      choices: [
+        { label: '说出信封早已被替换', result: '你公开了部分真相，却隐去原件仍在自己手中。林夏暂时放下了敌意。', clue: '失窃的只是伪造遗嘱', relationDelta: 14 },
+        { label: '继续隐瞒，检查公文包夹层', result: '原件还在，但封口多了一道新鲜划痕，证明断电前有人尝试打开它。', clue: '原件封口有新鲜划痕', relationDelta: -3 },
+        { label: '要求所有人展示双手', result: '周伯右手的手套沾着封蜡，但他声称那是傍晚封闭酒窖时留下的。', clue: '周伯手套上的红色封蜡', relationDelta: -6 },
+      ],
+    },
+    {
+      title: '律师的两份原件', location: '山庄书房',
+      text: '你避开众人进入书房，却在保险柜里看见另一份签名完全相同的遗嘱。两份文件中，至少有一份来自那位失踪的继承人。',
+      speaker: '周伯', dialogue: '顾律师，有些门是为了防外人，有些门是为了防自己人。',
+      choices: [
+        { label: '对比两份遗嘱的纸张水印', result: '你发现保险柜中的那份使用了十年前停产的家族信笺，内容新，纸张却很旧。', clue: '伪造者能进入家族旧档案室', relationDelta: 5 },
+        { label: '把第二份遗嘱交给林夏', result: '林夏读完后告诉你，遗嘱中夹着弟弟只会写给她的一句暗语。', clue: '第二份遗嘱包含失踪者的真实留言', relationDelta: 18 },
+        { label: '暂时藏起两份文件', result: '你刚合上保险柜，走廊就传来带钉靴踩过地板的声音。对方知道你在这里。', clue: '穿带钉靴的人在监视书房', relationDelta: -10 },
+      ],
+    },
+    { title: '原件与失踪者', location: '地下档案室入口', text: '你在画像后找到通往档案室的石阶。如果失踪者就在下面，你保管的原件将决定这场失踪是犯罪、逃亡，还是一场自导自演。', speaker: '林夏', dialogue: '你还有最后一次机会告诉我，你究竟在保护谁。', choices: sharedFinalChoices },
+  ],
+  'zhou-bo': [
+    {
+      title: '管家丢失的三分钟', location: '山庄主厅',
+      text: '座钟响起时，你比任何人都早一秒知道会断电，因为地下配电柜已经三十年没有自动跳闸。应急灯亮起时，遗嘱不见了，而你腰间的铜钥匙也被人动过。',
+      speaker: '顾淮', dialogue: '周伯，这里只有你知道所有锁的位置。',
+      choices: [
+        { label: '立刻检查地下配电柜', result: '配电柜不是故障，有人用铜片卡住了闸刀。铜片来自一把复制钥匙。', clue: '断电者使用了铜钥匙的复制品', relationDelta: 7 },
+        { label: '封锁大厅并收走每个人的钥匙', result: '林夏拒绝交出她的房门钥匙，却主动给你听了一段只有钟声的录音。', clue: '失踪者在录音里留下三声钟响', relationDelta: -2 },
+        { label: '隐瞒铜钥匙被动过的事', result: '你将钥匙藏进袖口，却发现钥齿上沾着新鲜的地下苔藓。', clue: '有人刚用铜钥匙打开过地下门', relationDelta: -8 },
+      ],
+    },
+    {
+      title: '不该打开的酒窖门', location: '地下酒窖',
+      text: '酒窖铁门的锁芯没有破坏，门却从里面打开过。地上的水渍尚未干透，通往西坡的老排水道里传来脚步声。',
+      speaker: '林夏', dialogue: '我弟弟知道这条路，对吗？你从来没有告诉过我。',
+      choices: [
+        { label: '承认失踪者曾用这里偷偷离开', result: '你说出了保守十年的秘密：山庄的孩子们曾把这里当作逃生通道。', clue: '排水道可以绕过所有锁住的门', relationDelta: 18 },
+        { label: '独自进入排水道追踪', result: '你在通道深处找到一只带钉长靴，尺码比失踪者大了两号。', clue: '带钉靴是为伪造失踪者脚印而准备的', relationDelta: -3 },
+        { label: '先查看铁门内侧的锁', result: '锁舌上夹着一根红色纤维，与林夏大衣的颜色很像，纹理却完全不同。', clue: '有人故意用红色纤维嫁祸林夏', relationDelta: 9 },
+      ],
+    },
+    { title: '老主人留下的最后一道锁', location: '地下档案室入口', text: '排水道和画像后的石阶在同一道铜门前交汇。你守了三十年的秘密就在门后，而原本只有一把的钥匙，现在出现了复制品。', speaker: '顾淮', dialogue: '你不能同时保护这座房子和里面的人。', choices: sharedFinalChoices },
+  ],
+};
+
+function makePlayableDraftRoles(drafts: DraftRole[]): Role[] {
+  const crops = ['left', 'center', 'right'];
+  const fallbackAppearances = [
+    '二十多岁东亚人物，齐肩黑发，墨绿色防风外套，随身携带旧笔记本',
+    '三十岁左右东亚人物，黑色短发，深蓝守塔人工作服，佩戴旧机械表',
+    '四十岁左右东亚人物，微卷深色头发，灰色长外套，携带帆布工具包',
+  ];
+  return drafts.map((draft, index) => ({
+    id: `draft-role-${index}`,
+    name: draft.name.trim() || `角色 ${index + 1}`,
+    identity: draft.identity.trim() || '身份待定',
+    personality: draft.personality.trim() || '性格待定',
+    publicStory: draft.relationship.trim() || `雾潮封锁海岛时，${draft.name.trim() || '你'}被留在了灯塔。`,
+    secret: '你在昨晚的值班记录中看见了一页属于明天的内容。',
+    goal: '在凌晨三点前找出记录为何提前出现，并决定是否熄灭灯塔。',
+    crop: crops[index % crops.length],
+    visualAnchor: draft.appearance.trim() || fallbackAppearances[index % fallbackAppearances.length],
+  }));
+}
+
+function makeDraftStory(playableRoles: Role[], seed: string): Record<string, StoryBeat[]> {
+  return Object.fromEntries(playableRoles.map((role, index) => {
+    const companion = playableRoles[(index + 1) % playableRoles.length] ?? role;
+    return [role.id, [
+      {
+        title: '雾潮前的第十三次守夜', location: '灯塔值班室',
+        text: `${seed || '百年一次的雾潮封锁了海岛。'}你以${role.identity}的身份翻开航海日志，发现最后一页记载的日期是明天。`,
+        speaker: companion.name, dialogue: '日志没有写错。错的也许是我们认为的“今天”。',
+        choices: [
+          { label: '检查日志上的墨迹', result: '墨迹还没有完全干，写下它的人刚离开不久。', clue: '来自明天的记录墨迹未干', relationDelta: 6 },
+          { label: `追问${companion.name}是否见过这一页`, result: `${companion.name}承认凌晨醒来时曾看见一个与你身形相似的人在写日志。`, clue: '有人在刻意模仿你的行动', relationDelta: -4 },
+          { label: '先将这一页撕下藏起来', result: '纸页离开装订线时，灯塔顶端的光芒瞬间熄灭了一秒。', clue: '航海日志与灯塔设备会相互影响', relationDelta: -7 },
+        ],
+      },
+      {
+        title: '无人回应的求救信号', location: '灯塔无线电室',
+        text: '无线电里传来一段循环求救，声音听起来就像你，背景中却有尚未发生的第三次雾笛。',
+        speaker: companion.name, dialogue: '如果这是预警，我们还有时间改掉它。如果是圈套，对方知道你会怎么选。',
+        choices: [
+          { label: '录下信号并尝试反向回应', result: '你的回应穿过杂音，对面竟然在你开口前就说出了同一句话。', clue: '信号可能来自数分钟后', relationDelta: 9 },
+          { label: '切断无线电与主灯的连接', result: '信号停止后，第一次雾笛提前响起，你的行动显然改变了某个时间点。', clue: '主灯是异常信号的放大器', relationDelta: 3 },
+          { label: '根据声音背景定位发送者', result: '背景里有海水涌入铁门的声音，发送位置是灯塔下方已封闭的旧码头。', clue: '求救信号来自旧码头', relationDelta: 5 },
+        ],
+      },
+      {
+        title: '凌晨三点的灯', location: '灯塔顶层',
+        text: '第三次雾笛即将响起，日志中的明天正在变成现在。主灯的开关就在你手边，雾中则出现了一艘不存在于任何名册上的船。',
+        speaker: companion.name, dialogue: '熄灯，我们也许能打破循环。亮着，那艘船也许会找到我们。',
+        choices: [
+          { label: '按照日志的记载熄灯', result: '灯灭后，雾中的船没有消失，反而第一次露出了名字。', clue: '无名船与日志记载的时间循环相关', relationDelta: 8 },
+          { label: '违背记录，让主灯继续亮着', result: '光束穿过雾墙，照出了旧码头上另一个正在向你挥手的自己。', clue: '雾潮中存在另一条重叠的世界线', relationDelta: 2 },
+          { label: `把最后的决定交给${companion.name}`, result: `${companion.name}没有去碰开关，而是撕掉了航海日志中属于明天的那一页。`, clue: '关系与信任也能改写预定事件', relationDelta: 18 },
+        ],
+      },
+    ] satisfies StoryBeat[]];
+  }));
+}
+
+function makeGeneratedDraftStory(
+  playableRoles: Role[],
+  world: WorldDefinition,
+  outline: StoryOutlineBeat[],
+): Record<string, StoryBeat[]> {
+  const locationNames = new Map(world.locations.map((location) => [location.id, location.name]));
+  return Object.fromEntries(playableRoles.map((role, roleIndex) => {
+    const companion = playableRoles[(roleIndex + 1) % playableRoles.length] ?? role;
+    const beats = outline.map((outlineBeat, beatIndex) => {
+      const otherNames = playableRoles.filter((item) => item.id !== role.id).map((item) => item.name).join('、');
+      const openingChoices: StoryChoice[] = [
+        {
+          label: `${role.name}：先不表态，观察${otherNames || '其他人'}各自的反应`,
+          result: `${role.name}暂时没有暴露真实目的，而是留意每个人回避的问题。`,
+          clue: `观察${otherNames || '其他人'}面对核心事件时的即时反应`,
+          relationDelta: 1,
+        },
+        {
+          label: `${role.name}：主动找${companion.name}单独谈话，试探真实想法`,
+          result: `${role.name}把${companion.name}带到一旁，要求对方说清楚自己的立场。`,
+          clue: `确认${companion.name}对“${outlineBeat.objective}”的真实态度`,
+          relationDelta: 6,
+        },
+        {
+          label: `${role.name}：暂时保留秘密，先检查现场可以验证的细节`,
+          result: `${role.name}从现场细节入手，避免在证据不足时被其他人牵着走。`,
+          clue: outlineBeat.turningPoint,
+          relationDelta: 3,
+        },
+      ];
+      const fallbackChoices: StoryChoice[] = [
+        { label: `直接调查${outlineBeat.location}`, result: `你开始围绕“${outlineBeat.objective}”检查现场。`, clue: outlineBeat.objective, relationDelta: 3 },
+        { label: `询问${companion.name}对此事的看法`, result: `${companion.name}必须对当前矛盾作出回应。`, clue: `观察${companion.name}面对问题时的反应`, relationDelta: 7 },
+        { label: '暂不表态，观察其他人的行动', result: '你没有立刻暴露目的，而是把注意力放在其他人的下一步。', clue: outlineBeat.turningPoint, relationDelta: 1 },
+      ];
+      return {
+        title: outlineBeat.title,
+        location: beatIndex === 0
+          ? locationNames.get(world.openingScene.locationId) ?? outlineBeat.location
+          : outlineBeat.location,
+        text: beatIndex === 0
+          ? `${world.openingScene.narrative}\n\n你以${role.name}的身份进入，当前目标是：${role.goal}`
+          : `${outlineBeat.objective}。${outlineBeat.turningPoint}`,
+        speaker: companion.name,
+        dialogue: beatIndex === 0 ? `${role.name}，事情已经开始偏离我们原先的判断。` : `如果要继续，我们必须先处理“${outlineBeat.objective}”。`,
+        choices: beatIndex === 0 ? openingChoices : fallbackChoices,
+      } satisfies StoryBeat;
+    });
+    return [role.id, beats];
+  }));
+}
+
+function normalizeGeneratedWorld(world: WorldDefinition, drafts: DraftRole[]): WorldDefinition {
+  const characterIdMap = new Map<string, string>();
+  world.characters.forEach((character, index) => characterIdMap.set(character.id, `draft-role-${index}`));
+  return {
+    ...world,
+    id: 'draft-generated-world',
+    characters: world.characters.map((character, index) => ({
+      ...character,
+      id: `draft-role-${index}`,
+      name: drafts[index]?.name.trim() || character.name,
+      identity: drafts[index]?.identity.trim() || character.identity,
+      persona: drafts[index]?.personality.trim() || character.persona,
+      imagePrompt: drafts[index]?.appearance.trim() || character.imagePrompt,
+    })),
+    relationships: world.relationships.map((relationship) => ({
+      ...relationship,
+      fromCharacterId: characterIdMap.get(relationship.fromCharacterId) ?? relationship.fromCharacterId,
+      toCharacterId: characterIdMap.get(relationship.toCharacterId) ?? relationship.toCharacterId,
+    })),
+    openingScene: {
+      ...world.openingScene,
+      presentCharacterIds: world.openingScene.presentCharacterIds.map((id) => characterIdMap.get(id) ?? id),
+    },
+  };
+}
+
+function enforceRolePerspective(choice: StoryChoice, selectedRole: Role, availableRoles: Role[]): StoryChoice {
+  const label = choice.label.trim();
+  const selectedPrefix = `${selectedRole.name}：`;
+  if (label.startsWith(selectedPrefix)) return choice;
+  if (label.startsWith(selectedRole.name)) {
+    return { ...choice, label: `${selectedPrefix}${label.slice(selectedRole.name.length).replace(/^[\s，,:：]+/, '')}` };
+  }
+  const foreignActor = availableRoles.find((role) => role.id !== selectedRole.id && label.startsWith(role.name));
+  if (foreignActor) {
+    return {
+      ...choice,
+      label: `${selectedPrefix}针对${foreignActor.name}的行动作出回应，并${choice.clue}`,
+    };
+  }
+  return { ...choice, label: `${selectedPrefix}${label}` };
+}
+
+function enforceBeatPerspective(beat: StoryBeat, selectedRole: Role, availableRoles: Role[]): StoryBeat {
+  return {
+    ...beat,
+    choices: beat.choices.map((choice) => enforceRolePerspective(choice, selectedRole, availableRoles)),
+  };
+}
+
+function responseToStoryBeat(response: WorldTurnResponse, fallback: StoryBeat, availableRoles: Role[], selectedRole: Role, world?: WorldDefinition): StoryBeat {
+  const firstDialogue = response.dialogue[0];
+  const speaker = availableRoles.find((role) => role.id === firstDialogue?.characterId)?.name ?? fallback.speaker;
+  const dialogue = response.dialogue.map((item) => item.text).join('\n') || fallback.dialogue;
+  const choices = response.nextChoices.length > 0
+    ? response.nextChoices.map((choice) => enforceRolePerspective({
+      label: choice.label,
+      result: `你选择了“${choice.label}”。`,
+      clue: choice.intent,
+      relationDelta: 3,
+    }, selectedRole, availableRoles))
+    : fallback.choices.map((choice) => enforceRolePerspective(choice, selectedRole, availableRoles));
+  return {
+    title: fallback.title,
+    location: world?.locations.find((location) => location.id === response.statePatch.locationId)?.name
+      || response.statePatch.locationId
+      || fallback.location,
+    text: response.narrative,
+    speaker,
+    dialogue,
+    choices,
+  };
+}
+
+const surpriseLabels = ['平稳推进', '偶有插曲', '充满变数', '命运难料'];
+
+function toAgentMemories(values: string[]): AgentMemory[] {
+  return values.map((value, index) => ({
+    id: `saved-memory-${index + 1}`,
+    category: /悬疑|推理/.test(value) ? 'genre' : /角色|关系/.test(value) ? 'character' : /意外|平稳/.test(value) ? 'surprise' : 'interaction',
+    value,
+    confidence: 1,
+    source: 'explicit',
+    requiresConfirmation: false,
+  }));
+}
+
+function buildWorldDefinition(
+  kind: 'storm' | 'draft',
+  title: string,
+  premise: string,
+  availableRoles: Role[],
+  story: StoryBeat[],
+  surpriseLevel: number,
+): WorldDefinition {
+  const locationIds = new Map<string, string>();
+  story.forEach((beat, index) => locationIds.set(beat.location, `location-${index + 1}`));
+  return {
+    id: kind === 'storm' ? 'storm-manor' : 'draft-lighthouse',
+    title,
+    premise,
+    timeSetting: kind === 'storm' ? '暴雨封山的午夜之前' : '雾潮抵达顶峰前的二十分钟',
+    locations: story.map((beat, index) => ({
+      id: locationIds.get(beat.location) ?? `location-${index + 1}`,
+      name: beat.location,
+      description: beat.text,
+      connectedLocationIds: story[index + 1] ? [locationIds.get(story[index + 1].location) ?? `location-${index + 2}`] : [],
+    })),
+    characters: availableRoles.map((role) => ({
+      id: role.id,
+      name: role.name,
+      identity: role.identity,
+      persona: role.personality,
+      publicBackground: role.publicStory,
+      privateKnowledge: [role.secret],
+      secrets: [role.secret],
+      goal: role.goal,
+      startLocationId: locationIds.get(story[0].location) ?? 'location-1',
+      imagePrompt: `${role.visualAnchor}，${role.identity}，${role.personality}，电影感角色立绘`,
+    })),
+    relationships: availableRoles.slice(1).map((role) => ({
+      fromCharacterId: availableRoles[0].id,
+      toCharacterId: role.id,
+      publicLabel: '共同卷入核心事件，但彼此掌握的信息不同',
+      initialTrust: 42,
+    })),
+    rules: [
+      { id: 'physical-consistency', description: '遵守现实物理规律，行动必须具备可执行条件。', kind: 'physical', immutable: true },
+      { id: 'limited-knowledge', description: '角色只能使用自己知道或已经发现的信息。', kind: 'knowledge', immutable: true },
+      { id: 'committed-history', description: '已经发生的事件不能被后续叙事无故推翻。', kind: 'story', immutable: true },
+    ],
+    coreEvent: premise,
+    surpriseLevel: normalizeSurpriseLevel(surpriseLevel),
+    endingConditions: [{ id: 'core-event', description: '完成角色目标并对核心事件作出决定。', requiredFacts: ['核心真相', '最终选择'] }],
+    openingScene: {
+      locationId: locationIds.get(story[0].location) ?? 'location-1',
+      narrative: story[0].text,
+      presentCharacterIds: availableRoles.map((role) => role.id),
+      choices: story[0].choices.map((choice, index) => ({
+        id: `opening-choice-${index + 1}`,
+        label: choice.label,
+        intent: choice.clue,
+      })),
+    },
+  };
+}
+
+function stableVisualSeed(value: string) {
+  let hash = 2_166_136_261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16_777_619);
+  }
+  return hash >>> 0;
+}
+
+function makeImageCacheKey(worldKind: 'storm' | 'draft', roleId: string, sceneId: string) {
+  return `${worldKind}:${roleId}:${sceneId}`;
+}
+
+function toSceneContext(beat: StoryBeat, sceneIndex: number, availableRoles: Role[]): WorldTurnRequest['currentScene'] {
+  return {
+    id: `scene-${sceneIndex + 1}`,
+    title: beat.title,
+    narrative: beat.text,
+    speakerCharacterId: availableRoles.find((role) => role.name === beat.speaker)?.id,
+    dialogue: beat.dialogue,
+    choices: beat.choices.map((choice, index) => ({
+      id: `scene-${sceneIndex + 1}-choice-${index + 1}`,
+      label: choice.label,
+      intent: choice.clue,
+      outcomeHint: choice.result,
+      statePatchHint: { addClues: [choice.clue], relationshipDeltas: { world: choice.relationDelta } },
+    })),
+  };
+}
+
+export default function Home() {
+  const [view, setView] = useState<View>('home');
+  const [message, setMessage] = useState('');
+  const [agentReply, setAgentReply] = useState(
+    '上午好。今天想进入一段怎样的经历？你可以告诉我想见什么样的人，或者想处理怎样的事件。',
+  );
+  const [modelMode, setModelMode] = useState<ModelMode>('checking');
+  const [imageModelMode, setImageModelMode] = useState<ImageModelMode>('checking');
+  const [agentThinking, setAgentThinking] = useState(false);
+  const [recommendationReason, setRecommendationReason] = useState('因为你喜欢从人物关系里寻找真相');
+  const [memories, setMemories] = useState(['偏爱悬疑', '喜欢角色关系', '接受适度意外']);
+  const [memoryEditing, setMemoryEditing] = useState(false);
+  const [selectedRole, setSelectedRole] = useState<Role>(roles[0]);
+  const [turn, setTurn] = useState(0);
+  const [narrative, setNarrative] = useState(roleStoryBeats[roles[0].id][0].text);
+  const [lastAction, setLastAction] = useState('');
+  const [endingDecision, setEndingDecision] = useState('');
+  const [freeAction, setFreeAction] = useState('');
+  const [worldState, setWorldState] = useState(() => createInitialWorldState('storm', roles[0].id, roles[0].secret, roleStoryBeats[roles[0].id][0].location));
+  const [actionFeedback, setActionFeedback] = useState<ActionValidation | null>(null);
+  const [lastIncident, setLastIncident] = useState<WorldIncident | null>(null);
+  const [imageTask, setImageTask] = useState<ImageTask>(() => createInitialImageTask('/assets/storm-manor-cover.png'));
+  const [isThinking, setIsThinking] = useState(false);
+  const [liveMode, setLiveMode] = useState(false);
+  const [createStep, setCreateStep] = useState(1);
+  const [surprise, setSurprise] = useState(2);
+  const [worldTitle, setWorldTitle] = useState('');
+  const [worldSeed, setWorldSeed] = useState('');
+  const [generated, setGenerated] = useState(false);
+  const [generatedWorld, setGeneratedWorld] = useState<WorldDefinition | null>(null);
+  const [generatedStoryOutline, setGeneratedStoryOutline] = useState<StoryOutlineBeat[]>([]);
+  const [worldGenerating, setWorldGenerating] = useState(false);
+  const [runtimeBeat, setRuntimeBeat] = useState<StoryBeat | null>(null);
+  const [roleImages, setRoleImages] = useState<Record<string, string>>({});
+  const [roleImageStates, setRoleImageStates] = useState<Record<string, 'idle' | 'generating' | 'ready' | 'error'>>({});
+  const [publishedWorld, setPublishedWorld] = useState(false);
+  const [savedRun, setSavedRun] = useState<SavedRun | null>(null);
+  const [activeWorld, setActiveWorld] = useState<'storm' | 'draft'>('storm');
+  const [draftRoles, setDraftRoles] = useState([
+    { name: '许知遥', identity: '民俗学研究生', personality: '理性、好奇、怕欠人情', relationship: '为调查失踪渔船首次上岛，对陆沉保持警惕', appearance: '二十四岁，齐肩黑发，墨绿色防风外套，随身携带旧笔记本' },
+    { name: '陆沉', identity: '守塔人', personality: '寡言、谨慎、极度守时', relationship: '受上一任守塔人委托保护许知遥，却不愿说明原因', appearance: '三十一岁，黑色短发，深蓝守塔人工作服，左腕佩戴旧机械表' },
+  ]);
+  const [navScrolled, setNavScrolled] = useState(false);
+  const [storageReady, setStorageReady] = useState(false);
+  const responseTimerRef = useRef<number | null>(null);
+  const streamTimerRef = useRef<number | null>(null);
+  const generationControllerRef = useRef<AbortController | null>(null);
+  const imageControllerRef = useRef<AbortController | null>(null);
+  const imageRequestRef = useRef(0);
+  const roleImageRequestRef = useRef<Record<string, number>>({});
+
+  const playableDraftRoles = makePlayableDraftRoles(draftRoles).map((role, index) => {
+    const generatedCharacter = generatedWorld?.characters[index];
+    return {
+      ...role,
+      personality: generatedCharacter?.persona || role.personality,
+      publicStory: generatedCharacter?.publicBackground || role.publicStory,
+      secret: generatedCharacter?.secrets[0] || role.secret,
+      goal: generatedCharacter?.goal || role.goal,
+      visualAnchor: generatedCharacter?.imagePrompt || role.visualAnchor,
+      imageUrl: roleImages[role.id],
+    };
+  });
+  const currentRoles = activeWorld === 'draft' ? playableDraftRoles : roles;
+  const draftStories = generatedWorld && generatedStoryOutline.length > 0
+    ? makeGeneratedDraftStory(playableDraftRoles, generatedWorld, generatedStoryOutline)
+    : makeDraftStory(playableDraftRoles, worldSeed);
+  const currentStory = activeWorld === 'draft' ? draftStories[selectedRole.id] : roleStoryBeats[selectedRole.id];
+  const currentBeat = enforceBeatPerspective(
+    runtimeBeat ?? currentStory[Math.min(turn, currentStory.length - 1)],
+    selectedRole,
+    currentRoles,
+  );
+  const activeWorldTitle = activeWorld === 'draft' ? (worldTitle || '雾潮灯塔：第十三次守夜') : '暴雨山庄：缺席的继承人';
+  const activeSurprise = activeWorld === 'draft' ? surprise : 2;
+  const selectedRoleIndex = currentRoles.findIndex((role) => role.id === selectedRole.id);
+
+  useEffect(() => {
+    const onScroll = () => setNavScrolled(window.scrollY > 32);
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    void Promise.all([getRemoteAIStatus(), getRemoteImageStatus()]).then(([textStatus, imageStatus]) => {
+      if (!active) return;
+      setModelMode(textStatus.configured ? 'real' : 'mock');
+      setImageModelMode(imageStatus.configured ? 'real' : 'off');
+    }).catch(() => {
+      if (!active) return;
+      setModelMode('mock');
+      setImageModelMode('off');
+    });
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => () => {
+    if (responseTimerRef.current !== null) window.clearTimeout(responseTimerRef.current);
+    if (streamTimerRef.current !== null) window.clearInterval(streamTimerRef.current);
+    generationControllerRef.current?.abort();
+    imageControllerRef.current?.abort();
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      try {
+        const raw = window.localStorage.getItem(demoStorageKey);
+        if (raw) {
+          const saved = JSON.parse(raw) as Partial<PersistedDemoState>;
+          if (Array.isArray(saved.memories)) setMemories(saved.memories.slice(0, 6));
+          if (typeof saved.liveMode === 'boolean') setLiveMode(saved.liveMode);
+          if (typeof saved.surprise === 'number') setSurprise(Math.max(1, Math.min(4, saved.surprise)));
+          if (typeof saved.worldTitle === 'string') setWorldTitle(saved.worldTitle);
+          if (typeof saved.worldSeed === 'string') setWorldSeed(saved.worldSeed);
+          if (typeof saved.generated === 'boolean') setGenerated(saved.generated);
+          if (typeof saved.publishedWorld === 'boolean') setPublishedWorld(saved.publishedWorld);
+          if (saved.generatedWorld
+            && typeof saved.generatedWorld.title === 'string'
+            && Array.isArray(saved.generatedWorld.characters)
+            && saved.generatedWorld.openingScene
+            && Array.isArray(saved.generatedWorld.openingScene.choices)) {
+            setGeneratedWorld(saved.generatedWorld);
+          }
+          if (Array.isArray(saved.generatedStoryOutline)
+            && saved.generatedStoryOutline.every((beat) => beat && typeof beat.title === 'string' && typeof beat.location === 'string')) {
+            setGeneratedStoryOutline(saved.generatedStoryOutline);
+          }
+          if (isSavedRun(saved.savedRun)) setSavedRun(saved.savedRun);
+          if (Array.isArray(saved.draftRoles) && saved.draftRoles.length > 0) {
+            setDraftRoles(saved.draftRoles.map((role) => ({ ...role, relationship: role.relationship ?? '', appearance: role.appearance ?? '' })));
+          }
+        }
+      } catch {
+        window.localStorage.removeItem(demoStorageKey);
+      }
+      setStorageReady(true);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    if (!storageReady) return;
+    const snapshot: PersistedDemoState = {
+      memories,
+      liveMode,
+      surprise,
+      worldTitle,
+      worldSeed,
+      generated,
+      publishedWorld,
+      draftRoles,
+      generatedWorld: generatedWorld ?? undefined,
+      generatedStoryOutline,
+      savedRun: savedRun ?? undefined,
+    };
+    window.localStorage.setItem(demoStorageKey, JSON.stringify(snapshot));
+  }, [draftRoles, generated, generatedStoryOutline, generatedWorld, liveMode, memories, publishedWorld, savedRun, storageReady, surprise, worldSeed, worldTitle]);
+
+  useEffect(() => {
+    if (!storageReady) return;
+    let active = true;
+    void Promise.all(Array.from({ length: draftRoles.length }, async (_, index) => {
+      const roleId = `draft-role-${index}`;
+      return [roleId, await getCachedSceneImage(`creator:${roleId}`).catch(() => null)] as const;
+    })).then((entries) => {
+      if (!active) return;
+      const restored = Object.fromEntries(entries.filter((entry): entry is readonly [string, string] => Boolean(entry[1])));
+      if (Object.keys(restored).length > 0) setRoleImages((current) => ({ ...current, ...restored }));
+    });
+    return () => { active = false; };
+  }, [draftRoles.length, storageReady]);
+
+  useEffect(() => {
+    if (!storageReady || isThinking || actionFeedback?.allowed === false || (view !== 'play' && view !== 'ending')) return;
+    const timer = window.setTimeout(() => {
+      setSavedRun({
+        version: 1,
+        worldKind: activeWorld,
+        worldTitle: activeWorldTitle,
+        surpriseLevel: activeSurprise,
+        roleId: selectedRole.id,
+        turn,
+        narrative,
+        lastAction,
+        lastIncident,
+        endingDecision,
+        worldState,
+        status: view === 'ending' ? 'ending' : 'playing',
+        imageCacheKey: imageTask.cacheKey,
+        currentBeat,
+        savedAt: Date.now(),
+      });
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [actionFeedback, activeSurprise, activeWorld, activeWorldTitle, currentBeat, endingDecision, imageTask.cacheKey, isThinking, lastAction, lastIncident, narrative, selectedRole.id, storageReady, turn, view, worldState]);
+
+  useEffect(() => {
+    const context = document.modelContext;
+    if (!context?.registerTool) return;
+    const lifecycle = new AbortController();
+    void Promise.resolve(
+      context.registerTool(
+        {
+          name: 'start_world_exploration',
+          title: '开始探索小世界',
+          description: '打开暴雨山庄的角色选择页，让用户选择一个身份进入世界。',
+          inputSchema: {
+            type: 'object',
+            properties: { worldId: { type: 'string', enum: ['storm-manor'] } },
+            required: ['worldId'],
+            additionalProperties: false,
+          },
+          annotations: { readOnlyHint: false, untrustedContentHint: false },
+          execute(input) {
+            const worldId = (input as { worldId?: string })?.worldId;
+            if (worldId !== 'storm-manor') throw new Error('未知的世界 ID');
+            setActiveWorld('storm');
+            setSelectedRole(roles[0]);
+            setView('roles');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            return { worldId, status: 'role_selection_opened' };
+          },
+        },
+        { signal: lifecycle.signal },
+      ),
+    ).catch(() => undefined);
+    return () => lifecycle.abort();
+  }, []);
+
+  function navigate(next: View) {
+    if (next !== 'play') stopActiveGeneration();
+    setView(next);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function stopActiveGeneration() {
+    if (responseTimerRef.current !== null) {
+      window.clearTimeout(responseTimerRef.current);
+      responseTimerRef.current = null;
+    }
+    if (streamTimerRef.current !== null) {
+      window.clearInterval(streamTimerRef.current);
+      streamTimerRef.current = null;
+    }
+    generationControllerRef.current?.abort();
+    generationControllerRef.current = null;
+    cancelImageTask();
+    setIsThinking(false);
+  }
+
+  function cancelImageTask() {
+    imageRequestRef.current += 1;
+    imageControllerRef.current?.abort();
+    imageControllerRef.current = null;
+    setImageTask((current) => current.status === 'generating'
+      ? { ...current, status: 'reused', message: '旧图片任务已停止，继续使用当前场景图' }
+      : current);
+  }
+
+  function applyImageDirective(directive: ImageDirective, context: {
+    sceneTitle: string;
+    narrative: string;
+  }) {
+    cancelImageTask();
+    const requestId = imageRequestRef.current;
+    setImageTask((current) => startImageTask(current, directive, requestId));
+    if (!directive.required || directive.reason === 'reuse') return;
+
+    if (imageModelMode !== 'real') {
+      setImageTask((current) => finishImageTask(current, requestId, {
+        error: imageModelMode === 'fallback' ? '生图服务暂时不可用，已复用上一张场景图' : '图片模型未配置，已复用上一张场景图',
+      }));
+      return;
+    }
+
+    const imageController = new AbortController();
+    imageControllerRef.current = imageController;
+    const cast = currentRoles.map((role) => `${role.name}：${role.visualAnchor}；性格为${role.personality}`).join('。');
+    const prompt = ((directive.prompt?.trim() || `${activeWorldTitle}，${context.sceneTitle}。${context.narrative}。角色：${cast}。`).slice(0, 3_200)
+      + ` 角色视觉圣经：${cast}。严格保持每个角色的年龄、发型、服装、配饰和体态连续。电影感叙事插画，横向宽银幕构图，暗色克制氛围，环境细节清晰，无文字、无字幕、无水印、无界面元素。`).slice(0, 3_900);
+    const cacheKey = makeImageCacheKey(activeWorld, selectedRole.id, directive.sceneId);
+    const seed = stableVisualSeed(`${activeWorld}:${activeWorldTitle}:${selectedRole.id}`);
+    void getCachedSceneImage(cacheKey).catch(() => null).then(async (cachedAssetUrl) => {
+      if (imageRequestRef.current !== requestId || imageController.signal.aborted) return;
+      if (cachedAssetUrl) {
+        imageControllerRef.current = null;
+        setImageTask((current) => finishImageTask(current, requestId, {
+          assetUrl: cachedAssetUrl,
+          cacheKey,
+        }));
+        return;
+      }
+      const result = await generateSceneImage({ requestId, sceneId: directive.sceneId, prompt, seed }, imageController.signal);
+      if (imageRequestRef.current !== requestId || imageController.signal.aborted) return;
+      const cached = result.persistent
+        ? await cacheSceneImage(cacheKey, result.assetUrl).catch(() => false)
+        : false;
+      if (imageRequestRef.current !== requestId || imageController.signal.aborted) return;
+      imageControllerRef.current = null;
+      setImageTask((current) => finishImageTask(current, requestId, {
+        assetUrl: result.assetUrl,
+        cacheKey: cached ? cacheKey : undefined,
+      }));
+    }).catch((error: unknown) => {
+      if (error instanceof DOMException && error.name === 'AbortError') return;
+      if (imageRequestRef.current !== requestId) return;
+      imageControllerRef.current = null;
+      setImageModelMode('fallback');
+      setImageTask((current) => finishImageTask(current, requestId, {
+        error: '硅基流动生图失败，已复用上一张场景图',
+      }));
+    });
+  }
+
+  async function runAI<T>(operation: (adapter: AIAdapter) => Promise<T>): Promise<T> {
+    if (modelMode === 'real' || modelMode === 'fallback') {
+      try {
+        const result = await operation(remoteAIAdapter);
+        setModelMode('real');
+        return result;
+      } catch {
+        setModelMode('fallback');
+      }
+    }
+    return operation(mockAIAdapter);
+  }
+
+  function openStormWorld() {
+    setActiveWorld('storm');
+    setSelectedRole(roles[0]);
+    setRuntimeBeat(null);
+    navigate('roles');
+  }
+
+  function openDraftWorld() {
+    const nextRoles = makePlayableDraftRoles(draftRoles);
+    if (nextRoles.length === 0) return;
+    setActiveWorld('draft');
+    setSelectedRole(nextRoles[0]);
+    setRuntimeBeat(null);
+    navigate('roles');
+  }
+
+  function resumeSavedWorld() {
+    if (!savedRun) return;
+    const savedRoles = savedRun.worldKind === 'draft' ? playableDraftRoles : roles;
+    const savedRole = savedRoles.find((role) => role.id === savedRun.roleId);
+    if (!savedRole) {
+      setSavedRun(null);
+      return;
+    }
+    stopActiveGeneration();
+    setActiveWorld(savedRun.worldKind);
+    if (savedRun.worldKind === 'draft') setSurprise(normalizeSurpriseLevel(savedRun.surpriseLevel));
+    setSelectedRole(savedRole);
+    setTurn(savedRun.turn);
+    setRuntimeBeat(savedRun.currentBeat ?? null);
+    setNarrative(savedRun.narrative);
+    setLastAction(savedRun.lastAction);
+    setEndingDecision(savedRun.endingDecision);
+    setWorldState(savedRun.worldState);
+    setActionFeedback(null);
+    setLastIncident(savedRun.lastIncident);
+    const restoredSceneId = `scene-${savedRun.turn + 1}`;
+    const restoreRequestId = imageRequestRef.current;
+    setImageTask({
+      ...createInitialImageTask('/assets/storm-manor-cover.png'),
+      requestId: restoreRequestId,
+      sceneId: restoredSceneId,
+      status: savedRun.imageCacheKey && savedRun.status === 'playing' ? 'generating' : 'reused',
+      message: savedRun.imageCacheKey && savedRun.status === 'playing' ? '正在恢复保存的场景图' : '已恢复探索进度',
+    });
+    if (savedRun.imageCacheKey && savedRun.status === 'playing') {
+      void getCachedSceneImage(savedRun.imageCacheKey).then((assetUrl) => {
+        if (imageRequestRef.current !== restoreRequestId) return;
+        setImageTask((current) => assetUrl
+          ? { ...current, status: 'ready', assetUrl, cacheKey: savedRun.imageCacheKey, message: '已恢复保存的场景图' }
+          : { ...current, status: 'reused', message: '场景图缓存已失效，已使用世界封面' });
+      }).catch(() => {
+        if (imageRequestRef.current !== restoreRequestId) return;
+        setImageTask((current) => ({ ...current, status: 'reused', message: '场景图恢复失败，已使用世界封面' }));
+      });
+    }
+    navigate(savedRun.status === 'ending' ? 'ending' : 'play');
+  }
+
+  async function submitMessage(event: SyntheticEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const value = message.trim();
+    if (!value || agentThinking) return;
+    setMessage('');
+    setAgentThinking(true);
+    try {
+      const response = await runAI((adapter) => adapter.talkToPersonalAgent({
+        contractVersion: AI_CONTRACT_VERSION,
+        userMessage: value,
+        currentMemories: toAgentMemories(memories),
+        recentExperiences: [],
+        availableWorldIds: publishedWorld ? ['storm-manor', 'draft-lighthouse'] : ['storm-manor'],
+      }));
+      setAgentReply(response.reply);
+      const learned = response.memoryCandidates.filter((memory) => !memory.requiresConfirmation).map((memory) => memory.value);
+      setMemories((current) => [...learned, ...current.filter((memory) => !learned.includes(memory))].slice(0, 6));
+      if (response.recommendations[0]) setRecommendationReason(response.recommendations[0].reason);
+    } catch {
+      setAgentReply('刚才没有成功整理这条偏好。你可以再说一次，原有记忆不会丢失。');
+    } finally {
+      setAgentThinking(false);
+    }
+  }
+
+  function beginWorld() {
+    stopActiveGeneration();
+    const openingBeat = currentStory[0];
+    setTurn(0);
+    setRuntimeBeat(openingBeat);
+    setNarrative(openingBeat.text);
+    setLastAction('');
+    setEndingDecision('');
+    setWorldState(createInitialWorldState(
+      activeWorld,
+      selectedRole.id,
+      selectedRole.secret,
+      openingBeat.location,
+      activeWorld === 'draft' && generatedWorld
+        ? { timeSetting: generatedWorld.timeSetting, coreEvent: generatedWorld.coreEvent }
+        : undefined,
+    ));
+    setActionFeedback(null);
+    setLastIncident(null);
+    setImageTask(createInitialImageTask('/assets/storm-manor-cover.png'));
+    applyImageDirective({
+      required: true,
+      reason: 'opening',
+      sceneId: `${activeWorld}-opening-${selectedRole.id}`,
+      prompt: `${activeWorldTitle}，${openingBeat.title}。${openingBeat.text}。体验者代入${selectedRole.name}，${selectedRole.identity}，${selectedRole.personality}。`,
+    }, { sceneTitle: openingBeat.title, narrative: openingBeat.text });
+    navigate('play');
+  }
+
+  function continueWorld() {
+    cancelImageTask();
+    setTurn(2);
+    const continuedNarrative =
+      activeWorld === 'draft'
+        ? `既定结局之后，${activeWorldTitle}中的人仍要面对选择留下的后果。一条此前被忽略的信息让已经形成的关系再次发生变化，这个世界因此继续运转。`
+        : '天已经亮了，但你拒绝让这个世界停在既定结局。地下通道尽头的无线电台突然亮起，传来了一个本不该出现的人的声音。';
+    setNarrative(continuedNarrative);
+    setRuntimeBeat((current) => ({
+      ...(current ?? currentStory[Math.min(2, currentStory.length - 1)]),
+      title: '结局之后的新信号',
+      text: continuedNarrative,
+    }));
+    setLastAction('拒绝在既定结局停下');
+    setWorldState((current) => commitTurn(current, {
+      action: '拒绝在既定结局停下',
+      result: '结局后的世界继续运转，新的信号出现了。',
+      clue: '结局后仍在工作的无线电台',
+      nextLocation: current.location,
+      relationshipDelta: 0,
+    }));
+    setActionFeedback(null);
+    setLastIncident(null);
+    setImageTask((current) => ({ ...current, requestId: imageRequestRef.current, sceneId: 'post-ending', status: 'reused', reason: 'reuse', message: '结局后继续复用当前场景图' }));
+    navigate('play');
+  }
+
+  function takeAction(action: string) {
+    const nextAction = action.trim();
+    if (!nextAction || (isThinking && !liveMode)) return;
+    const validation = validateAction(nextAction, worldState, currentBeat.choices.map((choice) => choice.label));
+    if (!validation.allowed) {
+      setActionFeedback(validation);
+      setWorldState((current) => recordRejectedEvent(current, nextAction, validation.reason ?? '行动未通过世界规则检查。'));
+      return;
+    }
+    const wasStreaming = streamTimerRef.current !== null;
+    const preservedText = wasStreaming && narrative
+      ? `${narrative}\n\n【你在生成过程中介入，改为：${nextAction}】\n\n`
+      : '';
+    if (isThinking) {
+      stopActiveGeneration();
+      setWorldState((current) => recordInterruptedEvent(current, lastAction || '上一个行动'));
+    } else cancelImageTask();
+    setActionFeedback(null);
+    setLastIncident(null);
+    setLastAction(nextAction);
+    setFreeAction('');
+    setIsThinking(true);
+    const nextTurn = turn + 1;
+    const chosen = currentBeat.choices.find((choice) => choice.label === nextAction);
+    const runtimeWorld = activeWorld === 'draft' && generatedWorld
+      ? generatedWorld
+      : buildWorldDefinition(
+        activeWorld,
+        activeWorldTitle,
+        activeWorld === 'draft' ? worldSeed : currentStory[0].text,
+        currentRoles,
+        currentStory,
+        activeSurprise,
+      );
+    const request: WorldTurnRequest = {
+      contractVersion: AI_CONTRACT_VERSION,
+      world: runtimeWorld,
+      selectedRoleId: selectedRole.id,
+      userAction: nextAction,
+      state: worldState,
+      recentTurns: worldState.eventLedger.filter((event) => event.status === 'committed').slice(-4).map((event) => ({ action: event.action, result: event.result })),
+      currentScene: toSceneContext(currentBeat, turn, currentRoles),
+      nextScene: nextTurn < currentStory.length ? toSceneContext(currentStory[nextTurn], nextTurn, currentRoles) : undefined,
+      interruptedDraft: preservedText || undefined,
+    };
+    const generationController = new AbortController();
+    generationControllerRef.current = generationController;
+    responseTimerRef.current = window.setTimeout(() => {
+      responseTimerRef.current = null;
+      void runAI((adapter) => adapter.advanceWorld(request, generationController.signal)).then((response) => {
+        if (generationController.signal.aborted) return;
+        generationControllerRef.current = null;
+        if (!response.actionDecision.allowed) {
+          const rejected = {
+            allowed: false,
+            reason: response.actionDecision.reason,
+            suggestion: response.actionDecision.suggestedAlternative,
+          } satisfies ActionValidation;
+          setActionFeedback(rejected);
+          setWorldState((current) => recordRejectedEvent(current, nextAction, rejected.reason ?? '行动未通过世界规则检查。'));
+          setIsThinking(false);
+          return;
+        }
+        applyImageDirective(response.image, {
+          sceneTitle: currentStory[nextTurn]?.title ?? '阶段结局',
+          narrative: response.narrative,
+        });
+        const responseClue = response.statePatch.addClues?.[0] ?? chosen?.clue ?? '你的自由行动改变了调查方向';
+        const responseRelation = response.statePatch.relationshipDeltas?.world ?? chosen?.relationDelta ?? 5;
+        if (response.ending.reached) {
+          setWorldState((current) => commitTurn(current, {
+            action: nextAction,
+            result: response.narrative,
+            clue: responseClue,
+            nextLocation: current.location,
+            relationshipDelta: responseRelation,
+            clock: response.statePatch.clock,
+            addInventory: response.statePatch.addInventory,
+            removeInventory: response.statePatch.removeInventory,
+            addKnownSecrets: response.statePatch.addKnownSecrets,
+          }));
+          setMemories((current) => Array.from(new Set([`在${activeWorldTitle}选择了${selectedRole.name}`, '倾向主动调查', ...current])).slice(0, 6));
+          setEndingDecision(response.narrative);
+          setIsThinking(false);
+          navigate('ending');
+          return;
+        }
+        setTurn(nextTurn);
+        setLastIncident(response.incident ?? null);
+        const fallbackBeat = currentStory[Math.min(nextTurn, currentStory.length - 1)] ?? currentBeat;
+        const nextBeat = responseToStoryBeat(response, fallbackBeat, currentRoles, selectedRole, runtimeWorld);
+        setRuntimeBeat(nextBeat);
+        const fullNarrative = `${preservedText}${response.narrative}`;
+        const finishTurn = () => {
+          setWorldState((current) => commitTurn(current, {
+            action: nextAction,
+            result: response.statePatch.committedFacts[0] ?? response.narrative,
+            clue: responseClue,
+            nextLocation: nextBeat.location,
+            relationshipDelta: responseRelation,
+            incident: response.incident,
+            clock: response.statePatch.clock,
+            addInventory: response.statePatch.addInventory,
+            removeInventory: response.statePatch.removeInventory,
+            addKnownSecrets: response.statePatch.addKnownSecrets,
+          }));
+          setIsThinking(false);
+        };
+        if (!liveMode) {
+          setNarrative(fullNarrative);
+          finishTurn();
+          return;
+        }
+        setNarrative('');
+        let cursor = 0;
+        streamTimerRef.current = window.setInterval(() => {
+          cursor = Math.min(fullNarrative.length, cursor + 5);
+          setNarrative(fullNarrative.slice(0, cursor));
+          if (cursor >= fullNarrative.length) {
+            if (streamTimerRef.current !== null) window.clearInterval(streamTimerRef.current);
+            streamTimerRef.current = null;
+            finishTurn();
+          }
+        }, 34);
+      }).catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === 'AbortError') return;
+        generationControllerRef.current = null;
+        setActionFeedback({ allowed: false, reason: '世界暂时没有成功回应这个行动。', suggestion: '请重试，或选择另一种行动。' });
+        setIsThinking(false);
+      });
+    }, liveMode ? 140 : 680);
+  }
+
+  function updateDraftRole(index: number, key: keyof DraftRole, value: string) {
+    setDraftRoles((current) => current.map((role, roleIndex) => (roleIndex === index ? { ...role, [key]: value } : role)));
+    if (key === 'name' || key === 'identity' || key === 'personality' || key === 'appearance') {
+      const roleId = `draft-role-${index}`;
+      setRoleImages((current) => Object.fromEntries(Object.entries(current).filter(([id]) => id !== roleId)));
+      setRoleImageStates((current) => ({ ...current, [roleId]: 'idle' }));
+    }
+  }
+
+  function addDraftRole() {
+    setDraftRoles((current) => [...current, { name: '', identity: '', personality: '', relationship: '', appearance: '' }]);
+    setGenerated(false);
+    setGeneratedWorld(null);
+    setGeneratedStoryOutline([]);
+  }
+
+  function removeDraftRole(index: number) {
+    setDraftRoles((current) => current.length <= 2 ? current : current.filter((_, roleIndex) => roleIndex !== index));
+    setRoleImages({});
+    setRoleImageStates({});
+    setGenerated(false);
+    setGeneratedWorld(null);
+    setGeneratedStoryOutline([]);
+  }
+
+  async function generateRoleImage(index: number) {
+    const role = draftRoles[index];
+    if (!role) return;
+    const roleId = `draft-role-${index}`;
+    const requestId = (roleImageRequestRef.current[roleId] ?? 0) + 1;
+    roleImageRequestRef.current[roleId] = requestId;
+    setRoleImageStates((current) => ({ ...current, [roleId]: 'generating' }));
+    const prompt = `单人角色设定立绘，${role.name || `角色${index + 1}`}，身份：${role.identity || '身份待定'}，性格：${role.personality || '性格待定'}，固定外观：${role.appearance || '由身份与性格自然设计外貌和服装'}。全身或四分之三身，正面略侧身，人物完整，电影感写实叙事插画，统一暗色背景，服装和配饰细节清楚，无文字、无水印、无边框、无其他人物。`;
+    try {
+      const result = await generateSceneImage({
+        requestId,
+        sceneId: `character-${roleId}`,
+        prompt,
+        seed: stableVisualSeed(`character:${roleId}:${role.name}:${role.appearance}`),
+      });
+      if (roleImageRequestRef.current[roleId] !== requestId) return;
+      const cacheKey = `creator:${roleId}`;
+      if (result.persistent) await cacheSceneImage(cacheKey, result.assetUrl).catch(() => false);
+      setRoleImages((current) => ({ ...current, [roleId]: result.assetUrl }));
+      setRoleImageStates((current) => ({ ...current, [roleId]: 'ready' }));
+    } catch {
+      if (roleImageRequestRef.current[roleId] !== requestId) return;
+      setRoleImageStates((current) => ({ ...current, [roleId]: 'error' }));
+    }
+  }
+
+  async function generateAllRoleImages() {
+    for (let index = 0; index < draftRoles.length; index += 1) {
+      await generateRoleImage(index);
+    }
+  }
+
+  async function generateWorld() {
+    if (worldGenerating) return;
+    setWorldGenerating(true);
+    try {
+      const response = await runAI((adapter) => adapter.generateWorld({
+        contractVersion: AI_CONTRACT_VERSION,
+        creatorIntent: worldTitle,
+        characters: draftRoles.map((role) => ({
+          name: role.name,
+          identity: role.identity,
+          persona: `${role.personality}${role.appearance ? `；固定外观：${role.appearance}` : ''}`,
+        })),
+        relationshipNotes: draftRoles.map((role) => role.relationship).filter(Boolean),
+        storySeed: worldSeed,
+        surpriseLevel: normalizeSurpriseLevel(surprise),
+        targetDurationMinutes: 10,
+      }));
+      const normalizedWorld = normalizeGeneratedWorld(response.world, draftRoles);
+      setGeneratedWorld(normalizedWorld);
+      setGeneratedStoryOutline(response.storyOutline);
+      setWorldTitle(normalizedWorld.title);
+      setWorldSeed(normalizedWorld.premise);
+      setDraftRoles((current) => current.map((role, index) => ({
+        ...role,
+        appearance: role.appearance || normalizedWorld.characters[index]?.imagePrompt || '',
+      })));
+      setGenerated(true);
+    } finally {
+      setWorldGenerating(false);
+    }
+  }
+
+  function acceptGeneratedPlot() {
+    if (!generatedWorld || generatedStoryOutline.length === 0) return;
+    setCreateStep(3);
+  }
+
+  function renderScreen() {
+    if (view === 'roles') return <RoleSelection worldTitle={activeWorldTitle} availableRoles={currentRoles} selected={selectedRole} onSelect={setSelectedRole} onBack={() => navigate('home')} onStart={beginWorld} />;
+    if (view === 'play') {
+      return (
+        <PlayWorld
+          role={selectedRole}
+          worldTitle={activeWorldTitle}
+          availableRoles={currentRoles}
+          roleIndex={selectedRoleIndex}
+          turn={turn}
+          beat={currentBeat}
+          narrative={narrative}
+          lastAction={lastAction}
+          clues={worldState.clues}
+          inventory={worldState.inventory}
+          eventLedger={worldState.eventLedger}
+          relation={worldState.relationshipTrust}
+          clock={worldState.clock}
+          location={worldState.location}
+          actionFeedback={actionFeedback}
+          surpriseLevel={activeSurprise}
+          incident={lastIncident}
+          imageTask={imageTask}
+          isThinking={isThinking}
+          liveMode={liveMode}
+          freeAction={freeAction}
+          onFreeAction={setFreeAction}
+          onLiveMode={setLiveMode}
+          onAction={takeAction}
+          onBack={() => navigate('roles')}
+        />
+      );
+    }
+    if (view === 'create') {
+      return (
+        <CreateWorld
+          step={createStep}
+          roles={draftRoles}
+          surprise={surprise}
+          generated={generated}
+          generating={worldGenerating}
+          worldTitle={worldTitle}
+          worldSeed={worldSeed}
+          storyOutline={generatedStoryOutline}
+          roleImages={roleImages}
+          roleImageStates={roleImageStates}
+          onStep={setCreateStep}
+          onAddRole={addDraftRole}
+          onRemoveRole={removeDraftRole}
+          onUpdateRole={updateDraftRole}
+          onSurprise={setSurprise}
+          onWorldTitle={setWorldTitle}
+          onWorldSeed={setWorldSeed}
+          onGenerate={generateWorld}
+          onAcceptPlot={acceptGeneratedPlot}
+          onGenerateRoleImage={(index) => { void generateRoleImage(index); }}
+          onGenerateAllRoleImages={() => { void generateAllRoleImages(); }}
+          onBack={() => navigate('home')}
+          onPublish={() => {
+            setAgentReply('你的新世界已经准备好。我会把它推荐给偏爱人物关系和互动故事的体验者。');
+            setMemories((current) => Array.from(new Set(['创建过小世界', ...current])).slice(0, 6));
+            setPublishedWorld(true);
+            window.setTimeout(openDraftWorld, 0);
+          }}
+        />
+      );
+    }
+    if (view === 'ending') return <Ending worldTitle={activeWorldTitle} role={selectedRole} decision={endingDecision} onContinue={continueWorld} onReplay={() => navigate('roles')} onHome={() => navigate('home')} />;
+    return (
+      <AgentHome
+        message={message}
+        agentReply={agentReply}
+        agentThinking={agentThinking}
+        recommendationReason={recommendationReason}
+        savedRun={savedRun}
+        savedRunRoleName={savedRun ? (savedRun.worldKind === 'draft' ? playableDraftRoles : roles).find((role) => role.id === savedRun.roleId)?.name ?? '未知角色' : ''}
+        memories={memories}
+        publishedWorld={publishedWorld}
+        publishedTitle={worldTitle || '雾潮灯塔：第十三次守夜'}
+        memoryEditing={memoryEditing}
+        onMessage={setMessage}
+        onSubmit={submitMessage}
+        onToggleMemory={() => setMemoryEditing((current) => !current)}
+        onRemoveMemory={(memory) => setMemories((current) => current.filter((item) => item !== memory))}
+        onRoles={openStormWorld}
+        onOpenPublished={openDraftWorld}
+        onResume={resumeSavedWorld}
+        onCreate={() => navigate('create')}
+      />
+    );
+  }
+
+  const screen = renderScreen();
+
+  return (
+    <main className="site-frame">
+      <div className="ambient-light" aria-hidden="true" />
+      <AppHeader view={view} scrolled={navScrolled} modelMode={modelMode} imageModelMode={imageModelMode} onHome={() => navigate('home')} onExplore={openStormWorld} onCreate={() => navigate('create')} />
+      {screen}
+    </main>
+  );
+}
+
+function AppHeader({
+  view,
+  scrolled,
+  modelMode,
+  imageModelMode,
+  onHome,
+  onExplore,
+  onCreate,
+}: {
+  view: View;
+  scrolled: boolean;
+  modelMode: ModelMode;
+  imageModelMode: ImageModelMode;
+  onHome: () => void;
+  onExplore: () => void;
+  onCreate: () => void;
+}) {
+  const statusMode = modelMode === 'checking' || imageModelMode === 'checking'
+    ? 'checking'
+    : modelMode === 'fallback' || imageModelMode === 'fallback'
+      ? 'fallback'
+      : modelMode;
+  const statusLabel = statusMode === 'checking'
+    ? '正在检查模型'
+    : modelMode === 'real' && imageModelMode === 'real'
+      ? 'DeepSeek 文本 · 硅基流动生图'
+      : modelMode === 'fallback'
+        ? 'DeepSeek 异常 · Mock 回退'
+        : imageModelMode === 'fallback'
+          ? 'DeepSeek 文本 · 生图暂时回退'
+          : modelMode === 'real'
+            ? 'DeepSeek 文本 · 图片未配置'
+            : '内部原型 · Mock AI';
+  return (
+    <header className="app-nav" data-scrolled={scrolled}>
+      <div className="nav-inner">
+        <div className="brand-cluster">
+          <button className="brand-mark" type="button" onClick={onHome} aria-label="小世界首页">
+            <span className="brand-orbit" aria-hidden="true"><span /></span>
+            <span>小世界</span>
+          </button>
+          <span className="prototype-badge" data-mode={statusMode}>
+            {statusLabel}
+          </span>
+        </div>
+        <nav className="nav-links" aria-label="主导航">
+          <button className={`nav-link ${view === 'home' ? 'nav-link-active' : ''}`} type="button" onClick={onHome}>
+            <MessageCircleMore aria-hidden="true" />我的 Agent
+          </button>
+          <button className={`nav-link ${['roles', 'play', 'ending'].includes(view) ? 'nav-link-active' : ''}`} type="button" onClick={onExplore}>
+            <Compass aria-hidden="true" />探索
+          </button>
+          <Button className={`nav-create ${view === 'create' ? 'nav-create-active' : ''}`} variant="outline" onClick={onCreate}>
+            <Plus aria-hidden="true" />创建世界
+          </Button>
+        </nav>
+        <button className="profile-button" type="button" aria-label="回到个人 Agent" onClick={onHome}><UserRound aria-hidden="true" /></button>
+      </div>
+    </header>
+  );
+}
+
+function AgentHome({
+  message,
+  agentReply,
+  agentThinking,
+  recommendationReason,
+  savedRun,
+  savedRunRoleName,
+  memories,
+  publishedWorld,
+  publishedTitle,
+  memoryEditing,
+  onMessage,
+  onSubmit,
+  onToggleMemory,
+  onRemoveMemory,
+  onRoles,
+  onOpenPublished,
+  onResume,
+  onCreate,
+}: {
+  message: string;
+  agentReply: string;
+  agentThinking: boolean;
+  recommendationReason: string;
+  savedRun: SavedRun | null;
+  savedRunRoleName: string;
+  memories: string[];
+  publishedWorld: boolean;
+  publishedTitle: string;
+  memoryEditing: boolean;
+  onMessage: (value: string) => void;
+  onSubmit: (event: SyntheticEvent<HTMLFormElement>) => void;
+  onToggleMemory: () => void;
+  onRemoveMemory: (memory: string) => void;
+  onRoles: () => void;
+  onOpenPublished: () => void;
+  onResume: () => void;
+  onCreate: () => void;
+}) {
+  return (
+    <div className="app-shell" id="top">
+      <section className="agent-home-grid" id="agent" aria-labelledby="agent-title">
+        <aside className="agent-panel reveal-in">
+          <div className="agent-identity">
+            <span className="agent-sigil" aria-hidden="true"><Sparkles /></span>
+            <div><p className="eyebrow">个人 Agent</p><h1 id="agent-title">我正在了解你</h1></div>
+            <span className="agent-online" data-thinking={agentThinking}>{agentThinking ? '正在理解' : '在线'}</span>
+          </div>
+          <div className="agent-conversation" aria-live="polite" aria-busy={agentThinking}>
+            <p className="agent-message">{agentThinking ? '我正在把这句话和已经了解的偏好放在一起……' : agentReply}</p>
+            <div className="prompt-list" aria-label="快捷表达">
+              {starterPrompts.map((prompt) => <button className="prompt-chip" key={prompt} type="button" onClick={() => onMessage(prompt)}>{prompt}</button>)}
+            </div>
+          </div>
+          <form className="agent-composer" onSubmit={onSubmit}>
+            <Input aria-label="告诉 Agent 你想体验什么" className="agent-input" value={message} onChange={(event) => onMessage(event.target.value)} placeholder="告诉我你今天想体验什么…" disabled={agentThinking} />
+            <Button className="send-button" type="submit" aria-label="发送" disabled={agentThinking || !message.trim()}><Send aria-hidden="true" /></Button>
+          </form>
+          <div className="memory-block">
+            <div className="memory-heading"><span>我记得的你</span><button type="button" onClick={onToggleMemory}>{memoryEditing ? '完成' : '管理记忆'}</button></div>
+            <div className="memory-chips">
+              {memories.map((memory, index) => memoryEditing
+                ? <button className="memory-chip is-editing" key={`${memory}-${index}`} type="button" onClick={() => onRemoveMemory(memory)}>{memory}<X aria-hidden="true" /></button>
+                : <span className="memory-chip" key={`${memory}-${index}`}>{memory}</span>)}
+              {memories.length === 0 ? <small className="empty-memory">还没有保存偏好，和 Agent 说一句吧。</small> : null}
+            </div>
+          </div>
+        </aside>
+
+        <section className="recommendation-area" id="worlds" aria-labelledby="recommend-title">
+          <div className="section-heading reveal-in delay-one">
+            <div><p className="eyebrow">为你挑选</p><h2 id="recommend-title">今晚，从这个世界开始</h2></div>
+            <span className="recommend-count">1 个高匹配世界</span>
+          </div>
+          {savedRun ? (
+            <button className="resume-world-card reveal-in delay-one" type="button" onClick={onResume}>
+              <span className="resume-icon"><Clock3 /></span>
+              <span className="resume-copy">
+                <small>{savedRun.status === 'ending' ? '已抵达阶段结局' : '上次探索停在这里'}</small>
+                <strong>{savedRun.worldTitle}</strong>
+                <span>{savedRunRoleName} · {savedRun.worldState.location} · 第 {savedRun.turn + 1} 幕</span>
+              </span>
+              <span className="resume-action">{savedRun.status === 'ending' ? '查看结局' : '继续探索'}<ArrowRight /></span>
+            </button>
+          ) : null}
+          <article className="featured-world spotlight-card reveal-in delay-two">
+            <img src="/assets/storm-manor-cover.png" alt="暴雨中的山顶老宅，三个窗口里站着不同的人影" />
+            <div className="world-image-scrim" aria-hidden="true" />
+            <div className="world-copy">
+              <div className="world-tags"><span>悬疑</span><span>3 个可选角色</span><span>约 12 分钟</span></div>
+              <p className="recommend-reason"><Sparkles aria-hidden="true" />{recommendationReason}</p>
+              <h3>暴雨山庄：缺席的继承人</h3>
+              <p className="world-premise">遗嘱公布前夜，继承人从封闭的山庄中消失。每个人都知道一点真相，也都藏着不能说的部分。</p>
+              <div className="world-actions">
+                <Button className="primary-action" size="lg" onClick={onRoles}>选择角色进入<ArrowRight aria-hidden="true" /></Button>
+                <Button className="secondary-action" variant="outline" size="lg" onClick={onRoles}><BookOpen aria-hidden="true" />查看世界</Button>
+              </div>
+            </div>
+            <div className="world-index" aria-hidden="true">01</div>
+          </article>
+          <div className="world-teasers reveal-in delay-three">
+            <article className="teaser-card"><span className="teaser-number">02</span><span><strong>最后一班海上列车</strong><small>冒险 · 低意外 · 即将开放</small></span></article>
+            <article className="teaser-card"><span className="teaser-number">03</span><span><strong>合租屋的第六位房客</strong><small>都市 · 高意外 · 即将开放</small></span></article>
+          </div>
+          <button className="create-inline-card reveal-in delay-three" type="button" onClick={onCreate}>
+            <span className="create-icon"><Plus /></span>
+            <span><strong>没有想进入的世界？</strong><small>添加角色，让 AI 帮你生成一个新的小世界。</small></span>
+            <ChevronRight aria-hidden="true" />
+          </button>
+          {publishedWorld ? (
+            <button className="published-world-card reveal-in" type="button" onClick={onOpenPublished}>
+              <span><Sparkles /></span>
+              <span><small>你发布的世界</small><strong>{publishedTitle}</strong></span>
+              <span>选角试玩<ArrowRight /></span>
+            </button>
+          ) : null}
+        </section>
+      </section>
+    </div>
+  );
+}
+
+function RolePortrait({ role, className = '' }: { role: Role; className?: string }) {
+  return (
+    <div className={`role-portrait role-${role.crop} ${className}`}>
+      <img className={role.imageUrl ? 'role-generated-image' : undefined} src={role.imageUrl || '/assets/storm-manor-cast.png'} alt={`${role.name}，${role.identity}`} />
+    </div>
+  );
+}
+
+function RoleSelection({ worldTitle, availableRoles, selected, onSelect, onBack, onStart }: { worldTitle: string; availableRoles: Role[]; selected: Role; onSelect: (role: Role) => void; onBack: () => void; onStart: () => void }) {
+  return (
+    <div className="subpage-shell role-page">
+      <button className="back-link" type="button" onClick={onBack}><ArrowLeft />返回推荐</button>
+      <div className="role-page-heading title-reveal">
+        <div><p className="eyebrow">{worldTitle} · 角色入口</p><h1>你将以谁的身份进入？</h1></div>
+        <p>同一个夜晚，每个人知道的真相都不同。选择一个角色，你会继承他的身份、信息和目标。</p>
+      </div>
+      <div className="role-grid" aria-label="选择角色">
+        {availableRoles.map((role) => (
+          <button key={role.id} className="character-card reveal-in" data-selected={selected.id === role.id} type="button" onClick={() => onSelect(role)}>
+            <RolePortrait role={role} />
+            <span className="character-info"><span className="character-check">{selected.id === role.id ? <Check /> : null}</span><small>{role.identity}</small><strong>{role.name}</strong><span>{role.personality}</span></span>
+          </button>
+        ))}
+      </div>
+      <section className="selected-role-panel reveal-in" aria-live="polite">
+        <div><p className="eyebrow">你的入场信息</p><h2>{selected.name} · {selected.identity}</h2></div>
+        <div className="role-facts">
+          <p><Eye /> <span><small>只有你知道</small>{selected.secret}</span></p>
+          <p><Target /> <span><small>你的目标</small>{selected.goal}</span></p>
+        </div>
+        <Button className="primary-action" size="lg" onClick={onStart}>以 {selected.name} 的身份进入<ArrowRight /></Button>
+      </section>
+    </div>
+  );
+}
+
+function PlayWorld({
+  role,
+  worldTitle,
+  availableRoles,
+  roleIndex,
+  turn,
+  beat,
+  narrative,
+  lastAction,
+  clues,
+  inventory,
+  eventLedger,
+  relation,
+  clock,
+  location,
+  actionFeedback,
+  surpriseLevel,
+  incident,
+  imageTask,
+  isThinking,
+  liveMode,
+  freeAction,
+  onFreeAction,
+  onLiveMode,
+  onAction,
+  onBack,
+}: {
+  role: Role;
+  worldTitle: string;
+  availableRoles: Role[];
+  roleIndex: number;
+  turn: number;
+  beat: StoryBeat;
+  narrative: string;
+  lastAction: string;
+  clues: string[];
+  inventory: string[];
+  eventLedger: EventRecord[];
+  relation: number;
+  clock: string;
+  location: string;
+  actionFeedback: ActionValidation | null;
+  surpriseLevel: number;
+  incident: WorldIncident | null;
+  imageTask: ImageTask;
+  isThinking: boolean;
+  liveMode: boolean;
+  freeAction: string;
+  onFreeAction: (value: string) => void;
+  onLiveMode: (value: boolean) => void;
+  onAction: (action: string) => void;
+  onBack: () => void;
+}) {
+  const speakingRole = availableRoles.find((item) => item.name === beat.speaker) ?? availableRoles[(roleIndex + 1) % availableRoles.length];
+  return (
+    <div className="play-shell">
+      <div className="play-toolbar">
+        <button className="back-link" type="button" onClick={onBack}><ArrowLeft />重新选角</button>
+        <div className="play-progress"><span style={{ width: `${34 + turn * 22}%` }} /><small>第 {turn + 1} 幕 · 世界正在推进</small></div>
+        <div className="play-modes">
+          <span className="surprise-level">意外 · {surpriseLabels[surpriseLevel - 1]}</span>
+          <div className="live-toggle"><span><strong>随时行动</strong><small>实验</small></span><Switch aria-label="开启随时行动实验模式" checked={liveMode} onCheckedChange={onLiveMode} /></div>
+        </div>
+      </div>
+      <div className="explore-layout">
+        <section className="story-stage" aria-labelledby="scene-title">
+          <img className="scene-background" src={imageTask.assetUrl} alt="当前互动世界的场景画面" />
+          <div className="scene-scrim" aria-hidden="true" />
+          <div className="stage-topline">
+            <span><MapPin />{location}</span>
+            <span className="scene-image-status" data-status={imageTask.status} aria-live="polite">
+              {imageTask.status === 'generating' ? <LoaderCircle className="is-spinning" /> : <ImageIcon />}
+              {imageTask.message}
+            </span>
+            <span>{clock}</span>
+          </div>
+          <div className="story-content">
+            <div className="player-role"><RolePortrait role={role} /><span><small>你是</small><strong>{role.name}</strong></span></div>
+            <p className="scene-kicker">{lastAction ? `你的行动：${lastAction}` : `${worldTitle} · 开场`}</p>
+            <h1 id="scene-title">{beat.title}</h1>
+            <p className="narrative-text">{isThinking && !narrative ? '世界正在回应你的行动……' : narrative}{isThinking && liveMode ? <span className="streaming-cursor" aria-label="正在生成" /> : null}</p>
+            {incident ? <div className="incident-banner" data-impact={incident.impact}><Sparkles /><span><small>意外程度 {surpriseLevel} · {incident.impact === 'minor' ? '轻微插曲' : incident.impact === 'moderate' ? '中等影响' : '重大变数'}</small><strong>{incident.title}</strong></span></div> : null}
+            {!isThinking && <blockquote><strong>{beat.speaker}</strong><span>“{beat.dialogue}”</span></blockquote>}
+          </div>
+        </section>
+
+        <aside className="story-control-panel">
+          <div className="control-heading"><p className="eyebrow">下一步</p><h2>{isThinking ? (liveMode ? '世界正在展开，你可随时介入' : '等待世界回应') : '你准备怎么做？'}</h2></div>
+          <div className="story-participants" aria-label="当前在场的其他角色">
+            <small>当前在场</small>
+            <div>{availableRoles.filter((item) => item.id !== role.id).map((item) => (
+              <span className="participant-chip" data-speaking={item.id === speakingRole.id} key={item.id}>
+                <RolePortrait role={item} />
+                <span><strong>{item.name}</strong><small>{item.id === speakingRole.id ? '正在与你交谈' : item.identity}</small></span>
+              </span>
+            ))}</div>
+          </div>
+          <div className="choice-group" aria-live="polite">
+            {beat.choices.map((choice, index) => (
+              <button className="story-choice" key={`${turn}-${choice.label}`} type="button" disabled={isThinking && !liveMode} onClick={() => onAction(choice.label)}>
+                <span>{String(index + 1).padStart(2, '0')}</span><strong>{choice.label}</strong><ArrowRight />
+              </button>
+            ))}
+          </div>
+          <div className="free-action-block">
+            <label htmlFor="free-action">或者，自由行动</label>
+            {actionFeedback ? <output className="action-feedback"><strong>这个行动无法直接发生</strong><span>{actionFeedback.reason}</span>{actionFeedback.suggestion ? <small>{actionFeedback.suggestion}</small> : null}</output> : null}
+            <Textarea id="free-action" value={freeAction} onChange={(event) => onFreeAction(event.target.value)} placeholder="例如：我关掉手电，观察谁最先说话……" disabled={isThinking && !liveMode} />
+            <Button className="secondary-action free-action-button" variant="outline" disabled={!freeAction.trim() || (isThinking && !liveMode)} onClick={() => onAction(freeAction)}><Send />{isThinking && liveMode ? '介入当前生成' : '提交行动'}</Button>
+          </div>
+          <div className="world-state-card">
+            <div className="state-title"><span>世界状态</span><small>{clues.length} 条线索</small></div>
+            <ul>{clues.slice(-3).map((clue) => <li key={clue}><span />{clue}</li>)}</ul>
+            <div className="inventory-row"><strong>持有物</strong><div>{inventory.map((item) => <span key={item}>{item}</span>)}</div></div>
+            <div className="relation-meter"><span><UsersRound />他人对你的信任</span><div><i style={{ width: `${relation}%` }} /></div></div>
+            <details className="event-ledger"><summary>查看事件账本 · {eventLedger.length}</summary><ol>{eventLedger.slice(-4).map((event) => <li key={event.id} data-status={event.status}><small>{event.location} · {event.status === 'committed' ? '已发生' : event.status === 'interrupted' ? '已中断' : '已拒绝'}</small><strong>{event.action}</strong><span>{event.result}</span></li>)}</ol></details>
+          </div>
+        </aside>
+      </div>
+    </div>
+  );
+}
+
+function CreateWorld({
+  step,
+  roles: draftRoles,
+  surprise,
+  generated,
+  generating,
+  worldTitle,
+  worldSeed,
+  storyOutline,
+  roleImages,
+  roleImageStates,
+  onStep,
+  onAddRole,
+  onRemoveRole,
+  onUpdateRole,
+  onSurprise,
+  onWorldTitle,
+  onWorldSeed,
+  onGenerate,
+  onAcceptPlot,
+  onGenerateRoleImage,
+  onGenerateAllRoleImages,
+  onBack,
+  onPublish,
+}: {
+  step: number;
+  roles: DraftRole[];
+  surprise: number;
+  generated: boolean;
+  generating: boolean;
+  worldTitle: string;
+  worldSeed: string;
+  storyOutline: StoryOutlineBeat[];
+  roleImages: Record<string, string>;
+  roleImageStates: Record<string, 'idle' | 'generating' | 'ready' | 'error'>;
+  onStep: (step: number) => void;
+  onAddRole: () => void;
+  onRemoveRole: (index: number) => void;
+  onUpdateRole: (index: number, key: keyof DraftRole, value: string) => void;
+  onSurprise: (value: number) => void;
+  onWorldTitle: (value: string) => void;
+  onWorldSeed: (value: string) => void;
+  onGenerate: () => void;
+  onAcceptPlot: () => void;
+  onGenerateRoleImage: (index: number) => void;
+  onGenerateAllRoleImages: () => void;
+  onBack: () => void;
+  onPublish: () => void;
+}) {
+  return (
+    <div className="create-shell">
+      <button className="back-link" type="button" onClick={onBack}><X />退出创建</button>
+      <div className="create-heading title-reveal">
+        <div><p className="eyebrow">创建小世界</p><h1>{step === 1 ? '先让角色出现' : step === 2 ? '他们将遇见什么？' : step === 3 ? '决定世界的节奏' : '这个世界准备好了'}</h1></div>
+        <span>{step} / 4</span>
+      </div>
+      <div className="create-progress" aria-label={`创建进度，第 ${step} 步，共 4 步`}>{[1, 2, 3, 4].map((item) => <span key={item} data-active={item <= step} />)}</div>
+
+      {step === 1 && (
+        <section className="create-card">
+          <div className="create-card-title"><div><h2>添加这个世界中的角色</h2><p>角色暂时不是独立 Agent。身份、性格、关系和固定外观会共同进入剧情与生图。</p></div><div className="create-title-actions"><Button variant="outline" onClick={onGenerateAllRoleImages} disabled={Object.values(roleImageStates).includes('generating')}><ImageIcon />生成全部形象</Button><Button variant="outline" onClick={onAddRole}><Plus />添加角色</Button></div></div>
+          <div className="draft-role-list">
+            {draftRoles.map((role, index) => (
+              <article className="draft-role" key={index}>
+                <span className="draft-role-index">{String(index + 1).padStart(2, '0')}</span>
+                <div className="draft-role-image" data-state={roleImageStates[`draft-role-${index}`] ?? 'idle'}>
+                  {roleImages[`draft-role-${index}`]
+                    ? <img src={roleImages[`draft-role-${index}`]} alt={`${role.name || `角色 ${index + 1}`}的 AI 生成形象`} />
+                    : <span><UserRound /><small>尚未生成形象</small></span>}
+                  <button type="button" onClick={() => onGenerateRoleImage(index)} disabled={roleImageStates[`draft-role-${index}`] === 'generating'}>
+                    {roleImageStates[`draft-role-${index}`] === 'generating' ? <><LoaderCircle className="is-spinning" />正在生成</> : roleImages[`draft-role-${index}`] ? <><RefreshCw />重新生成</> : <><WandSparkles />生成形象</>}
+                  </button>
+                  {roleImageStates[`draft-role-${index}`] === 'error' ? <small className="role-image-error">生成失败，请重试</small> : null}
+                </div>
+                <div className="draft-fields">
+                  <div className="draft-field"><label htmlFor={`role-name-${index}`}>角色名称</label><Input id={`role-name-${index}`} value={role.name} onChange={(event) => onUpdateRole(index, 'name', event.target.value)} placeholder="例如：许知遥" /></div>
+                  <div className="draft-field"><label htmlFor={`role-identity-${index}`}>身份</label><Input id={`role-identity-${index}`} value={role.identity} onChange={(event) => onUpdateRole(index, 'identity', event.target.value)} placeholder="例如：民俗学研究生" /></div>
+                  <div className="draft-field full-field"><label htmlFor={`role-personality-${index}`}>性格与行为倾向</label><Input id={`role-personality-${index}`} value={role.personality} onChange={(event) => onUpdateRole(index, 'personality', event.target.value)} placeholder="例如：理性、好奇，但害怕欠人情" /></div>
+                  <div className="draft-field full-field"><label htmlFor={`role-appearance-${index}`}>固定外观（用于保持连续）</label><Input id={`role-appearance-${index}`} value={role.appearance} onChange={(event) => onUpdateRole(index, 'appearance', event.target.value)} placeholder="例如：齐肩黑发、墨绿色防风外套、随身携带旧笔记本" /></div>
+                  <div className="draft-field full-field"><label htmlFor={`role-relationship-${index}`}>与其他角色的关系</label><Input id={`role-relationship-${index}`} value={role.relationship} onChange={(event) => onUpdateRole(index, 'relationship', event.target.value)} placeholder="例如：受上一任守塔人委托保护许知遥" /></div>
+                </div>
+                <button className="remove-role" type="button" disabled={draftRoles.length <= 2} onClick={() => onRemoveRole(index)} aria-label={`删除角色 ${role.name || index + 1}`}><Trash2 /></button>
+              </article>
+            ))}
+          </div>
+          <div className="create-actions"><span>建议 2—5 个角色，至少两个角色才能形成关系。</span><Button className="primary-action" onClick={() => onStep(2)}>继续创建故事<ArrowRight /></Button></div>
+        </section>
+      )}
+
+      {step === 2 && (
+        <section className="create-card story-seed-card">
+          <div className="create-card-title"><div><h2>写一句想法，或者直接交给 AI</h2><p>AI 会根据已有角色生成时间、地点、关系冲突、核心事件和每个角色的目标。</p></div></div>
+          <label htmlFor="world-title">世界名称（可以暂时不填）</label><Input id="world-title" value={worldTitle} onChange={(event) => onWorldTitle(event.target.value)} placeholder="AI 可以帮你命名" />
+          <label htmlFor="world-seed">故事种子</label><Textarea id="world-seed" value={worldSeed} onChange={(event) => onWorldSeed(event.target.value)} placeholder="例如：一座海岛灯塔在雾潮来临时发生了异常……" />
+          <div className="ai-generation-note"><WandSparkles /><span><strong>AI 将使用 {draftRoles.length} 个角色生成世界</strong><small>你仍可以在生成后修改任何设定。</small></span></div>
+          {storyOutline.length > 0 ? (
+            <section className="generated-plot" aria-live="polite">
+              <div><span><Check /></span><p><small>DeepSeek 已生成剧情草案</small><strong>{worldTitle}</strong></p></div>
+              <ol>{storyOutline.map((beat, index) => <li key={beat.id}><span>{String(index + 1).padStart(2, '0')}</span><p><strong>{beat.title}</strong><small>{beat.location} · {beat.objective}</small><em>{beat.turningPoint}</em></p></li>)}</ol>
+            </section>
+          ) : null}
+          <div className="create-actions"><Button variant="outline" onClick={() => onStep(1)} disabled={generating}><ArrowLeft />返回角色</Button><div className="plot-actions"><Button variant="outline" onClick={onGenerate} disabled={generating}><Sparkles className={generating ? 'is-spinning' : ''} />{generating ? '正在生成剧情…' : storyOutline.length > 0 ? '重新生成草案' : 'AI 生成剧情草案'}</Button>{storyOutline.length > 0 ? <Button className="primary-action" onClick={onAcceptPlot}>采用草案并继续<ArrowRight /></Button> : null}</div></div>
+        </section>
+      )}
+
+      {step === 3 && (
+        <section className="create-card settings-card">
+          <div className="generated-summary"><span><Check /></span><div><small>{generated ? 'AI 已生成故事框架' : '故事框架已就绪'}</small><h2>{worldTitle}</h2><p>{worldSeed}</p></div><button type="button" onClick={() => onStep(2)}><Pencil />修改</button></div>
+          <div className="setting-block">
+            <div><span className="setting-label">意外程度</span><strong>{surpriseLabels[surprise - 1]}</strong></div>
+            <p>只改变合理突发事件的频率和影响，不破坏世界规律与已经发生的事实。</p>
+            <Slider min={1} max={4} step={1} value={[surprise]} onValueChange={(value) => onSurprise(typeof value === 'number' ? value : value[0])} aria-label="意外程度" />
+            <div className="slider-labels"><span>平稳推进</span><span>命运难料</span></div>
+          </div>
+          <div className="setting-row"><span><strong>允许自由输入行动</strong><small>体验者可以跳出预设选项</small></span><Switch defaultChecked /></div>
+          <div className="setting-row"><span><strong>结局后允许继续</strong><small>保留状态，探索结局之后</small></span><Switch defaultChecked /></div>
+          <div className="create-actions"><Button variant="outline" onClick={() => onStep(2)}><ArrowLeft />返回故事</Button><Button className="primary-action" onClick={() => onStep(4)}>预览世界<ArrowRight /></Button></div>
+        </section>
+      )}
+
+      {step === 4 && (
+        <section className="create-preview">
+          <article className="preview-cover">
+            <img src={roleImages['draft-role-0'] || '/assets/storm-manor-cover.png'} alt={roleImages['draft-role-0'] ? `${draftRoles[0]?.name || '首个角色'}的生成形象` : '世界预览占位图'} />
+            <div /><span>新世界 · {draftRoles.length} 个角色</span><h2>{worldTitle || '未命名世界'}</h2><p>{worldSeed}</p>
+          </article>
+          <aside className="preview-details">
+            <p className="eyebrow">生成前确认</p><h2>世界设定卡</h2>
+            <dl><div><dt>角色</dt><dd>{draftRoles.map((role) => role.name || '未命名').join('、')}</dd></div><div><dt>意外程度</dt><dd>{surpriseLabels[surprise - 1]}</dd></div><div><dt>体验方式</dt><dd>选角代入 · 图文互动</dd></div><div><dt>预计长度</dt><dd>8—12 分钟</dd></div></dl>
+            <div className="preview-tip"><Lightbulb /><span>生成世界只会建立初始状态。具体剧情将在体验者进入后，根据每次行动实时发展。</span></div>
+            <div className="preview-buttons"><Button variant="outline" onClick={() => onStep(3)}><ArrowLeft />继续修改</Button><Button className="primary-action" onClick={onPublish}>生成并发布<ArrowRight /></Button></div>
+          </aside>
+        </section>
+      )}
+    </div>
+  );
+}
+
+function Ending({ worldTitle, role, decision, onContinue, onReplay, onHome }: { worldTitle: string; role: Role; decision: string; onContinue: () => void; onReplay: () => void; onHome: () => void }) {
+  return (
+    <div className="ending-shell">
+      <div className="ending-image"><img src="/assets/storm-manor-cover.png" alt="暴雨渐停，山庄窗户仍亮着灯" /><div /></div>
+      <section className="ending-card title-reveal">
+        <span className="ending-mark"><Check /></span>
+        <p className="eyebrow">{worldTitle} · 一条世界线已经抵达结局</p>
+        <h1>这条世界线，由你的选择抵达此刻</h1>
+        <p>你以 {role.name} 的身份走到这条世界线的阶段结局。{decision || '你的最后选择改变了真相被公开的方式。'}</p>
+        <div className="ending-stats"><span><strong>3</strong><small>发现线索</small></span><span><strong>2</strong><small>关系改变</small></span><span><strong>1 / 4</strong><small>已见结局</small></span></div>
+        <div className="agent-afterword"><Sparkles /><span><small>个人 Agent 记下了</small>你更倾向主动调查，也愿意为获取真相承担风险。下一次推荐会考虑这一点。</span></div>
+        <div className="ending-actions"><Button className="primary-action" onClick={onContinue}>继续这个世界<ArrowRight /></Button><Button variant="outline" onClick={onReplay}><RefreshCw />换一个角色重玩</Button><Button variant="ghost" onClick={onHome}>回到 Agent</Button></div>
+      </section>
+    </div>
+  );
+}
