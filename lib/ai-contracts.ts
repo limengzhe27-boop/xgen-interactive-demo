@@ -26,6 +26,13 @@ export type PersonalAgentRequest = {
   currentMemories: AgentMemory[];
   recentExperiences: ExperienceSummary[];
   availableWorldIds: string[];
+  availableWorlds: {
+    id: string;
+    title: string;
+    genre: string;
+    surpriseLevel: number;
+    premise: string;
+  }[];
 };
 
 export type PersonalAgentResponse = {

@@ -62,7 +62,7 @@ function inferAcquiredItems(action: string, clue: string) {
 }
 
 export function createInitialWorldState(
-  worldKind: 'storm' | 'draft',
+  worldKind: 'storm' | 'suggestion' | 'draft',
   roleId: string,
   roleSecret: string,
   initialLocation: string,

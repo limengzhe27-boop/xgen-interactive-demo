@@ -37,6 +37,17 @@ function recommendationReason(message: string) {
   return '因为这个世界允许你通过观察、询问和自由行动真正改变结果';
 }
 
+function chooseWorld(message: string, input: PersonalAgentRequest) {
+  const preferredId = /合租|都市|日常|室友|关系/.test(message)
+    ? 'sixth-roommate'
+    : /海上|列车|冒险|旅行/.test(message)
+      ? 'sea-train'
+      : 'storm-manor';
+  return input.availableWorlds.find((world) => world.id === preferredId)
+    ?? input.availableWorlds[0]
+    ?? { id: input.availableWorldIds[0] || 'storm-manor', title: '暴雨山庄：缺席的继承人' };
+}
+
 function slug(value: string, index: number) {
   return value.trim().toLowerCase().replace(/\s+/g, '-') || `character-${index + 1}`;
 }
@@ -44,12 +55,14 @@ function slug(value: string, index: number) {
 class MockAIAdapter implements AIAdapter {
   async talkToPersonalAgent(input: PersonalAgentRequest): Promise<PersonalAgentResponse> {
     const memory = createMemory(input.userMessage, input.currentMemories);
+    const chosenWorld = chooseWorld(input.userMessage, input);
+    const reason = `${recommendationReason(input.userMessage)}，所以我更推荐《${chosenWorld.title}》`;
     return Promise.resolve({
-      reply: `我记下了“${input.userMessage}”。${recommendationReason(input.userMessage)}。你也可以继续告诉我更在意角色、节奏还是意外。`,
+      reply: `我记下了“${input.userMessage}”。${reason}。你也可以继续告诉我更在意角色、节奏还是意外。`,
       memoryCandidates: [memory],
       recommendations: [{
-        worldId: 'storm-manor',
-        reason: recommendationReason(input.userMessage),
+        worldId: chosenWorld.id,
+        reason,
         matchedMemoryIds: [memory.id],
       }],
     });
