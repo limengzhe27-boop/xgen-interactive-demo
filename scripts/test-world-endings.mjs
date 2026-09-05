@@ -60,3 +60,8 @@ test('world clock advances without clamping at minute 59', () => {
   const next = commitTurn(input.state, { action: '观察', result: '观察', clue: '', nextLocation: 'archive', relationshipDelta: 0 });
   assert.equal(next.clock, '00:04');
 });
+test('explicitly staying in place cannot commit a player move', () => {
+  const input = makeEndingFixture(); input.userAction = '许宁留在当前地点，询问下一步安排';
+  assert.throws(() => guard(input, response({ locationId: 'upstairs' })), /unauthorized_player_movement/);
+  assert.doesNotThrow(() => guard(input, response({ locationId: '档案室' })));
+});

@@ -29,6 +29,8 @@ async function run(route) {
         : actions[!completed.includes('box') ? 0 : !completed.includes('pack') ? 1 : 2];
     try {
       const out = await advance(input);
+      const currentLocation = input.world.locations.find((place) => place.id === input.state.location || place.name === input.state.location);
+      if (ended && out.statePatch.locationId && ![input.state.location, currentLocation?.id, currentLocation?.name].includes(out.statePatch.locationId)) issues.push(`turn ${turn + 1}: player moved despite staying put`);
       if (!out.actionDecision.allowed) issues.push(`turn ${turn + 1}: legitimate action rejected`);
       if (out.actionDecision.allowed) {
         input.state = commitTurn(input.state, { action: input.userAction, result: out.narrative, clue: '', nextLocation: out.statePatch.locationId || input.state.location, relationshipDelta: 0,

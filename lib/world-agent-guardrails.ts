@@ -29,6 +29,11 @@ export function enforceWorldTurnGuardrails(input: WorldTurnRequest, output: Worl
       reason: '当前条件不足以执行这个行动。', suggestion: '尝试观察现场、询问在场人物或先取得所需条件。' });
   }
   const completed = new Set(input.state.completedTaskIds ?? []);
+  if (input.userAction.includes('留在当前地点') && output.statePatch.locationId) {
+    const currentLocation = input.world.locations.find((location) => location.id === input.state.location || location.name === input.state.location);
+    const sameLocation = [input.state.location, currentLocation?.id, currentLocation?.name].includes(output.statePatch.locationId);
+    if (!sameLocation) throw new Error('unauthorized_player_movement');
+  }
   const failed = new Set(input.state.failedTaskIds ?? []);
   const tasks = new Map(input.world.tasks.map((task) => [task.id, task]));
   const completions = [...new Set(output.statePatch.completeTaskIds ?? [])];
