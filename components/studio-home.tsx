@@ -5,6 +5,7 @@ import { ArrowRight, BookOpen, Compass, House, MessageCircleMore, Plus, Send, Sp
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 
 export type StudioSection = 'home' | 'library' | 'characters' | 'personal';
 export type WorldCard = { id: string; title: string; genre: string; premise: string; cover: string; roleCount: number };
@@ -28,16 +29,18 @@ export function StudioHome({ section, worlds, characters, recent, onCreate, onOp
 }) {
   const [seed, setSeed] = useState('');
   const [genre, setGenre] = useState('全部');
+  const [detail, setDetail] = useState<WorldCard | null>(null);
   const genres = ['全部', ...new Set(worlds.map((world) => world.genre))];
   const shownWorlds = worlds.filter((world) => genre === '全部' || world.genre === genre);
   const shownCharacters = characters.filter((character) => shownWorlds.some((world) => world.id === character.worldId));
+  const featured = section === 'home' ? shownWorlds[0] : undefined;
+  const gridWorlds = featured ? shownWorlds.slice(1) : shownWorlds;
   return <div className="studio-home">
     {section === 'home' && <section className="studio-create" aria-labelledby="studio-title">
-      <h1 id="studio-title">worldstudio<span>小世界</span></h1>
-      <p>一句话，创造可进入的世界</p>
+      <div className="studio-create-heading"><div><span className="studio-wordmark">WORLDSTUDIO / 小世界</span><h1 id="studio-title">今天，换你做主角。</h1></div><button className="studio-agent-entry" onClick={onPersonal} type="button"><Sparkles />让 Agent 帮我挑</button></div>
       <form className="studio-composer" onSubmit={(event) => { event.preventDefault(); onCreate(seed); }}>
         <Sparkles aria-hidden="true" />
-        <Input aria-label="你想创造怎样的世界" placeholder="你想创造怎样的世界？" value={seed} onChange={(event) => setSeed(event.target.value)} maxLength={2000} />
+        <Input aria-label="你想创造怎样的世界" placeholder="写一个念头，把它变成你的世界…" value={seed} onChange={(event) => setSeed(event.target.value)} maxLength={2000} />
         <Button type="submit" className="studio-send" aria-label="与 Agent 一起创作"><Send /></Button>
       </form>
       <div className="studio-prompts">{['豪门情感', '职场逆袭', '家族争产', '都市关系', '海上冒险'].map((idea) => <button key={idea} type="button" onClick={() => setSeed(`我想创造一个${idea}的小世界，帮我讨论角色、关系和目标。`)}>{idea}</button>)}</div>
@@ -63,10 +66,18 @@ export function StudioHome({ section, worlds, characters, recent, onCreate, onOp
           <button className="studio-agent-entry" onClick={onPersonal} type="button"><Sparkles />帮我找个本</button>
         </div>
         <div className="studio-filters" aria-label="筛选题材">{genres.map((item) => <button className="studio-filter" key={item} type="button" aria-pressed={genre === item} onClick={() => setGenre(item)}>{item}</button>)}</div>
-        <TabsContent value="worlds"><div className="studio-world-grid">{shownWorlds.map((world) => <article className="studio-card" key={world.id}>
+        <TabsContent value="worlds">
+          {featured && <article className="studio-featured">
+            <img src={featured.cover} alt="" /><div className="studio-featured-shade" />
+            <div className="studio-featured-copy"><span className="studio-featured-label">本期主推 · {featured.genre}</span><h2>{featured.title}</h2><p>{featured.premise}</p>
+              <div className="studio-featured-actions"><Button className="studio-button studio-solid" onClick={() => onOpenWorld(featured.id)}>选择身份，进入故事<ArrowRight /></Button><button type="button" className="studio-text-button" onClick={() => setDetail(featured)}>剧情简介<BookOpen /></button></div>
+              <div className="studio-featured-cast">{characters.filter((role) => role.worldId === featured.id).slice(0, 3).map((role) => <button type="button" key={role.id} onClick={() => onChat(featured.id, role.id)} aria-label={`和${role.name}聊聊`}><img src={role.image} alt="" /><span>{role.name}</span><MessageCircleMore /></button>)}</div>
+            </div>
+          </article>}
+          <div className="studio-world-grid">{gridWorlds.map((world) => <article className="studio-card" key={world.id}>
           <button className="studio-cover" type="button" onClick={() => onOpenWorld(world.id)} aria-label={`进入世界：${world.title}`}><img src={world.cover} alt="" /><span className="studio-badge">{world.genre}</span></button>
-          <div className="studio-card-copy"><h3>{world.title}</h3><p>{world.premise}</p><small>{world.roleCount} 个可选身份 · 目标驱动剧情</small></div>
-          <button className="studio-button studio-card-action" type="button" onClick={() => onOpenWorld(world.id)}>进入世界<ArrowRight /></button>
+          <div className="studio-card-copy"><h3 title={world.title}>{world.title}</h3><p>{world.premise}</p><small>{world.roleCount} 个身份，换个视角重写结局</small></div>
+          <div className="studio-card-footer"><button className="studio-text-button" type="button" onClick={() => setDetail(world)}>剧情简介</button><button className="studio-button" type="button" onClick={() => onOpenWorld(world.id)}>进入世界<ArrowRight /></button></div>
         </article>)}</div></TabsContent>
         <TabsContent value="characters"><div className="studio-world-grid">{shownCharacters.map((character) => <article className="studio-card" key={`${character.worldId}:${character.id}`}>
           <button className="studio-cover studio-character-cover" type="button" onClick={() => onChat(character.worldId, character.id)} aria-label={`和${character.name}聊聊`}><img src={character.image} alt={`${character.name}的角色形象`} /><span className="studio-badge">{character.worldTitle}</span></button>
@@ -76,5 +87,6 @@ export function StudioHome({ section, worlds, characters, recent, onCreate, onOp
       </Tabs>
     </section>}
     <p className="studio-local-note">世界设定与开场由创作者编写，后续剧情实时生成。你的草稿和互动记录保存在当前浏览器。</p>
+    {detail && <Dialog open onOpenChange={(open) => { if (!open) setDetail(null); }}><DialogContent className="studio-world-detail"><DialogTitle>{detail.title}</DialogTitle><DialogDescription>{detail.genre} · {detail.roleCount} 个可选身份</DialogDescription><img src={detail.cover} alt="" /><p>{detail.premise}</p><Button className="studio-button studio-solid" onClick={() => { onOpenWorld(detail.id); setDetail(null); }}>选择身份进入<ArrowRight /></Button></DialogContent></Dialog>}
   </div>;
 }

@@ -48,7 +48,7 @@ function isEndingCondition(value: unknown) {
 }
 
 export function isPersonalAgentResponse(value: unknown): value is PersonalAgentResponse {
-  if (!isRecord(value) || typeof value.reply !== 'string' || !Array.isArray(value.memoryCandidates) || !Array.isArray(value.recommendations)) return false;
+  if (!isRecord(value) || typeof value.reply !== 'string' || !value.reply.trim() || !Array.isArray(value.memoryCandidates) || !Array.isArray(value.recommendations)) return false;
   return value.memoryCandidates.every((memory) => isRecord(memory)
     && typeof memory.id === 'string'
     && typeof memory.value === 'string'

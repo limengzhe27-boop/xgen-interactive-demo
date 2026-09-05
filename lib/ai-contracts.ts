@@ -21,6 +21,7 @@ export type ExperienceSummary = {
 };
 
 export type PersonalAgentRequest = {
+  conversation?: { role: 'user' | 'assistant'; content: string }[];
   contractVersion: typeof AI_CONTRACT_VERSION;
   userMessage: string;
   currentMemories: AgentMemory[];

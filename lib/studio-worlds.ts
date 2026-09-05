@@ -10,6 +10,7 @@ export type StudioWorld = {
   portraits: Record<string, string>;
   portraitCacheKeys?: Record<string, string>;
   roleOpenings?: Record<string, string>;
+  roleChoices?: Record<string, string[]>;
 };
 
 const contractCharacters: WorldDefinition['characters'] = [
@@ -23,7 +24,7 @@ const contractTasks: WorldDefinition['tasks'] = contractCharacters.flatMap((role
   { id: `${role.id}-decide`, title: role.id === 'su' ? '由自己选择去留' : role.id === 'gu' ? '给出可以兑现的承诺' : '完成自愿处置', description: role.goal, kind: 'main' as const, assignedRoleIds: [role.id], prerequisiteTaskIds: [`${role.id}-understand`], successCondition: role.id === 'su' ? '苏晚亲自决定离开或重新建立关系，说明可执行安排；顾言舟知情并尊重该决定。' : role.id === 'gu' ? '顾言舟提出可执行且不限制苏晚事业的安排，苏晚明确接受或拒绝后，顾言舟尊重并落实答复。' : '双方亲自确认终止协议或新的自愿安排，律师如实记录，不以委托关系换取私人感情。', difficulty: '需要对方真实回应。不可用金钱、家族压力或道德绑架取代自愿。' },
 ]);
 
-export const contractWorld: StudioWorld = {
+const contractBase: StudioWorld = {
   id: 'contract-expiry', title: '契约到期，总裁不肯散场', genre: '豪门情感',
   premise: '一年契约，今晚到期。行李已经收好，那个从不挽留的人却站在门口：“如果这一次，不是为了协议呢？”',
   cover: '/assets/contract-cover.jpg',
@@ -104,7 +105,7 @@ const workplaceCharacters: WorldDefinition['characters'] = [
     goal: '公开交付事实，为团队争取合理工期和不背锅的安排。', startLocationId: 'workroom', imagePrompt: '27岁中国女性，黑色低马尾，浅灰针织衫，蓝色工牌，清醒略显疲惫，办公区柔和灯光，写实电影半身肖像' },
 ];
 
-export const workplaceWorld: StudioWorld = {
+const workplaceBase: StudioWorld = {
   id: 'client-comeback', title: '被裁那天，我成了甲方', genre: '职场逆袭',
   premise: '他曾说你离开谁都一样。今天，他把最好的座位留给了你——这笔救命订单，只有你能签。', cover: '/assets/workplace-cover.jpg',
   portraits: { lin: '/assets/workplace-lin.jpg', zhou: '/assets/workplace-zhou.jpg', tang: '/assets/workplace-tang.jpg' },
@@ -158,7 +159,7 @@ const inheritanceCharacters: WorldDefinition['characters'] = [
     goal: '让正式安排完整公开，记录各方本人选择，防止任何一方被迫交出权利。', startLocationId: 'archive', imagePrompt: '38岁中国女性，盘起的黑发，细框眼镜，藏蓝套装，平静坚定，老宅资料室，写实电影半身肖像' },
 ];
 
-export const inheritanceWorld: StudioWorld = {
+const inheritanceBase: StudioWorld = {
   id: 'inheritance-night', title: '遗嘱宣读前夜', genre: '遗产争夺',
   premise: '他们只给你留了最角落的椅子。直到执行人翻开名单，你的名字，第一次决定了谁能坐在主位。', cover: '/assets/inheritance-cover.jpg',
   portraits: { xu: '/assets/inheritance-xu.jpg', he: '/assets/inheritance-he.jpg', lu: '/assets/inheritance-lu.jpg' },
@@ -196,6 +197,117 @@ export const inheritanceWorld: StudioWorld = {
     difficultyConstraints: [{ id: 'pressure', description: '家族体面、经营现金和个人话语权相互牵制。', bypassCondition: '正式宣读、查明条款、按本人意愿形成可执行安排。', consequence: '逼迫签名会损害合作，旁白不能替任何人同意。' }],
     scheduledEvents: [{ id: 'cashflow', title: '财务发来消息', trigger: '讨论触及退出或资金安排后', earliestTurn: 4, effect: '经营团队请求确认下一阶段预算。只增加谈判压力，不凭空改变财产份额或强制结局。' }],
     openingScene: { locationId: 'hall', presentCharacterIds: ['xu', 'he'], choices: [], narrative: '老宅的灯亮得很早，长桌上的杯子按旧时家宴的位置摆好。许愿面前只有一张临时挪来的椅子，椅背抵着墙边。她把邀请信从包里取出来时，何承远已经将一份意向书推到了桌边。\n\n文件末页留着签名空白，正式清单却还在隔壁资料室里。墙上的老照片记录着这个家曾经愿意展示的人，照片之外，还有很多年无人问起的生活。此刻没有谁知道这场谈话会把主位留给谁。那支签字笔静静躺着，谁也没有替许愿拿起来的权利。' },
+  },
+};
+
+// Revision 2 changes authored conflicts, not merely catalogue headlines. Existing runs
+// retain their saved world snapshots; IDs and artwork remain stable for catalogue links.
+const melodramaRule: WorldDefinition['rules'][number] = { id: 'melodrama', kind: 'story', immutable: true,
+  description: '通俗情感爽剧：角色有嫉妒、虚荣、旧情和占有欲，会嘴硬、试探、甩锅、反击，不是人人都理性讲道理。每轮优先呈现一个与玩家行动有关的具体冲突、尖锐台词和可见后果；不要重复开会、核对协议、抽象说教。反转必须有铺垫和因果，不能靠凭空证据一键获胜。保持玩家决定权，不能替玩家原谅、恋爱、签字或同意亲密；拒绝不是系统判败理由。' };
+
+const romanceRoles: WorldDefinition['characters'] = contractBase.world.characters.map((role) => role.id === 'su' ? { ...role,
+  publicBackground: '和顾言舟做了一年契约夫妻。今晚协议到期，你发现他曾让你穿的白衬衫、留的发型，都像极了旧照片里的另一个人。沈知衡——他的生意死对头，也是你的旧相识——来接你。',
+  privateKnowledge: ['你有独立项目和住处，即使不接受沈知衡的帮助也能离开。'], secrets: ['今晚以前你真的喜欢过顾言舟，只是从来没有亲口承认。'],
+  goal: '让顾言舟说清替身真相，亲自决定离开、重新选择或让他付出重新追求的代价。' } : role.id === 'gu' ? { ...role,
+  persona: '骄傲、嫉妒心重，越害怕失去越说错话，习惯把在意包装成命令',
+  publicBackground: '你曾按旧恋人的样子替苏晚挑衣服，却坚称婚姻只是契约。如今她要走，来接她的人偏偏是你最不愿输给的沈知衡。',
+  privateKnowledge: ['苏晚的工作室项目与你无关，不能以断掉资源为借口留下她。'], secrets: ['你早已把旧恋人的联系方式删掉，却一直没敢承认真正舍不得的是苏晚。'],
+  goal: '承认自己造成的伤害，争取苏晚自愿给一次重新追求的机会，或承受她明确离开的结局。' } : { ...role,
+  identity: '30 岁 · 投资人／顾言舟的生意死对头', persona: '温柔带锋芒，擅长戳中情敌痛处，不愿永远只当好人',
+  publicBackground: '你和苏晚早就认识，与顾言舟在生意上互不相让。应苏晚邀请来接她，刚在书房取回她寄存的作品集。',
+  privateKnowledge: ['你带来的车在楼下，但苏晚没有答应任何新的感情关系。'], secrets: ['你喜欢苏晚很久，今晚既想保护她，也想赢顾言舟一次。'],
+  goal: '向苏晚说清真实心意与竞争动机，让她亲自决定你们接下来的关系。' });
+
+export const contractWorld: StudioWorld = {
+  ...contractBase, title: '离婚当天，前夫的死对头来接我',
+  premise: '做了一年替身，你终于签下离婚协议。他冷笑着说你无处可去，门外却传来他死对头的声音：“苏晚，我来接你。”',
+  roleChoices: {
+    su: ['把旧照片推到顾言舟面前：“你到底把我当成谁？”', '拿起自己的钥匙：“我的去处，不需要你批准。”', '给沈知衡发消息，请他拿好作品集到客厅来。'],
+    gu: ['先回答照片的问题，不再拿沈知衡转移话题。', '问苏晚：“你让他来接你，是想让我难堪，还是认真的？”', '放下那句命令，告诉苏晚自己究竟舍不得什么。'],
+    shen: ['拿着苏晚的作品集走去客厅。', '给苏晚发消息：“我在书房，准备好了就告诉我。”', '先留在书房，想清楚喜欢苏晚和赢过顾言舟的区别。'],
+  },
+  roleOpenings: { su: '你是苏晚。旧照片和你的白衬衫像得刺眼，离婚协议已经签了你的名字。你可以当面问清，也可以把钥匙留下走人。原不原谅，从来不是他的决定。', gu: '你是顾言舟。刚才那句“你能去哪”已经说出口，苏晚没有回头。沈知衡还在书房，你不知道他和苏晚私下说过什么。你最熟练的命令，这次可能只会把她推得更远。', shen: '你是沈知衡。你在书房取到了苏晚寄存的作品集，楼下车已经备好。隔门的谈话听不清。你需要亲自走出去，才能知道他们现在的态度。' },
+  world: { ...contractBase.world, title: '离婚当天，前夫的死对头来接我',
+    premise: '成年人的替身婚姻与三角修罗场：苏晚发现自己被按旧爱塑造，协议到期要离开；顾言舟嘴硬挽留；来接人的沈知衡既是旧相识，也是丈夫的死对头。玩家可以离开、反击、追问或改变关系，不能被强制原谅。',
+    coreEvent: '苏晚已在到期处置文件上签了自己的名字，替身旧照片摆在桌上；顾言舟尚未直面真相，沈知衡正在公寓书房取她的作品集。',
+    characters: romanceRoles,
+    locations: contractBase.world.locations.map((place) => place.id === 'study' ? { ...place, description: '临时寄存苏晚作品集的书房，门关闭，隔墙听不清客厅对话。' } : place),
+    relationships: [
+      { fromCharacterId: 'su', toCharacterId: 'gu', publicLabel: '即将散场的契约夫妻／替身旧账', initialTrust: 10 },
+      { fromCharacterId: 'su', toCharacterId: 'shen', publicLabel: '旧相识／来接她的人', initialTrust: 60 },
+      { fromCharacterId: 'gu', toCharacterId: 'shen', publicLabel: '生意死对头／彼此忌惮的情敌', initialTrust: 5 },
+    ],
+    rules: [...contractBase.world.rules, melodramaRule],
+    ...roleArcs(romanceRoles, [
+      { roleId: 'su', steps: [
+        ['撕开替身的借口', '苏晚当面提出照片与衣着的疑问，顾言舟作出具体回应，不能只用“你误会了”翻篇。', '他会嘴硬、转移到沈知衡身上；你需要把问题拉回自己。'],
+        ['让他们听见你的条件', '苏晚明确表达她对两人的真实立场或拒绝，并听到所涉及人物的回应。', '两个人争输赢不代表你必须成为赢家的奖品。'],
+        ['这一场，由你散场', '苏晚亲自选择独立离开、接受沈知衡的进一步邀约，或向顾言舟给出具体追求条件；相关人物回应，实际去留安排发生。', '没有行动的道歉不够；你也可以选择谁都不要。'],
+      ] },
+      { roleId: 'gu', steps: [
+        ['承认白衬衫的来历', '顾言舟向苏晚坦白曾把旧爱投射到她身上，她实际听到而非旁白替她理解。', '把责任推给苏晚敏感会加剧决裂。'],
+        ['放下赢过情敌的执念', '顾言舟明确向苏晚表达真正的挽留理由，并面对她的质问而不是只攻击沈知衡。', '沈知衡的挑衅会引发吃醋，需要玩家自己决定如何应对。'],
+        ['承担她的答案', '顾言舟提出具体补偿或追求行动，苏晚自愿答复后，他实际尊重该答复；接受拒绝也可完成。', '强留、封门、威胁事业不能换来同意。'],
+      ] },
+      { roleId: 'shen', steps: [
+        ['不再假装顺路', '沈知衡亲自向苏晚说明自己想来接她的私人动机，苏晚作出回应。', '温柔不能替代坦白，她可能怀疑自己又被利用。'],
+        ['分清喜欢与胜负', '沈知衡在苏晚面前说清与顾言舟的竞争和自己的感情，不用含糊英雄救美带过。', '顾言舟会质疑你借机抢人，需要面对这个真实动机。'],
+        ['给她一条不是交易的路', '沈知衡提出不附带感情义务的离开安排或进一步邀约，苏晚本人决定，他落实并尊重结果。', '赢过顾言舟不等于赢得苏晚；独自离开也是她的选项。'],
+      ] },
+    ]),
+    scheduledEvents: [{ id: 'rival-at-door', title: '死对头就在隔壁', earliestTurn: 2, trigger: '苏晚提到离开安排或顾言舟拿沈知衡转移话题，且沈知衡仍在书房', effect: '沈知衡拿到作品集后可主动来到客厅，向苏晚确认是否需要车。只按当前地点推进一次，不替苏晚决定跟谁离开。' }],
+    difficultyConstraints: [{ id: 'jealousy', description: '道歉里掺着嫉妒，帮助里藏着胜负欲，没有人会在第一句对话就彻底改变。', bypassCondition: '拿具体事实追问、表达自己的立场，并通过行动逼近真实答案。', consequence: '嘴硬与利用会改变信任，不能因主角光环让对方自动低头。' }],
+    openingScene: { ...contractBase.world.openingScene, narrative: '“协议到期，你就这么急着走？”\n\n顾言舟看着玄关的行李箱，指尖停在那张签好名字的纸上。苏晚的钥匙放在旁边，还有一张刚从旧书里掉出来的照片：照片上的女人穿着白衬衫，连耳钉都和他送给苏晚的那副相似。\n\n他没有解释照片，只把那杯已经凉了的茶推开：“离开这里，你能去哪？”\n\n这一次，客厅里没有人替他把话圆回来。雨水敲在落地窗上，书房的门仍关着。沈知衡应邀来接人的消息，几分钟前已经出现在两人的手机上。顾言舟看了一眼那扇门，脸色比刚才更难看。行李箱就在出口旁，门没有锁。' },
+  },
+};
+
+const comebackRoles = workplaceBase.world.characters.map((role) => role.id === 'lin' ? { ...role,
+  publicBackground: '被周启明当众骂“离开我什么都不是”后裁掉。曾经最信任的唐宁拿走了你的主创署名。三个月后，你带着甲方授权回到他们的庆功会。',
+  goal: '让抢走功劳的人当众改口，拿回自己的名字与这次合作的主动权。' } : role.id === 'tang' ? { ...role,
+  identity: '27 岁 · 顶替主创的前好友／交付骨干', persona: '要强、嫉妒又心虚，怕别人说自己只靠抢功上位',
+  publicBackground: '林照离开后，你被周启明推成了成果册上的主创。新职位还没坐稳，原作者却以甲方身份回来了。',
+  secrets: ['你当时看见了署名被替换，没有反对；原版邮件还在你的电脑里。'],
+  goal: '面对抢功的旧账，靠真实交付能力争取自己的职位，而不是继续活在别人的名字里。' } : { ...role,
+  persona: '轻视旧下属，好面子，翻脸比翻书快，损失真正临头才会改口',
+  publicBackground: '你刚准备让唐宁在庆功会上讲述“独立主创”的成果，却发现救命续单的甲方代表是被自己羞辱赶走的林照。',
+  goal: '在旧下属面前低头处理抢功丑闻，争取保住这笔救命订单。' });
+export const workplaceWorld: StudioWorld = {
+  ...workplaceBase, title: '裁掉我后，前老板跪求续约',
+  premise: '前老板刚把抢功的同事捧成明星，你就带着甲方授权推门进场。他递来的庆功酒，你没接：“先说说，这份作品是谁做的？”',
+  roleChoices: {
+    lin: ['翻开成果册：“周总，你确定这上面该写唐宁的名字？”', '把授权书放到主位，先让周启明说完这场庆功会的来由。', '给唐宁发消息：“带上原始邮件，我们当面聊。”'],
+    zhou: ['收起庆功酒，向林照说明署名是怎么改的。', '先试探林照：“过去的事，今天能不能先放一边？”', '请唐宁带着原始材料来会议室，不再替她圆场。'],
+    tang: ['打开那封一直没删的原始邮件。', '带着缺陷清单走进会议室，面对林照。', '给林照发消息：“有些事，我想亲口和你说。”'],
+  },
+  roleOpenings: { lin: '你是林照。成果册上写着唐宁的名字，主位上摆着你的甲方名牌。今天你可以先掀旧账，也可以让他们带着心虚开这场会。', zhou: '你是周启明。你亲手裁掉的人如今掌握续单验收权。唐宁还在交付区准备材料，你需要决定先圆谎还是先低头。', tang: '你是唐宁。你在交付区准备庆功发言，手机刚收到“林照是甲方代表”的通知。原始邮件还在电脑里，会议室的话你听不见。' },
+  world: { ...workplaceBase.world, title: '裁掉我后，前老板跪求续约', characters: comebackRoles,
+    premise: '抢功、背刺与职场身份反转。林照回到前公司参加验收，撞见周启明正准备为冒领主创署名的唐宁庆功。她有甲方授权却仍需证据；周启明需要救命续单，唐宁既心虚又想证明自己。',
+    coreEvent: '验收会与庆功安排撞在同一天，冒名成果册已经印好，林照成为甲方代表让旧账无法再藏。',
+    rules: [...workplaceBase.world.rules, melodramaRule],
+    relationships: workplaceBase.world.relationships.map((link) => link.toCharacterId === 'tang' && link.fromCharacterId === 'lin' ? { ...link, publicLabel: '被背刺的原作者／冒名上位的前好友', initialTrust: 5 } : link),
+    goals: workplaceBase.world.goals.map((goal) => ({ ...goal, title: comebackRoles.find((role) => role.id === goal.roleId)!.goal, description: comebackRoles.find((role) => role.id === goal.roleId)!.goal })),
+    tasks: workplaceBase.world.tasks.map((task) => task.id === 'lin-1' ? { ...task, title: '当着他的面翻旧账', successCondition: '林照拿出原稿回执，周启明或唐宁在现场对抢功经过作出具体回应。', difficulty: '对方会说你只是打下手，需要让版本证据和当事人的话撞在一起。' } : task.id === 'lin-3' ? { ...task, title: '让他们当众把名字还回来', successCondition: '周启明和唐宁当着林照明确纠正主创归属，撤回贬低她贡献的说法；林照取得被确认的验收条件后亲自决定合作或替代交付方案。' } : task.id === 'tang-1' ? { ...task, title: '承认那个被偷走的名字', successCondition: '唐宁亲自向林照和周启明说清自己冒领署名的经过，提供原版记录及当前缺陷清单。' } : task).map((task) => ({ ...task, description: task.successCondition })),
+    scheduledEvents: [{ id: 'celebration-slide', title: '抢来的荣誉亮在屏幕上', earliestTurn: 3, trigger: '抢功争议已被提出，庆功投影还未处理', effect: '周启明收到秘书提醒：公开成果介绍即将使用署名唐宁的旧幻灯片。玩家可要求暂停、更正或选择别的行动；不得直接跳到道歉获胜。' }],
+    openingScene: { ...workplaceBase.world.openingScene, narrative: '投影幕上还停着庆功会的封面，鲜花和香槟挤在验收材料旁边。成果册最显眼的一行写着“主创：唐宁”。\n\n周启明抬头看见林照时，脸上的笑先僵了一下：“你怎么进来的？今天有重要客户。”\n\n前台把甲方名牌放到长桌主位，名字正是林照。没有掌声，也没有谁立刻道歉。周启明把已经端起的酒杯慢慢放下，伸手去盖成果册，却已经来不及遮住那行署名。\n\n三个月前，他也是在这张桌前说她离开公司什么都不是。今天，救命续单的验收授权摆在她面前。唐宁还在交付区准备稍后的发言，会议室的玻璃门关着。' },
+  },
+};
+
+export const inheritanceWorld: StudioWorld = {
+  ...inheritanceBase, title: '遗嘱一开，全家求我回去',
+  premise: '他们说你没资格分家产，把放弃继承的纸推到你面前。执行人却先按住了笔：“她不点头，你们谁也坐不稳那个位置。”',
+  roleChoices: {
+    xu: ['把笔推回去：“先念清楚属于我的，再谈什么一家人。”', '看着何承远：“你这么急着让我签，到底怕什么？”', '拿着邀请信去资料室，请陆清禾说明正式程序。'],
+    he: ['把意向书收回来，亲自解释投票委托条款。', '问许愿：“你要什么，才肯支持我？”', '请陆清禾来会客厅宣读，看看许愿究竟有什么筹码。'],
+    lu: ['带着封存文件去会客厅，准备当着双方宣读。', '先核对份额清单与签名编号，确保没有漏项。', '给许愿发消息，确认她收到本人出席的邀请。'],
+  },
+  roleOpenings: { ...inheritanceBase.roleOpenings, xu: '你是许愿。你的椅子在最角落，面前不是家宴菜单，而是让你退出争夺的意向书。你还不知道正式份额，但你有权让他们当着你的面宣读。' },
+  world: { ...inheritanceBase.world, title: '遗嘱一开，全家求我回去',
+    premise: '被排斥的外孙女回到老宅，被何承远以“你不姓何”为由要求提前交出话语权。执行人保管的正式安排却让她成为两派争夺管理席位的关键。亲情突然变得热络，财富、面子和偏爱都成为筹码。',
+    coreEvent: '何承远试图让许愿在宣读前签下退出共同管理的意向；正式份额和独立表决权尚未宣读，她手中的选择可能打破家族两派僵局。',
+    rules: [...inheritanceBase.world.rules, melodramaRule],
+    tasks: inheritanceBase.world.tasks.map((task) => task.id === 'xu-1' ? { ...task, title: '让他们当面念出你的名字' } : task.id === 'xu-3' ? { ...task, title: '让他们来问你的意见', successCondition: '许愿在正式宣读和条款澄清后，亲自提出保留表决权的管理安排或独立持有方案；何承远明确承认她的实际决定权并回应，陆清禾据实记录，而不是让强势亲属代答。' } : task).map((task) => ({ ...task, description: task.successCondition })),
+    scheduledEvents: [{ id: 'sudden-family', title: '突然想起来的亲情', earliestTurn: 3, trigger: '许愿的正式份额和独立表决权已在现场宣读，何承远开始争取她的支持', effect: '何承远收到其他亲属催促争取许愿投票的消息，他可改变称呼、许诺席位或继续施压；不替许愿信任他，也不凭空改变份额。' }],
+    openingScene: { ...inheritanceBase.world.openingScene, narrative: '“你又不姓何，今晚能让你来，已经是给足面子了。”\n\n何承远把一份意向书推到许愿面前，笔尖正对着空白签名栏。最角落的椅子是临时搬来的，桌上没有为她摆茶。墙上的全家福里，每个人都笑得体面，唯独没有她。\n\n“都是一家人，没必要闹到宣读的时候。签了，以后少不了照顾你。”他伸手点了点纸，语气像是在赏一件东西。\n\n正式文件还锁在隔壁资料室，陆清禾正在里面核对编号。许愿的邀请信清清楚楚写着必须本人到场。她还没有听到自己究竟能得到什么，但那支笔，已经有人迫不及待想替她拿起来了。' },
   },
 };
 

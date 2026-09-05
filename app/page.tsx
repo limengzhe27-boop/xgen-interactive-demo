@@ -5,10 +5,7 @@ import { SyntheticEvent, useEffect, useRef, useState } from 'react';
 import {
   ArrowLeft,
   ArrowRight,
-  BookOpen,
   Check,
-  ChevronRight,
-  Clock3,
   Eye,
   ImageIcon,
   Lightbulb,
@@ -29,6 +26,9 @@ import {
 
 import { Button } from '@/components/ui/button';
 import { StudioHome, StudioNav } from '@/components/studio-home';
+import { PersonalAgent } from '@/components/personal-agent';
+import { knownRecommendations } from '@/lib/personal-recommendations';
+import type { PersonalAgentRequest, PersonalAgentResponse } from '@/lib/ai-contracts';
 import { CharacterChat, CharacterEntry } from '@/components/character-chat';
 import { studioWorlds, getRoleOpening } from '@/lib/studio-worlds';
 import type { StudioWorld } from '@/lib/studio-worlds';
@@ -180,7 +180,7 @@ function entryStory(entry: StudioWorld, roleId: string): StoryBeat[] {
   const present = entry.world.characters.filter((item) => item.id !== role.id && item.startLocationId === role.startLocationId);
   return [{ title: entry.title, location: entry.world.locations.find((place) => place.id === role.startLocationId)?.name ?? '',
     text: getRoleOpening(entry, role.id), speaker: '', dialogue: '',
-    choices: [
+    choices: entry.roleChoices?.[role.id]?.map((label) => ({ label: `${role.name}：${label}`, clue: '表达自己的立场', result: '', relationDelta: 0 })) ?? [
       { label: `${role.name}：观察眼前的情况，整理我已经知道的信息`, clue: '观察与梳理', result: '', relationDelta: 0 },
       { label: `${role.name}：${present[0] ? `询问${present[0].name}现在的打算` : '尝试联系其他人，询问他们是否方便交谈'}`, clue: '主动沟通', result: '', relationDelta: 0 },
       { label: `${role.name}：检查与我目标有关的公开资料`, clue: '核对资料', result: '', relationDelta: 0 },
@@ -204,7 +204,6 @@ declare global {
   }
 }
 
-const starterPrompts = ['我想玩一段悬疑故事', '想来一次海上冒险', '更喜欢都市人物关系', '偶尔来点意外'];
 const demoStorageKey = 'xgen-small-world-demo-v1';
 
 const emptyCreatorBrief: CreatorBrief = {
@@ -873,17 +872,14 @@ function toSceneContext(beat: StoryBeat, sceneIndex: number, availableRoles: Rol
 export default function Home() {
   const [view, setView] = useState<View>('home');
   const [message, setMessage] = useState('');
-  const [agentReply, setAgentReply] = useState(
-    '上午好。今天想进入一段怎样的经历？你可以告诉我想见什么样的人，或者想处理怎样的事件。',
-  );
+  const [agentConversation, setAgentConversation] = useState<NonNullable<PersonalAgentRequest['conversation']>>([]);
+  const [agentError, setAgentError] = useState('');
+  const [personalRecommendations, setPersonalRecommendations] = useState<PersonalAgentResponse['recommendations']>([]);
   const [modelMode, setModelMode] = useState<ModelMode>('checking');
   const [imageModelMode, setImageModelMode] = useState<ImageModelMode>('checking');
   const lastImageAttemptTurnRef = useRef(0);
   const [agentThinking, setAgentThinking] = useState(false);
-  const [recommendationReason, setRecommendationReason] = useState('告诉我你想体验的题材，我会从可玩的世界中挑选。');
-  const [recommendedWorldId, setRecommendedWorldId] = useState<string>('storm-manor');
   const [memories, setMemories] = useState<string[]>([]);
-  const [memoryEditing, setMemoryEditing] = useState(false);
   const [selectedRole, setSelectedRole] = useState<Role>(roles[0]);
   const [turn, setTurn] = useState(0);
   const [narrative, setNarrative] = useState(roleStoryBeats[roles[0].id][0].text);
@@ -1445,26 +1441,25 @@ export default function Home() {
     event.preventDefault();
     const value = message.trim();
     if (!value || agentThinking) return;
-    setMessage('');
+    setAgentError('');
     setAgentThinking(true);
     try {
       const response = await runAI((adapter) => adapter.talkToPersonalAgent({
         contractVersion: AI_CONTRACT_VERSION,
         userMessage: value,
+        conversation: agentConversation.slice(-8),
         currentMemories: toAgentMemories(memories),
         recentExperiences: [],
         availableWorldIds: personalCatalog.map((entry) => entry.id),
         availableWorlds: personalCatalog,
       }), false);
-      setAgentReply(response.reply);
-      const learned = response.memoryCandidates.filter((memory) => !memory.requiresConfirmation).map((memory) => memory.value);
+      setAgentConversation((current) => [...current, { role: 'user', content: value }, { role: 'assistant', content: response.reply }]);
+      setMessage('');
+      const learned = response.memoryCandidates.filter((memory) => memory.source === 'explicit' && !memory.requiresConfirmation).map((memory) => memory.value);
       setMemories((current) => [...learned, ...current.filter((memory) => !learned.includes(memory))].slice(0, 6));
-      if (response.recommendations[0]) {
-        setRecommendationReason(response.recommendations[0].reason);
-        setRecommendedWorldId(response.recommendations[0].worldId);
-      }
+      setPersonalRecommendations(knownRecommendations(response.recommendations, personalCatalog.map((entry) => entry.id)));
     } catch {
-      setAgentReply('刚才没有成功整理这条偏好。你可以再说一次，原有记忆不会丢失。');
+      setAgentError('这次没有收到有效回应。输入、已有对话和偏好已保留，可以重试。');
     } finally {
       setAgentThinking(false);
     }
@@ -1930,10 +1925,7 @@ export default function Home() {
     const world = materializeCreatorWorld();
     const published = { ...world, id: draftId };
     setGeneratedWorld(published);
-    setAgentReply('你的新世界已经准备好。我会把它加入可推荐的世界，并按体验者的要求判断是否匹配。');
-    setMemories((current) => Array.from(new Set(['创建过小世界', ...current])).slice(0, 6));
     setPublishedWorld(true);
-    setRecommendedWorldId(draftId);
     const entry: StudioWorld = { id: draftId, title: published.title, genre: '我的创作', premise: published.premise, cover: '/assets/storm-manor-cover.png', portraits: {}, world: published,
       portraitCacheKeys: Object.fromEntries(draftRoles.map((role, index) => [published.characters[index]?.id ?? `draft-role-${index}`, portraitCacheKey(role)])) };
     setActiveLibrary(entry); setActiveWorld('draft'); setSelectedRole(entryRoles(entry)[0]); setRuntimeBeat(null); navigate('roles');
@@ -2074,31 +2066,21 @@ export default function Home() {
     }
     if (view === 'ending') return <Ending worldTitle={activeWorldTitle} role={selectedRole} decision={endingDecision} state={worldState} world={activeWorldDefinition} imageUrl={imageTask.assetUrl} onContinue={continueWorld} onReplay={() => navigate('roles')} onHome={() => navigate('home')} />;
     return (
-      <AgentHome
-        extraWorlds={availableStudioWorlds}
+      <PersonalAgent
+        worlds={[
+          ...availableStudioWorlds.map((entry) => ({ ...entry, roleCount: entry.world.characters.length })),
+          ...worldCatalog.map((world) => ({ ...world, roleCount: world.id === 'storm-manor' ? roles.length : presetWorlds.find((preset) => preset.id === world.id)?.roles.length ?? 0, cover: world.id === 'storm-manor' ? '/assets/storm-manor-cover.png' : world.id === 'sea-train' ? '/assets/sea-train-cover.jpg' : '/assets/roommate-cover.jpg' })),
+        ]}
         message={message}
-        agentReply={agentReply}
-        agentThinking={agentThinking}
-        recommendationReason={recommendationReason}
-        recommendedWorldId={recommendedWorldId}
-        savedRun={savedRun}
-        savedRunRoleName={savedRun ? (
-          savedRun.worldKind === 'draft'
-            ? playableDraftRoles
-            : savedRun.worldKind === 'suggestion'
-              ? makePlayableDraftRoles(presetWorlds.find((world) => world.id === savedRun.presetId)?.roles ?? [])
-              : roles
-        ).find((role) => role.id === savedRun.roleId)?.name ?? '未知角色' : ''}
+        conversation={agentConversation}
+        busy={agentThinking}
+        error={agentError}
+        recommendations={personalRecommendations}
         memories={memories}
-        publishedWorld={publishedWorld}
-        publishedTitle={worldTitle || '雾潮灯塔：第十三次守夜'}
-        memoryEditing={memoryEditing}
         onMessage={setMessage}
         onSubmit={submitMessage}
-        onToggleMemory={() => setMemoryEditing((current) => !current)}
         onRemoveMemory={(memory) => setMemories((current) => current.filter((item) => item !== memory))}
         onOpenWorld={openCatalogWorld}
-        onResume={() => resumeSavedWorld()}
         onCreate={() => newCreator()}
       />
     );
@@ -2116,137 +2098,6 @@ export default function Home() {
   );
 }
 
-
-function AgentHome({
-  extraWorlds,
-  message,
-  agentReply,
-  agentThinking,
-  recommendationReason,
-  recommendedWorldId,
-  savedRun,
-  savedRunRoleName,
-  memories,
-  publishedWorld,
-  publishedTitle,
-  memoryEditing,
-  onMessage,
-  onSubmit,
-  onToggleMemory,
-  onRemoveMemory,
-  onOpenWorld,
-  onResume,
-  onCreate,
-}: {
-  extraWorlds: StudioWorld[];
-  message: string;
-  agentReply: string;
-  agentThinking: boolean;
-  recommendationReason: string;
-  recommendedWorldId: string;
-  savedRun: SavedRun | null;
-  savedRunRoleName: string;
-  memories: string[];
-  publishedWorld: boolean;
-  publishedTitle: string;
-  memoryEditing: boolean;
-  onMessage: (value: string) => void;
-  onSubmit: (event: SyntheticEvent<HTMLFormElement>) => void;
-  onToggleMemory: () => void;
-  onRemoveMemory: (memory: string) => void;
-  onOpenWorld: (worldId: string) => void;
-  onResume: () => void;
-  onCreate: () => void;
-}) {
-  return (
-    <div className="app-shell" id="top">
-      <section className="agent-home-grid" id="agent" aria-labelledby="agent-title">
-        <aside className="agent-panel reveal-in">
-          <div className="agent-identity">
-            <span className="agent-sigil" aria-hidden="true"><Sparkles /></span>
-            <div><p className="eyebrow">个人 Agent</p><h1 id="agent-title">我正在了解你</h1></div>
-            <span className="agent-online" data-thinking={agentThinking}>{agentThinking ? '正在理解' : '在线'}</span>
-          </div>
-          <div className="agent-conversation" aria-live="polite" aria-busy={agentThinking}>
-            <p className="agent-message">{agentThinking ? '我正在把这句话和已经了解的偏好放在一起……' : agentReply}</p>
-            <div className="prompt-list" aria-label="快捷表达">
-              {starterPrompts.map((prompt) => <button className="prompt-chip" key={prompt} type="button" onClick={() => onMessage(prompt)}>{prompt}</button>)}
-            </div>
-          </div>
-          <form className="agent-composer" onSubmit={onSubmit}>
-            <Input aria-label="告诉 Agent 你想体验什么" className="agent-input" value={message} onChange={(event) => onMessage(event.target.value)} placeholder="告诉我你今天想体验什么…" disabled={agentThinking} />
-            <Button className="send-button" type="submit" aria-label="发送" disabled={agentThinking || !message.trim()}><Send aria-hidden="true" /></Button>
-          </form>
-          <div className="memory-block">
-            <div className="memory-heading"><span>我记得的你</span><button type="button" onClick={onToggleMemory}>{memoryEditing ? '完成' : '管理记忆'}</button></div>
-            <div className="memory-chips">
-              {memories.map((memory, index) => memoryEditing
-                ? <button className="memory-chip is-editing" key={`${memory}-${index}`} type="button" onClick={() => onRemoveMemory(memory)}>{memory}<X aria-hidden="true" /></button>
-                : <span className="memory-chip" key={`${memory}-${index}`}>{memory}</span>)}
-              {memories.length === 0 ? <small className="empty-memory">还没有保存偏好，和 Agent 说一句吧。</small> : null}
-            </div>
-          </div>
-        </aside>
-
-        <section className="recommendation-area" id="worlds" aria-labelledby="recommend-title">
-          <div className="section-heading reveal-in delay-one">
-            <div><p className="eyebrow">为你挑选</p><h2 id="recommend-title">今晚，从这个世界开始</h2></div>
-            <span className="recommend-count">{3 + extraWorlds.length} 个可进入世界</span>
-          </div>
-          <p className="agent-selection-note"><Sparkles />{recommendationReason}</p>
-          {extraWorlds.map((entry) => <button className="teaser-card" key={entry.id} type="button" data-recommended={recommendedWorldId === entry.id} onClick={() => onOpenWorld(entry.id)}><span><strong>{entry.title}</strong><small>{entry.genre} · {entry.premise}</small>{recommendedWorldId === entry.id && <em>Agent 为你推荐</em>}</span><ArrowRight /></button>)}
-          {savedRun ? (
-            <button className="resume-world-card reveal-in delay-one" type="button" onClick={onResume}>
-              <span className="resume-icon"><Clock3 /></span>
-              <span className="resume-copy">
-                <small>{savedRun.status === 'ending' ? '已抵达阶段结局' : '上次探索停在这里'}</small>
-                <strong>{savedRun.worldTitle}</strong>
-                <span>{savedRunRoleName} · {savedRun.worldState.location} · 第 {savedRun.turn + 1} 轮</span>
-              </span>
-              <span className="resume-action">{savedRun.status === 'ending' ? '查看结局' : '继续探索'}<ArrowRight /></span>
-            </button>
-          ) : null}
-          <article className="featured-world spotlight-card reveal-in delay-two" data-recommended={recommendedWorldId === 'storm-manor'}>
-            <img src="/assets/storm-manor-cover.png" alt="暴雨中的山顶老宅，三个窗口里站着不同的人影" />
-            <div className="world-image-scrim" aria-hidden="true" />
-            <div className="world-copy">
-              <div className="world-tags"><span>悬疑</span><span>3 个可选角色</span><span>3 个主线条件</span></div>
-              <p className="recommend-reason"><Sparkles aria-hidden="true" />{recommendedWorldId === 'storm-manor' ? 'Agent 当前为你推荐' : '多视角悬疑世界'}</p>
-              <h3>暴雨山庄：缺席的继承人</h3>
-              <p className="world-premise">遗嘱公布前夜，继承人从封闭的山庄中消失。每个人都知道一点真相，也都藏着不能说的部分。</p>
-              <div className="world-actions">
-                <Button className="primary-action" size="lg" onClick={() => onOpenWorld('storm-manor')}>选择角色进入<ArrowRight aria-hidden="true" /></Button>
-                <Button className="secondary-action" variant="outline" size="lg" onClick={() => onOpenWorld('storm-manor')}><BookOpen aria-hidden="true" />查看世界</Button>
-              </div>
-            </div>
-            <div className="world-index" aria-hidden="true">01</div>
-          </article>
-          <div className="world-teasers reveal-in delay-three">
-            {presetWorlds.map((world, index) => (
-              <button className="teaser-card" data-recommended={recommendedWorldId === world.id} key={world.id} type="button" onClick={() => onOpenWorld(world.id)}>
-                <span className="teaser-number">{String(index + 2).padStart(2, '0')}</span>
-                <span><strong>{world.title}</strong><small>{world.genre} · {world.complexityLabel}</small>{recommendedWorldId === world.id ? <em><Sparkles />Agent 为你推荐</em> : null}</span>
-                <ArrowRight />
-              </button>
-            ))}
-          </div>
-          <button className="create-inline-card reveal-in delay-three" type="button" onClick={onCreate}>
-            <span className="create-icon"><Plus /></span>
-            <span><strong>没有想进入的世界？</strong><small>添加角色后，可以直接使用自己的剧情，也可以让 AI 帮你展开。</small></span>
-            <ChevronRight aria-hidden="true" />
-          </button>
-          {publishedWorld ? (
-            <button className="published-world-card reveal-in" data-recommended={recommendedWorldId === 'creator-world'} type="button" onClick={() => onOpenWorld('creator-world')}>
-              <span><Sparkles /></span>
-              <span><small>你发布的世界</small><strong>{publishedTitle}</strong></span>
-              <span>选角试玩<ArrowRight /></span>
-            </button>
-          ) : null}
-        </section>
-      </section>
-    </div>
-  );
-}
 
 function RolePortrait({ role, className = '' }: { role: Role; className?: string }) {
   return (

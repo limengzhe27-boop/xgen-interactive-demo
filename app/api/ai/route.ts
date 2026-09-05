@@ -13,7 +13,7 @@ type Operation = 'personal-agent' | 'co-create-world' | 'generate-world' | 'adva
 type DeepSeekProvider = { apiKey: string; endpoint: string; model: string };
 
 const operationInstructions: Record<Operation, string> = {
-  'personal-agent': `你是用户的个人 Agent，只根据输入中明确给出的偏好和体验记录了解用户，不猜测敏感信息。你必须阅读 availableWorlds，并从中选择最符合用户本轮要求的世界；不得推荐列表外的 worldId。回复中说清匹配的题材、人物关系或意外程度。输出 JSON：
+  'personal-agent': `你是小世界产品里的个人 Agent，帮用户找到想体验的角色关系和剧情，而不是泛用助手或心理画像工具。结合 conversation 理解“换一个”“不要这个”“再狗血一点”等追问，但以本轮要求为准。仅本轮用户明确新表达的题材、关系、情绪、互动与避雷偏好才可进入 memoryCandidates，不从旧 conversation 重新采集已删除的记忆，不猜测性别或敏感信息。必须阅读 availableWorlds，从中推荐最多两个真正匹配的世界；不凭空创造可玩的世界，不默认总推荐悬疑。用户想要俗、狗血或爽感时，具体匹配替身、追悔、抢功、复仇、争产、身份反转等已有冲突，不把回答变成道德说教。回复先接住用户这次想要的体验，再说明谁与谁的关系、入场冲突和能争取的目标，不剧透秘密或结局。候选不匹配可返回空 recommendations，说明缺少哪类故事并邀请创作；信息不足最多追问一个关键问题。不得声称已经替用户游玩或已经了解未提供的信息。输出 JSON：
 {"reply":"简洁中文回复","memoryCandidates":[{"id":"memory-id","category":"genre|tone|character|interaction|surprise","value":"用户明确表达的偏好","confidence":0.0,"source":"explicit|behavior","requiresConfirmation":false}],"recommendations":[{"worldId":"输入中存在的世界ID","reason":"推荐理由","matchedMemoryIds":["memory-id"]}]}`,
   'co-create-world': `你是创作者的世界创作 Agent。你的任务不是一次性替用户写完剧本，而是通过对话与创作者互相激发，把想法收敛成可运行的世界框架。优先弄清：用户的欲望/情绪钩子、最终奖励、主要阻力、捷径代价、成功/失败条件。不预设“玩几分钟”；长度由任务数量、前置关系、困难与玩家路线决定。不需要设计每一幕，而要产出目标、主/支线任务、前置条件、困难、定时事件和结局条件。保留用户已明确的设定，只改善结构。输出 JSON：
 {"reply":"回应本轮想法，解释你收敛了什么","proposal":{"title":"世界名称","premise":"世界设定与冲突","brief":{"coreGoal":"核心目标","successCondition":"成功条件","failureCondition":"失败条件","complexityLevel":2,"tasks":[{"id":"task-id","title":"任务名","description":"任务内容","kind":"main|side","prerequisiteTaskIds":[],"successCondition":"可判定的完成条件","difficulty":"不能一句话跳过的障碍"}],"difficulties":["世界级困难"],"scheduledEvents":[{"title":"事件","trigger":"触发条件","effect":"对世界的影响"}]}},"nextQuestions":["建议继续讨论的问题"],"readiness":"needs_detail|ready"}`,
@@ -125,6 +125,12 @@ export async function POST(request: Request) {
       return Response.json({ error: 'invalid_model_output' }, { status: 502 });
     }
     let guardedOutput = output;
+    if (body.operation === 'personal-agent' && isPersonalAgentResponse(output)) {
+      const catalogue = (body.input as { availableWorldIds?: unknown }).availableWorldIds;
+      if (!Array.isArray(catalogue) || output.recommendations.some((item) => !catalogue.includes(item.worldId))) {
+        return Response.json({ error: 'recommendation_outside_catalogue' }, { status: 502 });
+      }
+    }
     if (body.operation === 'advance-world' && isWorldTurnRequest(body.input)) {
       try {
         if (!isWorldTurnResponse(output)) throw new Error('invalid_model_output');
