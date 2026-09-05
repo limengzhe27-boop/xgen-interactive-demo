@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { enforceWorldTurnGuardrails as guard } from '../lib/world-agent-guardrails.ts';
-import { commitTurn } from '../lib/world-state.ts';
+import { enforceWorldTurnGuardrails as guard, narrativeOverlap } from '../lib/world-agent-guardrails.ts';
+import { commitTurn, createInitialWorldState, selectRoleGoal } from '../lib/world-state.ts';
+import { makeContentImageKey } from '../lib/image-cache.ts';
 import { makeEndingFixture } from './ending-fixture.mjs';
 
 function response(patch = {}, ending = {}) {
@@ -64,4 +65,53 @@ test('explicitly staying in place cannot commit a player move', () => {
   const input = makeEndingFixture(); input.userAction = '许宁留在当前地点，询问下一步安排';
   assert.throws(() => guard(input, response({ locationId: 'upstairs' })), /unauthorized_player_movement/);
   assert.doesNotThrow(() => guard(input, response({ locationId: '档案室' })));
+});
+
+test('near-identical long narration is rejected, but short recaps and different feedback are allowed', () => {
+  const input = makeEndingFixture();
+  const previous = Array.from({ length: 30 }, (_, i) => `许宁核对第${i}份防汛记录，陈舟说明这份记录的保管地点。`).join('');
+  input.recentTurns = [{ action: '整理', result: previous }];
+  const out = response(); out.narrative = previous.replaceAll('许宁', '你');
+  assert.ok(narrativeOverlap(previous, out.narrative) >= 0.72);
+  assert.throws(() => guard(input, out), /repeated_narrative/);
+  out.narrative = '陈舟提醒你，刚才已经把文件整理完了，现在还没有新的防汛通知。';
+  assert.doesNotThrow(() => guard(input, out));
+  out.narrative = Array.from({ length: 30 }, (_, i) => `楼上第${i}排窗框正在渗水，走廊的居民递来一只空盆接住雨滴。`).join('');
+  assert.doesNotThrow(() => guard(input, out));
+});
+
+test('selected role receives their goal and tasks rather than the first role goal', () => {
+  const input = makeEndingFixture();
+  input.world.goals = [
+    { id: 'chen-goal', scope: 'role', roleId: 'chen', title: '陈舟的计划', requiredTaskIds: ['chen-only'] },
+    { id: 'xu-goal', scope: 'role', roleId: 'xu', title: '许宁的计划', requiredTaskIds: ['box'] },
+  ];
+  input.world.tasks.push({ ...input.world.tasks[0], id: 'chen-only', assignedRoleIds: ['chen'] });
+  assert.equal(selectRoleGoal(input.world, 'xu').id, 'xu-goal');
+  assert.ok(!guard(input, response()).goalProgress.activeTaskIds.includes('chen-only'));
+  input.selectedRoleId = 'chen';
+  assert.equal(selectRoleGoal(input.world, 'chen').id, 'chen-goal');
+  assert.ok(guard(input, response()).goalProgress.activeTaskIds.includes('chen-only'));
+  input.world.goals = [input.world.goals[0]];
+  assert.notEqual(selectRoleGoal(input.world, 'xu')?.id, 'chen-goal');
+});
+
+test('new runs isolate role knowledge and preserve offscreen NPC starting locations', () => {
+  const options = { timeSetting: '09:00', coreEvent: '防汛', characterIds: ['xu', 'chen'], openingLocationId: 'archive',
+    characterLocations: { xu: 'archive', chen: 'upstairs' } };
+  const xu = createInitialWorldState('draft', 'xu', '', 'archive', { ...options, roleKnowledge: ['自己的经历', '自己的秘密'] });
+  const chen = createInitialWorldState('draft', 'chen', '', 'upstairs', { ...options, roleKnowledge: ['陈舟的秘密'] });
+  assert.deepEqual(xu.knownSecrets, ['自己的经历', '自己的秘密']);
+  assert.deepEqual(chen.knownSecrets, ['陈舟的秘密']);
+  assert.equal(xu.characterStates.chen.locationId, 'upstairs');
+  assert.equal(chen.turn, 0); assert.deepEqual(chen.completedTaskIds, []);
+});
+
+test('image cache separates worlds, changed scenes, selected roles and edited appearances', () => {
+  const key = (world, role, prompt) => makeContentImageKey('scene', world, role, 'scene-1', prompt);
+  assert.equal(key('家庭故事', 'role-0', '厨房'), key('家庭故事', 'role-0', '厨房'));
+  assert.notEqual(key('家庭故事', 'role-0', '厨房'), key('宫廷故事', 'role-0', '厨房'));
+  assert.notEqual(key('家庭故事', 'role-0', '厨房'), key('家庭故事', 'role-0', '院子'));
+  assert.notEqual(key('家庭故事', 'role-0', '厨房'), key('家庭故事', 'role-1', '厨房'));
+  assert.notEqual(makeContentImageKey('portrait', '王爱莲', '年轻女子'), makeContentImageKey('portrait', '王爱莲', '老年女子'));
 });

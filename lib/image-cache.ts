@@ -3,6 +3,18 @@ const STORE_NAME = 'scene-images';
 const DATABASE_VERSION = 1;
 const MAX_CACHED_IMAGES = 12;
 
+// Content-addressed keys prevent fixed draft-role/scene IDs from reusing another world's art.
+// Two independent 32-bit hashes keep browser keys small; this is not a security hash.
+export function makeContentImageKey(kind: 'scene' | 'portrait', ...parts: unknown[]): string {
+  const text = JSON.stringify(parts);
+  let first = 2166136261; let second = 5381;
+  for (let index = 0; index < text.length; index++) {
+    first = Math.imul(first ^ text.charCodeAt(index), 16777619);
+    second = Math.imul(second, 33) ^ text.charCodeAt(index);
+  }
+  return `v2:${kind}:${(first >>> 0).toString(16)}:${(second >>> 0).toString(16)}`;
+}
+
 type CachedSceneImage = {
   key: string;
   assetUrl: string;

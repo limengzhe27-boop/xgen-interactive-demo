@@ -3,8 +3,20 @@ import type { ActionValidation } from '@/lib/world-state';
 
 function activeTasks(input: WorldTurnRequest, completed: Set<string>, failed: Set<string>) {
   return input.world.tasks.filter((task) => task.kind === 'main'
+    && (task.assignedRoleIds.length === 0 || task.assignedRoleIds.includes(input.selectedRoleId))
     && !completed.has(task.id) && !failed.has(task.id)
     && task.prerequisiteTaskIds.every((id) => completed.has(id))).map((task) => task.id);
+}
+
+// Conservative overlap check: repeated names or a short recap are not a repeated turn.
+export function narrativeOverlap(left: string, right: string): number {
+  const normalize = (text: string) => text.replace(/[^\p{L}\p{N}]/gu, '');
+  const a = normalize(left); const b = normalize(right);
+  if (Math.min(a.length, b.length) < 160) return 0;
+  const grams = (text: string) => new Set(Array.from({ length: text.length - 4 }, (_, index) => text.slice(index, index + 5)));
+  const ag = grams(a); const bg = grams(b);
+  const shared = [...ag].filter((gram) => bg.has(gram)).length;
+  return shared / Math.max(ag.size, bg.size);
 }
 
 export function makeRejectedWorldTurn(input: WorldTurnRequest, validation: ActionValidation): WorldTurnResponse {
@@ -27,6 +39,9 @@ export function enforceWorldTurnGuardrails(input: WorldTurnRequest, output: Worl
     // Even a model's rejection reason can accidentally disclose hidden facts.
     return makeRejectedWorldTurn(input, { allowed: false,
       reason: '当前条件不足以执行这个行动。', suggestion: '尝试观察现场、询问在场人物或先取得所需条件。' });
+  }
+  if (input.recentTurns.some((turn) => narrativeOverlap(output.narrative, turn.result) >= 0.72)) {
+    throw new Error('repeated_narrative');
   }
   const completed = new Set(input.state.completedTaskIds ?? []);
   if (input.userAction.includes('留在当前地点') && output.statePatch.locationId) {

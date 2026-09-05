@@ -35,13 +35,14 @@ import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { AI_CONTRACT_VERSION, mockAIAdapter } from '@/lib/mock-ai-adapter';
-import { cacheSceneImage, getCachedSceneImage } from '@/lib/image-cache';
+import { cacheSceneImage, getCachedSceneImage, makeContentImageKey } from '@/lib/image-cache';
 import { createInitialImageTask, finishImageTask, startImageTask } from '@/lib/image-task';
 import { getRemoteAIStatus, remoteAIAdapter } from '@/lib/remote-ai-adapter';
 import { generateSceneImage, getRemoteImageStatus } from '@/lib/remote-image-service';
 import {
   commitTurn,
   createInitialWorldState,
+  selectRoleGoal,
   recordInterruptedEvent,
   recordRejectedEvent,
   validateAction,
@@ -809,8 +810,8 @@ function stableVisualSeed(value: string) {
   return hash >>> 0;
 }
 
-function makeImageCacheKey(worldKind: WorldKind, roleId: string, sceneId: string) {
-  return `${worldKind}:${roleId}:${sceneId}`;
+function portraitCacheKey(role: DraftRole) {
+  return makeContentImageKey('portrait', role.name, role.identity, role.personality, role.appearance);
 }
 
 function toSceneContext(beat: StoryBeat, sceneIndex: number, availableRoles: Role[]): WorldTurnRequest['currentScene'] {
@@ -891,6 +892,8 @@ export default function Home() {
   const imageControllerRef = useRef<AbortController | null>(null);
   const imageRequestRef = useRef(0);
   const roleImageRequestRef = useRef<Record<string, number>>({});
+  const roleImageKeysRef = useRef<string[]>([]);
+  const portraitSignature = JSON.stringify(draftRoles.map(portraitCacheKey));
 
   const playableDraftRoles = makePlayableDraftRoles(draftRoles).map((role, index) => {
     const generatedCharacter = generatedWorld?.characters[index];
@@ -1045,16 +1048,25 @@ export default function Home() {
   useEffect(() => {
     if (!storageReady) return;
     let active = true;
-    void Promise.all(Array.from({ length: draftRoles.length }, async (_, index) => {
+    const keys = JSON.parse(portraitSignature) as string[];
+    const unchangedIds = new Set(keys.flatMap((key, index) => key === roleImageKeysRef.current[index] ? [`draft-role-${index}`] : []));
+    keys.forEach((key, index) => {
+      if (roleImageKeysRef.current[index] && key !== roleImageKeysRef.current[index]) {
+        const id = `draft-role-${index}`;
+        roleImageRequestRef.current[id] = (roleImageRequestRef.current[id] ?? 0) + 1;
+      }
+    });
+    roleImageKeysRef.current = keys;
+    void Promise.all(keys.map(async (key, index) => {
       const roleId = `draft-role-${index}`;
-      return [roleId, await getCachedSceneImage(`creator:${roleId}`).catch(() => null)] as const;
+      return [roleId, await getCachedSceneImage(key).catch(() => null)] as const;
     })).then((entries) => {
       if (!active) return;
       const restored = Object.fromEntries(entries.filter((entry): entry is readonly [string, string] => Boolean(entry[1])));
-      if (Object.keys(restored).length > 0) setRoleImages((current) => ({ ...current, ...restored }));
+      setRoleImages((current) => ({ ...Object.fromEntries(Object.entries(current).filter(([id]) => unchangedIds.has(id))), ...restored }));
     });
     return () => { active = false; };
-  }, [draftRoles.length, storageReady]);
+  }, [portraitSignature, storageReady]);
 
   useEffect(() => {
     if (!storageReady || isThinking || actionFeedback?.allowed === false || (view !== 'play' && view !== 'ending')) return;
@@ -1165,7 +1177,7 @@ export default function Home() {
     const cast = currentRoles.map((role) => `${role.name}：${role.visualAnchor}；性格为${role.personality}`).join('。');
     const prompt = ((directive.prompt?.trim() || `${activeWorldTitle}，${context.sceneTitle}。${context.narrative}。角色：${cast}。`).slice(0, 3_200)
       + ` 角色视觉圣经：${cast}。严格保持每个角色的年龄、发型、服装、配饰和体态连续。电影感叙事插画，横向宽银幕构图，暗色克制氛围，环境细节清晰，无文字、无字幕、无水印、无界面元素。`).slice(0, 3_900);
-    const cacheKey = makeImageCacheKey(activeWorld, selectedRole.id, directive.sceneId);
+    const cacheKey = makeContentImageKey('scene', activeWorldDefinition, selectedRole.id, directive.sceneId, prompt);
     const seed = stableVisualSeed(`${activeWorld}:${activeWorldTitle}:${selectedRole.id}`);
     void getCachedSceneImage(cacheKey).catch(() => null).then(async (cachedAssetUrl) => {
       if (imageRequestRef.current !== requestId || imageController.signal.aborted) return;
@@ -1351,6 +1363,7 @@ export default function Home() {
     setNarrative(openingBeat.text);
     setLastAction('');
     setEndingDecision('');
+    const roleDefinition = activeWorldDefinition.characters.find((character) => character.id === selectedRole.id);
     setWorldState(createInitialWorldState(
       activeWorld,
       selectedRole.id,
@@ -1359,7 +1372,11 @@ export default function Home() {
       {
         timeSetting: activeWorldDefinition.timeSetting,
         coreEvent: activeWorldDefinition.coreEvent,
-        activeGoalId: activeWorldDefinition.goals[0]?.id,
+        activeGoalId: selectRoleGoal(activeWorldDefinition, selectedRole.id)?.id,
+        roleKnowledge: roleDefinition ? [...roleDefinition.privateKnowledge, ...roleDefinition.secrets] : [selectedRole.secret],
+        characterLocations: Object.fromEntries(activeWorldDefinition.characters.map((character) => [character.id,
+          character.id === selectedRole.id || activeWorldDefinition.openingScene.presentCharacterIds.includes(character.id)
+            ? activeWorldDefinition.openingScene.locationId : character.startLocationId])),
         characterIds: activeWorldDefinition.characters.map((character) => character.id),
         openingLocationId: activeWorldDefinition.openingScene.locationId,
       },
@@ -1486,7 +1503,7 @@ export default function Home() {
         const finishTurn = () => {
           setWorldState((current) => commitTurn(current, {
             action: nextAction,
-            result: response.statePatch.committedFacts[0] ?? response.narrative,
+            result: response.narrative,
             clue: responseClue,
             nextLocation: nextBeat.location,
             relationshipDelta: responseRelation,
@@ -1533,6 +1550,7 @@ export default function Home() {
     setDraftRoles((current) => current.map((role, roleIndex) => (roleIndex === index ? { ...role, [key]: value } : role)));
     if (key === 'name' || key === 'identity' || key === 'personality' || key === 'appearance') {
       const roleId = `draft-role-${index}`;
+      roleImageRequestRef.current[roleId] = (roleImageRequestRef.current[roleId] ?? 0) + 1;
       setRoleImages((current) => Object.fromEntries(Object.entries(current).filter(([id]) => id !== roleId)));
       setRoleImageStates((current) => ({ ...current, [roleId]: 'idle' }));
     }
@@ -1546,6 +1564,7 @@ export default function Home() {
   }
 
   function removeDraftRole(index: number) {
+    Object.keys(roleImageRequestRef.current).forEach((id) => { roleImageRequestRef.current[id] += 1; });
     setDraftRoles((current) => current.length <= 2 ? current : current.filter((_, roleIndex) => roleIndex !== index));
     setRoleImages({});
     setRoleImageStates({});
@@ -1570,8 +1589,9 @@ export default function Home() {
         seed: stableVisualSeed(`character:${roleId}:${role.name}:${role.appearance}`),
       });
       if (roleImageRequestRef.current[roleId] !== requestId) return;
-      const cacheKey = `creator:${roleId}`;
+      const cacheKey = portraitCacheKey(role);
       if (result.persistent) await cacheSceneImage(cacheKey, result.assetUrl).catch(() => false);
+      if (roleImageRequestRef.current[roleId] !== requestId) return;
       setRoleImages((current) => ({ ...current, [roleId]: result.assetUrl }));
       setRoleImageStates((current) => ({ ...current, [roleId]: 'ready' }));
     } catch {
@@ -1792,8 +1812,8 @@ export default function Home() {
           lastAction={lastAction}
           clues={worldState.clues}
           inventory={worldState.inventory}
-          goal={activeWorldDefinition.goals[0]}
-          tasks={activeWorldDefinition.tasks}
+          goal={selectRoleGoal(activeWorldDefinition, selectedRole.id)}
+          tasks={activeWorldDefinition.tasks.filter((task) => task.assignedRoleIds.length === 0 || task.assignedRoleIds.includes(selectedRole.id))}
           completedTaskIds={worldState.completedTaskIds ?? []}
           eventLedger={worldState.eventLedger}
           relation={worldState.relationshipTrust}

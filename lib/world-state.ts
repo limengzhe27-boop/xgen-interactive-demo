@@ -1,3 +1,14 @@
+import type { WorldDefinition, WorldGoal } from '@/lib/ai-contracts';
+
+export function selectRoleGoal(world: WorldDefinition, roleId: string): WorldGoal | undefined {
+  const explicit = world.goals.find((goal) => goal.scope === 'role' && goal.roleId === roleId)
+    ?? world.goals.find((goal) => goal.scope === 'world');
+  if (explicit) return explicit;
+  const role = world.characters.find((character) => character.id === roleId);
+  return role?.goal ? { id: `role-goal:${roleId}`, scope: 'role', roleId, title: role.goal,
+    description: role.goal, requiredTaskIds: world.tasks.filter((task) => task.assignedRoleIds.includes(roleId)).map((task) => task.id) } : undefined;
+}
+
 export type EventStatus = 'committed' | 'interrupted' | 'rejected';
 
 export type EventRecord = {
@@ -86,6 +97,8 @@ export function createInitialWorldState(
     activeGoalId?: string;
     characterIds?: string[];
     openingLocationId?: string;
+    roleKnowledge?: string[];
+    characterLocations?: Record<string, string>;
   },
 ): WorldState {
   const inventoryByRole: Record<string, string[]> = {
@@ -99,7 +112,7 @@ export function createInitialWorldState(
     location: initialLocation,
     inventory: generated ? [] : worldKind === 'draft' ? ['航海日志', '手电'] : (inventoryByRole[roleId] ?? []),
     clues: [generated ? `核心事件：${generated.coreEvent}` : worldKind === 'draft' ? '雾潮将在凌晨三点达到顶峰' : '遗嘱公布时间：午夜'],
-    knownSecrets: [roleSecret],
+    knownSecrets: [...new Set((generated?.roleKnowledge ?? [roleSecret]).filter(Boolean))],
     committedFacts: [],
     reachedEndingIds: [],
     activeGoalId: generated?.activeGoalId,
@@ -107,7 +120,7 @@ export function createInitialWorldState(
     failedTaskIds: [],
     taskNotes: {},
     characterStates: Object.fromEntries((generated?.characterIds ?? []).map((characterId) => [characterId, {
-      locationId: generated?.openingLocationId,
+      locationId: generated?.characterLocations?.[characterId] ?? generated?.openingLocationId,
       status: '行动中',
       lastAction: '等待世界开始',
     }])),

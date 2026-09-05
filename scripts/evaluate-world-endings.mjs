@@ -1,5 +1,6 @@
 import { makeEndingFixture } from './ending-fixture.mjs';
 import { commitTurn } from '../lib/world-state.ts';
+import { narrativeOverlap } from '../lib/world-agent-guardrails.ts';
 
 const base = process.env.XGEN_EVAL_BASE_URL || 'http://localhost:3000';
 async function advance(input) {
@@ -29,6 +30,7 @@ async function run(route) {
         : actions[!completed.includes('box') ? 0 : !completed.includes('pack') ? 1 : 2];
     try {
       const out = await advance(input);
+      if (turns.some((previous) => narrativeOverlap(previous.narrative, out.narrative) >= 0.72)) issues.push(`turn ${turn + 1}: near-duplicate narrative`);
       const currentLocation = input.world.locations.find((place) => place.id === input.state.location || place.name === input.state.location);
       if (ended && out.statePatch.locationId && ![input.state.location, currentLocation?.id, currentLocation?.name].includes(out.statePatch.locationId)) issues.push(`turn ${turn + 1}: player moved despite staying put`);
       if (!out.actionDecision.allowed) issues.push(`turn ${turn + 1}: legitimate action rejected`);
