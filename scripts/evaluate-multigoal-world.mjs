@@ -95,9 +95,10 @@ async function run(roleId, order) {
   if (!input.state.reachedEndingIds.includes(expected)) issues.push(`missing ${expected}`);
   return { roleId, issues, warnings, turns };
 }
-const results = await Promise.all([
-  run('lin', ['count', 'table', 'photo', 'price', 'display', 'open']),
-  run('zhou', ['check', 'return']),
-]);
+const routes = [
+  ['lin', ['count', 'table', 'photo', 'price', 'display', 'open']],
+  ['zhou', ['check', 'return']],
+].filter(([roleId]) => !process.env.XGEN_EVAL_ROLE || roleId === process.env.XGEN_EVAL_ROLE);
+const results = await Promise.all(routes.map(([roleId, order]) => run(roleId, order)));
 console.log(JSON.stringify({ baseUrl, results: results.map((result) => ({ ...result, turns: result.turns.map((turn) => ({ ...turn, narrative: turn.narrative.slice(0, 100) })) })) }, null, 2));
 if (results.some((result) => result.issues.length)) process.exitCode = 1;
