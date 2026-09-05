@@ -214,6 +214,8 @@ test('manual story and opening edits take priority; heading-only edits preserve 
   const { base, baseline, edited } = detailFixture();
   const after = structuredClone(baseline); after.outline[0].title = '新的标题';
   assert.equal(preserveCreatorDetails(base, edited, baseline, after).openingScene.narrative, base.openingScene.narrative);
+  edited.premise = `  ${base.premise}\n`;
+  assert.equal(preserveCreatorDetails(base, edited, baseline, after).openingScene.narrative, base.openingScene.narrative);
   edited.premise = '我手写的新故事。';
   assert.equal(preserveCreatorDetails(base, edited, baseline, after).openingScene.narrative, edited.premise);
   after.outline[0].objective = '检查新的水闸';

@@ -20,7 +20,7 @@ export function preserveCreatorDetails(base: WorldDefinition, edited: WorldDefin
       locations.push({ id, name: beat.location.trim(), description: beat.objective, connectedLocationIds: [] });
     }
   });
-  const premiseChanged = base.premise !== edited.premise;
+  const premiseChanged = base.premise.trim() !== edited.premise.trim();
   const openingEdited = before.outline[0] && after.outline[0]
     && (before.outline[0].objective !== after.outline[0].objective || before.outline[0].turningPoint !== after.outline[0].turningPoint);
   const narrative = openingEdited
