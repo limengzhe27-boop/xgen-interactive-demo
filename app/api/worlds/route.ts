@@ -18,7 +18,7 @@ async function publishImage(path: unknown, request: Request, userId: string): Pr
   }
   if (!id) throw new Error('image_not_publishable');
   const asset = await findImage(id);
-  if (!asset || asset.status !== 'ready' || asset.bucket !== 'world-private' || asset.owner_id !== imageOwner(request)?.id) throw new Error('image_not_owned');
+  if (!asset || asset.status !== 'ready' || asset.bucket !== 'world-private' || asset.owner_id !== imageOwner(request, false, userId)?.id) throw new Error('image_not_owned');
   const publishedId = imageId(['published-copy', userId, id]);
   const claim = await claimImage(publishedId, imageId(['account', userId]), 'published-copy', 'world-public');
   if (claim.status === 'claimed') {
@@ -39,11 +39,13 @@ export async function GET() {
 export async function POST(request: Request) {
   if (!sameOrigin(request)) return Response.json({ error: 'invalid_origin' }, { status: 403, headers: noStore });
   if (!authConfigured()) return Response.json({ error: 'login_not_configured' }, { status: 503, headers: noStore });
+  if (process.env.WORLD_PUBLICATION_ENABLED !== 'true') return Response.json({ error: 'publication_not_open', message: '公开发布尚未开放，草稿仍可保存在本机。' }, { status: 503, headers: noStore });
   const auth = authContext(request);
   const reply = (body: unknown, status = 200) => auth.finish(Response.json(body, { status }));
   try {
     const { data: { user }, error } = await auth.client.auth.getUser();
     if (error || !user) return reply({ error: 'login_required' }, 401);
+    if (request.headers.get('x-xgen-account') !== user.id) return reply({ error: 'account_changed' }, 409);
     const text = await request.text();
     if (text.length > 150000) return reply({ error: 'world_too_large' }, 413);
     const body = JSON.parse(text);

@@ -317,4 +317,5 @@
 .publication-check:focus-within { outline:2px solid var(--color-focus-ring); outline-offset:4px; }
 .publication-actions { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:12px; }
 .publication-error { color:var(--color-danger); }
+html[data-account-locked] [data-slot="dialog-content"], html[data-account-locked] [data-slot="dialog-overlay"] { visibility:hidden; pointer-events:none; }
 @media (max-width:600px) { .account-bar { padding:12px 16px; justify-content:flex-start; } .publication-dialog { padding:24px 16px; } .publication-actions > * { flex:1; min-height:44px; } }

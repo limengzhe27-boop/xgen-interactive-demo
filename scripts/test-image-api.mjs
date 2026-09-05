@@ -7,7 +7,7 @@ import { imageOwner } from '../lib/server-image-store.ts';
 
 async function loadRoute(path) {
   let source = await readFile(new URL(path, import.meta.url), 'utf8');
-  for (const name of ['image-policy', 'server-image-store']) source = source.replaceAll(`@/lib/${name}`, new URL(`../lib/${name}.ts`, import.meta.url).href);
+  for (const name of ['image-policy', 'server-image-store', 'server-auth']) source = source.replaceAll(`@/lib/${name}`, new URL(`../lib/${name}.ts`, import.meta.url).href);
   return import(`data:text/javascript;base64,${Buffer.from(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } }).outputText).toString('base64')}`);
 }
 test('full generation saves once; retries reuse; pending and quotas never call a model', async () => {

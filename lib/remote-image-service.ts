@@ -19,11 +19,12 @@ export type ImageGenerationResult = {
 export async function generateSceneImage(
   input: ImageGenerationInput,
   signal?: AbortSignal,
+  accountScope = 'guest',
 ): Promise<ImageGenerationResult> {
   await getRemoteImageStatus();
   const response = await fetch('/api/image', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'x-xgen-account': accountScope },
     body: JSON.stringify(input),
     cache: 'no-store',
     signal,

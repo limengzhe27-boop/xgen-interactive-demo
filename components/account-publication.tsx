@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import type { StudioWorld } from '@/lib/studio-worlds';
 
-type Account = { configured: boolean; provider?: string; user: { id: string; name: string } | null };
+type Account = { configured: boolean; canPublish?: boolean; provider?: string; user: { id: string; name: string } | null };
 export function AccountBar() {
   const [account, setAccount] = useState<Account | null>(null);
   const [error, setError] = useState('');
@@ -28,11 +28,12 @@ export function AccountBar() {
     try {
       const response = await fetch('/api/account', { method: 'DELETE' });
       if (!response.ok) throw new Error();
-      setAccount(current => current ? { ...current, user: null } : current);
+      window.localStorage.setItem('xgen-account-change', String(Date.now()));
+      window.location.assign('/');
     } catch { setError('退出未完成，请重试。'); } finally { setBusy(false); }
   }
   return <aside className="account-bar" aria-label="账号">
-    <span>{account?.user ? `${account.user.name} · 已登录` : '游客体验 · 草稿与聊天仅在本机'}</span>
+    <span>{account?.user ? `${account.user.name} · 独立本机空间，尚未云同步` : '游客体验 · 草稿与聊天仅在本机'}</span>
     {account?.user ? <Button variant="outline" disabled={busy} onClick={signOut}><LogOut />退出账号</Button>
       : account?.configured ? <a className="studio-button" href="/auth/login"><LogIn />使用 {account.provider === 'google' ? 'Google' : 'GitHub'} 登录</a>
         : <span className="account-hint">{account ? '账号登录尚未开放' : '正在检查账号'}</span>}
@@ -40,7 +41,7 @@ export function AccountBar() {
   </aside>;
 }
 
-export function PublishWorldDialog({ entry, onClose, onPublished }: { entry: StudioWorld; onClose: () => void; onPublished: (entry: StudioWorld) => void }) {
+export function PublishWorldDialog({ entry, accountScope, onClose, onPublished }: { entry: StudioWorld; accountScope: string; onClose: () => void; onPublished: (entry: StudioWorld) => void }) {
   const [account, setAccount] = useState<Account | null>(null);
   const [consent, setConsent] = useState(false);
   const [includeImages, setIncludeImages] = useState(false);
@@ -54,10 +55,10 @@ export function PublishWorldDialog({ entry, onClose, onPublished }: { entry: Stu
     return () => { live = false; };
   }, []);
   async function publish() {
-    if (!consent || !account?.user || busy) return;
+    if (!consent || !account?.user || !account.canPublish || busy) return;
     setBusy(true); setError('');
     try {
-      const response = await fetch('/api/worlds', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+      const response = await fetch('/api/worlds', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-xgen-account': accountScope }, body: JSON.stringify({
         consent: 'publish-world-and-selected-images-v1', sourceId: entry.id, world: entry.world,
         cover: includeImages ? entry.cover : undefined, portraits: includeImages ? entry.portraits : {},
       }) });
@@ -74,9 +75,10 @@ export function PublishWorldDialog({ entry, onClose, onPublished }: { entry: Stu
     <label className="publication-check"><input type="checkbox" checked={includeImages} onChange={e => setIncludeImages(e.target.checked)} disabled={busy} />同时公开本次选中的角色图与封面（公开链接可被保存和转发）</label>
     <label className="publication-check"><input type="checkbox" checked={consent} onChange={e => setConsent(e.target.checked)} disabled={busy} />我确认这些内容可以公开，且不包含未经许可的真实个人信息或公司资料。</label>
     {!account?.user && <p>{account?.configured ? '先登录账号，才能以自己的身份发布。登录不会自动上传本机资料。' : '账号登录正在配置中，现在仍可保存并试玩；暂不能公开发布。'}</p>}
+    {account?.user && !account.canPublish && <p>账号已登录；公开发布仍在验收中，现在可以保存并试玩。</p>}
     {error && <p className="publication-error" role="alert">{error}</p>}
     <div className="publication-actions"><Button variant="outline" disabled={busy} onClick={onClose}>返回创作</Button>
-      {!account?.user && account?.configured ? <a className="studio-button" href="/auth/login"><LogIn />登录账号</a> : <Button className="primary-action" disabled={!consent || !account?.user || busy} onClick={publish}>{busy ? <LoaderCircle className="is-spinning" /> : <Upload />}{busy ? '正在发布' : '确认公开发布'}</Button>}
+      {!account?.user && account?.configured ? <a className="studio-button" href="/auth/login"><LogIn />登录账号</a> : <Button className="primary-action" disabled={!consent || !account?.user || !account.canPublish || busy} onClick={publish}>{busy ? <LoaderCircle className="is-spinning" /> : <Upload />}{busy ? '正在发布' : '确认公开发布'}</Button>}
     </div>
   </DialogContent></Dialog>;
 }

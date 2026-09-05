@@ -22,9 +22,9 @@ type CachedSceneImage = {
   savedAt: number;
 };
 
-function openDatabase(): Promise<IDBDatabase> {
+function openDatabase(scope = 'guest'): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const request = window.indexedDB.open(DATABASE_NAME, DATABASE_VERSION);
+    const request = window.indexedDB.open(scope === 'guest' ? DATABASE_NAME : `${DATABASE_NAME}:${scope}`, DATABASE_VERSION);
     request.onerror = () => reject(request.error);
     request.onsuccess = () => resolve(request.result);
     request.onupgradeneeded = () => {
@@ -45,9 +45,9 @@ function waitForTransaction(transaction: IDBTransaction): Promise<void> {
   });
 }
 
-export async function cacheSceneImage(key: string, assetUrl: string): Promise<boolean> {
+export async function cacheSceneImage(key: string, assetUrl: string, scope = 'guest'): Promise<boolean> {
   if (!isStoredImage(assetUrl) || typeof window === 'undefined' || !window.indexedDB) return false;
-  const database = await openDatabase();
+  const database = await openDatabase(scope);
   try {
     const write = database.transaction(STORE_NAME, 'readwrite');
     write.objectStore(STORE_NAME).put({ key, assetUrl, savedAt: Date.now() } satisfies CachedSceneImage);
@@ -73,9 +73,9 @@ export async function cacheSceneImage(key: string, assetUrl: string): Promise<bo
   }
 }
 
-export async function getCachedSceneImage(key: string): Promise<string | null> {
+export async function getCachedSceneImage(key: string, scope = 'guest'): Promise<string | null> {
   if (typeof window === 'undefined' || !window.indexedDB) return null;
-  const database = await openDatabase();
+  const database = await openDatabase(scope);
   try {
     const transaction = database.transaction(STORE_NAME, 'readonly');
     const request = transaction.objectStore(STORE_NAME).get(key);

@@ -5,6 +5,7 @@ import { readFile } from 'node:fs/promises';
 import { studioWorlds } from '../lib/studio-worlds.ts';
 
 test('publication authenticates, requires consent, excludes private context and never generates images', async () => {
+  process.env.WORLD_PUBLICATION_ENABLED = 'true';
   let source = await readFile(new URL('../app/api/worlds/route.ts', import.meta.url), 'utf8');
   const moduleURL = code => `data:text/javascript;base64,${Buffer.from(code).toString('base64')}`;
   source = source.replace("@/lib/server-auth", moduleURL(`export const sameOrigin=r=>r.headers.get('origin')==='https://demo.test'; export const authConfigured=()=>true; export const authContext=()=>({client:{auth:{getUser:async()=>{if(globalThis.__publicationTest.throwAuth)throw Error('offline'); return {data:{user:globalThis.__publicationTest.user}}}}},finish:r=>r});`));
@@ -15,7 +16,7 @@ test('publication authenticates, requires consent, excludes private context and 
   const state = globalThis.__publicationTest = { calls: [], user: null, throwAuth: false };
   const body = { sourceId: 'synthetic', consent: 'publish-world-and-selected-images-v1', world: structuredClone(studioWorlds[0].world), personalAgent: ['must never upload'] };
   body.world.privateChat = ['must never upload'];
-  const request = (value = body, origin = 'https://demo.test') => new Request('https://demo.test/api/worlds', { method: 'POST', headers: { origin }, body: JSON.stringify(value) });
+  const request = (value = body, origin = 'https://demo.test') => new Request('https://demo.test/api/worlds', { method: 'POST', headers: { origin, 'x-xgen-account': 'fictional-account' }, body: JSON.stringify(value) });
   try {
     assert.equal((await route.POST(request(body, 'https://attacker.test'))).status, 403);
     assert.equal((await route.POST(request())).status, 401);

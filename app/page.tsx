@@ -27,6 +27,8 @@ import {
 import { Button } from '@/components/ui/button';
 import { StudioHome, StudioNav } from '@/components/studio-home';
 import { AccountBar, PublishWorldDialog } from '@/components/account-publication';
+import { AccountBoundary } from '@/components/account-boundary';
+import { accountStorageKey } from '@/lib/account-scope';
 import { PersonalAgent } from '@/components/personal-agent';
 import { pendingMemories, restorePersonalConversation } from '@/lib/personal-memory';
 import { knownRecommendations } from '@/lib/personal-recommendations';
@@ -41,9 +43,9 @@ import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { AI_CONTRACT_VERSION, mockAIAdapter } from '@/lib/mock-ai-adapter';
-import { cacheSceneImage, getCachedSceneImage, makeContentImageKey } from '@/lib/image-cache';
+import { cacheSceneImage as cacheImage, getCachedSceneImage as readImage, makeContentImageKey } from '@/lib/image-cache';
 import { createInitialImageTask, finishImageTask, startImageTask } from '@/lib/image-task';
-import { getRemoteAIStatus, remoteAIAdapter } from '@/lib/remote-ai-adapter';
+import { getRemoteAIStatus, createRemoteAIAdapter } from '@/lib/remote-ai-adapter';
 import { generateSceneImage, getRemoteImageStatus } from '@/lib/remote-image-service';
 import { shouldGenerateImage } from '@/lib/image-policy';
 import {
@@ -170,7 +172,6 @@ type CreatorDocument = {
   data: Pick<PersistedDemoState, 'worldTitle' | 'worldSeed' | 'surprise' | 'draftRoles' | 'generated' | 'generatedWorld' | 'creatorDetailBaseline' | 'generatedStoryOutline' | 'creatorBrief' | 'creatorMessages' | 'publishedWorld'>;
 };
 type StudioStorage = { version: 1; runs: (SavedRun & { id: string })[]; chats: ChatSession[]; documents: CreatorDocument[]; draftId: string };
-const studioStorageKey = 'xgen-worldstudio-v1';
 
 function entryRoles(entry: StudioWorld): Role[] {
   return entry.world.characters.map((role, index) => ({ id: role.id, name: role.name, identity: role.identity, personality: role.persona,
@@ -207,7 +208,6 @@ declare global {
   }
 }
 
-const demoStorageKey = 'xgen-small-world-demo-v1';
 
 const emptyCreatorBrief: CreatorBrief = {
   coreGoal: '',
@@ -880,6 +880,15 @@ function toSceneContext(beat: StoryBeat, sceneIndex: number, availableRoles: Rol
 }
 
 export default function Home() {
+  return <AccountBoundary>{scope => <WorldStudio accountScope={scope} />}</AccountBoundary>;
+}
+
+function WorldStudio({ accountScope }: { accountScope: string }) {
+  const demoStorageKey = accountScope === 'pending' ? '' : accountStorageKey('xgen-small-world-demo-v1', accountScope);
+  const studioStorageKey = accountScope === 'pending' ? '' : accountStorageKey('xgen-worldstudio-v1', accountScope);
+  const getCachedSceneImage = (key: string) => readImage(key, accountScope);
+  const cacheSceneImage = (key: string, url: string) => cacheImage(key, url, accountScope);
+  const remoteAIAdapter = createRemoteAIAdapter(accountScope);
   const [view, setView] = useState<View>('home');
   const [message, setMessage] = useState('');
   const [agentConversation, setAgentConversation] = useState<NonNullable<PersonalAgentRequest['conversation']>>([]);
@@ -1065,6 +1074,7 @@ export default function Home() {
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
+      if (accountScope === 'pending') return;
       try {
         const raw = window.localStorage.getItem(demoStorageKey);
         if (raw) {
@@ -1327,7 +1337,7 @@ export default function Home() {
         return;
       }
       lastImageAttemptTurnRef.current = context.turn;
-      const result = await generateSceneImage({ requestId, sceneId: directive.sceneId, prompt, seed, purpose: 'scene' }, imageController.signal);
+      const result = await generateSceneImage({ requestId, sceneId: directive.sceneId, prompt, seed, purpose: 'scene' }, imageController.signal, accountScope);
       if (imageRequestRef.current !== requestId || imageController.signal.aborted) return;
       const cached = result.persistent
         ? await cacheSceneImage(cacheKey, result.assetUrl).catch(() => false)
@@ -1737,7 +1747,7 @@ export default function Home() {
         sceneId: `character-${roleId}`,
         prompt,
         seed: regenerate ? Math.floor(Math.random() * 1_000_000_000) : stableVisualSeed(`character:${roleId}:${role.name}:${role.appearance}`),
-      });
+      }, undefined, accountScope);
       if (roleImageRequestRef.current[roleId] !== requestId) return;
       if (result.persistent) await cacheSceneImage(cacheKey, result.assetUrl).catch(() => false);
       if (roleImageRequestRef.current[roleId] !== requestId) return;
@@ -2149,7 +2159,7 @@ export default function Home() {
       {storageError && <p className="studio-storage-error" role="alert">{storageError}</p>}
       {screen}
       {publicationNotice && <p className="account-bar" role="status">{publicationNotice}</p>}
-      {publicationEntry && <PublishWorldDialog entry={publicationEntry} onClose={() => setPublicationEntry(null)} onPublished={(entry) => { setCommunityWorlds(current => upsertById(current, entry)); setPublicationEntry(null); setPublicationNotice('世界已公开发布，其他访客现在可以在世界探索中找到它。'); navigate('home'); }} />}
+      {publicationEntry && <PublishWorldDialog accountScope={accountScope} entry={publicationEntry} onClose={() => setPublicationEntry(null)} onPublished={(entry) => { setCommunityWorlds(current => upsertById(current, entry)); setPublicationEntry(null); setPublicationNotice('世界已公开发布，其他访客现在可以在世界探索中找到它。'); navigate('home'); }} />}
       {chatEntry && <CharacterEntry key={`${chatEntry.entry.id}:${chatEntry.targetId}`} entry={chatEntry.entry} targetId={chatEntry.targetId} onClose={() => setChatEntry(null)} onStart={(session) => { saveChat(session); setActiveChat(session); setChatEntry(null); navigate('chat'); }} />}
     </main>
   );

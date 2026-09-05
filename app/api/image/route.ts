@@ -1,19 +1,30 @@
 import { AUTO_IMAGE_INTERVAL, imageModelFor } from '@/lib/image-policy';
+import { requestAccount } from '@/lib/server-auth';
 import { boundedImageDownload, claimImage, imageId, imageOwner, saveImage, storageConfigured } from '@/lib/server-image-store';
 
 export const maxDuration = 120;
 export async function GET(request: Request) {
+  try {
+  const account = await requestAccount(request);
   const configured = Boolean(process.env.SILICONFLOW_API_KEY) && storageConfigured();
-  const owner = imageOwner(request, true);
-  return Response.json({
+  const owner = imageOwner(request, true, account.id);
+  return account.finish(Response.json({
     configured, cloudStorage: storageConfigured(), provider: configured ? 'siliconflow' : null,
     model: imageModelFor('scene', process.env),
     models: { scene: imageModelFor('scene', process.env), portrait: imageModelFor('portrait', process.env) },
     policy: { automaticIntervalTurns: AUTO_IMAGE_INTERVAL, premiumAutoUpgrade: false, batchSize: 1, dailyGlobalLimit: 30, dailyDeviceLimit: 10, privateByDefault: true },
-  }, { headers: { 'Cache-Control': 'no-store', ...(owner?.cookie ? { 'Set-Cookie': owner.cookie } : {}) } });
+  }, { headers: { 'Cache-Control': 'no-store', ...(owner?.cookie ? { 'Set-Cookie': owner.cookie } : {}) } }));
+  } catch { return Response.json({ error: 'account_unavailable' }, { status: 503 }); }
 }
 
 export async function POST(request: Request) {
+  try {
+    const account = await requestAccount(request, true);
+    return account.finish(await handlePost(request, account.id));
+  } catch { return Response.json({ error: 'account_changed_or_unavailable' }, { status: 409 }); }
+}
+
+async function handlePost(request: Request, accountId: string | null) {
   const origin = request.headers.get('origin');
   // Next's internal URL may use localhost behind a proxy; Host is the browser-facing authority.
   if (origin) {
@@ -22,7 +33,7 @@ export async function POST(request: Request) {
       if (!['http:', 'https:'].includes(source.protocol) || source.host !== (request.headers.get('host') ?? new URL(request.url).host)) throw new Error('origin mismatch');
     } catch { return Response.json({ error: 'invalid_origin' }, { status: 403 }); }
   }
-  const owner = imageOwner(request);
+  const owner = imageOwner(request, false, accountId);
   const reply = (data: unknown, status = 200) => Response.json(data, { status, headers: { 'Cache-Control': 'no-store' } });
   if (!storageConfigured()) return reply({ error: 'image_storage_not_configured' }, 503);
   if (!owner) return reply({ error: 'image_session_required' }, 401);

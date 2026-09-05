@@ -23,10 +23,11 @@ async function callRemote<T>(
   input: unknown,
   validate: (value: unknown) => value is T,
   signal?: AbortSignal,
+  accountScope = 'guest',
 ): Promise<T> {
   const response = await fetch('/api/ai', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'x-xgen-account': accountScope },
     body: JSON.stringify({ operation, input }),
     cache: 'no-store',
     signal,
@@ -38,24 +39,27 @@ async function callRemote<T>(
 }
 
 class RemoteAIAdapter implements AIAdapter {
+  private accountScope: string;
+  constructor(accountScope = 'guest') { this.accountScope = accountScope; }
   talkToPersonalAgent(input: PersonalAgentRequest): Promise<PersonalAgentResponse> {
-    return callRemote('personal-agent', input, isPersonalAgentResponse);
+    return callRemote('personal-agent', input, isPersonalAgentResponse, undefined, this.accountScope);
   }
 
   coCreateWorld(input: CreatorAgentRequest): Promise<CreatorAgentResponse> {
-    return callRemote('co-create-world', input, isCreatorAgentResponse);
+    return callRemote('co-create-world', input, isCreatorAgentResponse, undefined, this.accountScope);
   }
 
   generateWorld(input: WorldGenerationRequest): Promise<WorldGenerationResponse> {
-    return callRemote('generate-world', input, isWorldGenerationResponse);
+    return callRemote('generate-world', input, isWorldGenerationResponse, undefined, this.accountScope);
   }
 
   advanceWorld(input: WorldTurnRequest, signal?: AbortSignal): Promise<WorldTurnResponse> {
-    return callRemote('advance-world', input, isWorldTurnResponse, signal);
+    return callRemote('advance-world', input, isWorldTurnResponse, signal, this.accountScope);
   }
 }
 
 export const remoteAIAdapter: AIAdapter = new RemoteAIAdapter();
+export const createRemoteAIAdapter = (scope: string): AIAdapter => new RemoteAIAdapter(scope);
 
 export async function getRemoteAIStatus(): Promise<{ configured: boolean; providers: string[] }> {
   const response = await fetch('/api/ai', { cache: 'no-store' });

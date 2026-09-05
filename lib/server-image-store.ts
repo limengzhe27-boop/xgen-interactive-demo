@@ -6,9 +6,10 @@ export const IMAGE_COOKIE = 'xgen-image-owner';
 export function storageConfigured() {
   return Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_SECRET_KEY && process.env.IMAGE_SESSION_SECRET);
 }
-export function imageOwner(request: Request, create = false) {
+export function imageOwner(request: Request, create = false, accountId?: string | null) {
   const secret = process.env.IMAGE_SESSION_SECRET;
   if (!secret) return null;
+  if (accountId) return { id: createHmac('sha256', secret).update(`account-image-v1:${accountId}`).digest('hex'), cookie: null };
   const value = request.headers.get('cookie')?.split(';').map(v => v.trim()).find(v => v.startsWith(`${IMAGE_COOKIE}=`))?.slice(IMAGE_COOKIE.length + 1);
   const sign = (id: string) => createHmac('sha256', secret).update(id).digest('hex');
   if (value && /^[a-f0-9]{64}\.[a-f0-9]{64}$/.test(value)) {

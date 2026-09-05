@@ -14,6 +14,17 @@ export function sameOrigin(request: Request) {
 export function authConfigured() {
   return Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_PUBLISHABLE_KEY && ['github', 'google'].includes(process.env.AUTH_PROVIDER ?? ''));
 }
+
+// Never trust a user id supplied by the browser. The header only detects stale tabs.
+export async function requestAccount(request: Request, requireScope = false) {
+  if (!authConfigured()) return { id: null as string | null, finish: (r: Response) => r };
+  const auth = authContext(request);
+  const { data: { user }, error } = await auth.client.auth.getUser();
+  if (error && error.name !== 'AuthSessionMissingError') throw new Error('account_unavailable');
+  const id = user?.id ?? null;
+  if (requireScope && request.headers.get('x-xgen-account') !== (id ?? 'guest')) throw new Error('account_changed');
+  return { id, finish: auth.finish };
+}
 export function authContext(request: Request) {
   if (!authConfigured()) throw new Error('auth_not_configured');
   const pending: { name: string; value: string; options: Record<string, unknown> }[] = [];

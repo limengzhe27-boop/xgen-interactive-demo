@@ -1,4 +1,5 @@
 import { AI_CONTRACT_VERSION } from '@/lib/ai-contracts';
+import { requestAccount } from '@/lib/server-auth';
 import {
   isCreatorAgentResponse,
   isPersonalAgentResponse,
@@ -91,6 +92,13 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  try {
+    const account = await requestAccount(request, true);
+    return account.finish(await handlePost(request));
+  } catch { return Response.json({ error: 'account_changed_or_unavailable' }, { status: 409, headers: { 'Cache-Control': 'no-store' } }); }
+}
+
+async function handlePost(request: Request) {
   const contentLength = Number(request.headers.get('content-length') || 0);
   if (contentLength > 200_000) return Response.json({ error: 'request_too_large' }, { status: 413 });
 

@@ -5,7 +5,7 @@ export async function GET(request: Request) {
   try {
     const auth = authContext(request);
     const { data: { user } } = await auth.client.auth.getUser();
-    return auth.finish(Response.json({ configured: true, provider: process.env.AUTH_PROVIDER, user: user ? {
+    return auth.finish(Response.json({ configured: true, canPublish: process.env.WORLD_PUBLICATION_ENABLED === 'true', provider: process.env.AUTH_PROVIDER, user: user ? {
       id: user.id, name: String(user.user_metadata?.user_name ?? user.user_metadata?.full_name ?? '创作者').slice(0, 80),
     } : null }));
   } catch { return Response.json({ error: 'account_unavailable' }, { status: 503 }); }
