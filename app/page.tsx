@@ -27,6 +27,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { StudioHome, StudioNav } from '@/components/studio-home';
 import { PersonalAgent } from '@/components/personal-agent';
+import { pendingMemories, restorePersonalConversation } from '@/lib/personal-memory';
 import { knownRecommendations } from '@/lib/personal-recommendations';
 import type { PersonalAgentRequest, PersonalAgentResponse } from '@/lib/ai-contracts';
 import { CharacterChat, CharacterEntry } from '@/components/character-chat';
@@ -147,6 +148,7 @@ type PresetWorld = {
 
 type PersistedDemoState = {
   memories: string[];
+  agentConversation?: NonNullable<PersonalAgentRequest['conversation']>;
   liveMode: boolean;
   surprise: number;
   worldTitle: string;
@@ -602,7 +604,7 @@ const surpriseLabels = ['平稳推进', '偶有插曲', '充满变数', '命运�
 function toAgentMemories(values: string[]): AgentMemory[] {
   return values.map((value, index) => ({
     id: `saved-memory-${index + 1}`,
-    category: /悬疑|推理/.test(value) ? 'genre' : /角色|关系/.test(value) ? 'character' : /意外|平稳/.test(value) ? 'surprise' : 'interaction',
+    category: 'profile',
     value,
     confidence: 1,
     source: 'explicit',
@@ -880,6 +882,7 @@ export default function Home() {
   const lastImageAttemptTurnRef = useRef(0);
   const [agentThinking, setAgentThinking] = useState(false);
   const [memories, setMemories] = useState<string[]>([]);
+  const [pendingPersonalMemories, setPendingPersonalMemories] = useState<string[]>([]);
   const [selectedRole, setSelectedRole] = useState<Role>(roles[0]);
   const [turn, setTurn] = useState(0);
   const [narrative, setNarrative] = useState(roleStoryBeats[roles[0].id][0].text);
@@ -1048,7 +1051,8 @@ export default function Home() {
           const backupKey = `${demoStorageKey}-before-worldstudio`;
           if (!window.localStorage.getItem(backupKey)) window.localStorage.setItem(backupKey, raw);
           const saved = JSON.parse(raw) as Partial<PersistedDemoState>;
-          if (Array.isArray(saved.memories)) setMemories(saved.memories.slice(0, 6));
+          if (Array.isArray(saved.memories)) setMemories(saved.memories.filter((item) => typeof item === 'string').slice(0, 24));
+          setAgentConversation(restorePersonalConversation(saved.agentConversation));
           if (typeof saved.liveMode === 'boolean') setLiveMode(saved.liveMode);
           if (typeof saved.surprise === 'number') setSurprise(Math.max(1, Math.min(4, saved.surprise)));
           if (typeof saved.worldTitle === 'string') setWorldTitle(saved.worldTitle);
@@ -1118,6 +1122,7 @@ export default function Home() {
     if (!storageReady || storageReadFailed.current) return;
     const snapshot: PersistedDemoState = {
       memories,
+      agentConversation: agentConversation.slice(-40),
       liveMode,
       surprise,
       worldTitle,
@@ -1134,7 +1139,7 @@ export default function Home() {
     };
     try { window.localStorage.setItem(demoStorageKey, JSON.stringify(snapshot)); }
     catch { window.setTimeout(() => setStorageError('浏览器空间不足，最新修改还没有保存。请保持页面打开，勿刷新。'), 0); }
-  }, [creatorBrief, creatorDetailBaseline, creatorMessages, draftRoles, generated, generatedStoryOutline, generatedWorld, liveMode, memories, publishedWorld, savedRun, storageReady, surprise, worldSeed, worldTitle]);
+  }, [agentConversation, creatorBrief, creatorDetailBaseline, creatorMessages, draftRoles, generated, generatedStoryOutline, generatedWorld, liveMode, memories, publishedWorld, savedRun, storageReady, surprise, worldSeed, worldTitle]);
 
   const creatorDocumentJSON = JSON.stringify({ worldTitle, worldSeed, surprise, draftRoles, generated, generatedWorld: generatedWorld ?? undefined,
     creatorDetailBaseline: creatorDetailBaseline ?? undefined, generatedStoryOutline, creatorBrief, creatorMessages, publishedWorld });
@@ -1453,13 +1458,12 @@ export default function Home() {
         availableWorldIds: personalCatalog.map((entry) => entry.id),
         availableWorlds: personalCatalog,
       }), false);
-      setAgentConversation((current) => [...current, { role: 'user', content: value }, { role: 'assistant', content: response.reply }]);
+      setAgentConversation((current) => restorePersonalConversation([...current, { role: 'user', content: value }, { role: 'assistant', content: response.reply }]));
       setMessage('');
-      const learned = response.memoryCandidates.filter((memory) => memory.source === 'explicit' && !memory.requiresConfirmation).map((memory) => memory.value);
-      setMemories((current) => [...learned, ...current.filter((memory) => !learned.includes(memory))].slice(0, 6));
+      setPendingPersonalMemories(pendingMemories(response.memoryCandidates, memories));
       setPersonalRecommendations(knownRecommendations(response.recommendations, personalCatalog.map((entry) => entry.id)));
     } catch {
-      setAgentError('这次没有收到有效回应。输入、已有对话和偏好已保留，可以重试。');
+      setAgentError('这次没有收到有效回应。输入、已有对话和记忆已保留，可以重试。');
     } finally {
       setAgentThinking(false);
     }
@@ -1604,7 +1608,6 @@ export default function Home() {
             taskNotes: response.statePatch.taskNotes,
             characterUpdates: response.statePatch.characterUpdates,
           }));
-          setMemories((current) => Array.from(new Set([`在${activeWorldTitle}选择了${selectedRole.name}`, ...current])).slice(0, 6));
           setEndingDecision(response.narrative);
           setIsThinking(false);
           navigate('ending');
@@ -1741,15 +1744,18 @@ export default function Home() {
     setCreatorMessages(conversation);
     setCreatorMessage('');
     setCreatorAgentThinking(true);
+    setCreatorProposal(null);
     try {
       const response = await runAI((adapter) => adapter.coCreateWorld({
         contractVersion: AI_CONTRACT_VERSION,
         userMessage: value,
         conversation,
-        characters: draftRoles.map((role) => ({
+        characters: draftRoles.filter((role) => role.name.trim() || role.identity.trim() || role.personality.trim()).map((role) => ({
           name: role.name,
           identity: role.identity,
           persona: role.personality,
+          relationship: role.relationship,
+          appearance: role.appearance,
         })),
         relationshipNotes: draftRoles.map((role) => role.relationship).filter(Boolean),
         currentDraft: {
@@ -1758,11 +1764,12 @@ export default function Home() {
           surpriseLevel: normalizeSurpriseLevel(surprise),
           brief: normalizeCreatorBrief(creatorBrief),
         },
-      }));
+      }), false);
       setCreatorMessages((current) => [...current, { role: 'agent', content: response.reply } satisfies CreatorChatMessage].slice(-12));
       setCreatorProposal(response.proposal);
       setCreatorQuestions(response.nextQuestions.slice(0, 3));
     } catch {
+      setCreatorMessage(value);
       setCreatorMessages((current) => [...current, { role: 'agent', content: '这轮没有成功整理。你的现有设定没有被覆盖，可以重试或先手动编辑右侧框架。' } satisfies CreatorChatMessage].slice(-12));
     } finally {
       setCreatorAgentThinking(false);
@@ -1775,6 +1782,11 @@ export default function Home() {
     setWorldTitle(creatorProposal.title);
     setWorldSeed(creatorProposal.premise);
     setCreatorBrief(brief);
+    if (creatorProposal.characters?.length) {
+      setDraftRoles(creatorProposal.characters.map((role) => ({ name: role.name, identity: role.identity, personality: role.persona, relationship: role.relationship, appearance: role.appearance })));
+      Object.keys(roleImageRequestRef.current).forEach((id) => { roleImageRequestRef.current[id] += 1; });
+      setRoleImages({}); setRoleImageStates({});
+    }
     setGeneratedStoryOutline(brief.tasks.filter((task) => task.kind === 'main').map((task, index) => ({
       id: `agent-guide-${index + 1}`,
       title: task.title,
@@ -1939,7 +1951,9 @@ export default function Home() {
     setDraftId(crypto.randomUUID());
     setWorldTitle(''); setWorldSeed(seed); setSurprise(2); setGenerated(false); setGeneratedWorld(null); setPublishedWorld(false);
     setGeneratedStoryOutline([]); setCreatorDetailBaseline(null); setCreatorBrief(emptyCreatorBrief); setCreatorProposal(null);
-    setCreatorMessages([{ role: 'agent', content: seed ? `我们从这个想法开始：${seed}。先添加你想要的角色，再一起讨论目标与困难。` : '先添加角色，再和我一起讨论他们想得到什么、谁会阻止他们。' }]);
+    setCreatorMessages([{ role: 'agent', content: '先聊聊你想创造什么。不用先填完角色，我可以和你一起想人物、关系、目标和阻力。建议只有在你采纳后才会写入设定。' }]);
+    setCreatorMessage(seed);
+    setCreatorQuestions(['先帮我想几个互相有纠葛的人物', '一起讨论玩家最终想得到什么', '怎样增加一个有代价的困难？']);
     setDraftRoles([{ name: '', identity: '', personality: '', relationship: '', appearance: '' }, { name: '', identity: '', personality: '', relationship: '', appearance: '' }]);
     setRoleImages({}); setCreateStep(1); navigate('create');
   }
@@ -2077,11 +2091,18 @@ export default function Home() {
         error={agentError}
         recommendations={personalRecommendations}
         memories={memories}
+        pending={pendingPersonalMemories}
         onMessage={setMessage}
         onSubmit={submitMessage}
         onRemoveMemory={(memory) => setMemories((current) => current.filter((item) => item !== memory))}
+        onConfirmMemory={(memory) => {
+          if (memories.length >= 24) { setAgentError('记忆已满（24 条），请先删除一条不再需要的内容。'); return; }
+          setMemories((current) => [...new Set([...current, memory])]);
+          setPendingPersonalMemories((current) => current.filter((item) => item !== memory));
+        }}
+        onDismissMemory={(memory) => setPendingPersonalMemories((current) => current.filter((item) => item !== memory))}
         onOpenWorld={openCatalogWorld}
-        onCreate={() => newCreator()}
+        onCreate={newCreator}
       />
     );
   }
@@ -2355,18 +2376,34 @@ function CreateWorld({
   onBack: () => void;
   onPublish: () => void;
 }) {
+  const discussionPanel = (
+            <section className="creator-agent-panel" aria-label="与创作 Agent 讨论">
+              <div className="creator-agent-heading"><span><Sparkles /></span><div><small>创作 Agent</small><strong>一起搭世界框架</strong></div><em>{creatorAgentThinking ? '正在整理' : '等待你的想法'}</em></div>
+              <div className="creator-conversation" aria-live="polite" aria-busy={creatorAgentThinking}>
+                {creatorMessages.slice(-6).map((item, index) => <p key={`${item.role}-${index}`} data-role={item.role}><small>{item.role === 'agent' ? 'Agent' : '你'}</small><span>{item.content}</span></p>)}
+                {creatorAgentThinking ? <p data-role="agent"><small>Agent</small><span>正在把你的想法和已有设定放在一起考虑……</span></p> : null}
+              </div>
+              <div className="creator-question-chips">{creatorQuestions.map((question) => <button type="button" key={question} disabled={creatorAgentThinking} onClick={() => onCreatorMessage(question)}>{question}</button>)}</div>
+              <form className="creator-composer" onSubmit={onSubmitCreatorMessage}>
+                <label htmlFor="creator-message">和 Agent 讨论你的世界</label><Textarea id="creator-message" maxLength={3000} value={creatorMessage} onChange={(event) => onCreatorMessage(event.target.value)} placeholder="只有一句话也可以。比如：想做一个被逐出家门后回来争家产的故事，人物还没想好。" disabled={creatorAgentThinking} />
+                <Button className="agent-send" type="submit" disabled={!creatorMessage.trim() || creatorAgentThinking}><Send />继续讨论</Button>
+              </form>
+              {creatorProposal ? <div className="creator-proposal"><span><WandSparkles /></span><div><strong>待你确认的创作建议</strong><small>{creatorProposal.brief.tasks.filter((task) => task.kind === 'main').length} 个主线条件 · {creatorProposal.brief.difficulties.length} 个阻力</small></div><details className="creator-proposal-preview"><summary>查看将写入的角色与设定</summary><h3>{creatorProposal.title}</h3><p>{creatorProposal.premise}</p>{creatorProposal.characters?.map((role, index) => <p key={index}><strong>{role.name} · {role.identity}</strong><br />{role.persona}<br />{role.relationship}<br />{role.appearance}</p>)}<p>目标：{creatorProposal.brief.coreGoal}</p><p>成功：{creatorProposal.brief.successCondition}</p><p>失败：{creatorProposal.brief.failureCondition}</p>{creatorProposal.brief.tasks.map((task) => <p key={task.id}>{task.title}：{task.description}；完成条件：{task.successCondition}</p>)}<p>阻力：{creatorProposal.brief.difficulties.join("；")}</p><p>采纳会替换当前世界框架；提案包含角色时也会替换角色，原形象需重新生成。</p></details><Button disabled={creatorAgentThinking} onClick={onApplyCreatorProposal}>采纳这版设定</Button><button type="button" disabled={creatorAgentThinking} onClick={onDismissCreatorProposal}>暂不采纳</button></div> : null}
+            </section>
+  );
   return (
     <div className="create-shell">
       <button className="back-link" type="button" onClick={onBack}><X />退出创建</button>
       <div className="create-heading title-reveal">
-        <div><p className="eyebrow">创建小世界</p><h1>{step === 1 ? '先让角色出现' : step === 2 ? '他们将遇见什么？' : step === 3 ? '决定世界的节奏' : '这个世界准备好了'}</h1></div>
+        <div><p className="eyebrow">创建小世界</p><h1>{step === 1 ? '从一个念头开始' : step === 2 ? '他们将遇见什么？' : step === 3 ? '决定世界的节奏' : '这个世界准备好了'}</h1></div>
         <span>{step} / 4</span>
       </div>
       <div className="create-progress" aria-label={`创建进度，第 ${step} 步，共 4 步`}>{[1, 2, 3, 4].map((item) => <span key={item} data-active={item <= step} />)}</div>
 
+      {step === 1 && <div className="creator-first-discussion">{discussionPanel}</div>}
       {step === 1 && (
         <section className="create-card">
-          <div className="create-card-title"><div><h2>添加这个世界中的角色</h2><p>角色暂时不是独立 Agent。身份、性格、关系和固定外观会共同进入剧情与生图。</p></div><div className="create-title-actions"><Button variant="outline" onClick={onGenerateAllRoleImages} disabled={Object.values(roleImageStates).includes('generating')}><ImageIcon />生成全部形象</Button><Button variant="outline" onClick={onAddRole}><Plus />添加角色</Button></div></div>
+          <div className="create-card-title"><div><h2>添加这个世界中的角色</h2><p>可以先和上方 Agent 一起想角色，也可以直接在这里写。所有设定都能手动修改。</p></div><div className="create-title-actions"><Button variant="outline" onClick={onGenerateAllRoleImages} disabled={Object.values(roleImageStates).includes('generating')}><ImageIcon />生成全部形象</Button><Button variant="outline" onClick={onAddRole}><Plus />添加角色</Button></div></div>
           <div className="draft-role-list">
             {draftRoles.map((role, index) => (
               <article className="draft-role" key={index}>
@@ -2399,19 +2436,7 @@ function CreateWorld({
         <section className="create-card story-seed-card">
           <div className="create-card-title"><div><h2>和创作 Agent 一起把想法变成可玩世界</h2><p>你定义想表达的东西；Agent 帮你追问目标、条件和代价。不按分钟数定长短。</p></div></div>
           <div className="creator-workbench">
-            <section className="creator-agent-panel" aria-label="与创作 Agent 讨论">
-              <div className="creator-agent-heading"><span><Sparkles /></span><div><small>创作 Agent</small><strong>一起搭世界框架</strong></div><em>{creatorAgentThinking ? '正在整理' : '等待你的想法'}</em></div>
-              <div className="creator-conversation" aria-live="polite" aria-busy={creatorAgentThinking}>
-                {creatorMessages.slice(-6).map((item, index) => <p key={`${item.role}-${index}`} data-role={item.role}><small>{item.role === 'agent' ? 'Agent' : '你'}</small><span>{item.content}</span></p>)}
-                {creatorAgentThinking ? <p data-role="agent"><small>Agent</small><span>我在检查目标是否太容易被跳过……</span></p> : null}
-              </div>
-              <div className="creator-question-chips">{creatorQuestions.map((question) => <button type="button" key={question} onClick={() => onCreatorMessage(question)}>{question}</button>)}</div>
-              <form className="creator-composer" onSubmit={onSubmitCreatorMessage}>
-                <Textarea value={creatorMessage} onChange={(event) => onCreatorMessage(event.target.value)} placeholder="例如：玩家要帮儿媳摆脱家庭控制，但如果直接离开就会失去遗产……" disabled={creatorAgentThinking} />
-                <Button className="agent-send" type="submit" disabled={!creatorMessage.trim() || creatorAgentThinking}><Send />继续讨论</Button>
-              </form>
-              {creatorProposal ? <div className="creator-proposal"><span><WandSparkles /></span><div><strong>Agent 已整理一版可运行框架</strong><small>{creatorProposal.brief.tasks.filter((task) => task.kind === 'main').length} 个主线条件 · {creatorProposal.brief.difficulties.length} 个阻力</small></div><Button onClick={onApplyCreatorProposal}>采纳到右侧</Button><button type="button" onClick={onDismissCreatorProposal}>暂不采纳</button></div> : null}
-            </section>
+            {discussionPanel}
 
             <section className="creator-framework-panel" aria-label="可编辑的世界框架">
               <div className="framework-heading"><div><small>随时手动修改</small><strong>世界框架</strong></div><span>{creatorBrief.tasks.filter((task) => task.kind === 'main').length} 个主线条件</span></div>

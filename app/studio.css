@@ -17,7 +17,7 @@
 .studio-composer:hover, .studio-composer:focus-within { border-color: var(--color-primary); }
 .studio-composer:active { background: var(--color-surface); }
 .studio-composer > svg { color: var(--color-primary); flex-shrink: 0; }
-.studio-composer input { border: 0; box-shadow: none; background: transparent; min-width: 0; height: 44px; font-size: 1rem; }
+.studio-composer input { flex: 1 1 0%; width: 100%; border: 0; box-shadow: none; background: transparent; min-width: 0; height: 44px; font-size: 1rem; }
 .studio-composer input:disabled { opacity: .45; }
 .studio-send { border-radius: 50%; width: 44px; height: 44px; flex-shrink: 0; background: var(--color-primary); color: var(--color-on-primary); }
 .studio-send:hover { background: var(--color-primary-hover); }
@@ -88,6 +88,41 @@
 .studio-local-note { color: var(--color-text-muted); font-size: .8125rem; margin: 28px 0 0; }
 .studio-storage-error { margin: 16px 36px; border: 1px solid var(--color-danger); padding: 12px; color: var(--color-danger); }
 .studio-identity-dialog { width: min(600px, calc(100% - 32px)); max-width: 600px; max-height: calc(100dvh - 40px); overflow-y: auto; padding: 28px; font-size: 1rem; line-height: 1.7; }
+.studio-identity-dialog, .studio-world-detail { background: var(--color-bg-elevated); color: var(--color-text); border: 1px solid var(--color-border-strong); }
+[data-slot=dialog-overlay] { background: rgba(var(--color-bg-rgb), .76); }
+[data-slot=dialog-content] { overflow-wrap: anywhere; }
+[data-slot=dialog-close] { min-width: 44px; min-height: 44px; }
+.studio-identity-dialog [data-slot=dialog-title] { padding-right: 28px; }
+.studio-identity-options input { accent-color: var(--color-primary); flex-shrink: 0; }
+.personal-to-creation { display: inline-flex; align-items: center; gap: 6px; border: 0; background: transparent; color: var(--color-text-muted); min-height: 44px; font-size: .875rem; cursor: pointer; }
+.personal-to-creation svg { width: 16px; }
+.personal-to-creation:hover, .personal-to-creation:active { color: var(--color-agent); }
+.personal-to-creation:disabled { opacity: .45; cursor: not-allowed; }
+.personal-pending { padding: 16px 0; }
+.personal-pending article { padding: 12px; margin-top: 10px; border: 1px solid var(--color-border); border-radius: 10px; background: var(--color-agent-soft); }
+.personal-pending p { margin: 0 0 8px; overflow-wrap: anywhere; }
+.personal-pending article > div { display: flex; gap: 10px; flex-wrap: wrap; }
+.creator-first-discussion { margin-bottom: 24px; }
+.creator-first-discussion .creator-agent-panel { padding: 24px; }
+.creator-first-discussion .creator-conversation { max-height: 420px; }
+.creator-conversation p, .creator-composer textarea { font-size: 1rem; line-height: 1.8; white-space: pre-wrap; overflow-wrap: anywhere; }
+.creator-conversation p small { font-size: .875rem; }
+.creator-composer label { font-size: .9375rem; }
+.creator-composer textarea { width: 100%; min-height: 110px; }
+.creator-question-chips button { min-height: 44px; font-size: .875rem; line-height: 1.7; }
+.creator-question-chips button:disabled { opacity: .45; cursor: not-allowed; }
+.creator-question-chips button:active { background: var(--color-agent-soft); }
+.creator-composer .agent-send, .creator-proposal > button { min-height: 44px; }
+.creator-proposal-preview { grid-column: 1 / -1; font-size: 1rem; overflow-wrap: anywhere; }
+.creator-proposal-preview summary { cursor: pointer; min-height: 44px; color: var(--color-agent); }
+.creator-proposal-preview p { white-space: pre-wrap; }
+@media (max-width: 600px) {
+  .studio-identity-dialog { padding: 20px; }
+  .studio-target { align-items: start; gap: 12px; }
+  .studio-target img { width: 72px; height: 96px; }
+  .studio-target > div { min-width: 0; }
+  .creator-first-discussion .creator-agent-panel { padding: 16px; }
+}
 .studio-identity-dialog [data-slot=dialog-title] { font: 600 1.375rem/1.7 var(--font-ui); }
 .studio-identity-dialog [data-slot=dialog-description] { font-size: .9375rem; line-height: 1.7; }
 .studio-target { display: flex; gap: 18px; align-items: center; }

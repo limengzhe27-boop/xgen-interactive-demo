@@ -52,7 +52,11 @@ export function isPersonalAgentResponse(value: unknown): value is PersonalAgentR
   return value.memoryCandidates.every((memory) => isRecord(memory)
     && typeof memory.id === 'string'
     && typeof memory.value === 'string'
+    && memory.value.trim().length > 0 && memory.value.length <= 300
+    && ['genre', 'tone', 'character', 'interaction', 'surprise', 'profile', 'interest', 'goal', 'communication'].includes(String(memory.category))
+    && (memory.source === 'explicit' || memory.source === 'behavior')
     && typeof memory.confidence === 'number'
+    && memory.confidence >= 0 && memory.confidence <= 1
     && typeof memory.requiresConfirmation === 'boolean')
     && value.recommendations.every((recommendation) => isRecord(recommendation)
       && typeof recommendation.worldId === 'string'
@@ -66,6 +70,9 @@ export function isCreatorAgentResponse(value: unknown): value is CreatorAgentRes
     && isRecord(value.proposal)
     && typeof value.proposal.title === 'string'
     && typeof value.proposal.premise === 'string'
+    && (value.proposal.characters === undefined || (Array.isArray(value.proposal.characters)
+      && value.proposal.characters.length <= 5
+      && value.proposal.characters.every((role) => isRecord(role) && ['name', 'identity', 'persona', 'relationship', 'appearance'].every((key) => typeof role[key] === 'string'))))
     && isCreatorBrief(value.proposal.brief)
     && isStringArray(value.nextQuestions)
     && (value.readiness === 'needs_detail' || value.readiness === 'ready');

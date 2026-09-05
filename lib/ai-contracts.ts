@@ -4,7 +4,7 @@ export const AI_CONTRACT_VERSION = '2026-09-04.v2';
 
 export type AgentMemory = {
   id: string;
-  category: 'genre' | 'tone' | 'character' | 'interaction' | 'surprise';
+  category: 'genre' | 'tone' | 'character' | 'interaction' | 'surprise' | 'profile' | 'interest' | 'goal' | 'communication';
   value: string;
   confidence: number;
   source: 'explicit' | 'behavior';
@@ -183,7 +183,7 @@ export type CreatorAgentRequest = {
   contractVersion: typeof AI_CONTRACT_VERSION;
   userMessage: string;
   conversation: CreatorChatMessage[];
-  characters: Pick<CharacterDefinition, 'name' | 'identity' | 'persona'>[];
+  characters: (Pick<CharacterDefinition, 'name' | 'identity' | 'persona'> & { relationship?: string; appearance?: string })[];
   relationshipNotes: string[];
   currentDraft: {
     title: string;
@@ -198,6 +198,7 @@ export type CreatorAgentResponse = {
   proposal: {
     title: string;
     premise: string;
+    characters?: { name: string; identity: string; persona: string; relationship: string; appearance: string }[];
     brief: CreatorBrief;
   };
   nextQuestions: string[];
