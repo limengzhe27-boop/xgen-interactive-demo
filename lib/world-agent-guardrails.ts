@@ -40,6 +40,10 @@ export function enforceWorldTurnGuardrails(input: WorldTurnRequest, output: Worl
     return makeRejectedWorldTurn(input, { allowed: false,
       reason: '当前条件不足以执行这个行动。', suggestion: '尝试观察现场、询问在场人物或先取得所需条件。' });
   }
+  const role = input.world.characters.find((character) => character.id === input.selectedRoleId);
+  if (role && ['听到你的话', '听了你的话', '听到你这么说', '听你这么说'].some((phrase) => output.narrative.includes(`${role.name}${phrase}`))) {
+    throw new Error('player_perspective_drift');
+  }
   if (input.recentTurns.some((turn) => narrativeOverlap(output.narrative, turn.result) >= 0.72)) {
     throw new Error('repeated_narrative');
   }
@@ -75,6 +79,7 @@ export function enforceWorldTurnGuardrails(input: WorldTurnRequest, output: Worl
     const failedIds = condition.requiredFailedTaskIds ?? [];
     const hasTrigger = condition.requiredTaskIds.length + failedIds.length + condition.requiredFacts.length > 0;
     return hasTrigger && !seen.has(condition.id)
+      && (condition.applicableRoleIds === undefined || condition.applicableRoleIds.includes(input.selectedRoleId))
       && condition.requiredTaskIds.every((id) => tasks.has(id) && completed.has(id))
       && failedIds.every((id) => tasks.has(id) && failed.has(id))
       && condition.requiredFacts.every((fact) => facts.has(fact))
@@ -85,7 +90,6 @@ export function enforceWorldTurnGuardrails(input: WorldTurnRequest, output: Worl
   if (output.ending.reached && !ending && !seen.has(output.ending.endingId ?? '')) {
     throw new Error('premature_ending');
   }
-  const role = input.world.characters.find((character) => character.id === input.selectedRoleId);
   const npcNames = input.world.characters.filter((character) => character.id !== input.selectedRoleId).map((character) => character.name);
   const nextChoices = output.nextChoices.filter((choice) => !npcNames.some((name) => choice.label.startsWith(name)))
     .map((choice) => ({ ...choice, label: choice.label.startsWith(role?.name ?? '') ? choice.label : `${role?.name ?? '你'}：${choice.label}` }));

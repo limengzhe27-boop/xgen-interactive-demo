@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { enforceWorldTurnGuardrails as guard, narrativeOverlap } from '../lib/world-agent-guardrails.ts';
 import { commitTurn, createInitialWorldState, selectRoleGoal } from '../lib/world-state.ts';
 import { makeContentImageKey } from '../lib/image-cache.ts';
+import { preserveCreatorFramework } from '../lib/creator-framework.ts';
 import { makeEndingFixture } from './ending-fixture.mjs';
 
 function response(patch = {}, ending = {}) {
@@ -114,4 +115,54 @@ test('image cache separates worlds, changed scenes, selected roles and edited ap
   assert.notEqual(key('家庭故事', 'role-0', '厨房'), key('家庭故事', 'role-0', '院子'));
   assert.notEqual(key('家庭故事', 'role-0', '厨房'), key('家庭故事', 'role-1', '厨房'));
   assert.notEqual(makeContentImageKey('portrait', '王爱莲', '年轻女子'), makeContentImageKey('portrait', '王爱莲', '老年女子'));
+});
+
+test('NPC-specific ending cannot end the selected player run, but a shared ending can', () => {
+  const input = makeEndingFixture();
+  input.world.endingConditions = [{ id: 'chen-done', applicableRoleIds: ['chen'], description: '陈舟完成联络', requiredTaskIds: [], requiredFacts: ['联络完成'] }];
+  const out = response({ committedFacts: ['联络完成'] });
+  assert.equal(guard(input, out).ending.reached, false);
+  assert.throws(() => guard(input, { ...out, ending: { reached: true, endingId: 'chen-done', canContinue: true } }), /premature_ending/);
+  input.selectedRoleId = 'chen';
+  assert.equal(guard(input, out).ending.endingId, 'chen-done');
+  input.selectedRoleId = 'xu'; delete input.world.endingConditions[0].applicableRoleIds;
+  assert.equal(guard(input, out).ending.endingId, 'chen-done');
+});
+
+test('publishing and republishing preserves separate goals, task ownership and scoped endings', () => {
+  const { world: base } = makeEndingFixture();
+  base.goals = [{ id: 'xu-goal', scope: 'role', roleId: 'xu', title: '保存台账', requiredTaskIds: ['box', 'pack', 'move'] },
+    { id: 'chen-goal', scope: 'role', roleId: 'chen', title: '联络', requiredTaskIds: ['contact'] }];
+  base.tasks.push({ ...base.tasks[0], id: 'contact', title: '联络', assignedRoleIds: ['chen'] });
+  base.endingConditions[0].applicableRoleIds = ['xu'];
+  base.endingConditions.push({ id: 'chen-ending', applicableRoleIds: ['chen'], description: '已联络', requiredTaskIds: ['contact'], requiredFacts: [] });
+  const edited = structuredClone(base);
+  edited.goals = [{ id: 'flattened', title: '保存台账', scope: 'world', requiredTaskIds: edited.tasks.map((task) => task.id) }];
+  edited.tasks = edited.tasks.map((task) => ({ ...task, assignedRoleIds: ['xu', 'chen'] }));
+  edited.tasks[0].title = '手动修改后的取箱任务';
+  edited.endingConditions = [base.endingConditions[0], base.endingConditions[1]];
+  const world = preserveCreatorFramework(base, edited);
+  assert.equal(world.goals.length, 2);
+  assert.equal(world.tasks[0].title, '手动修改后的取箱任务');
+  assert.deepEqual(world.tasks.at(-1).assignedRoleIds, ['chen']);
+  assert.deepEqual(world.endingConditions.find((ending) => ending.id === 'chen-ending').applicableRoleIds, ['chen']);
+  assert.deepEqual(preserveCreatorFramework(world, edited), world);
+});
+
+test('manually changed end condition keeps scope and requires the new condition as a fact', () => {
+  const { world: base } = makeEndingFixture();
+  base.endingConditions[0].applicableRoleIds = ['xu'];
+  const edited = structuredClone(base); edited.endingConditions[0].description = '台账归档并完成交接';
+  const merged = preserveCreatorFramework(base, edited);
+  assert.deepEqual(merged.endingConditions[0].applicableRoleIds, ['xu']);
+  assert.deepEqual(merged.endingConditions[0].requiredFacts, ['台账归档并完成交接']);
+  assert.deepEqual(merged.tasks[1].prerequisiteTaskIds, ['box']);
+});
+
+test('selected character is not a separate person listening to the player', () => {
+  const input = makeEndingFixture(); const out = response();
+  out.narrative = '许宁听到你的话，点头表示理解。';
+  assert.throws(() => guard(input, out), /player_perspective_drift/);
+  out.narrative = '陈舟听到你的话，点头表示理解。';
+  assert.doesNotThrow(() => guard(input, out));
 });

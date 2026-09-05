@@ -75,6 +75,8 @@ export type WorldRule = {
 
 export type EndingCondition = {
   id: string;
+  // Omitted means a world-wide ending (legacy-compatible); otherwise only these roles.
+  applicableRoleIds?: string[];
   outcome?: 'success' | 'failure';
   requiredFailedTaskIds?: string[];
   description: string;

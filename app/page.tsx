@@ -48,6 +48,7 @@ import {
   validateAction,
 } from '@/lib/world-state';
 import { normalizeSurpriseLevel } from '@/lib/surprise-engine';
+import { preserveCreatorFramework } from '@/lib/creator-framework';
 import type {
   AgentMemory,
   AIAdapter,
@@ -503,6 +504,10 @@ function normalizeGeneratedWorld(world: WorldDefinition, drafts: DraftRole[]): W
     tasks: world.tasks.map((task) => ({
       ...task,
       assignedRoleIds: task.assignedRoleIds.map((id) => characterIdMap.get(id) ?? id),
+    })),
+    endingConditions: world.endingConditions.map((ending) => ({
+      ...ending,
+      applicableRoleIds: ending.applicableRoleIds?.map((id) => characterIdMap.get(id) ?? id),
     })),
     openingScene: {
       ...world.openingScene,
@@ -1727,8 +1732,9 @@ export default function Home() {
       setGeneratedStoryOutline(response.storyOutline);
       setCreatorBrief({
         ...effectiveBrief,
-        coreGoal: response.world.goals[0]?.title || effectiveBrief.coreGoal,
-        successCondition: response.world.endingConditions[0]?.description || effectiveBrief.successCondition,
+        coreGoal: (response.world.goals.find((goal) => goal.scope === 'world') ?? response.world.goals[0])?.title || effectiveBrief.coreGoal,
+        successCondition: response.world.endingConditions.find((ending) => (ending.outcome ?? 'success') === 'success')?.description || effectiveBrief.successCondition,
+        failureCondition: response.world.endingConditions.find((ending) => ending.outcome === 'failure')?.description || '',
         tasks: response.world.tasks.map((task) => ({
           id: task.id,
           title: task.title,
@@ -1764,7 +1770,8 @@ export default function Home() {
     const effectiveBrief = creatorBrief.tasks.length > 0
       ? creatorBrief
       : briefFromOutline(safeOutline, safeSeed, normalizeSurpriseLevel(creatorBrief.complexityLevel || 2));
-    const world = buildCreatorWorld(safeTitle, safeSeed, draftRoles, safeOutline, surprise, effectiveBrief, generatedWorld);
+    const edited = buildCreatorWorld(safeTitle, safeSeed, draftRoles, safeOutline, surprise, effectiveBrief, generatedWorld);
+    const world = generatedWorld ? preserveCreatorFramework(generatedWorld, edited) : edited;
     setWorldTitle(safeTitle);
     setWorldSeed(safeSeed);
     setGeneratedStoryOutline(safeOutline);
@@ -2483,6 +2490,9 @@ function CreateWorld({
 
 function Ending({ worldTitle, role, decision, state, world, imageUrl, onContinue, onReplay, onHome }: { worldTitle: string; role: Role; decision: string; state: WorldState; world: WorldDefinition; imageUrl: string; onContinue: () => void; onReplay: () => void; onHome: () => void }) {
   const ending = world.endingConditions.find((condition) => condition.id === state.reachedEndingIds?.at(-1));
+  const roleEndings = world.endingConditions.filter((condition) => condition.applicableRoleIds === undefined || condition.applicableRoleIds.includes(role.id));
+  const seenEndings = roleEndings.filter((condition) => state.reachedEndingIds?.includes(condition.id)).length;
+  const completedTasks = world.tasks.filter((task) => (task.assignedRoleIds.length === 0 || task.assignedRoleIds.includes(role.id)) && state.completedTaskIds.includes(task.id)).length;
   return (
     <div className="ending-shell">
       <div className="ending-image"><img src={imageUrl} alt={`${worldTitle}的当前场景`} /><div /></div>
@@ -2490,8 +2500,8 @@ function Ending({ worldTitle, role, decision, state, world, imageUrl, onContinue
         <span className="ending-mark"><Check /></span>
         <p className="eyebrow">{worldTitle} · 一条世界线已经抵达结局</p>
         <h1>{ending?.outcome === 'failure' ? '目标未能达成，故事仍有余波' : '这条世界线，由你的选择抵达此刻'}</h1>
-        <p>你以 {role.name} 的身份走到这条世界线的阶段结局。{decision || '你的最后选择改变了真相被公开的方式。'}</p>
-        <div className="ending-stats"><span><strong>{state.turn}</strong><small>行动回合</small></span><span><strong>{state.completedTaskIds.length}</strong><small>完成任务</small></span><span><strong>{state.reachedEndingIds?.length ?? 0} / {world.endingConditions.length}</strong><small>已见结局</small></span></div>
+        <p>你以 {role.name} 的身份走到这条世界线的阶段结局。{decision || ending?.description}</p>
+        <div className="ending-stats"><span><strong>{state.turn}</strong><small>行动回合</small></span><span><strong>{completedTasks}</strong><small>完成角色任务</small></span><span><strong>{seenEndings} / {roleEndings.length}</strong><small>该角色已见结局</small></span></div>
         <div className="agent-afterword"><Sparkles /><span><small>个人 Agent 记下了</small>你在{worldTitle}选择了{role.name}。你可以回到 Agent，告诉它这次体验中喜欢和不喜欢的部分。</span></div>
         <div className="ending-actions"><Button className="primary-action" onClick={onContinue}>继续这个世界<ArrowRight /></Button><Button variant="outline" onClick={onReplay}><RefreshCw />换一个角色重玩</Button><Button variant="ghost" onClick={onHome}>回到 Agent</Button></div>
       </section>

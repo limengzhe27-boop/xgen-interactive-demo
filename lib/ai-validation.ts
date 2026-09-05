@@ -43,6 +43,7 @@ function isEndingCondition(value: unknown) {
     && isStringArray(value.requiredTaskIds) && isStringArray(value.requiredFacts)
     && (value.outcome === undefined || value.outcome === 'success' || value.outcome === 'failure')
     && (value.requiredFailedTaskIds === undefined || isStringArray(value.requiredFailedTaskIds))
+    && (value.applicableRoleIds === undefined || (isStringArray(value.applicableRoleIds) && value.applicableRoleIds.length > 0))
     && (value.forbiddenFacts === undefined || isStringArray(value.forbiddenFacts));
 }
 
