@@ -62,7 +62,7 @@ async function callDeepSeek(provider: DeepSeekProvider, operation: Operation, in
       body: JSON.stringify({
         model: provider.model,
         messages: [
-          { role: 'system', content: `你正在驱动一个图文交互小世界 Demo。只输出一个有效 JSON 对象，不使用 Markdown。契约版本：${AI_CONTRACT_VERSION}。${operationInstructions[operation]}` },
+          { role: 'system', content: `你正在驱动一个图文交互小世界 Demo。只输出一个有效 JSON 对象，不使用 Markdown。契约版本：${AI_CONTRACT_VERSION}。${operationInstructions[operation]}${operation === 'advance-world' ? '如果输入 interaction.mode=character-chat，这是独立的角色会面，体验者仍是selectedRoleId，对话对象是interaction.targetCharacterId，两者绝不互换。重点呈现目标角色对本次话语的真实回应，并保持世界知识、关系与任务约束；不要为凑长度强行转场或安排不在场角色登场，不替玩家说下一句话或接受关系。目标角色不在场时如实说明，不让其隔空回答。普通对话优先复用图片；关键可见场景变化才生图。' : ''}` },
           { role: 'user', content: `请处理以下运行时输入，并只返回符合上述结构的 JSON：\n${JSON.stringify(input)}` },
         ],
         response_format: { type: 'json_object' },
@@ -120,13 +120,14 @@ export async function POST(request: Request) {
   if (!provider) return Response.json({ error: 'model_not_configured' }, { status: 503 });
   const startedAt = Date.now();
   try {
-    const output = await callDeepSeek(provider, body.operation, body.input);
-    if (!isValidOutput(body.operation, output)) {
+    const output = await callDeepSeek(provider, body.operation, body.input, body.operation === 'advance-world' ? 35_000 : undefined);
+    if (body.operation !== 'advance-world' && !isValidOutput(body.operation, output)) {
       return Response.json({ error: 'invalid_model_output' }, { status: 502 });
     }
     let guardedOutput = output;
-    if (body.operation === 'advance-world' && isWorldTurnRequest(body.input) && isWorldTurnResponse(output)) {
+    if (body.operation === 'advance-world' && isWorldTurnRequest(body.input)) {
       try {
+        if (!isWorldTurnResponse(output)) throw new Error('invalid_model_output');
         guardedOutput = enforceWorldTurnGuardrails(body.input, output);
       } catch (error) {
         const remainingMs = Math.min(20_000, 55_000 - (Date.now() - startedAt));
@@ -135,7 +136,11 @@ export async function POST(request: Request) {
           ...body.input,
           validationFeedback: {
             code: error.message,
-            instruction: error.message === 'player_perspective_drift'
+            instruction: error.message === 'invalid_model_output'
+              ? '刚才的 JSON 不符合必需输出结构，尚未提交。请从原始 state 重写本次回应，逐一提供 actionDecision、narrative、dialogue（数组，每条含 characterId/text/visibleToRoleIds）、statePatch（含 committedFacts 数组）、nextChoices（数组）、image、goalProgress、ending，不省略字段，不用 null 替代数组；character-chat 必须包含在场目标人物的可见回应。'
+              : error.message === 'chat_target_missing'
+              ? '这是与interaction.targetCharacterId的直接对话，目标角色在场，但输出缺少可见回应。请重写本轮，将该角色的回应放入dialogue，characterId必须等于targetCharacterId，visibleToRoleIds包含selectedRoleId。如果人物选择沉默，可用括号写可观察的非语言回应，不替玩家说话。'
+              : error.message === 'player_perspective_drift'
               ? '体验者就是selectedRoleId这个角色，不是向该角色发话的旁观者。重写本次回应，不得出现所选角色听到你的话这种自我对话，不追加玩家未授权动作。'
               : error.message === 'repeated_narrative'
               ? '上一轮输出与recentTurns中的正文大面积重复，尚未提交。请直接回答本次userAction，承接已完成的事情而非重演旧动作或旧对话。描述此刻的新反馈；即使环境未变化，也要说明重复询问得到的当下回应。不要通过替玩家行动或制造新危机凑字数。'
@@ -150,7 +155,7 @@ export async function POST(request: Request) {
       headers: { 'Cache-Control': 'no-store', 'X-AI-Provider': 'deepseek' },
     });
   } catch (error) {
-    const code = error instanceof Error && ['invalid_task_transition', 'premature_ending', 'unauthorized_player_movement', 'repeated_narrative', 'player_perspective_drift'].includes(error.message)
+    const code = error instanceof Error && ['invalid_task_transition', 'premature_ending', 'unauthorized_player_movement', 'repeated_narrative', 'player_perspective_drift', 'chat_target_missing'].includes(error.message)
       ? error.message : 'deepseek_failed';
     return Response.json({ error: code }, { status: 502 });
   }

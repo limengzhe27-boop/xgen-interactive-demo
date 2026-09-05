@@ -181,6 +181,14 @@ export function isWorldTurnRequest(value: unknown): value is WorldTurnRequest {
     || !isRecord(value.currentScene)
     || !Array.isArray(value.currentScene.choices)) return false;
 
+  if (!value.world.characters.some((character) => isRecord(character) && character.id === value.selectedRoleId)) return false;
+  if (value.interaction !== undefined) {
+    if (!isRecord(value.interaction) || value.interaction.mode !== 'character-chat'
+      || typeof value.interaction.targetCharacterId !== 'string'
+      || value.interaction.targetCharacterId === value.selectedRoleId) return false;
+    const targetId = value.interaction.targetCharacterId;
+    if (!value.world.characters.some((character) => isRecord(character) && character.id === targetId)) return false;
+  }
   return value.world.characters.every((character) => isRecord(character) && typeof character.id === 'string')
     && value.world.tasks.every((task) => isRecord(task)
       && typeof task.id === 'string'

@@ -93,6 +93,15 @@ export function enforceWorldTurnGuardrails(input: WorldTurnRequest, output: Worl
   const npcNames = input.world.characters.filter((character) => character.id !== input.selectedRoleId).map((character) => character.name);
   const nextChoices = output.nextChoices.filter((choice) => !npcNames.some((name) => choice.label.startsWith(name)))
     .map((choice) => ({ ...choice, label: choice.label.startsWith(role?.name ?? '') ? choice.label : `${role?.name ?? '你'}：${choice.label}` }));
+  if (input.interaction?.mode === 'character-chat') {
+    const targetId = input.interaction.targetCharacterId;
+    const targetLocation = input.state.characterStates[targetId]?.locationId;
+    const targetPresent = targetLocation === input.state.location
+      || input.world.locations.some((place) => place.id === targetLocation && place.name === input.state.location);
+    if (targetPresent && !output.dialogue.some((line) => line.characterId === targetId && line.visibleToRoleIds.includes(input.selectedRoleId) && line.text.trim())) {
+      throw new Error('chat_target_missing');
+    }
+  }
   return {
     ...output,
     // Do not invent prose, dialogue, or off-screen actions to pass length/count tests.

@@ -247,6 +247,7 @@ export type WorldTurnRequest = {
   contractVersion: typeof AI_CONTRACT_VERSION;
   world: WorldDefinition;
   selectedRoleId: string;
+  interaction?: { mode: 'character-chat'; targetCharacterId: string };
   userAction: string;
   state: WorldState;
   recentTurns: { action: string; result: string }[];

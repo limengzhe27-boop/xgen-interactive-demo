@@ -9,13 +9,11 @@ import {
   Check,
   ChevronRight,
   Clock3,
-  Compass,
   Eye,
   ImageIcon,
   Lightbulb,
   LoaderCircle,
   MapPin,
-  MessageCircleMore,
   Pencil,
   Plus,
   RefreshCw,
@@ -30,6 +28,12 @@ import {
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
+import { StudioHome, StudioNav } from '@/components/studio-home';
+import { CharacterChat, CharacterEntry } from '@/components/character-chat';
+import { studioWorlds, getRoleOpening } from '@/lib/studio-worlds';
+import type { StudioWorld } from '@/lib/studio-worlds';
+import { upsertById } from '@/lib/studio-session';
+import type { ChatSession } from '@/lib/studio-session';
 import { Input } from '@/components/ui/input';
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
@@ -67,7 +71,7 @@ import type {
 import type { ImageTask } from '@/lib/image-task';
 import type { ActionValidation, EventRecord, WorldIncident, WorldState } from '@/lib/world-state';
 
-type View = 'home' | 'roles' | 'play' | 'create' | 'ending';
+type View = 'home' | 'library' | 'characters' | 'personal' | 'chat' | 'roles' | 'play' | 'create' | 'ending';
 type WorldKind = 'storm' | 'suggestion' | 'draft';
 type ModelMode = 'checking' | 'real' | 'mock' | 'fallback';
 type ImageModelMode = 'checking' | 'real' | 'off' | 'fallback';
@@ -109,6 +113,8 @@ type DraftRole = {
 };
 
 type SavedRun = {
+  id?: string;
+  worldSnapshot?: StudioWorld;
   version: 1;
   worldKind: WorldKind;
   presetId?: PresetWorld['id'];
@@ -154,6 +160,31 @@ type PersistedDemoState = {
   creatorMessages?: CreatorChatMessage[];
   savedRun?: SavedRun;
 };
+
+type CreatorDocument = {
+  id: string; savedAt: number;
+  data: Pick<PersistedDemoState, 'worldTitle' | 'worldSeed' | 'surprise' | 'draftRoles' | 'generated' | 'generatedWorld' | 'creatorDetailBaseline' | 'generatedStoryOutline' | 'creatorBrief' | 'creatorMessages' | 'publishedWorld'>;
+};
+type StudioStorage = { version: 1; runs: (SavedRun & { id: string })[]; chats: ChatSession[]; documents: CreatorDocument[]; draftId: string };
+const studioStorageKey = 'xgen-worldstudio-v1';
+
+function entryRoles(entry: StudioWorld): Role[] {
+  return entry.world.characters.map((role, index) => ({ id: role.id, name: role.name, identity: role.identity, personality: role.persona,
+    publicStory: role.publicBackground, secret: role.secrets[0] || role.privateKnowledge[0] || '暂无额外私密信息', goal: role.goal,
+    crop: ['left', 'center', 'right'][index % 3], visualAnchor: role.imagePrompt, imageUrl: entry.portraits[role.id] }));
+}
+
+function entryStory(entry: StudioWorld, roleId: string): StoryBeat[] {
+  const role = entry.world.characters.find((item) => item.id === roleId) ?? entry.world.characters[0];
+  const present = entry.world.characters.filter((item) => item.id !== role.id && item.startLocationId === role.startLocationId);
+  return [{ title: entry.title, location: entry.world.locations.find((place) => place.id === role.startLocationId)?.name ?? '',
+    text: getRoleOpening(entry, role.id), speaker: '', dialogue: '',
+    choices: [
+      { label: `${role.name}：观察眼前的情况，整理我已经知道的信息`, clue: '观察与梳理', result: '', relationDelta: 0 },
+      { label: `${role.name}：${present[0] ? `询问${present[0].name}现在的打算` : '尝试联系其他人，询问他们是否方便交谈'}`, clue: '主动沟通', result: '', relationDelta: 0 },
+      { label: `${role.name}：检查与我目标有关的公开资料`, clue: '核对资料', result: '', relationDelta: 0 },
+    ] }];
+}
 
 type RegisteredTool = {
   name: string;
@@ -847,9 +878,9 @@ export default function Home() {
   const [modelMode, setModelMode] = useState<ModelMode>('checking');
   const [imageModelMode, setImageModelMode] = useState<ImageModelMode>('checking');
   const [agentThinking, setAgentThinking] = useState(false);
-  const [recommendationReason, setRecommendationReason] = useState('因为你喜欢从人物关系里寻找真相');
+  const [recommendationReason, setRecommendationReason] = useState('告诉我你想体验的题材，我会从可玩的世界中挑选。');
   const [recommendedWorldId, setRecommendedWorldId] = useState<string>('storm-manor');
-  const [memories, setMemories] = useState(['偏爱悬疑', '喜欢角色关系', '接受适度意外']);
+  const [memories, setMemories] = useState<string[]>([]);
   const [memoryEditing, setMemoryEditing] = useState(false);
   const [selectedRole, setSelectedRole] = useState<Role>(roles[0]);
   const [turn, setTurn] = useState(0);
@@ -886,13 +917,22 @@ export default function Home() {
   const [roleImageStates, setRoleImageStates] = useState<Record<string, 'idle' | 'generating' | 'ready' | 'error'>>({});
   const [publishedWorld, setPublishedWorld] = useState(false);
   const [savedRun, setSavedRun] = useState<SavedRun | null>(null);
+  const [savedRuns, setSavedRuns] = useState<(SavedRun & { id: string })[]>([]);
+  const [chatSessions, setChatSessions] = useState<ChatSession[]>([]);
+  const [creatorDocuments, setCreatorDocuments] = useState<CreatorDocument[]>([]);
+  const [draftId, setDraftId] = useState('creator-world');
+  const [runId, setRunId] = useState('legacy-run');
+  const [activeLibrary, setActiveLibrary] = useState<StudioWorld | null>(null);
+  const [libraryRoleImages, setLibraryRoleImages] = useState<Record<string, string>>({});
+  const [chatEntry, setChatEntry] = useState<{ entry: StudioWorld; targetId: string } | null>(null);
+  const [activeChat, setActiveChat] = useState<ChatSession | null>(null);
+  const [storageError, setStorageError] = useState('');
   const [activeWorld, setActiveWorld] = useState<WorldKind>('storm');
   const [suggestedPreset, setSuggestedPreset] = useState<PresetWorld | null>(null);
   const [draftRoles, setDraftRoles] = useState([
     { name: '许知遥', identity: '民俗学研究生', personality: '理性、好奇、怕欠人情', relationship: '为调查失踪渔船首次上岛，对陆沉保持警惕', appearance: '二十四岁，齐肩黑发，墨绿色防风外套，随身携带旧笔记本' },
     { name: '陆沉', identity: '守塔人', personality: '寡言、谨慎、极度守时', relationship: '受上一任守塔人委托保护许知遥，却不愿说明原因', appearance: '三十一岁，黑色短发，深蓝守塔人工作服，左腕佩戴旧机械表' },
   ]);
-  const [navScrolled, setNavScrolled] = useState(false);
   const [storageReady, setStorageReady] = useState(false);
   const responseTimerRef = useRef<number | null>(null);
   const streamTimerRef = useRef<number | null>(null);
@@ -901,6 +941,7 @@ export default function Home() {
   const imageRequestRef = useRef(0);
   const roleImageRequestRef = useRef<Record<string, number>>({});
   const roleImageKeysRef = useRef<string[]>([]);
+  const storageReadFailed = useRef(false);
   const portraitSignature = JSON.stringify(draftRoles.map(portraitCacheKey));
 
   const playableDraftRoles = makePlayableDraftRoles(draftRoles).map((role, index) => {
@@ -929,11 +970,11 @@ export default function Home() {
   const suggestedStories: Record<string, StoryBeat[]> = suggestedPreset && suggestedWorldDefinition
     ? makeGeneratedDraftStory(suggestedRoles, suggestedWorldDefinition, suggestedPreset.outline)
     : {};
-  const currentRoles = activeWorld === 'draft' ? playableDraftRoles : activeWorld === 'suggestion' ? suggestedRoles : roles;
+  const currentRoles = activeLibrary ? entryRoles(activeLibrary).map((role) => ({ ...role, imageUrl: role.imageUrl || libraryRoleImages[`${activeLibrary.id}:${role.id}`] })) : activeWorld === 'draft' ? playableDraftRoles : activeWorld === 'suggestion' ? suggestedRoles : roles;
   const draftStories = generatedWorld && generatedStoryOutline.length > 0
     ? makeGeneratedDraftStory(playableDraftRoles, generatedWorld, generatedStoryOutline)
     : makeDraftStory(playableDraftRoles, worldSeed);
-  const currentStory = activeWorld === 'draft'
+  const currentStory = activeLibrary ? entryStory(activeLibrary, selectedRole.id) : activeWorld === 'draft'
     ? draftStories[selectedRole.id]
     : activeWorld === 'suggestion'
       ? suggestedStories[selectedRole.id]
@@ -943,13 +984,13 @@ export default function Home() {
     selectedRole,
     currentRoles,
   );
-  const activeWorldTitle = activeWorld === 'draft'
+  const activeWorldTitle = activeLibrary ? activeLibrary.title : activeWorld === 'draft'
     ? (worldTitle || '雾潮灯塔：第十三次守夜')
     : activeWorld === 'suggestion'
       ? suggestedPreset?.title || '推荐世界'
       : '暴雨山庄：缺席的继承人';
-  const activeSurprise = activeWorld === 'draft' ? surprise : activeWorld === 'suggestion' ? suggestedPreset?.surpriseLevel ?? 2 : 2;
-  const activeWorldDefinition = activeWorld === 'draft'
+  const activeSurprise = activeLibrary ? activeLibrary.world.surpriseLevel : activeWorld === 'draft' ? surprise : activeWorld === 'suggestion' ? suggestedPreset?.surpriseLevel ?? 2 : 2;
+  const activeWorldDefinition = activeLibrary ? activeLibrary.world : activeWorld === 'draft'
     ? (generatedWorld?.tasks?.length
       ? { ...generatedWorld, surpriseLevel: normalizeSurpriseLevel(activeSurprise) }
       : buildCreatorWorld(
@@ -963,13 +1004,22 @@ export default function Home() {
     : activeWorld === 'suggestion' && suggestedWorldDefinition
       ? suggestedWorldDefinition
       : buildWorldDefinition('storm', activeWorldTitle, currentStory[0].text, currentRoles, currentStory, activeSurprise);
-  const selectedRoleIndex = currentRoles.findIndex((role) => role.id === selectedRole.id);
-
+  const userWorlds: StudioWorld[] = creatorDocuments.filter((doc) => doc.data.publishedWorld && doc.data.generatedWorld).map((doc) => ({
+    id: doc.id, title: doc.data.worldTitle, genre: '我的创作', premise: doc.data.worldSeed, cover: '/assets/storm-manor-cover.png', portraits: {},
+    world: { ...doc.data.generatedWorld!, id: doc.id, title: doc.data.worldTitle },
+    portraitCacheKeys: Object.fromEntries(doc.data.draftRoles.map((role, index) => [doc.data.generatedWorld!.characters[index]?.id ?? `draft-role-${index}`, portraitCacheKey(role)])),
+  }));
+  const availableStudioWorlds = [...studioWorlds, ...userWorlds];
+  const personalCatalog = [...worldCatalog, ...availableStudioWorlds.map((entry) => ({ id: entry.id, title: entry.title, genre: entry.genre, premise: entry.premise, surpriseLevel: entry.world.surpriseLevel }))];
+  const libraryPortraitJSON = JSON.stringify({ id: activeLibrary?.id, keys: activeLibrary?.portraitCacheKeys ?? {} });
   useEffect(() => {
-    const onScroll = () => setNavScrolled(window.scrollY > 32);
-    window.addEventListener('scroll', onScroll, { passive: true });
-    return () => window.removeEventListener('scroll', onScroll);
-  }, []);
+    let active = true;
+    const entry = JSON.parse(libraryPortraitJSON) as { id?: string; keys: Record<string, string> };
+    void Promise.all(Object.entries(entry.keys).map(async ([id, key]) => [id, await getCachedSceneImage(key).catch(() => null)] as const)).then((images) => {
+      if (active) setLibraryRoleImages(Object.fromEntries(images.filter((pair): pair is readonly [string, string] => Boolean(pair[1])).map(([id, url]) => [`${entry.id}:${id}`, url])));
+    });
+    return () => { active = false; };
+  }, [libraryPortraitJSON]);
 
   useEffect(() => {
     let active = true;
@@ -997,6 +1047,8 @@ export default function Home() {
       try {
         const raw = window.localStorage.getItem(demoStorageKey);
         if (raw) {
+          const backupKey = `${demoStorageKey}-before-worldstudio`;
+          if (!window.localStorage.getItem(backupKey)) window.localStorage.setItem(backupKey, raw);
           const saved = JSON.parse(raw) as Partial<PersistedDemoState>;
           if (Array.isArray(saved.memories)) setMemories(saved.memories.slice(0, 6));
           if (typeof saved.liveMode === 'boolean') setLiveMode(saved.liveMode);
@@ -1025,21 +1077,47 @@ export default function Home() {
             && saved.generatedStoryOutline.every((beat) => beat && typeof beat.title === 'string' && typeof beat.location === 'string')) {
             setGeneratedStoryOutline(saved.generatedStoryOutline);
           }
-          if (isSavedRun(saved.savedRun)) setSavedRun(saved.savedRun);
+          if (isSavedRun(saved.savedRun)) {
+            const legacy = saved.savedRun;
+            const frozenWorld = legacy.worldSnapshot ?? (legacy.worldKind === 'draft' && saved.generatedWorld ? {
+              id: saved.generatedWorld.id, title: legacy.worldTitle, genre: '我的创作', premise: saved.generatedWorld.premise,
+              cover: '/assets/storm-manor-cover.png', portraits: {}, world: saved.generatedWorld,
+            } : undefined);
+            setSavedRun({ ...legacy, worldSnapshot: frozenWorld });
+          }
           if (Array.isArray(saved.draftRoles) && saved.draftRoles.length > 0) {
             setDraftRoles(saved.draftRoles.map((role) => ({ ...role, relationship: role.relationship ?? '', appearance: role.appearance ?? '' })));
           }
         }
       } catch {
-        window.localStorage.removeItem(demoStorageKey);
+        storageReadFailed.current = true;
+        setStorageError('旧记录无法读取，原始数据仍保留在浏览器中，请勿清除浏览器数据。');
       }
+      try {
+        const raw = window.localStorage.getItem(studioStorageKey);
+        if (raw) {
+          const saved = JSON.parse(raw) as StudioStorage;
+          if (saved.version !== 1 || !Array.isArray(saved.runs) || !Array.isArray(saved.chats) || !Array.isArray(saved.documents)) throw new Error('unsupported_studio_storage');
+          if (!saved.runs.every((run) => isSavedRun(run) && typeof run.id === 'string')
+            || !saved.chats.every((chat) => chat?.id && chat.entry?.world?.characters?.some((role) => role.id === chat.playerRoleId)
+              && chat.entry.world.characters.some((role) => role.id === chat.targetCharacterId) && chat.playerRoleId !== chat.targetCharacterId
+              && chat.state?.characterStates && Array.isArray(chat.turns))
+            || !saved.documents.every((doc) => doc?.id && typeof doc.data?.worldTitle === 'string' && typeof doc.data?.worldSeed === 'string' && Array.isArray(doc.data?.draftRoles))) throw new Error('invalid_studio_storage');
+          if (saved.version === 1) {
+            setSavedRuns(Array.isArray(saved.runs) ? saved.runs.filter((run) => isSavedRun(run) && typeof run.id === 'string') : []);
+            setChatSessions(Array.isArray(saved.chats) ? saved.chats.filter((chat) => chat?.id && chat.entry?.world?.characters && Array.isArray(chat.turns)) : []);
+            setCreatorDocuments(Array.isArray(saved.documents) ? saved.documents.filter((doc) => doc?.id && doc.data && Array.isArray(doc.data.draftRoles)) : []);
+            if (typeof saved.draftId === 'string') setDraftId(saved.draftId);
+          }
+        }
+      } catch { storageReadFailed.current = true; setStorageError('世界库记录读取失败，原始数据已保留，请勿清除浏览器数据。'); }
       setStorageReady(true);
     }, 0);
     return () => window.clearTimeout(timer);
   }, []);
 
   useEffect(() => {
-    if (!storageReady) return;
+    if (!storageReady || storageReadFailed.current) return;
     const snapshot: PersistedDemoState = {
       memories,
       liveMode,
@@ -1056,8 +1134,32 @@ export default function Home() {
       generatedStoryOutline,
       savedRun: savedRun ?? undefined,
     };
-    window.localStorage.setItem(demoStorageKey, JSON.stringify(snapshot));
+    try { window.localStorage.setItem(demoStorageKey, JSON.stringify(snapshot)); }
+    catch { window.setTimeout(() => setStorageError('浏览器空间不足，最新修改还没有保存。请保持页面打开，勿刷新。'), 0); }
   }, [creatorBrief, creatorDetailBaseline, creatorMessages, draftRoles, generated, generatedStoryOutline, generatedWorld, liveMode, memories, publishedWorld, savedRun, storageReady, surprise, worldSeed, worldTitle]);
+
+  const creatorDocumentJSON = JSON.stringify({ worldTitle, worldSeed, surprise, draftRoles, generated, generatedWorld: generatedWorld ?? undefined,
+    creatorDetailBaseline: creatorDetailBaseline ?? undefined, generatedStoryOutline, creatorBrief, creatorMessages, publishedWorld });
+  useEffect(() => {
+    if (!storageReady) return;
+    const data = JSON.parse(creatorDocumentJSON) as CreatorDocument['data'];
+    if (!data.worldTitle.trim() && !data.worldSeed.trim() && !data.generatedWorld) return;
+    const timer = window.setTimeout(() => setCreatorDocuments((current) => upsertById(current, { id: draftId, savedAt: Date.now(), data })), 0);
+    return () => window.clearTimeout(timer);
+  }, [creatorDocumentJSON, draftId, storageReady]);
+
+  useEffect(() => {
+    if (!storageReady || storageReadFailed.current) return;
+    try { window.localStorage.setItem(studioStorageKey, JSON.stringify({ version: 1, runs: savedRuns, chats: chatSessions, documents: creatorDocuments, draftId } satisfies StudioStorage)); }
+    catch { window.setTimeout(() => setStorageError('世界库保存失败，当前修改尚未落盘。请保持页面打开，勿刷新。'), 0); }
+  }, [storageReady, savedRuns, chatSessions, creatorDocuments, draftId]);
+
+  useEffect(() => {
+    if (!storageReady || !savedRun) return;
+    const migrated = { ...savedRun, id: savedRun.id ?? 'legacy-run' };
+    const timer = window.setTimeout(() => setSavedRuns((current) => current.some((run) => run.id === migrated.id && run.savedAt >= migrated.savedAt) ? current : upsertById(current, migrated)), 0);
+    return () => window.clearTimeout(timer);
+  }, [storageReady, savedRun]);
 
   useEffect(() => {
     if (!storageReady) return;
@@ -1082,30 +1184,19 @@ export default function Home() {
     return () => { active = false; };
   }, [portraitSignature, storageReady]);
 
+  const runSnapshotJSON = JSON.stringify({
+    version: 1, id: runId, worldKind: activeWorld, presetId: activeWorld === 'suggestion' ? suggestedPreset?.id : undefined,
+    worldTitle: activeWorldTitle, surpriseLevel: activeSurprise, roleId: selectedRole.id, turn, narrative, lastAction, lastIncident,
+    endingDecision, worldState, status: view === 'ending' ? 'ending' : 'playing', imageCacheKey: imageTask.cacheKey, currentBeat,
+    worldSnapshot: activeLibrary ?? { id: activeWorldDefinition.id, title: activeWorldTitle, genre: '小世界', premise: activeWorldDefinition.premise,
+      world: activeWorldDefinition, cover: activeWorld === 'suggestion' ? (suggestedPreset?.id === 'sea-train' ? '/assets/sea-train-cover.jpg' : '/assets/roommate-cover.jpg') : '/assets/storm-manor-cover.png',
+      portraits: Object.fromEntries(currentRoles.filter((role) => role.imageUrl && !role.imageUrl.startsWith('data:')).map((role) => [role.id, role.imageUrl!])) },
+  });
   useEffect(() => {
     if (!storageReady || isThinking || actionFeedback?.allowed === false || (view !== 'play' && view !== 'ending')) return;
-    const timer = window.setTimeout(() => {
-      setSavedRun({
-        version: 1,
-        worldKind: activeWorld,
-        presetId: activeWorld === 'suggestion' ? suggestedPreset?.id : undefined,
-        worldTitle: activeWorldTitle,
-        surpriseLevel: activeSurprise,
-        roleId: selectedRole.id,
-        turn,
-        narrative,
-        lastAction,
-        lastIncident,
-        endingDecision,
-        worldState,
-        status: view === 'ending' ? 'ending' : 'playing',
-        imageCacheKey: imageTask.cacheKey,
-        currentBeat,
-        savedAt: Date.now(),
-      });
-    }, 0);
+    const timer = window.setTimeout(() => { setSavedRun({ ...JSON.parse(runSnapshotJSON), savedAt: Date.now() }); }, 0);
     return () => window.clearTimeout(timer);
-  }, [actionFeedback, activeSurprise, activeWorld, activeWorldTitle, currentBeat, endingDecision, imageTask.cacheKey, isThinking, lastAction, lastIncident, narrative, selectedRole.id, storageReady, suggestedPreset?.id, turn, view, worldState]);
+  }, [runSnapshotJSON, actionFeedback?.allowed, isThinking, storageReady, view]);
 
   useEffect(() => {
     const context = document.modelContext;
@@ -1242,6 +1333,7 @@ export default function Home() {
   }
 
   function openStormWorld() {
+    setActiveLibrary(null);
     setActiveWorld('storm');
     setSelectedRole(roles[0]);
     setRuntimeBeat(null);
@@ -1249,6 +1341,7 @@ export default function Home() {
   }
 
   function openDraftWorld() {
+    setActiveLibrary(null);
     const nextRoles = makePlayableDraftRoles(draftRoles);
     if (nextRoles.length === 0) return;
     if (!generatedWorld?.tasks?.length) materializeCreatorWorld();
@@ -1259,6 +1352,10 @@ export default function Home() {
   }
 
   function openCatalogWorld(worldId: string) {
+    const libraryEntry = availableStudioWorlds.find((entry) => entry.id === worldId);
+    if (libraryEntry) {
+      setActiveLibrary(libraryEntry); setActiveWorld('draft'); setSelectedRole(entryRoles(libraryEntry)[0]); setRuntimeBeat(null); navigate('roles'); return;
+    }
     if (worldId === 'creator-world') {
       openDraftWorld();
       return;
@@ -1270,6 +1367,7 @@ export default function Home() {
     const preset = presetWorlds.find((world) => world.id === worldId);
     if (!preset) return;
     const nextRoles = makePlayableDraftRoles(preset.roles);
+    setActiveLibrary(null);
     setSuggestedPreset(preset);
     setActiveWorld('suggestion');
     setSelectedRole(nextRoles[0]);
@@ -1277,12 +1375,13 @@ export default function Home() {
     navigate('roles');
   }
 
-  function resumeSavedWorld() {
+  function resumeSavedWorld(input?: SavedRun) {
+    const savedRun = input ?? savedRuns[0];
     if (!savedRun) return;
     const savedPreset = savedRun.worldKind === 'suggestion'
       ? presetWorlds.find((world) => world.id === savedRun.presetId)
       : null;
-    const savedRoles = savedRun.worldKind === 'draft'
+    const savedRoles = savedRun.worldSnapshot ? entryRoles(savedRun.worldSnapshot) : savedRun.worldKind === 'draft'
       ? playableDraftRoles
       : savedRun.worldKind === 'suggestion' && savedPreset
         ? makePlayableDraftRoles(savedPreset.roles)
@@ -1293,6 +1392,8 @@ export default function Home() {
       return;
     }
     stopActiveGeneration();
+    setActiveLibrary(savedRun.worldSnapshot ?? null);
+    setRunId(savedRun.id ?? 'legacy-run');
     if (savedPreset) setSuggestedPreset(savedPreset);
     setActiveWorld(savedRun.worldKind);
     if (savedRun.worldKind !== 'storm') setSurprise(normalizeSurpriseLevel(savedRun.surpriseLevel));
@@ -1308,7 +1409,7 @@ export default function Home() {
     const restoredSceneId = `scene-${savedRun.turn + 1}`;
     const restoreRequestId = imageRequestRef.current;
     setImageTask({
-      ...createInitialImageTask('/assets/storm-manor-cover.png'),
+      ...createInitialImageTask(savedRun.worldSnapshot?.cover || '/assets/storm-manor-cover.png'),
       requestId: restoreRequestId,
       sceneId: restoredSceneId,
       status: savedRun.imageCacheKey && savedRun.status === 'playing' ? 'generating' : 'reused',
@@ -1340,21 +1441,9 @@ export default function Home() {
         userMessage: value,
         currentMemories: toAgentMemories(memories),
         recentExperiences: [],
-        availableWorldIds: [
-          ...worldCatalog.map((world) => world.id),
-          ...(publishedWorld ? ['creator-world'] : []),
-        ],
-        availableWorlds: [
-          ...worldCatalog,
-          ...(publishedWorld ? [{
-            id: 'creator-world',
-            title: worldTitle || '你创建的小世界',
-            genre: '创作者世界',
-            surpriseLevel: surprise,
-            premise: worldSeed || '由你创建、可以从不同角色进入的小世界。',
-          }] : []),
-        ],
-      }));
+        availableWorldIds: personalCatalog.map((entry) => entry.id),
+        availableWorlds: personalCatalog,
+      }), false);
       setAgentReply(response.reply);
       const learned = response.memoryCandidates.filter((memory) => !memory.requiresConfirmation).map((memory) => memory.value);
       setMemories((current) => [...learned, ...current.filter((memory) => !learned.includes(memory))].slice(0, 6));
@@ -1371,6 +1460,7 @@ export default function Home() {
 
   function beginWorld() {
     stopActiveGeneration();
+    setRunId(crypto.randomUUID());
     const openingBeat = currentStory[0];
     setTurn(0);
     setRuntimeBeat(openingBeat);
@@ -1378,6 +1468,7 @@ export default function Home() {
     setLastAction('');
     setEndingDecision('');
     const roleDefinition = activeWorldDefinition.characters.find((character) => character.id === selectedRole.id);
+    const openingLocationId = activeLibrary ? roleDefinition?.startLocationId ?? activeWorldDefinition.openingScene.locationId : activeWorldDefinition.openingScene.locationId;
     setWorldState(createInitialWorldState(
       activeWorld,
       selectedRole.id,
@@ -1389,15 +1480,14 @@ export default function Home() {
         activeGoalId: selectRoleGoal(activeWorldDefinition, selectedRole.id)?.id,
         roleKnowledge: roleDefinition ? [...roleDefinition.privateKnowledge, ...roleDefinition.secrets] : [selectedRole.secret],
         characterLocations: Object.fromEntries(activeWorldDefinition.characters.map((character) => [character.id,
-          character.id === selectedRole.id || activeWorldDefinition.openingScene.presentCharacterIds.includes(character.id)
-            ? activeWorldDefinition.openingScene.locationId : character.startLocationId])),
+          character.id === selectedRole.id ? openingLocationId : character.startLocationId])),
         characterIds: activeWorldDefinition.characters.map((character) => character.id),
-        openingLocationId: activeWorldDefinition.openingScene.locationId,
+        openingLocationId,
       },
     ));
     setActionFeedback(null);
     setLastIncident(null);
-    setImageTask(createInitialImageTask('/assets/storm-manor-cover.png'));
+    setImageTask(createInitialImageTask(activeLibrary?.cover || (activeWorld === 'suggestion' ? (suggestedPreset?.id === 'sea-train' ? '/assets/sea-train-cover.jpg' : '/assets/roommate-cover.jpg') : '/assets/storm-manor-cover.png')));
     applyImageDirective({
       required: true,
       reason: 'opening',
@@ -1810,15 +1900,67 @@ export default function Home() {
   }
 
   function publishCreatorWorld() {
-    materializeCreatorWorld();
+    const world = materializeCreatorWorld();
+    const published = { ...world, id: draftId };
+    setGeneratedWorld(published);
     setAgentReply('你的新世界已经准备好。我会把它加入可推荐的世界，并按体验者的要求判断是否匹配。');
     setMemories((current) => Array.from(new Set(['创建过小世界', ...current])).slice(0, 6));
     setPublishedWorld(true);
-    setRecommendedWorldId('creator-world');
-    window.setTimeout(openDraftWorld, 0);
+    setRecommendedWorldId(draftId);
+    const entry: StudioWorld = { id: draftId, title: published.title, genre: '我的创作', premise: published.premise, cover: '/assets/storm-manor-cover.png', portraits: {}, world: published,
+      portraitCacheKeys: Object.fromEntries(draftRoles.map((role, index) => [published.characters[index]?.id ?? `draft-role-${index}`, portraitCacheKey(role)])) };
+    setActiveLibrary(entry); setActiveWorld('draft'); setSelectedRole(entryRoles(entry)[0]); setRuntimeBeat(null); navigate('roles');
+  }
+
+  function newCreator(seed = '') {
+    if (worldGenerating || creatorAgentThinking) { setStorageError('创作 Agent 仍在处理当前作品，请等本次回应结束后再新建。'); return; }
+    const data = JSON.parse(creatorDocumentJSON) as CreatorDocument['data'];
+    if (data.worldTitle.trim() || data.worldSeed.trim() || data.generatedWorld) setCreatorDocuments((current) => upsertById(current, { id: draftId, savedAt: Date.now(), data }));
+    setActiveLibrary(null); setActiveWorld('storm'); setSelectedRole(roles[0]); setRuntimeBeat(null);
+    setDraftId(crypto.randomUUID());
+    setWorldTitle(''); setWorldSeed(seed); setSurprise(2); setGenerated(false); setGeneratedWorld(null); setPublishedWorld(false);
+    setGeneratedStoryOutline([]); setCreatorDetailBaseline(null); setCreatorBrief(emptyCreatorBrief); setCreatorProposal(null);
+    setCreatorMessages([{ role: 'agent', content: seed ? `我们从这个想法开始：${seed}。先添加你想要的角色，再一起讨论目标与困难。` : '先添加角色，再和我一起讨论他们想得到什么、谁会阻止他们。' }]);
+    setDraftRoles([{ name: '', identity: '', personality: '', relationship: '', appearance: '' }, { name: '', identity: '', personality: '', relationship: '', appearance: '' }]);
+    setRoleImages({}); setCreateStep(1); navigate('create');
+  }
+
+  function editCreator(doc: CreatorDocument) {
+    if (worldGenerating || creatorAgentThinking) { setStorageError('请等当前创作回应结束后再切换作品。'); return; }
+    setActiveLibrary(null); setActiveWorld('storm'); setSelectedRole(roles[0]); setRuntimeBeat(null);
+    const data = doc.data;
+    setDraftId(doc.id); setWorldTitle(data.worldTitle); setWorldSeed(data.worldSeed); setSurprise(data.surprise);
+    setDraftRoles(data.draftRoles); setGenerated(data.generated); setPublishedWorld(data.publishedWorld);
+    setGeneratedWorld(data.generatedWorld ?? null); setCreatorDetailBaseline(data.creatorDetailBaseline ?? null);
+    setGeneratedStoryOutline(data.generatedStoryOutline ?? []); setCreatorBrief(data.creatorBrief ?? emptyCreatorBrief);
+    setCreatorMessages(data.creatorMessages ?? []); setCreatorProposal(null); setCreateStep(1); navigate('create');
+  }
+
+  function saveChat(session: ChatSession) { setChatSessions((current) => upsertById(current, session)); }
+
+  function openRecord(id: string) {
+    const doc = creatorDocuments.find((item) => `doc-${item.id}` === id);
+    if (doc) { editCreator(doc); return; }
+    const run = savedRuns.find((item) => `run-${item.id}` === id);
+    if (run) { resumeSavedWorld(run); return; }
+    const chat = chatSessions.find((item) => `chat-${item.id}` === id);
+    if (chat) { setActiveChat(chat); navigate('chat'); }
   }
 
   function renderScreen() {
+    if (view === 'chat' && activeChat) return <CharacterChat key={activeChat.id} initial={activeChat} onSave={saveChat} onBack={() => navigate('home')} />;
+    if (view === 'home' || view === 'library' || view === 'characters') return <StudioHome
+      section={view} worlds={[
+        ...availableStudioWorlds.map((entry) => ({ ...entry, roleCount: entry.world.characters.length })),
+        ...worldCatalog.map((world) => ({ ...world, roleCount: world.id === 'storm-manor' ? roles.length : presetWorlds.find((preset) => preset.id === world.id)?.roles.length ?? 0, cover: world.id === 'storm-manor' ? '/assets/storm-manor-cover.png' : world.id === 'sea-train' ? '/assets/sea-train-cover.jpg' : '/assets/roommate-cover.jpg' }))]}
+      characters={studioWorlds.flatMap((entry) => entry.world.characters.map((role) => ({ id: role.id, worldId: entry.id, worldTitle: entry.title, name: role.name, identity: role.identity, persona: role.persona, image: entry.portraits[role.id] })))}
+      recent={[
+        ...creatorDocuments.map((doc) => ({ id: `doc-${doc.id}`, savedAt: doc.savedAt, title: doc.data.worldTitle || '未命名世界', subtitle: '继续编辑角色与故事框架', label: doc.data.publishedWorld ? '已发布 · 本机作品' : '创作草稿', cover: '/assets/storm-manor-cover.png' })),
+        ...savedRuns.map((run) => ({ id: `run-${run.id}`, savedAt: run.savedAt, title: run.worldTitle, subtitle: `${run.worldSnapshot?.world.characters.find((role) => role.id === run.roleId)?.name ?? run.roleId} · ${run.worldState.location}`, label: run.status === 'ending' ? '阶段结局' : '探索记录', cover: run.worldSnapshot?.cover || '/assets/storm-manor-cover.png' })),
+        ...chatSessions.map((chat) => ({ id: `chat-${chat.id}`, savedAt: chat.savedAt, title: `与 ${chat.entry.world.characters.find((role) => role.id === chat.targetCharacterId)?.name} 的对话`, subtitle: `你是 ${chat.entry.world.characters.find((role) => role.id === chat.playerRoleId)?.name} · ${chat.entry.title}`, label: '角色对话', cover: chat.entry.portraits[chat.targetCharacterId] || chat.entry.cover })),
+      ].sort((a, b) => b.savedAt - a.savedAt)}
+      onCreate={newCreator} onOpenWorld={openCatalogWorld} onChat={(worldId, targetId) => { const entry = availableStudioWorlds.find((item) => item.id === worldId); if (entry) setChatEntry({ entry, targetId }); }} onPersonal={() => navigate('personal')} onLibrary={() => navigate('library')} onOpenRecord={openRecord}
+    />;
     if (view === 'roles') return <RoleSelection worldTitle={activeWorldTitle} availableRoles={currentRoles} selected={selectedRole} onSelect={setSelectedRole} onBack={() => navigate('home')} onStart={beginWorld} />;
     if (view === 'play') {
       return (
@@ -1826,7 +1968,10 @@ export default function Home() {
           role={selectedRole}
           worldTitle={activeWorldTitle}
           availableRoles={currentRoles}
-          roleIndex={selectedRoleIndex}
+          presentRoleIds={currentRoles.filter((role) => {
+            const place = worldState.characterStates[role.id]?.locationId;
+            return place === worldState.location || activeWorldDefinition.locations.some((location) => location.id === place && location.name === worldState.location);
+          }).map((role) => role.id)}
           turn={turn}
           beat={currentBeat}
           narrative={narrative}
@@ -1903,6 +2048,7 @@ export default function Home() {
     if (view === 'ending') return <Ending worldTitle={activeWorldTitle} role={selectedRole} decision={endingDecision} state={worldState} world={activeWorldDefinition} imageUrl={imageTask.assetUrl} onContinue={continueWorld} onReplay={() => navigate('roles')} onHome={() => navigate('home')} />;
     return (
       <AgentHome
+        extraWorlds={availableStudioWorlds}
         message={message}
         agentReply={agentReply}
         agentThinking={agentThinking}
@@ -1925,8 +2071,8 @@ export default function Home() {
         onToggleMemory={() => setMemoryEditing((current) => !current)}
         onRemoveMemory={(memory) => setMemories((current) => current.filter((item) => item !== memory))}
         onOpenWorld={openCatalogWorld}
-        onResume={resumeSavedWorld}
-        onCreate={() => navigate('create')}
+        onResume={() => resumeSavedWorld()}
+        onCreate={() => newCreator()}
       />
     );
   }
@@ -1934,77 +2080,18 @@ export default function Home() {
   const screen = renderScreen();
 
   return (
-    <main className="site-frame">
-      <div className="ambient-light" aria-hidden="true" />
-      <AppHeader view={view} scrolled={navScrolled} modelMode={modelMode} imageModelMode={imageModelMode} onHome={() => navigate('home')} onExplore={openStormWorld} onCreate={() => navigate('create')} />
+    <main className="studio-frame">
+      <StudioNav section={view} onNavigate={navigate} onCreate={newCreator} />
+      {storageError && <p className="studio-storage-error" role="alert">{storageError}</p>}
       {screen}
+      {chatEntry && <CharacterEntry key={`${chatEntry.entry.id}:${chatEntry.targetId}`} entry={chatEntry.entry} targetId={chatEntry.targetId} onClose={() => setChatEntry(null)} onStart={(session) => { saveChat(session); setActiveChat(session); setChatEntry(null); navigate('chat'); }} />}
     </main>
   );
 }
 
-function AppHeader({
-  view,
-  scrolled,
-  modelMode,
-  imageModelMode,
-  onHome,
-  onExplore,
-  onCreate,
-}: {
-  view: View;
-  scrolled: boolean;
-  modelMode: ModelMode;
-  imageModelMode: ImageModelMode;
-  onHome: () => void;
-  onExplore: () => void;
-  onCreate: () => void;
-}) {
-  const statusMode = modelMode === 'checking' || imageModelMode === 'checking'
-    ? 'checking'
-    : modelMode === 'fallback' || imageModelMode === 'fallback'
-      ? 'fallback'
-      : modelMode;
-  const statusLabel = statusMode === 'checking'
-    ? '正在检查模型'
-    : modelMode === 'real' && imageModelMode === 'real'
-      ? 'DeepSeek 文本 · 硅基流动生图'
-      : modelMode === 'fallback'
-        ? 'DeepSeek 异常 · Mock 回退'
-        : imageModelMode === 'fallback'
-          ? 'DeepSeek 文本 · 生图暂时回退'
-          : modelMode === 'real'
-            ? 'DeepSeek 文本 · 图片未配置'
-            : '内部原型 · Mock AI';
-  return (
-    <header className="app-nav" data-scrolled={scrolled}>
-      <div className="nav-inner">
-        <div className="brand-cluster">
-          <button className="brand-mark" type="button" onClick={onHome} aria-label="小世界首页">
-            <span className="brand-orbit" aria-hidden="true"><span /></span>
-            <span>小世界</span>
-          </button>
-          <span className="prototype-badge" data-mode={statusMode}>
-            {statusLabel}
-          </span>
-        </div>
-        <nav className="nav-links" aria-label="主导航">
-          <button className={`nav-link ${view === 'home' ? 'nav-link-active' : ''}`} type="button" onClick={onHome}>
-            <MessageCircleMore aria-hidden="true" />我的 Agent
-          </button>
-          <button className={`nav-link ${['roles', 'play', 'ending'].includes(view) ? 'nav-link-active' : ''}`} type="button" onClick={onExplore}>
-            <Compass aria-hidden="true" />探索
-          </button>
-          <Button className={`nav-create ${view === 'create' ? 'nav-create-active' : ''}`} variant="outline" onClick={onCreate}>
-            <Plus aria-hidden="true" />创建世界
-          </Button>
-        </nav>
-        <button className="profile-button" type="button" aria-label="回到个人 Agent" onClick={onHome}><UserRound aria-hidden="true" /></button>
-      </div>
-    </header>
-  );
-}
 
 function AgentHome({
+  extraWorlds,
   message,
   agentReply,
   agentThinking,
@@ -2024,6 +2111,7 @@ function AgentHome({
   onResume,
   onCreate,
 }: {
+  extraWorlds: StudioWorld[];
   message: string;
   agentReply: string;
   agentThinking: boolean;
@@ -2076,9 +2164,10 @@ function AgentHome({
         <section className="recommendation-area" id="worlds" aria-labelledby="recommend-title">
           <div className="section-heading reveal-in delay-one">
             <div><p className="eyebrow">为你挑选</p><h2 id="recommend-title">今晚，从这个世界开始</h2></div>
-            <span className="recommend-count">{3 + (publishedWorld ? 1 : 0)} 个可进入世界</span>
+            <span className="recommend-count">{3 + extraWorlds.length} 个可进入世界</span>
           </div>
           <p className="agent-selection-note"><Sparkles />{recommendationReason}</p>
+          {extraWorlds.map((entry) => <button className="teaser-card" key={entry.id} type="button" data-recommended={recommendedWorldId === entry.id} onClick={() => onOpenWorld(entry.id)}><span><strong>{entry.title}</strong><small>{entry.genre} · {entry.premise}</small>{recommendedWorldId === entry.id && <em>Agent 为你推荐</em>}</span><ArrowRight /></button>)}
           {savedRun ? (
             <button className="resume-world-card reveal-in delay-one" type="button" onClick={onResume}>
               <span className="resume-icon"><Clock3 /></span>
@@ -2172,7 +2261,7 @@ function PlayWorld({
   role,
   worldTitle,
   availableRoles,
-  roleIndex,
+  presentRoleIds,
   turn,
   beat,
   narrative,
@@ -2201,7 +2290,7 @@ function PlayWorld({
   role: Role;
   worldTitle: string;
   availableRoles: Role[];
-  roleIndex: number;
+  presentRoleIds: string[];
   turn: number;
   beat: StoryBeat;
   narrative: string;
@@ -2227,7 +2316,7 @@ function PlayWorld({
   onAction: (action: string) => void;
   onBack: () => void;
 }) {
-  const speakingRole = availableRoles.find((item) => item.name === beat.speaker) ?? availableRoles[(roleIndex + 1) % availableRoles.length];
+  const speakingRole = availableRoles.find((item) => item.name === beat.speaker && presentRoleIds.includes(item.id));
   const mainTasks = tasks.filter((task) => task.kind === 'main');
   const completedMainTasks = mainTasks.filter((task) => completedTaskIds.includes(task.id));
   const progress = mainTasks.length > 0 ? Math.round((completedMainTasks.length / mainTasks.length) * 100) : 0;
@@ -2259,7 +2348,7 @@ function PlayWorld({
             <h1 id="scene-title">{beat.title}</h1>
             <p className="narrative-text">{isThinking && !narrative ? '世界正在回应你的行动……' : narrative}{isThinking && liveMode ? <span className="streaming-cursor" aria-label="正在生成" /> : null}</p>
             {incident ? <div className="incident-banner" data-impact={incident.impact}><Sparkles /><span><small>意外程度 {surpriseLevel} · {incident.impact === 'minor' ? '轻微插曲' : incident.impact === 'moderate' ? '中等影响' : '重大变数'}</small><strong>{incident.title}</strong></span></div> : null}
-            {!isThinking && <blockquote><strong>{beat.speaker}</strong><span>“{beat.dialogue}”</span></blockquote>}
+            {!isThinking && beat.dialogue && <blockquote><strong>{beat.speaker}</strong><span>“{beat.dialogue}”</span></blockquote>}
           </div>
         </section>
 
@@ -2267,12 +2356,12 @@ function PlayWorld({
           <div className="control-heading"><p className="eyebrow">当前目标</p><h2>{goal?.title || role.goal}</h2><small>{goal?.description || '你可以用自己的方式推进这个目标。'}</small></div>
           <div className="story-participants" aria-label="当前在场的其他角色">
             <small>当前在场</small>
-            <div>{availableRoles.filter((item) => item.id !== role.id).map((item) => (
-              <span className="participant-chip" data-speaking={item.id === speakingRole.id} key={item.id}>
+            <div>{availableRoles.filter((item) => item.id !== role.id && presentRoleIds.includes(item.id)).map((item) => (
+              <span className="participant-chip" data-speaking={item.id === speakingRole?.id} key={item.id}>
                 <RolePortrait role={item} />
-                <span><strong>{item.name}</strong><small>{item.id === speakingRole.id ? '正在与你交谈' : item.identity}</small></span>
+                <span><strong>{item.name}</strong><small>{item.id === speakingRole?.id ? '正在与你交谈' : item.identity}</small></span>
               </span>
-            ))}</div>
+            ))}{!presentRoleIds.some((id) => id !== role.id) && <small>这里暂时没有其他角色</small>}</div>
           </div>
           <div className="free-action-block is-primary-input">
             <label htmlFor="free-action">{isThinking ? (liveMode ? '世界正在展开，你可随时介入' : '等待世界回应') : '你想怎么做？'}</label>

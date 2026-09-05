@@ -6,8 +6,8 @@
 
 :root {
   color-scheme: dark;
-  --color-bg: #090b10;
-  --color-bg-rgb: 9, 11, 16;
+  --color-bg: #090a0c;
+  --color-bg-rgb: 9, 10, 12;
   --color-bg-elevated: #0d1118;
   --color-bg-elevated-rgb: 13, 17, 24;
   --color-surface: #121721;
@@ -30,8 +30,8 @@
   --color-text-muted-rgb: 133, 143, 159;
   --color-text-disabled: #596273;
   --color-text-disabled-rgb: 89, 98, 115;
-  --color-primary: #e2b66f;
-  --color-primary-rgb: 226, 182, 111;
+  --color-primary: #e8c879;
+  --color-primary-rgb: 232, 200, 121;
   --color-primary-hover: #efc782;
   --color-primary-hover-rgb: 239, 199, 130;
   --color-primary-active: #c99a52;
