@@ -1716,7 +1716,7 @@ export default function Home() {
         requestId,
         sceneId: `character-${roleId}`,
         prompt,
-        seed: stableVisualSeed(`character:${roleId}:${role.name}:${role.appearance}`),
+        seed: regenerate ? Math.floor(Math.random() * 1_000_000_000) : stableVisualSeed(`character:${roleId}:${role.name}:${role.appearance}`),
       });
       if (roleImageRequestRef.current[roleId] !== requestId) return;
       if (result.persistent) await cacheSceneImage(cacheKey, result.assetUrl).catch(() => false);

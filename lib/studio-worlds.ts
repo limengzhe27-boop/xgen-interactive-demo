@@ -1,4 +1,5 @@
 import type { WorldDefinition } from './ai-contracts';
+import publicImages from './public-image-manifest.json' with { type: 'json' };
 
 export type StudioWorld = {
   id: string;
@@ -311,7 +312,14 @@ export const inheritanceWorld: StudioWorld = {
   },
 };
 
-export const studioWorlds: StudioWorld[] = [contractWorld, workplaceWorld, inheritanceWorld];
+const publicImage = (path: string) => {
+  const id = (publicImages as Record<string, string>)[path];
+  return id ? `https://rrgyjvkkgcurtatidyuc.supabase.co/storage/v1/object/public/world-public/${id}.webp` : path;
+};
+export const studioWorlds: StudioWorld[] = [contractWorld, workplaceWorld, inheritanceWorld].map((entry) => ({
+  ...entry, cover: publicImage(entry.cover),
+  portraits: Object.fromEntries(Object.entries(entry.portraits).map(([id, path]) => [id, publicImage(path)])),
+}));
 
 export function getRoleOpening(entry: StudioWorld, roleId: string): string {
   const role = entry.world.characters.find((item) => item.id === roleId);

@@ -1,0 +1,41 @@
+// Uses one tiny synthetic blue square, not a model call or a user's saved world.
+import assert from 'node:assert/strict';
+import sharp from 'sharp';
+import manifest from '../lib/public-image-manifest.json' with { type: 'json' };
+import { imageOwner, imageId, claimImage, saveImage, storageFetch } from '../lib/server-image-store.ts';
+const base = process.argv[2] ?? 'http://127.0.0.1:3102';
+const statusResponse = await fetch(`${base}/api/image`);
+assert.equal(statusResponse.status, 200);
+const cookie = statusResponse.headers.get('set-cookie');
+const info = await statusResponse.json();
+assert.equal(info.cloudStorage, true); assert.equal(info.configured, true); assert.ok(cookie);
+const owner = imageOwner(new Request(`${base}/api/image`, { headers: { cookie } }));
+assert.ok(owner, 'Local and deployed signing secrets must match');
+const model = info.models.scene;
+const size = process.env.SILICONFLOW_IMAGE_SIZE || '1024x576';
+const prompt = 'Cloud storage synthetic verification: a blue square.';
+const seed = 6109;
+const id = imageId([owner.id, 'scene', model, size, seed, prompt]);
+const claims = await Promise.all(Array.from({ length: 5 }, () => claimImage(id, owner.id, model)));
+assert.equal(claims.filter(c => c.status === 'claimed').length, 1);
+assert.equal(claims.filter(c => c.status === 'pending').length, 4);
+const buffer = await sharp({ create: { width: 32, height: 32, channels: 3, background: '#334455' } }).webp().toBuffer();
+await saveImage(id, buffer);
+const body = { purpose: 'scene', requestId: 6109, sceneId: 'synthetic-cloud-check', prompt, seed };
+for (let i = 0; i < 2; i++) {
+  const response = await fetch(`${base}/api/image`, { method: 'POST', headers: { cookie, origin: base, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  assert.equal(response.status, 200);
+  const result = await response.json();
+  assert.equal(result.reused, true); assert.equal(result.assetUrl, `/api/image/asset/${id}`);
+}
+const own = await fetch(`${base}/api/image/asset/${id}`, { headers: { cookie } });
+assert.equal(own.status, 200); assert.deepEqual(Buffer.from(await own.arrayBuffer()), buffer);
+assert.equal((await fetch(`${base}/api/image/asset/${id}`)).status, 404);
+const directPrivate = await fetch(`${process.env.SUPABASE_URL}/storage/v1/object/public/world-private/${id}.webp`);
+assert.ok(directPrivate.status >= 400);
+const publicUrl = `${process.env.SUPABASE_URL}/storage/v1/object/public/world-public/${Object.values(manifest)[0]}.webp`;
+const a = await fetch(publicUrl); const b = await fetch(publicUrl);
+assert.equal(a.status, 200); assert.equal(b.status, 200);
+assert.deepEqual(Buffer.from(await a.arrayBuffer()), Buffer.from(await b.arrayBuffer()));
+const records = await (await storageFetch('/rest/v1/demo_image_assets?select=bucket,status,bytes')).json();
+console.log(JSON.stringify({ verified: true, paidModelCalls: 0, duplicateClaimWinners: 1, privateUnauthorizedStatus: 404, publicSharedReads: 2, publicImages: records.filter(r=>r.bucket==='world-public'&&r.status==='ready').length, storedBytes: records.reduce((n,r)=>n+r.bytes,0), fixtureId: id }, null, 2));

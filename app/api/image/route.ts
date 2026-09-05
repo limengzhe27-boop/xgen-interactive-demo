@@ -1,145 +1,68 @@
 import { AUTO_IMAGE_INTERVAL, imageModelFor } from '@/lib/image-policy';
-import type { ImagePurpose } from '@/lib/image-policy';
+import { boundedImageDownload, claimImage, imageId, imageOwner, saveImage, storageConfigured } from '@/lib/server-image-store';
 
-type ImageGenerationRequest = {
-  purpose?: unknown;
-  requestId?: unknown;
-  sceneId?: unknown;
-  prompt?: unknown;
-  seed?: unknown;
-};
-
-const SILICONFLOW_IMAGE_ENDPOINT = 'https://api.siliconflow.cn/v1/images/generations';
-
-function getImageConfig(purpose: ImagePurpose = 'scene') {
-  const apiKey = process.env.SILICONFLOW_API_KEY?.trim();
-  if (!apiKey) return null;
-  return {
-    apiKey,
-    model: imageModelFor(purpose, process.env),
-    imageSize: process.env.SILICONFLOW_IMAGE_SIZE?.trim() || '1024x576',
-  };
-}
-
-function isSafeImageUrl(value: unknown): value is string {
-  if (typeof value !== 'string') return false;
-  try {
-    const url = new URL(value);
-    return url.protocol === 'https:' && (url.hostname === 'siliconflow.cn' || url.hostname.endsWith('.siliconflow.cn'));
-  } catch {
-    return false;
-  }
-}
-
-function detectImageType(buffer: ArrayBuffer, declaredType?: string): 'image/jpeg' | 'image/png' | 'image/webp' | null {
-  const bytes = new Uint8Array(buffer);
-  if (bytes.length >= 8 && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) return 'image/png';
-  if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return 'image/jpeg';
-  if (bytes.length >= 12
-    && String.fromCharCode(...bytes.subarray(0, 4)) === 'RIFF'
-    && String.fromCharCode(...bytes.subarray(8, 12)) === 'WEBP') return 'image/webp';
-  return declaredType === 'image/jpeg' || declaredType === 'image/png' || declaredType === 'image/webp' ? declaredType : null;
-}
-
-function encodeBase64(buffer: ArrayBuffer) {
-  const bytes = new Uint8Array(buffer);
-  let binary = '';
-  for (let offset = 0; offset < bytes.length; offset += 32_768) {
-    binary += String.fromCharCode(...bytes.subarray(offset, offset + 32_768));
-  }
-  return btoa(binary);
-}
-
-async function materializeImage(assetUrl: string, signal: AbortSignal): Promise<string | null> {
-  const response = await fetch(assetUrl, { signal });
-  if (!response.ok) return null;
-  const declaredType = response.headers.get('content-type')?.split(';')[0]?.trim().toLowerCase();
-  const declaredSize = Number(response.headers.get('content-length') || 0);
-  if (declaredSize > 8_000_000) return null;
-  const buffer = await response.arrayBuffer();
-  if (buffer.byteLength === 0 || buffer.byteLength > 8_000_000) return null;
-  const contentType = detectImageType(buffer, declaredType);
-  if (!contentType) return null;
-  return `data:${contentType};base64,${encodeBase64(buffer)}`;
-}
-
-export async function GET() {
-  const config = getImageConfig();
+export const maxDuration = 120;
+export async function GET(request: Request) {
+  const configured = Boolean(process.env.SILICONFLOW_API_KEY) && storageConfigured();
+  const owner = imageOwner(request, true);
   return Response.json({
-    configured: Boolean(config),
-    provider: config ? 'siliconflow' : null,
-    model: config?.model ?? null,
-    models: config ? { scene: config.model, portrait: imageModelFor('portrait', process.env) } : null,
-    policy: { automaticIntervalTurns: AUTO_IMAGE_INTERVAL, premiumAutoUpgrade: false, batchSize: 1 },
-  }, { headers: { 'Cache-Control': 'no-store' } });
+    configured, cloudStorage: storageConfigured(), provider: configured ? 'siliconflow' : null,
+    model: imageModelFor('scene', process.env),
+    models: { scene: imageModelFor('scene', process.env), portrait: imageModelFor('portrait', process.env) },
+    policy: { automaticIntervalTurns: AUTO_IMAGE_INTERVAL, premiumAutoUpgrade: false, batchSize: 1, dailyGlobalLimit: 30, dailyDeviceLimit: 10, privateByDefault: true },
+  }, { headers: { 'Cache-Control': 'no-store', ...(owner?.cookie ? { 'Set-Cookie': owner.cookie } : {}) } });
 }
 
 export async function POST(request: Request) {
-  const contentLength = Number(request.headers.get('content-length') || 0);
-  if (contentLength > 32_000) return Response.json({ error: 'request_too_large' }, { status: 413 });
-
-  let body: ImageGenerationRequest;
+  const origin = request.headers.get('origin');
+  // Next's internal URL may use localhost behind a proxy; Host is the browser-facing authority.
+  if (origin) {
+    try {
+      const source = new URL(origin);
+      if (!['http:', 'https:'].includes(source.protocol) || source.host !== (request.headers.get('host') ?? new URL(request.url).host)) throw new Error('origin mismatch');
+    } catch { return Response.json({ error: 'invalid_origin' }, { status: 403 }); }
+  }
+  const owner = imageOwner(request);
+  const reply = (data: unknown, status = 200) => Response.json(data, { status, headers: { 'Cache-Control': 'no-store' } });
+  if (!storageConfigured()) return reply({ error: 'image_storage_not_configured' }, 503);
+  if (!owner) return reply({ error: 'image_session_required' }, 401);
+  let body;
   try {
-    body = await request.json() as ImageGenerationRequest;
-  } catch {
-    return Response.json({ error: 'invalid_json' }, { status: 400 });
-  }
-
-  if ((body.purpose !== undefined && body.purpose !== 'scene' && body.purpose !== 'portrait')
-    || !Number.isSafeInteger(body.requestId)
-    || typeof body.sceneId !== 'string'
-    || !body.sceneId.trim()
-    || body.sceneId.length > 120
-    || typeof body.prompt !== 'string'
-    || !body.prompt.trim()
-    || body.prompt.length > 4_000
-    || (body.seed !== undefined && (!Number.isSafeInteger(body.seed) || Number(body.seed) < 0 || Number(body.seed) > 9_999_999_999))) {
-    return Response.json({ error: 'invalid_request' }, { status: 400 });
-  }
-
+    const text = await request.text();
+    if (text.length > 32000) return reply({ error: 'request_too_large' }, 413);
+    body = JSON.parse(text);
+  } catch { return reply({ error: 'invalid_json' }, 400); }
+  if (!body || (body.purpose !== undefined && !['scene', 'portrait'].includes(body.purpose))
+    || !Number.isSafeInteger(body.requestId) || typeof body.sceneId !== 'string' || !body.sceneId.trim() || body.sceneId.length > 120
+    || typeof body.prompt !== 'string' || !body.prompt.trim() || body.prompt.length > 4000
+    || (body.seed !== undefined && (!Number.isSafeInteger(body.seed) || body.seed < 0 || body.seed > 9999999999))) return reply({ error: 'invalid_request' }, 400);
   const purpose = body.purpose === 'portrait' ? 'portrait' : 'scene';
-  const config = getImageConfig(purpose);
-  if (!config) return Response.json({ error: 'image_model_not_configured' }, { status: 503 });
-
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 90_000);
+  const model = imageModelFor(purpose, process.env);
+  const size = process.env.SILICONFLOW_IMAGE_SIZE?.trim() || '1024x576';
+  const seed = body.seed ?? 0;
+  const id = imageId([owner.id, purpose, model, size, seed, body.prompt.trim()]);
+  const success = (reused: boolean) => reply({ requestId: body.requestId, sceneId: body.sceneId, assetUrl: `/api/image/asset/${id}`, persistent: true, cloudStored: true, reused, provider: 'siliconflow', model, purpose, seed });
+  const key = process.env.SILICONFLOW_API_KEY?.trim();
+  if (!key) return reply({ error: 'image_model_not_configured' }, 503);
   try {
-    const response = await fetch(SILICONFLOW_IMAGE_ENDPOINT, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${config.apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: config.model,
-        prompt: body.prompt.trim(),
-        negative_prompt: '文字，字幕，水印，界面元素，logo，低清晰度，重复人物，畸形手指',
-        image_size: config.imageSize,
-        seed: body.seed,
-        batch_size: 1,
-      }),
-      signal: controller.signal,
+    // Atomic across Vercel instances; uncertain attempts never automatically retry the model.
+    const claim = await claimImage(id, owner.id, model);
+    if (claim.status === 'ready') return success(true);
+    if (claim.status !== 'claimed') return reply({ error: `image_${claim.status}` }, claim.status.endsWith('limit') ? 429 : 409);
+    const signal = AbortSignal.timeout(90000);
+    const response = await fetch('https://api.siliconflow.cn/v1/images/generations', {
+      method: 'POST', headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model, prompt: body.prompt.trim(), negative_prompt: '文字，字幕，水印，界面元素，logo，低清晰度，重复人物，畸形手指', image_size: size, seed, batch_size: 1 }), signal,
     });
-    if (!response.ok) return Response.json({ error: 'siliconflow_failed' }, { status: 502 });
-
-    const result = await response.json() as { images?: { url?: unknown }[]; seed?: unknown };
-    const temporaryAssetUrl = result.images?.[0]?.url;
-    if (!isSafeImageUrl(temporaryAssetUrl)) return Response.json({ error: 'invalid_image_response' }, { status: 502 });
-    const persistentAssetUrl = await materializeImage(temporaryAssetUrl, controller.signal).catch(() => null);
-
-    return Response.json({
-      requestId: body.requestId,
-      sceneId: body.sceneId,
-      assetUrl: persistentAssetUrl ?? temporaryAssetUrl,
-      persistent: Boolean(persistentAssetUrl),
-      provider: 'siliconflow',
-      model: config.model,
-      purpose,
-      seed: typeof result.seed === 'number' ? result.seed : undefined,
-    }, { headers: { 'Cache-Control': 'no-store' } });
+    if (!response.ok) return reply({ error: 'siliconflow_failed' }, 502);
+    const result = await response.json() as { images?: { url: string }[] };
+    const url = new URL(result.images?.[0]?.url ?? '');
+    if (url.protocol !== 'https:' || !(url.hostname === 'siliconflow.cn' || url.hostname.endsWith('.siliconflow.cn'))) return reply({ error: 'invalid_image_response' }, 502);
+    const buffer = await boundedImageDownload(url.href, signal);
+    await saveImage(id, buffer);
+    return success(false);
   } catch {
-    return Response.json({ error: 'siliconflow_failed' }, { status: 502 });
-  } finally {
-    clearTimeout(timeout);
+    // Reservation is retained after uncertain failures, preventing duplicate billing.
+    return reply({ error: 'image_generation_or_storage_failed' }, 503);
   }
 }

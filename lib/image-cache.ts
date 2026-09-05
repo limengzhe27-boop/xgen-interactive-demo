@@ -2,6 +2,7 @@ const DATABASE_NAME = 'xgen-small-world-images';
 const STORE_NAME = 'scene-images';
 const DATABASE_VERSION = 1;
 const MAX_CACHED_IMAGES = 12;
+const isStoredImage = (url: string) => url.startsWith('data:image/') || /^\/api\/image\/asset\/[a-f0-9]{64}$/.test(url);
 
 // Content-addressed keys prevent fixed draft-role/scene IDs from reusing another world's art.
 // Two independent 32-bit hashes keep browser keys small; this is not a security hash.
@@ -45,7 +46,7 @@ function waitForTransaction(transaction: IDBTransaction): Promise<void> {
 }
 
 export async function cacheSceneImage(key: string, assetUrl: string): Promise<boolean> {
-  if (!assetUrl.startsWith('data:image/') || typeof window === 'undefined' || !window.indexedDB) return false;
+  if (!isStoredImage(assetUrl) || typeof window === 'undefined' || !window.indexedDB) return false;
   const database = await openDatabase();
   try {
     const write = database.transaction(STORE_NAME, 'readwrite');
@@ -58,8 +59,10 @@ export async function cacheSceneImage(key: string, assetUrl: string): Promise<bo
       allRequest.onsuccess = () => resolve(allRequest.result as CachedSceneImage[]);
       allRequest.onerror = () => reject(allRequest.error);
     });
-    if (all.length > MAX_CACHED_IMAGES) {
-      const oldest = all.sort((left, right) => left.savedAt - right.savedAt).slice(0, all.length - MAX_CACHED_IMAGES);
+    // Cloud pointers are tiny and must survive the old 12-image base64 eviction policy.
+    const localBlobs = all.filter((entry) => entry.assetUrl.startsWith('data:image/'));
+    if (localBlobs.length > MAX_CACHED_IMAGES) {
+      const oldest = localBlobs.sort((left, right) => left.savedAt - right.savedAt).slice(0, localBlobs.length - MAX_CACHED_IMAGES);
       const cleanup = database.transaction(STORE_NAME, 'readwrite');
       oldest.forEach((entry) => cleanup.objectStore(STORE_NAME).delete(entry.key));
       await waitForTransaction(cleanup);
@@ -79,7 +82,7 @@ export async function getCachedSceneImage(key: string): Promise<string | null> {
     return await new Promise<string | null>((resolve, reject) => {
       request.onsuccess = () => {
         const entry = request.result as CachedSceneImage | undefined;
-        resolve(entry?.assetUrl?.startsWith('data:image/') ? entry.assetUrl : null);
+        resolve(entry?.assetUrl && isStoredImage(entry.assetUrl) ? entry.assetUrl : null);
       };
       request.onerror = () => reject(request.error);
     });

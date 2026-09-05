@@ -20,6 +20,7 @@ export async function generateSceneImage(
   input: ImageGenerationInput,
   signal?: AbortSignal,
 ): Promise<ImageGenerationResult> {
+  await getRemoteImageStatus();
   const response = await fetch('/api/image', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -32,7 +33,7 @@ export async function generateSceneImage(
   if (body.requestId !== input.requestId
     || body.sceneId !== input.sceneId
     || typeof body.assetUrl !== 'string'
-    || !(body.assetUrl.startsWith('https://') || body.assetUrl.startsWith('data:image/'))
+    || !(body.assetUrl.startsWith('https://') || body.assetUrl.startsWith('data:image/') || /^\/api\/image\/asset\/[a-f0-9]{64}$/.test(body.assetUrl))
     || body.provider !== 'siliconflow'
     || typeof body.model !== 'string'
     || typeof body.persistent !== 'boolean') {

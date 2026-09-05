@@ -58,7 +58,7 @@ export function finishImageTask(
       status: 'ready',
       assetUrl: result.assetUrl,
       cacheKey: result.cacheKey,
-      message: result.cacheKey ? '硅基流动场景图已更新 · 本机已保存' : '硅基流动场景图已更新',
+      message: result.assetUrl.startsWith('/api/image/asset/') ? '场景图已保存到云端 · 私人可见' : result.cacheKey ? '硅基流动场景图已更新 · 本机已保存' : '硅基流动场景图已更新',
     };
   }
   return {
