@@ -48,7 +48,8 @@ import {
   validateAction,
 } from '@/lib/world-state';
 import { normalizeSurpriseLevel } from '@/lib/surprise-engine';
-import { preserveCreatorFramework } from '@/lib/creator-framework';
+import { preserveCreatorDetails, preserveCreatorFramework } from '@/lib/creator-framework';
+import type { CreatorDetailBaseline } from '@/lib/creator-framework';
 import type {
   AgentMemory,
   AIAdapter,
@@ -147,6 +148,7 @@ type PersistedDemoState = {
   publishedWorld: boolean;
   draftRoles: DraftRole[];
   generatedWorld?: WorldDefinition;
+  creatorDetailBaseline?: CreatorDetailBaseline;
   generatedStoryOutline?: StoryOutlineBeat[];
   creatorBrief?: CreatorBrief;
   creatorMessages?: CreatorChatMessage[];
@@ -876,6 +878,7 @@ export default function Home() {
   const [creatorQuestions, setCreatorQuestions] = useState<string[]>(['玩家最终获得什么？', '谁最希望阻止他？', '走捷径要付出什么代价？']);
   const [generated, setGenerated] = useState(false);
   const [generatedWorld, setGeneratedWorld] = useState<WorldDefinition | null>(null);
+  const [creatorDetailBaseline, setCreatorDetailBaseline] = useState<CreatorDetailBaseline | null>(null);
   const [generatedStoryOutline, setGeneratedStoryOutline] = useState<StoryOutlineBeat[]>([]);
   const [worldGenerating, setWorldGenerating] = useState(false);
   const [runtimeBeat, setRuntimeBeat] = useState<StoryBeat | null>(null);
@@ -1012,6 +1015,11 @@ export default function Home() {
             && saved.generatedWorld.openingScene
             && Array.isArray(saved.generatedWorld.openingScene.choices)) {
             setGeneratedWorld(saved.generatedWorld);
+            const baseline = saved.creatorDetailBaseline;
+            if (baseline && Array.isArray(baseline.roles) && Array.isArray(baseline.outline)) setCreatorDetailBaseline(baseline);
+            else if (Array.isArray(saved.draftRoles) && Array.isArray(saved.generatedStoryOutline)) {
+              setCreatorDetailBaseline({ roles: saved.draftRoles, outline: saved.generatedStoryOutline });
+            }
           }
           if (Array.isArray(saved.generatedStoryOutline)
             && saved.generatedStoryOutline.every((beat) => beat && typeof beat.title === 'string' && typeof beat.location === 'string')) {
@@ -1044,11 +1052,12 @@ export default function Home() {
       publishedWorld,
       draftRoles,
       generatedWorld: generatedWorld ?? undefined,
+      creatorDetailBaseline: creatorDetailBaseline ?? undefined,
       generatedStoryOutline,
       savedRun: savedRun ?? undefined,
     };
     window.localStorage.setItem(demoStorageKey, JSON.stringify(snapshot));
-  }, [creatorBrief, creatorMessages, draftRoles, generated, generatedStoryOutline, generatedWorld, liveMode, memories, publishedWorld, savedRun, storageReady, surprise, worldSeed, worldTitle]);
+  }, [creatorBrief, creatorDetailBaseline, creatorMessages, draftRoles, generated, generatedStoryOutline, generatedWorld, liveMode, memories, publishedWorld, savedRun, storageReady, surprise, worldSeed, worldTitle]);
 
   useEffect(() => {
     if (!storageReady) return;
@@ -1728,6 +1737,8 @@ export default function Home() {
         creatorBrief: effectiveBrief,
       }));
       const normalizedWorld = normalizeGeneratedWorld(response.world, draftRoles);
+      const generatedDraftRoles = draftRoles.map((role, index) => ({ ...role, appearance: role.appearance || normalizedWorld.characters[index]?.imagePrompt || '' }));
+      setCreatorDetailBaseline({ roles: generatedDraftRoles, outline: response.storyOutline });
       setGeneratedWorld(normalizedWorld);
       setGeneratedStoryOutline(response.storyOutline);
       setCreatorBrief({
@@ -1749,8 +1760,7 @@ export default function Home() {
       });
       setWorldTitle(normalizedWorld.title);
       setWorldSeed(normalizedWorld.premise);
-      setDraftRoles((current) => current.map((role, index) => ({
-        ...role,
+      setDraftRoles((current) => current.map((role, index) => ({ ...role,
         appearance: role.appearance || normalizedWorld.characters[index]?.imagePrompt || '',
       })));
       setGenerated(true);
@@ -1760,7 +1770,7 @@ export default function Home() {
   }
 
   function updateStoryOutline(index: number, key: keyof Pick<StoryOutlineBeat, 'title' | 'location' | 'objective' | 'turningPoint'>, value: string) {
-    setGeneratedStoryOutline((current) => current.map((beat, beatIndex) => beatIndex === index ? { ...beat, [key]: value } : beat));
+    setGeneratedStoryOutline((current) => current.map((beat, beatIndex) => beatIndex === index || (key === 'location' && beat.location === current[index]?.location) ? { ...beat, [key]: value } : beat));
   }
 
   function materializeCreatorWorld(outlineInput = generatedStoryOutline) {
@@ -1771,7 +1781,11 @@ export default function Home() {
       ? creatorBrief
       : briefFromOutline(safeOutline, safeSeed, normalizeSurpriseLevel(creatorBrief.complexityLevel || 2));
     const edited = buildCreatorWorld(safeTitle, safeSeed, draftRoles, safeOutline, surprise, effectiveBrief, generatedWorld);
-    const world = generatedWorld ? preserveCreatorFramework(generatedWorld, edited) : edited;
+    const nextBaseline = { roles: draftRoles, outline: safeOutline };
+    const world = generatedWorld
+      ? preserveCreatorDetails(generatedWorld, preserveCreatorFramework(generatedWorld, edited), creatorDetailBaseline ?? nextBaseline, nextBaseline)
+      : edited;
+    setCreatorDetailBaseline(nextBaseline);
     setWorldTitle(safeTitle);
     setWorldSeed(safeSeed);
     setGeneratedStoryOutline(safeOutline);
