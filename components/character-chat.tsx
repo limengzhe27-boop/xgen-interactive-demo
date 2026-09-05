@@ -7,6 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { remoteAIAdapter } from '@/lib/remote-ai-adapter';
 import { generateSceneImage } from '@/lib/remote-image-service';
+import { shouldGenerateImage } from '@/lib/image-policy';
 import { cacheSceneImage, getCachedSceneImage, makeContentImageKey } from '@/lib/image-cache';
 import { commitTurn, createInitialWorldState, selectRoleGoal } from '@/lib/world-state';
 import { chatRequest, conversationEntry } from '@/lib/studio-session';
@@ -47,6 +48,7 @@ export function CharacterChat({ initial, onSave, onBack }: { initial: ChatSessio
   const [imageState, setImageState] = useState('');
   const controller = useRef<AbortController | null>(null);
   const imageController = useRef<AbortController | null>(null);
+  const lastImageAttemptTurn = useRef(initial.state.turn);
   const sessionRef = useRef(session);
   const saveRef = useRef(onSave);
   useEffect(() => { saveRef.current = onSave; }, [onSave]);
@@ -65,9 +67,19 @@ export function CharacterChat({ initial, onSave, onBack }: { initial: ChatSessio
     imageController.current?.abort();
     const aborter = new AbortController(); imageController.current = aborter;
     setImageState('正在生成场景图，你可以继续阅读');
-    const key = makeContentImageKey('scene', current.entry.world.id, current.id, current.state.turn, prompt);
+    const normalizedPrompt = prompt.slice(0, 3900);
+    const key = makeContentImageKey('scene', current.entry.world, current.playerRoleId, current.targetCharacterId, normalizedPrompt);
     try {
-      const result = await generateSceneImage({ requestId: current.state.turn, sceneId: `chat-${current.state.turn}`, prompt: prompt.slice(0, 3900), seed: 690510 }, aborter.signal);
+      const existing = await getCachedSceneImage(key).catch(() => null);
+      if (aborter.signal.aborted) return;
+      if (existing) {
+        setImage(existing); setImageState('复用已保存的场景图 · 未重新生图');
+        const next = { ...sessionRef.current, imageCacheKey: key };
+        sessionRef.current = next; setSession(next); saveRef.current(next);
+        return;
+      }
+      lastImageAttemptTurn.current = current.state.turn;
+      const result = await generateSceneImage({ requestId: current.state.turn, sceneId: `chat-${current.state.turn}`, prompt: normalizedPrompt, seed: 690510, purpose: 'scene' }, aborter.signal);
       if (aborter.signal.aborted) return;
       const cached = await cacheSceneImage(key, result.assetUrl).catch(() => false);
       if (aborter.signal.aborted) return;
@@ -80,8 +92,6 @@ export function CharacterChat({ initial, onSave, onBack }: { initial: ChatSessio
   async function send(action = input) {
     if (!action.trim() || busy) return;
     setBusy(true); setError('');
-    imageController.current?.abort();
-    setImageState('');
     const aborter = new AbortController(); controller.current = aborter;
     try {
       const response = await remoteAIAdapter.advanceWorld(chatRequest(sessionRef.current, action.trim()), aborter.signal);
@@ -94,7 +104,7 @@ export function CharacterChat({ initial, onSave, onBack }: { initial: ChatSessio
         relationshipDelta: patch.relationshipDeltas?.[target.id] ?? 0, reachedEndingId: response.ending.reached ? response.ending.endingId : undefined });
       const next = { ...sessionRef.current, state, narrative: response.narrative, turns: [...sessionRef.current.turns, { action: action.trim(), response }], savedAt: Date.now() };
       sessionRef.current = next; setSession(next); onSave(next); setInput('');
-      if (response.image.required && response.image.prompt) void makeImage(response.image.prompt, next);
+      if (response.image.prompt && shouldGenerateImage(response.image, state.turn, lastImageAttemptTurn.current, true)) void makeImage(response.image.prompt, next);
     } catch { if (!aborter.signal.aborted) setError('真实模型暂时没有返回有效回应。你的输入和进度已保留，可以重试。'); }
     finally { if (!aborter.signal.aborted) { setBusy(false); controller.current = null; } }
   }
@@ -118,6 +128,6 @@ export function CharacterChat({ initial, onSave, onBack }: { initial: ChatSessio
         <Button className="studio-button" type="submit" disabled={busy || !input.trim()}>{busy ? <><LoaderCircle className="spin" />正在回应</> : <><Send />发送</>}</Button>
       </form>
       <div className="studio-chat-suggestions">{session.turns.at(-1)?.response.nextChoices.map((choice) => <button className="studio-filter" key={choice.id} type="button" disabled={busy} onClick={() => setInput(choice.label)}>{choice.label}</button>)}</div>
-    </section><aside className="studio-chat-scene"><img src={image} alt={`${session.state.location}场景`} /><p>{session.state.location}</p><small>{imageState || '场景图在关键变化时更新'}</small><button className="studio-button" type="button" onClick={() => void makeImage(`${session.entry.world.title}。${session.narrative}。${target.imagePrompt}。电影感场景，无文字，无水印。`, session)} disabled={busy || imageState.startsWith('正在')}><RefreshCw />{imageState.includes('失败') ? '重试场景图' : '更新场景图'}</button></aside></div>
+    </section><aside className="studio-chat-scene"><img src={image} alt="当前故事插图" /><p>{session.state.location}</p><small>{imageState || '节省生图 · 普通对话复用画面，关键变化时更新（至少间隔 3 轮）'}</small><button className="studio-button" type="button" onClick={() => void makeImage(`${session.entry.world.title}。${session.narrative}。${target.imagePrompt}。电影感场景，无文字，无水印。`, session)} disabled={busy || imageState.startsWith('正在')}><RefreshCw />{imageState.includes('失败') ? '重试场景图' : '按需生成场景图'}</button></aside></div>
   </div>;
 }

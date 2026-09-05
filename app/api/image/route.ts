@@ -1,4 +1,8 @@
+import { AUTO_IMAGE_INTERVAL, imageModelFor } from '@/lib/image-policy';
+import type { ImagePurpose } from '@/lib/image-policy';
+
 type ImageGenerationRequest = {
+  purpose?: unknown;
   requestId?: unknown;
   sceneId?: unknown;
   prompt?: unknown;
@@ -7,12 +11,12 @@ type ImageGenerationRequest = {
 
 const SILICONFLOW_IMAGE_ENDPOINT = 'https://api.siliconflow.cn/v1/images/generations';
 
-function getImageConfig() {
+function getImageConfig(purpose: ImagePurpose = 'scene') {
   const apiKey = process.env.SILICONFLOW_API_KEY?.trim();
   if (!apiKey) return null;
   return {
     apiKey,
-    model: process.env.SILICONFLOW_IMAGE_MODEL?.trim() || 'Tongyi-MAI/Z-Image-Turbo',
+    model: imageModelFor(purpose, process.env),
     imageSize: process.env.SILICONFLOW_IMAGE_SIZE?.trim() || '1024x576',
   };
 }
@@ -65,6 +69,8 @@ export async function GET() {
     configured: Boolean(config),
     provider: config ? 'siliconflow' : null,
     model: config?.model ?? null,
+    models: config ? { scene: config.model, portrait: imageModelFor('portrait', process.env) } : null,
+    policy: { automaticIntervalTurns: AUTO_IMAGE_INTERVAL, premiumAutoUpgrade: false, batchSize: 1 },
   }, { headers: { 'Cache-Control': 'no-store' } });
 }
 
@@ -79,7 +85,8 @@ export async function POST(request: Request) {
     return Response.json({ error: 'invalid_json' }, { status: 400 });
   }
 
-  if (!Number.isSafeInteger(body.requestId)
+  if ((body.purpose !== undefined && body.purpose !== 'scene' && body.purpose !== 'portrait')
+    || !Number.isSafeInteger(body.requestId)
     || typeof body.sceneId !== 'string'
     || !body.sceneId.trim()
     || body.sceneId.length > 120
@@ -90,7 +97,8 @@ export async function POST(request: Request) {
     return Response.json({ error: 'invalid_request' }, { status: 400 });
   }
 
-  const config = getImageConfig();
+  const purpose = body.purpose === 'portrait' ? 'portrait' : 'scene';
+  const config = getImageConfig(purpose);
   if (!config) return Response.json({ error: 'image_model_not_configured' }, { status: 503 });
 
   const controller = new AbortController();
@@ -108,6 +116,7 @@ export async function POST(request: Request) {
         negative_prompt: '文字，字幕，水印，界面元素，logo，低清晰度，重复人物，畸形手指',
         image_size: config.imageSize,
         seed: body.seed,
+        batch_size: 1,
       }),
       signal: controller.signal,
     });
@@ -125,6 +134,7 @@ export async function POST(request: Request) {
       persistent: Boolean(persistentAssetUrl),
       provider: 'siliconflow',
       model: config.model,
+      purpose,
       seed: typeof result.seed === 'number' ? result.seed : undefined,
     }, { headers: { 'Cache-Control': 'no-store' } });
   } catch {

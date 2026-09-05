@@ -66,7 +66,140 @@ export const contractWorld: StudioWorld = {
   },
 };
 
-export const studioWorlds: StudioWorld[] = [contractWorld];
+type RoleArc = { roleId: string; steps: [string, string, string][] };
+
+// Authored conditions, not precomputed outcomes. The world Agent must earn each task in play.
+function roleArcs(characters: WorldDefinition['characters'], arcs: RoleArc[]): Pick<WorldDefinition, 'tasks' | 'goals' | 'endingConditions'> {
+  const tasks = arcs.flatMap((arc) => arc.steps.map(([title, successCondition, difficulty], index) => ({
+    id: `${arc.roleId}-${index + 1}`, title, description: successCondition, successCondition, difficulty,
+    kind: 'main' as const, assignedRoleIds: [arc.roleId], prerequisiteTaskIds: index ? [`${arc.roleId}-${index}`] : [],
+  })));
+  const goals: WorldDefinition['goals'] = characters.map((role) => ({ id: `${role.id}-goal`, scope: 'role', roleId: role.id,
+    title: role.goal, description: role.goal, requiredTaskIds: tasks.filter((task) => task.assignedRoleIds.includes(role.id)).map((task) => task.id) }));
+  return { tasks, goals, endingConditions: goals.flatMap((goal) => [
+    { id: `${goal.roleId}-resolved`, applicableRoleIds: [goal.roleId!], outcome: 'success' as const,
+      description: goal.description, requiredTaskIds: goal.requiredTaskIds, requiredFacts: [] },
+    { id: `${goal.roleId}-abandoned`, applicableRoleIds: [goal.roleId!], outcome: 'failure' as const,
+      description: '玩家明确放弃自己的核心目标；提出异议、暂缓或拒绝不公平条件不算失败。', requiredTaskIds: [],
+      requiredFailedTaskIds: [goal.requiredTaskIds.at(-1)!], requiredFacts: [`${characters.find((role) => role.id === goal.roleId)!.name}明确放弃核心目标`] },
+  ]) };
+}
+
+const groundedRules: WorldDefinition['rules'] = [
+  { id: 'physical', kind: 'physical', description: '现代现实物理规律；禁止读心、瞬移、凭空变出证据或资源。意外只能改变处境，不替玩家赢。', immutable: true },
+  { id: 'knowledge', kind: 'knowledge', description: '旁白只能呈现玩家在场所见、已被告知或自己掌握的信息；场外角色和私密材料不会自动公开。', immutable: true },
+  { id: 'agency', kind: 'social', description: '所有角色均成年，具有各自利益和拒绝权；不代替玩家选择，也不因为身份变化让其他人自动服从。', immutable: true },
+  { id: 'completion', kind: 'story', description: '任务需可观察的行动和对方实际回应才能完成。故事长度由目标达成决定，不按固定轮数结局。拒绝不公平条件并寻找替代方案不会自动失败。', immutable: true },
+];
+
+const workplaceCharacters: WorldDefinition['characters'] = [
+  { id: 'lin', name: '林照', identity: '29 岁 · 被裁的项目主创／新甲方代表', persona: '记仇但清醒，擅长抓住细节，不愿再替别人背锅',
+    publicBackground: '三个月前被启衡公司裁掉。如今作为远川项目的验收代表，再次走进曾被收回门禁的会议室。', privateKnowledge: ['你的授权书允许否决不合格交付，但无权私自加价或挪用项目经费。'], secrets: ['你保留着当年提交设计原稿的回执，能够证明署名被改动。'],
+    goal: '拿回主创署名和验收主导权，让合作条件真正落地。', startLocationId: 'meeting', imagePrompt: '29岁中国女性，利落黑色短发，深蓝西装，白衬衫，细银色手表，沉着锐利的眼神，写实电影半身肖像' },
+  { id: 'zhou', name: '周启明', identity: '41 岁 · 前上司／乙方负责人', persona: '好面子，善于转移责任，面对真实损失会计算取舍',
+    publicBackground: '当年宣布林照不适合团队的人，如今需要拿下这份关系到公司现金流的续单。', privateKnowledge: ['如果验收延期，自己仍能申请过桥资金，但需要公开交付风险。'], secrets: ['你知道被删掉的主创署名来自林照，却一直没有纠正。'],
+    goal: '保住真实可交付的合作订单，承担旧账并获得新的合作条件。', startLocationId: 'meeting', imagePrompt: '41岁中国男性，整齐后梳黑发，深灰西装，酒红领带，面带克制疲惫，现代会议室，写实电影半身肖像' },
+  { id: 'tang', name: '唐宁', identity: '27 岁 · 留在原公司的交付骨干', persona: '谨慎、讲义气，不愿用同事饭碗换一个人的面子',
+    publicBackground: '接手了林照离开后的交付，也被夹在前同事和现任上司之间。正在工位核对版本记录。', privateKnowledge: ['现有系统有两项尚未修复的问题，必须再投入工程时间。'], secrets: ['你的工作邮件里仍保存着林照原稿的版本链接，但需要你自己决定是否提供。'],
+    goal: '公开交付事实，为团队争取合理工期和不背锅的安排。', startLocationId: 'workroom', imagePrompt: '27岁中国女性，黑色低马尾，浅灰针织衫，蓝色工牌，清醒略显疲惫，办公区柔和灯光，写实电影半身肖像' },
+];
+
+export const workplaceWorld: StudioWorld = {
+  id: 'client-comeback', title: '被裁那天，我成了甲方', genre: '职场逆袭',
+  premise: '他曾说你离开谁都一样。今天，他把最好的座位留给了你——这笔救命订单，只有你能签。', cover: '/assets/workplace-cover.jpg',
+  portraits: { lin: '/assets/workplace-lin.jpg', zhou: '/assets/workplace-zhou.jpg', tang: '/assets/workplace-tang.jpg' },
+  roleOpenings: { lin: '你是林照。授权书在手里，对方递来的成果册却仍没有你的名字。你可以先谈署名，也可以先查交付，主动权不再只在他手中。',
+    zhou: '你是周启明。坐在对面的林照有验收授权。你需要订单，但不能假装旧事从未发生。', tang: '你是唐宁。你还在工位核对版本，无法听见会议室的谈判。门禁允许你进入会议室，但是否带上邮件由你决定。' },
+  world: {
+    id: 'client-comeback', title: '被裁那天，我成了甲方', premise: '虚构都市职场：被裁主创成为甲方代表，与前上司和留任同事谈判署名、交付和合作条件。爽感来自证据与议价权，而非无条件服从。',
+    timeSetting: '现代都市，周一 09:00，项目验收会开始前', coreEvent: '续单能否通过，取决于旧稿署名争议和当前交付问题能否获得真实处理。', surpriseLevel: 2,
+    locations: [
+      { id: 'meeting', name: '启衡会议室', description: '长桌上摆着验收材料，林照的临时访客牌旁放着甲方授权书。玻璃门关闭。', connectedLocationIds: ['workroom', 'corridor'] },
+      { id: 'workroom', name: '交付组工位', description: '唐宁的电脑停在项目版本列表，桌边堆着未验收的测试单。无法听见会议室谈话。', connectedLocationIds: ['meeting', 'corridor'] },
+      { id: 'corridor', name: '窗边走廊', description: '可以打电话核对授权或私下商议的走廊，谈话不会自动传给其他人。', connectedLocationIds: ['meeting', 'workroom'] },
+    ], characters: workplaceCharacters,
+    relationships: [
+      { fromCharacterId: 'lin', toCharacterId: 'zhou', publicLabel: '前下属与前上司／现甲乙方', privateContext: '旧署名被抹去，权力关系如今反转。', initialTrust: 10 },
+      { fromCharacterId: 'lin', toCharacterId: 'tang', publicLabel: '曾经并肩加班的同事', initialTrust: 55 },
+      { fromCharacterId: 'zhou', toCharacterId: 'tang', publicLabel: '上司与交付骨干', initialTrust: 30 },
+    ], rules: groundedRules,
+    ...roleArcs(workplaceCharacters, [
+      { roleId: 'lin', steps: [
+        ['把旧账摆上桌', '林照出示自己的原稿回执并取得周启明或唐宁对署名经过的具体回应。', '对方会把改名包装成团队惯例；需要核对版本而非只靠指责。'],
+        ['谈成公平的验收条件', '林照确认真实交付缺口，提出主创署名、验收权限与合理工期的安排，相关方明确回应。', '一味压价会伤害原团队，甲方授权也并非无限。'],
+        ['把主动权落到纸面', '署名修正和验收条件被相关方书面确认，林照亲自决定附条件合作或提出被甲方认可的替代交付方案。', '口头道歉不是落实，直接离场也不等于已经赢得合作权。'],
+      ] },
+      { roleId: 'zhou', steps: [
+        ['面对被删掉的名字', '周启明主动说明署名变更经过，林照得到具体答复。', '含糊的道歉不足以重建信任。'],
+        ['摊开交付底牌', '周启明与唐宁核实两项缺口，向林照如实提出工期、资源和责任方案。', '隐瞒缺陷可能短暂保住面子，却无法通过验收。'],
+        ['换回一次合作机会', '周启明落实纠错署名、团队资源和责任承诺，甲方明确接受可执行的新合作方案。', '林照可以拒绝，需要谈判或提交合规替代方案。'],
+      ] },
+      { roleId: 'tang', steps: [
+        ['让交付事实被看见', '唐宁亲自提供可核对的版本记录和缺陷清单，林照及周启明已收到。', '站队压力会让你想沉默，但事实不会自动送达。'],
+        ['争取能完成的工期', '唐宁提出修复范围、工期和人员方案，取得双方针对方案的回应。', '续单压力与工程现实冲突，不能承诺不存在的人力。'],
+        ['不再替别人背锅', '双方确认唐宁提出的交付计划、署名和责任边界，团队按该计划获得资源。', '没有明确责任人和资源的安慰不算完成。'],
+      ] },
+    ]),
+    difficultyConstraints: [{ id: 'authority', description: '甲方授权不是随意惩罚权，乙方现金流紧张但员工不该代领导受罚。', bypassCondition: '通过版本证据、质量标准和合理条件形成真实议价。', consequence: '滥用权力会让对方质疑谈判资格；不能自动赢单。' }],
+    scheduledEvents: [{ id: 'deadline-call', title: '采购部来电', trigger: '谈判已涉及验收条件但迟迟没有具体方案', earliestTurn: 4, effect: '采购部询问风险与可行工期，不强制签约，也不按轮数结束故事。' }],
+    openingScene: { locationId: 'meeting', presentCharacterIds: ['lin', 'zhou'], choices: [], narrative: '会议室还是那间会议室，连投影仪启动时的轻响都没有变。三个月前，林照在这里交回门禁卡；今天，前台为她换了一张印着甲方来访的胸牌。长桌主位空着，旁边的热茶刚刚倒好。\n\n周启明把成果册推到桌面中央。那张熟悉的设计图占满了首页，署名栏却仍是“项目管理中心”。林照的授权书已经放在桌边，续单材料停在等待签字的那一页。门外偶尔有人经过，门内还没有人说起旧事。' },
+  },
+};
+
+const inheritanceCharacters: WorldDefinition['characters'] = [
+  { id: 'xu', name: '许愿', identity: '26 岁 · 被家族忽视的外孙女', persona: '敏感但不软弱，渴望被承认，也警惕廉价示好',
+    publicBackground: '多年未被邀请参加家宴，却在外祖父去世后收到一封要求亲自出席遗嘱宣读的信。', privateKnowledge: ['邀请信明确写着你有权亲自发言，不能由亲属代答。'], secrets: ['外祖父留下的一封私人信提到希望你保住旧工坊，但它不是自动生效的财产凭证。'],
+    goal: '确认自己的正式份额，取得有实际表决权的席位，不再被代替发言。', startLocationId: 'hall', imagePrompt: '26岁中国女性，长黑发，墨绿衬衫，简洁金色耳钉，眼神倔强警觉，老宅暖光，写实电影半身肖像' },
+  { id: 'he', name: '何承远', identity: '35 岁 · 长孙／家族企业经营者', persona: '精于计算，把付出当作应得控制权的理由',
+    publicBackground: '经营家族企业多年，习惯替全家安排决定。希望宣读前先让各方签一份统一管理意向。', privateKnowledge: ['企业扩张留下债务，需要保留运营现金，不能立即兑现所有人的退出要求。'], secrets: ['你准备的意向书附有长期投票委托条款，尚未向许愿解释。'],
+    goal: '保住企业运营和自己合理的经营席位，通过透明条件争取家人支持。', startLocationId: 'hall', imagePrompt: '35岁中国男性，黑色短发，米色西装，深棕领带，金属腕表，自信戒备，老宅会客厅，写实电影半身肖像' },
+  { id: 'lu', name: '陆清禾', identity: '38 岁 · 遗嘱执行人', persona: '严谨，不买情面，对以亲情逼人让步格外警惕',
+    publicBackground: '受委托保管正式清单和封存文件，正在资料室准备宣读。负责说明本次虚构财产安排的程序。', privateKnowledge: ['正式清单写明许愿持有20%表决份额、何承远40%、其余亲属合计40%；任何人的投票委托均需另行知情同意。'], secrets: ['另有独立运营审计报告封存在资料室，只有履行说明程序后才能交给当事人查阅。'],
+    goal: '让正式安排完整公开，记录各方本人选择，防止任何一方被迫交出权利。', startLocationId: 'archive', imagePrompt: '38岁中国女性，盘起的黑发，细框眼镜，藏蓝套装，平静坚定，老宅资料室，写实电影半身肖像' },
+];
+
+export const inheritanceWorld: StudioWorld = {
+  id: 'inheritance-night', title: '遗嘱宣读前夜', genre: '遗产争夺',
+  premise: '他们只给你留了最角落的椅子。直到执行人翻开名单，你的名字，第一次决定了谁能坐在主位。', cover: '/assets/inheritance-cover.jpg',
+  portraits: { xu: '/assets/inheritance-xu.jpg', he: '/assets/inheritance-he.jpg', lu: '/assets/inheritance-lu.jpg' },
+  roleOpenings: { xu: '你是许愿。邀请信还在包里，桌上的意向书没有人向你解释。你可以要求正式宣读，也可以先问他们为什么急着让你签名。', he: '你是何承远。公司需要运营现金，而你希望先达成管理意向。许愿还未签字，是否如实说明附加条款由你决定。', lu: '你是陆清禾。你在资料室准备封存文件，尚未听到大厅的谈话。你可以带文件过去按本故事设定的程序说明，但不能假装自己知道他们已谈过什么。' },
+  world: {
+    id: 'inheritance-night', title: '遗嘱宣读前夜', premise: '架空都市家族戏：被忽视的外孙女、实际经营者与遗嘱执行人围绕财富、席位和话语权谈判。以下是虚构剧情程序，不是真实法律建议。',
+    timeSetting: '现代架空都市，遗嘱宣读前夜 19:30', coreEvent: '正式份额尚未当众宣读，一份提前摆出的统一管理意向书试图先决定谁替谁投票。', surpriseLevel: 2,
+    locations: [
+      { id: 'hall', name: '何家老宅会客厅', description: '长桌、角落的一把椅子、未签名的意向书和家族旧照片。资料室的门紧闭。', connectedLocationIds: ['archive', 'garden'] },
+      { id: 'archive', name: '封存资料室', description: '陆清禾正在核对清单和文件编号。未宣读的份额只有执行人掌握，大厅谈话不可闻。', connectedLocationIds: ['hall'] },
+      { id: 'garden', name: '老宅庭院', description: '隔着玻璃能看见大厅灯光但听不清交谈，适合亲自约人私谈。', connectedLocationIds: ['hall'] },
+    ], characters: inheritanceCharacters,
+    relationships: [
+      { fromCharacterId: 'xu', toCharacterId: 'he', publicLabel: '疏远的表兄妹／潜在共同继承人', initialTrust: 15 },
+      { fromCharacterId: 'xu', toCharacterId: 'lu', publicLabel: '受邀到场者与执行人', initialTrust: 40 },
+      { fromCharacterId: 'he', toCharacterId: 'lu', publicLabel: '经营者与独立执行人', initialTrust: 30 },
+    ], rules: [...groundedRules, { id: 'fictional-estate', kind: 'story', description: '本故事程序：封存清单由陆清禾亲自宣读后，各方才得知正式份额；私信或口头许诺不能变出份额。管理席位与财产份额分开谈，任何投票委托需本人知情确认。法律称谓仅用于虚构，不输出真实法律指导。', immutable: true }],
+    ...roleArcs(inheritanceCharacters, [
+      { roleId: 'xu', steps: [
+        ['听见自己的名字', '许愿亲自要求核对邀请及正式文件，听到陆清禾完整宣读自己的份额和权利。', '亲属可能要求先签字，私人信不能代替正式清单。'],
+        ['看清席位的代价', '许愿核对意向书及运营风险，向何承远明确自己的表决边界并取得回应。', '亲情劝说与企业现金压力交织，不能只以总资产推定可拿到的现金。'],
+        ['坐上自己的位置', '许愿本人确认保留表决权的管理安排或被明确接受的独立持有方案，由执行人记录且相关方回应。', '空口答应保留席位不够，投票委托条款也必须处理。'],
+      ] },
+      { roleId: 'he', steps: [
+        ['把代签的念头收回', '何承远公开说明长期投票委托，允许许愿等待正式宣读后决定，许愿收到说明。', '把控制权叫做照顾仍然是隐瞒。'],
+        ['拿出能站住的账本', '正式份额宣读后，何承远提供运营及现金风险材料，提出不剥夺他人份额的管理方案。', '公司资产不等于可分配现金，自己的贡献也不等于全部人的同意。'],
+        ['争取而不是继承信任', '各方知情确认可执行的运营安排，何承远保留经同意的经营职责并接受监督。', '许愿可以拒绝长期委托，需协商期限、独立表决或其他方案。'],
+      ] },
+      { roleId: 'lu', steps: [
+        ['完成公开宣读', '陆清禾当着许愿和何承远完整说明正式份额，确认两人均已听见并可提问。', '不能只给强势亲属看文件，也不能把私信当清单。'],
+        ['澄清附加条件', '陆清禾说明投票委托及运营风险，核对两人本人意愿，提供已按程序可查阅的材料。', '要区分财产份额、经营职责和自愿委托。'],
+        ['让每个人自己签名', '双方本人作出保留权利或自愿安排的具体选择，执行人形成准确记录，争议事项不被冒记为同意。', '一方不同意时可记录独立持有及未决争议，不可代签或强行调和。'],
+      ] },
+    ]),
+    difficultyConstraints: [{ id: 'pressure', description: '家族体面、经营现金和个人话语权相互牵制。', bypassCondition: '正式宣读、查明条款、按本人意愿形成可执行安排。', consequence: '逼迫签名会损害合作，旁白不能替任何人同意。' }],
+    scheduledEvents: [{ id: 'cashflow', title: '财务发来消息', trigger: '讨论触及退出或资金安排后', earliestTurn: 4, effect: '经营团队请求确认下一阶段预算。只增加谈判压力，不凭空改变财产份额或强制结局。' }],
+    openingScene: { locationId: 'hall', presentCharacterIds: ['xu', 'he'], choices: [], narrative: '老宅的灯亮得很早，长桌上的杯子按旧时家宴的位置摆好。许愿面前只有一张临时挪来的椅子，椅背抵着墙边。她把邀请信从包里取出来时，何承远已经将一份意向书推到了桌边。\n\n文件末页留着签名空白，正式清单却还在隔壁资料室里。墙上的老照片记录着这个家曾经愿意展示的人，照片之外，还有很多年无人问起的生活。此刻没有谁知道这场谈话会把主位留给谁。那支签字笔静静躺着，谁也没有替许愿拿起来的权利。' },
+  },
+};
+
+export const studioWorlds: StudioWorld[] = [contractWorld, workplaceWorld, inheritanceWorld];
 
 export function getRoleOpening(entry: StudioWorld, roleId: string): string {
   const role = entry.world.characters.find((item) => item.id === roleId);

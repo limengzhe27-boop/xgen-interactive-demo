@@ -1,4 +1,5 @@
 export type ImageGenerationInput = {
+  purpose?: 'scene' | 'portrait';
   requestId: number;
   sceneId: string;
   prompt: string;

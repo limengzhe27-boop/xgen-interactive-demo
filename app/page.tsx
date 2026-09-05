@@ -43,6 +43,7 @@ import { cacheSceneImage, getCachedSceneImage, makeContentImageKey } from '@/lib
 import { createInitialImageTask, finishImageTask, startImageTask } from '@/lib/image-task';
 import { getRemoteAIStatus, remoteAIAdapter } from '@/lib/remote-ai-adapter';
 import { generateSceneImage, getRemoteImageStatus } from '@/lib/remote-image-service';
+import { shouldGenerateImage } from '@/lib/image-policy';
 import {
   commitTurn,
   createInitialWorldState,
@@ -877,6 +878,7 @@ export default function Home() {
   );
   const [modelMode, setModelMode] = useState<ModelMode>('checking');
   const [imageModelMode, setImageModelMode] = useState<ImageModelMode>('checking');
+  const lastImageAttemptTurnRef = useRef(0);
   const [agentThinking, setAgentThinking] = useState(false);
   const [recommendationReason, setRecommendationReason] = useState('告诉我你想体验的题材，我会从可玩的世界中挑选。');
   const [recommendedWorldId, setRecommendedWorldId] = useState<string>('storm-manor');
@@ -1264,7 +1266,16 @@ export default function Home() {
   function applyImageDirective(directive: ImageDirective, context: {
     sceneTitle: string;
     narrative: string;
+    turn: number;
+    hasOpeningArt?: boolean;
   }) {
+    if (!shouldGenerateImage(directive, context.turn, lastImageAttemptTurnRef.current, context.hasOpeningArt)) {
+      // Do not abort a paid request just because the next line of dialogue reuses its scene.
+      setImageTask((current) => current.status === 'generating' ? current : {
+        ...current, status: 'reused', message: '节省生图 · 沿用场景画面，关键变化时更新',
+      });
+      return;
+    }
     cancelImageTask();
     const requestId = imageRequestRef.current;
     setImageTask((current) => startImageTask(current, directive, requestId));
@@ -1294,7 +1305,8 @@ export default function Home() {
         }));
         return;
       }
-      const result = await generateSceneImage({ requestId, sceneId: directive.sceneId, prompt, seed }, imageController.signal);
+      lastImageAttemptTurnRef.current = context.turn;
+      const result = await generateSceneImage({ requestId, sceneId: directive.sceneId, prompt, seed, purpose: 'scene' }, imageController.signal);
       if (imageRequestRef.current !== requestId || imageController.signal.aborted) return;
       const cached = result.persistent
         ? await cacheSceneImage(cacheKey, result.assetUrl).catch(() => false)
@@ -1309,7 +1321,6 @@ export default function Home() {
       if (error instanceof DOMException && error.name === 'AbortError') return;
       if (imageRequestRef.current !== requestId) return;
       imageControllerRef.current = null;
-      setImageModelMode('fallback');
       setImageTask((current) => finishImageTask(current, requestId, {
         error: '硅基流动生图失败，已复用上一张场景图',
       }));
@@ -1399,6 +1410,7 @@ export default function Home() {
     if (savedRun.worldKind !== 'storm') setSurprise(normalizeSurpriseLevel(savedRun.surpriseLevel));
     setSelectedRole(savedRole);
     setTurn(savedRun.turn);
+    lastImageAttemptTurnRef.current = savedRun.turn;
     setRuntimeBeat(savedRun.currentBeat ?? null);
     setNarrative(savedRun.narrative);
     setLastAction(savedRun.lastAction);
@@ -1460,6 +1472,7 @@ export default function Home() {
 
   function beginWorld() {
     stopActiveGeneration();
+    lastImageAttemptTurnRef.current = 0;
     setRunId(crypto.randomUUID());
     const openingBeat = currentStory[0];
     setTurn(0);
@@ -1493,7 +1506,9 @@ export default function Home() {
       reason: 'opening',
       sceneId: `${activeWorld}-opening-${selectedRole.id}`,
       prompt: `${activeWorldTitle}，${openingBeat.title}。${openingBeat.text}。体验者代入${selectedRole.name}，${selectedRole.identity}，${selectedRole.personality}。`,
-    }, { sceneTitle: openingBeat.title, narrative: openingBeat.text });
+    }, { sceneTitle: openingBeat.title, narrative: openingBeat.text, turn: 0,
+      hasOpeningArt: activeLibrary ? studioWorlds.some((entry) => entry.id === activeLibrary.id) && openingLocationId === activeLibrary.world.openingScene.locationId : activeWorld !== 'draft',
+    });
     navigate('play');
   }
 
@@ -1527,7 +1542,8 @@ export default function Home() {
     if (isThinking) {
       stopActiveGeneration();
       setWorldState((current) => recordInterruptedEvent(current, lastAction || '上一个行动'));
-    } else cancelImageTask();
+    }
+    // Ordinary dialogue need not cancel an image request that may already be billed.
     setActionFeedback(null);
     setLastIncident(null);
     setLastAction(nextAction);
@@ -1565,6 +1581,7 @@ export default function Home() {
           return;
         }
         applyImageDirective(response.image, {
+          turn: nextTurn,
           sceneTitle: currentStory[nextTurn]?.title ?? '阶段结局',
           narrative: response.narrative,
         });
@@ -1677,7 +1694,7 @@ export default function Home() {
     setGeneratedStoryOutline([]);
   }
 
-  async function generateRoleImage(index: number) {
+  async function generateRoleImage(index: number, regenerate = true) {
     const role = draftRoles[index];
     if (!role) return;
     const roleId = `draft-role-${index}`;
@@ -1686,14 +1703,24 @@ export default function Home() {
     setRoleImageStates((current) => ({ ...current, [roleId]: 'generating' }));
     const prompt = `单人角色设定立绘，${role.name || `角色${index + 1}`}，身份：${role.identity || '身份待定'}，性格：${role.personality || '性格待定'}，固定外观：${role.appearance || '由身份与性格自然设计外貌和服装'}。全身或四分之三身，正面略侧身，人物完整，电影感写实叙事插画，统一暗色背景，服装和配饰细节清楚，无文字、无水印、无边框、无其他人物。`;
     try {
+      const cacheKey = portraitCacheKey(role);
+      if (!regenerate) {
+        const existing = await getCachedSceneImage(cacheKey).catch(() => null);
+        if (roleImageRequestRef.current[roleId] !== requestId) return;
+        if (existing) {
+          setRoleImages((current) => ({ ...current, [roleId]: existing }));
+          setRoleImageStates((current) => ({ ...current, [roleId]: 'ready' }));
+          return;
+        }
+      }
       const result = await generateSceneImage({
+        purpose: 'portrait',
         requestId,
         sceneId: `character-${roleId}`,
         prompt,
         seed: stableVisualSeed(`character:${roleId}:${role.name}:${role.appearance}`),
       });
       if (roleImageRequestRef.current[roleId] !== requestId) return;
-      const cacheKey = portraitCacheKey(role);
       if (result.persistent) await cacheSceneImage(cacheKey, result.assetUrl).catch(() => false);
       if (roleImageRequestRef.current[roleId] !== requestId) return;
       setRoleImages((current) => ({ ...current, [roleId]: result.assetUrl }));
@@ -1706,7 +1733,7 @@ export default function Home() {
 
   async function generateAllRoleImages() {
     for (let index = 0; index < draftRoles.length; index += 1) {
-      await generateRoleImage(index);
+      await generateRoleImage(index, false);
     }
   }
 

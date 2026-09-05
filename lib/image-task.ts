@@ -40,6 +40,7 @@ export function startImageTask(current: ImageTask, directive: ImageDirective, re
     sceneId: directive.sceneId,
     status: 'generating',
     assetUrl: current.assetUrl,
+    cacheKey: current.cacheKey,
     reason: directive.reason,
     message: '硅基流动正在生成场景图',
   };

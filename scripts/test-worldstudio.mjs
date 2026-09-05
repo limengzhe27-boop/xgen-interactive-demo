@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { contractWorld, getRoleOpening } from '../lib/studio-worlds.ts';
+import { contractWorld, studioWorlds, getRoleOpening } from '../lib/studio-worlds.ts';
 import { upsertById, conversationEntry, chatRequest } from '../lib/studio-session.ts';
 import { createInitialWorldState } from '../lib/world-state.ts';
 import { enforceWorldTurnGuardrails } from '../lib/world-agent-guardrails.ts';
@@ -21,13 +21,40 @@ test('offscreen role starts in their own place without receiving the global open
   assert.ok(!text.includes('你已拒绝董事会'));
 });
 test('every playable role has scoped goals, prerequisites and reachable nonempty endings', () => {
-  const world = contractWorld.world;
+  for (const entry of studioWorlds) {
+  const world = entry.world;
   for (const role of world.characters) {
     const goal = world.goals.find((goal) => goal.roleId === role.id);
     assert.ok(goal.requiredTaskIds.length >= 2);
     assert.ok(goal.requiredTaskIds.every((id) => world.tasks.some((task) => task.id === id && task.assignedRoleIds.includes(role.id))));
     const ending = world.endingConditions.find((ending) => ending.outcome === 'success' && ending.applicableRoleIds.includes(role.id));
     assert.deepEqual(ending.requiredTaskIds, goal.requiredTaskIds);
+  }
+  }
+});
+
+test('new worlds expose both entries and have valid connected task graphs for every role', () => {
+  assert.equal(new Set(studioWorlds.map((world) => world.id)).size, 3);
+  for (const entry of studioWorlds) {
+    const world = entry.world;
+    const locations = new Set(world.locations.map((place) => place.id));
+    assert.equal(world.id, entry.id);
+    for (const place of world.locations) assert.ok(place.connectedLocationIds.every((id) => locations.has(id)));
+    for (const role of world.characters) {
+      assert.ok(locations.has(role.startLocationId));
+      assert.ok(entry.portraits[role.id]);
+      assert.ok(getRoleOpening(entry, role.id).includes(role.goal));
+      const target = world.characters.find((other) => other.id !== role.id);
+      const chat = conversationEntry(entry, role.id, target.id);
+      assert.equal(chat.world.characters.find((candidate) => candidate.id === role.id).startLocationId, target.startLocationId);
+      const tasks = world.tasks.filter((task) => task.assignedRoleIds.includes(role.id));
+      const visited = new Set();
+      for (const task of tasks) {
+        assert.ok(task.prerequisiteTaskIds.every((id) => visited.has(id)), 'tasks must be reachable in order');
+        assert.ok(task.successCondition && task.difficulty);
+        visited.add(task.id);
+      }
+    }
   }
 });
 test('multiple worlds and role sessions survive updates and JSON roundtrip', () => {
