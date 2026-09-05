@@ -26,6 +26,7 @@ import {
 
 import { Button } from '@/components/ui/button';
 import { StudioHome, StudioNav } from '@/components/studio-home';
+import { AccountBar, PublishWorldDialog } from '@/components/account-publication';
 import { PersonalAgent } from '@/components/personal-agent';
 import { pendingMemories, restorePersonalConversation } from '@/lib/personal-memory';
 import { knownRecommendations } from '@/lib/personal-recommendations';
@@ -407,7 +408,7 @@ function makePlayableDraftRoles(drafts: DraftRole[]): Role[] {
   const crops = ['left', 'center', 'right'];
   const fallbackAppearances = [
     '二十多岁东亚人物，齐肩黑发，墨绿色防风外套，随身携带旧笔记本',
-    '三十岁左右东亚人物，黑色短发，深蓝守塔人工作服，佩戴旧机械表',
+    '三十岁左右东亚人物，黑色短发，深蓝日常外套，佩戴机械表',
     '四十岁左右东亚人物，微卷深色头发，灰色长外套，携带帆布工具包',
   ];
   return drafts.map((draft, index) => ({
@@ -415,9 +416,9 @@ function makePlayableDraftRoles(drafts: DraftRole[]): Role[] {
     name: draft.name.trim() || `角色 ${index + 1}`,
     identity: draft.identity.trim() || '身份待定',
     personality: draft.personality.trim() || '性格待定',
-    publicStory: draft.relationship.trim() || `雾潮封锁海岛时，${draft.name.trim() || '你'}被留在了灯塔。`,
-    secret: '你在昨晚的值班记录中看见了一页属于明天的内容。',
-    goal: '在凌晨三点前找出记录为何提前出现，并决定是否熄灭灯塔。',
+    publicStory: draft.relationship.trim() || '人物背景尚待创作者补充。',
+    secret: '暂无额外私密信息',
+    goal: '根据当前世界的目标推进事件。',
     crop: crops[index % crops.length],
     visualAnchor: draft.appearance.trim() || fallbackAppearances[index % fallbackAppearances.length],
   }));
@@ -762,7 +763,13 @@ function buildCreatorWorld(
   const safeTitle = title.trim() || `${playableRoles[0]?.name || '角色'}的小世界`;
   const safeSeed = seed.trim() || `${playableRoles.map((role) => role.name).join('、')}正在面对一件会改变彼此关系的事件。`;
   const safeOutline = outline.length >= 3 ? outline : makeEditableOutline(safeSeed, drafts);
-  const fallbackStory = makeDraftStory(playableRoles, safeSeed)[playableRoles[0]?.id] ?? [];
+  const fallbackStory: StoryBeat[] = safeOutline.map((beat) => ({
+    title: beat.title, location: beat.location, text: `${safeSeed}\n\n${beat.objective}。${beat.turningPoint}`,
+    speaker: '', dialogue: '', choices: [
+      { label: '先观察当前现场', result: '根据观察确认当前情况。', clue: beat.objective, relationDelta: 0 },
+      { label: '询问在场的人', result: '通过交流了解对方的立场。', clue: beat.turningPoint, relationDelta: 0 },
+    ],
+  }));
   const fallbackWorld = buildWorldDefinition('draft', safeTitle, safeSeed, playableRoles, fallbackStory, surpriseLevel);
   const locationIds = safeOutline.map((_, index) => `creator-location-${index + 1}`);
   const nextWorld = baseWorld ?? fallbackWorld;
@@ -773,9 +780,10 @@ function buildCreatorWorld(
   const mainTaskIds = creatorTasks.filter((task) => task.kind === 'main').map((task) => task.id);
   return {
     ...nextWorld,
-    id: nextWorld.id || 'draft-generated-world',
+    id: baseWorld?.id || 'draft-generated-world',
     title: safeTitle,
     premise: safeSeed,
+    timeSetting: baseWorld?.timeSetting || '故事开始的当下；具体时间以创作者设定为准',
     coreEvent: safeSeed,
     surpriseLevel: normalizeSurpriseLevel(surpriseLevel),
     goals: [{
@@ -817,7 +825,7 @@ function buildCreatorWorld(
       connectedLocationIds: locationIds[index + 1] ? [locationIds[index + 1]] : [],
     })),
     characters: playableRoles.map((role, index) => {
-      const existing = nextWorld.characters[index];
+      const existing = baseWorld?.characters[index];
       return {
         ...(existing ?? fallbackWorld.characters[index]),
         id: role.id,
@@ -827,7 +835,7 @@ function buildCreatorWorld(
         publicBackground: role.publicStory,
         privateKnowledge: existing?.privateKnowledge ?? [role.secret],
         secrets: existing?.secrets ?? [role.secret],
-        goal: existing?.goal || role.goal,
+        goal: existing?.goal || normalizedBrief.coreGoal || role.goal,
         startLocationId: locationIds[0],
         imagePrompt: role.visualAnchor,
       };
@@ -917,6 +925,9 @@ export default function Home() {
   const [roleImages, setRoleImages] = useState<Record<string, string>>({});
   const [roleImageStates, setRoleImageStates] = useState<Record<string, 'idle' | 'generating' | 'ready' | 'error'>>({});
   const [publishedWorld, setPublishedWorld] = useState(false);
+  const [communityWorlds, setCommunityWorlds] = useState<StudioWorld[]>([]);
+  const [publicationEntry, setPublicationEntry] = useState<StudioWorld | null>(null);
+  const [publicationNotice, setPublicationNotice] = useState('');
   const [savedRun, setSavedRun] = useState<SavedRun | null>(null);
   const [savedRuns, setSavedRuns] = useState<(SavedRun & { id: string })[]>([]);
   const [chatSessions, setChatSessions] = useState<ChatSession[]>([]);
@@ -1010,7 +1021,16 @@ export default function Home() {
     world: { ...doc.data.generatedWorld!, id: doc.id, title: doc.data.worldTitle },
     portraitCacheKeys: Object.fromEntries(doc.data.draftRoles.map((role, index) => [doc.data.generatedWorld!.characters[index]?.id ?? `draft-role-${index}`, portraitCacheKey(role)])),
   }));
-  const availableStudioWorlds = [...studioWorlds, ...userWorlds];
+  const availableStudioWorlds = [...studioWorlds, ...userWorlds, ...communityWorlds];
+  useEffect(() => {
+    let live = true;
+    void fetch('/api/worlds', { cache: 'no-store' }).then(async r => {
+      if (!r.ok) return;
+      const data = await r.json() as { worlds?: StudioWorld[] };
+      if (live && Array.isArray(data.worlds)) setCommunityWorlds(data.worlds);
+    }).catch(() => {});
+    return () => { live = false; };
+  }, []);
   const personalCatalog = [...worldCatalog, ...availableStudioWorlds.map((entry) => ({ id: entry.id, title: entry.title, genre: entry.genre, premise: entry.premise, surpriseLevel: entry.world.surpriseLevel }))];
   const libraryPortraitJSON = JSON.stringify({ id: activeLibrary?.id, keys: activeLibrary?.portraitCacheKeys ?? {} });
   useEffect(() => {
@@ -1903,7 +1923,12 @@ export default function Home() {
     const safeOutline = outlineInput.length >= 3 ? outlineInput : makeEditableOutline(safeSeed, draftRoles);
     const effectiveBrief = creatorBrief.tasks.length > 0
       ? creatorBrief
-      : briefFromOutline(safeOutline, safeSeed, normalizeSurpriseLevel(creatorBrief.complexityLevel || 2));
+      : {
+        ...creatorBrief,
+        coreGoal: creatorBrief.coreGoal.trim() || safeSeed,
+        successCondition: creatorBrief.successCondition.trim() || '完成全部主线条件并对核心冲突作出选择',
+        tasks: briefFromOutline(safeOutline, safeSeed, normalizeSurpriseLevel(creatorBrief.complexityLevel || 2)).tasks,
+      };
     const edited = buildCreatorWorld(safeTitle, safeSeed, draftRoles, safeOutline, surprise, effectiveBrief, generatedWorld);
     const nextBaseline = { roles: draftRoles, outline: safeOutline };
     const world = generatedWorld
@@ -1941,6 +1966,13 @@ export default function Home() {
     const entry: StudioWorld = { id: draftId, title: published.title, genre: '我的创作', premise: published.premise, cover: '/assets/storm-manor-cover.png', portraits: {}, world: published,
       portraitCacheKeys: Object.fromEntries(draftRoles.map((role, index) => [published.characters[index]?.id ?? `draft-role-${index}`, portraitCacheKey(role)])) };
     setActiveLibrary(entry); setActiveWorld('draft'); setSelectedRole(entryRoles(entry)[0]); setRuntimeBeat(null); navigate('roles');
+  }
+
+  function preparePublicWorld() {
+    const world = materializeCreatorWorld();
+    const portraits = Object.fromEntries(world.characters.map((role, index) => [role.id, roleImages[`draft-role-${index}`] || '']));
+    setPublicationEntry({ id: draftId, title: world.title, genre: '社区创作', premise: world.premise,
+      cover: roleImages['draft-role-0'] || '/assets/storm-manor-cover.png', portraits, world });
   }
 
   function newCreator(seed = '') {
@@ -1986,9 +2018,9 @@ export default function Home() {
       section={view} worlds={[
         ...availableStudioWorlds.map((entry) => ({ ...entry, roleCount: entry.world.characters.length })),
         ...worldCatalog.map((world) => ({ ...world, roleCount: world.id === 'storm-manor' ? roles.length : presetWorlds.find((preset) => preset.id === world.id)?.roles.length ?? 0, cover: world.id === 'storm-manor' ? '/assets/storm-manor-cover.png' : world.id === 'sea-train' ? '/assets/sea-train-cover.jpg' : '/assets/roommate-cover.jpg' }))]}
-      characters={studioWorlds.flatMap((entry) => entry.world.characters.map((role) => ({ id: role.id, worldId: entry.id, worldTitle: entry.title, name: role.name, identity: role.identity, persona: role.persona, image: entry.portraits[role.id] })))}
+      characters={[...studioWorlds, ...communityWorlds].flatMap((entry) => entry.world.characters.map((role) => ({ id: role.id, worldId: entry.id, worldTitle: entry.title, name: role.name, identity: role.identity, persona: role.persona, image: entry.portraits[role.id] || entry.cover })))}
       recent={[
-        ...creatorDocuments.map((doc) => ({ id: `doc-${doc.id}`, savedAt: doc.savedAt, title: doc.data.worldTitle || '未命名世界', subtitle: '继续编辑角色与故事框架', label: doc.data.publishedWorld ? '已发布 · 本机作品' : '创作草稿', cover: '/assets/storm-manor-cover.png' })),
+        ...creatorDocuments.map((doc) => ({ id: `doc-${doc.id}`, savedAt: doc.savedAt, title: doc.data.worldTitle || '未命名世界', subtitle: '继续编辑角色与故事框架', label: doc.data.publishedWorld ? '可试玩 · 本机作品' : '创作草稿', cover: '/assets/storm-manor-cover.png' })),
         ...savedRuns.map((run) => ({ id: `run-${run.id}`, savedAt: run.savedAt, title: run.worldTitle, subtitle: `${run.worldSnapshot?.world.characters.find((role) => role.id === run.roleId)?.name ?? run.roleId} · ${run.worldState.location}`, label: run.status === 'ending' ? '阶段结局' : '探索记录', cover: run.worldSnapshot?.cover || '/assets/storm-manor-cover.png' })),
         ...chatSessions.map((chat) => ({ id: `chat-${chat.id}`, savedAt: chat.savedAt, title: `与 ${chat.entry.world.characters.find((role) => role.id === chat.targetCharacterId)?.name} 的对话`, subtitle: `你是 ${chat.entry.world.characters.find((role) => role.id === chat.playerRoleId)?.name} · ${chat.entry.title}`, label: '角色对话', cover: chat.entry.portraits[chat.targetCharacterId] || chat.entry.cover })),
       ].sort((a, b) => b.savedAt - a.savedAt)}
@@ -2075,6 +2107,7 @@ export default function Home() {
           onGenerateAllRoleImages={() => { void generateAllRoleImages(); }}
           onBack={() => navigate('home')}
           onPublish={publishCreatorWorld}
+          onShare={preparePublicWorld}
         />
       );
     }
@@ -2112,8 +2145,11 @@ export default function Home() {
   return (
     <main className="studio-frame">
       <StudioNav section={view} onNavigate={navigate} onCreate={newCreator} />
+      <AccountBar />
       {storageError && <p className="studio-storage-error" role="alert">{storageError}</p>}
       {screen}
+      {publicationNotice && <p className="account-bar" role="status">{publicationNotice}</p>}
+      {publicationEntry && <PublishWorldDialog entry={publicationEntry} onClose={() => setPublicationEntry(null)} onPublished={(entry) => { setCommunityWorlds(current => upsertById(current, entry)); setPublicationEntry(null); setPublicationNotice('世界已公开发布，其他访客现在可以在世界探索中找到它。'); navigate('home'); }} />}
       {chatEntry && <CharacterEntry key={`${chatEntry.entry.id}:${chatEntry.targetId}`} entry={chatEntry.entry} targetId={chatEntry.targetId} onClose={() => setChatEntry(null)} onStart={(session) => { saveChat(session); setActiveChat(session); setChatEntry(null); navigate('chat'); }} />}
     </main>
   );
@@ -2334,6 +2370,7 @@ function CreateWorld({
   onGenerateAllRoleImages,
   onBack,
   onPublish,
+  onShare,
 }: {
   step: number;
   roles: DraftRole[];
@@ -2375,6 +2412,7 @@ function CreateWorld({
   onGenerateAllRoleImages: () => void;
   onBack: () => void;
   onPublish: () => void;
+  onShare: () => void;
 }) {
   const discussionPanel = (
             <section className="creator-agent-panel" aria-label="与创作 Agent 讨论">
@@ -2486,7 +2524,7 @@ function CreateWorld({
             <p className="eyebrow">生成前确认</p><h2>世界设定卡</h2>
             <dl><div><dt>角色</dt><dd>{draftRoles.map((role) => role.name || '未命名').join('、')}</dd></div><div><dt>意外程度</dt><dd>{surpriseLabels[surprise - 1]}</dd></div><div><dt>世界复杂度</dt><dd>{['轻量', '标准', '丰富', '多线'][creatorBrief.complexityLevel - 1]} · {creatorBrief.tasks.filter((task) => task.kind === 'main').length || 3} 个主线条件</dd></div><div><dt>结束方式</dt><dd>达成目标条件后结束</dd></div></dl>
             <div className="preview-tip"><Lightbulb /><span>世界只建立角色的过去、当下状态、目标和任务条件。之后如何发展由玩家行动与世界 Agent 共同推演，不依赖固定分幕。</span></div>
-            <div className="preview-buttons"><Button variant="outline" onClick={() => onStep(3)}><ArrowLeft />继续修改</Button><Button className="primary-action" onClick={onPublish}>生成并发布<ArrowRight /></Button></div>
+            <div className="preview-buttons"><Button variant="outline" onClick={() => onStep(3)}><ArrowLeft />继续修改</Button><Button variant="outline" onClick={onPublish}>保存并试玩<ArrowRight /></Button><Button className="primary-action" onClick={onShare}>公开发布<ArrowRight /></Button></div>
           </aside>
         </section>
       )}

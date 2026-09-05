@@ -1,0 +1,68 @@
+import type { WorldDefinition } from './ai-contracts';
+
+type Shape = 'string' | 'number' | 'boolean' | { [key: string]: Shape } | [Shape];
+const texts: Shape = ['string'];
+const schema: Shape = {
+  id: 'string', title: 'string', premise: 'string', timeSetting: 'string', coreEvent: 'string', surpriseLevel: 'number',
+  locations: [{ id: 'string', name: 'string', description: 'string', connectedLocationIds: texts }],
+  characters: [{ id: 'string', name: 'string', identity: 'string', persona: 'string', publicBackground: 'string', privateKnowledge: texts, secrets: texts, goal: 'string', startLocationId: 'string', imagePrompt: 'string' }],
+  relationships: [{ fromCharacterId: 'string', toCharacterId: 'string', publicLabel: 'string', 'privateContext?': 'string', initialTrust: 'number' }],
+  rules: [{ id: 'string', description: 'string', kind: 'string', immutable: 'boolean' }],
+  goals: [{ id: 'string', title: 'string', description: 'string', scope: 'string', 'roleId?': 'string', requiredTaskIds: texts }],
+  tasks: [{ id: 'string', title: 'string', description: 'string', kind: 'string', assignedRoleIds: texts, prerequisiteTaskIds: texts, successCondition: 'string', difficulty: 'string' }],
+  difficultyConstraints: [{ id: 'string', description: 'string', 'blocksTaskId?': 'string', bypassCondition: 'string', consequence: 'string' }],
+  scheduledEvents: [{ id: 'string', title: 'string', trigger: 'string', earliestTurn: 'number', effect: 'string' }],
+  endingConditions: [{ id: 'string', 'applicableRoleIds?': texts, 'outcome?': 'string', 'requiredFailedTaskIds?': texts, description: 'string', requiredTaskIds: texts, requiredFacts: texts, 'forbiddenFacts?': texts }],
+  openingScene: { locationId: 'string', narrative: 'string', presentCharacterIds: texts, choices: [{ id: 'string', label: 'string', intent: 'string' }] },
+};
+
+function select(value: unknown, shape: Shape): unknown {
+  if (typeof shape === 'string') {
+    if (typeof value !== shape || (typeof value === 'string' && value.length > 10000) || (typeof value === 'number' && !Number.isFinite(value))) throw new Error('invalid_world');
+    return value;
+  }
+  if (Array.isArray(shape)) {
+    if (!Array.isArray(value) || value.length > 60) throw new Error('invalid_world');
+    return value.map(item => select(item, shape[0]));
+  }
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('invalid_world');
+  return Object.fromEntries(Object.entries(shape).flatMap(([rawKey, field]) => {
+    const key = rawKey.replace(/\?$/, '');
+    const item = (value as Record<string, unknown>)[key];
+    return rawKey.endsWith('?') && item === undefined ? [] : [[key, select(item, field)]];
+  }));
+}
+
+export function publicationWorld(value: unknown): WorldDefinition {
+  // Whitelist every nested field: saved chats, Agent memory and unknown metadata cannot hitchhike.
+  const world = select(value, schema) as WorldDefinition;
+  const ids = (items: { id: string }[]) => {
+    const result = new Set(items.map(item => item.id));
+    if (result.size !== items.length || [...result].some(id => !id.trim() || id.length > 120)) throw new Error('invalid_ids');
+    return result;
+  };
+  const roles = ids(world.characters), places = ids(world.locations), tasks = ids(world.tasks);
+  ids(world.goals); ids(world.rules); ids(world.scheduledEvents); ids(world.endingConditions);
+  const all = (values: string[], set: Set<string>) => values.every(id => set.has(id));
+  if (!world.title.trim() || world.title.length > 120 || !world.premise.trim() || world.characters.length < 2 || world.characters.length > 8
+    || !world.tasks.length || !world.goals.length || !world.endingConditions.length || ![1, 2, 3, 4].includes(world.surpriseLevel)
+    || !places.has(world.openingScene.locationId) || !all(world.openingScene.presentCharacterIds, roles)
+    || world.characters.some(role => !places.has(role.startLocationId) || !role.name.trim())
+    || world.locations.some(place => !all(place.connectedLocationIds, places))
+    || world.relationships.some(r => !roles.has(r.fromCharacterId) || !roles.has(r.toCharacterId))
+    || world.rules.some(r => !['physical', 'social', 'knowledge', 'story'].includes(r.kind))
+    || world.tasks.some(t => !['main', 'side'].includes(t.kind) || !all(t.assignedRoleIds, roles) || !all(t.prerequisiteTaskIds, tasks))
+    || world.goals.some(g => !['world', 'role'].includes(g.scope) || (g.scope === 'role' && !roles.has(g.roleId ?? '')) || !all(g.requiredTaskIds, tasks))
+    || world.endingConditions.some(e => (e.outcome && !['success', 'failure'].includes(e.outcome)) || !all(e.requiredTaskIds, tasks) || !all(e.requiredFailedTaskIds ?? [], tasks) || !all(e.applicableRoleIds ?? [], roles))
+    || world.difficultyConstraints.some(d => d.blocksTaskId && !tasks.has(d.blocksTaskId))
+    || world.scheduledEvents.some(e => !Number.isSafeInteger(e.earliestTurn) || e.earliestTurn < 0)) throw new Error('invalid_world_references');
+  const visiting = new Set<string>(), visited = new Set<string>();
+  const visit = (id: string) => {
+    if (visiting.has(id)) throw new Error('cyclic_tasks');
+    if (visited.has(id)) return;
+    visiting.add(id); world.tasks.find(t => t.id === id)!.prerequisiteTaskIds.forEach(visit); visiting.delete(id); visited.add(id);
+  };
+  tasks.forEach(visit);
+  if (JSON.stringify(world).length > 120000) throw new Error('world_too_large');
+  return world;
+}
