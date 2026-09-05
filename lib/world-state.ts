@@ -124,6 +124,11 @@ export function validateAction(action: string, state: WorldState, listedChoices:
     return { allowed: false, reason: '你不能无依据获得其他角色的私密信息。', suggestion: '可以询问对方、查找证据，或先提高对方对你的信任。' };
   }
 
+  const shortcutPattern = /(直接进入|现在直接|立刻进入).{0,8}(结局|终局)|宣布.{0,18}(已经|全部).{0,12}(解决|完成|达成)|不需要.{0,10}(证据|条件|前置)|没有任何证据就宣布/;
+  if (shortcutPattern.test(normalized)) {
+    return { allowed: false, reason: '你描述的是尚未发生的结果，不能用宣告跳过任务条件。', suggestion: '说明你准备采取的具体行动，世界会根据证据、关系和前置条件判断结果。' };
+  }
+
   const requiredItems = [
     { pattern: /(用|拿出).{0,4}铜钥匙/, item: '铜钥匙' },
     { pattern: /(播放|查看).{0,5}弟弟.{0,3}录音/, item: '弟弟留下的录音' },

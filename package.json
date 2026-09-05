@@ -9,6 +9,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "eval:world-agent": "node scripts/evaluate-world-agent.mjs",
     "dev:sites": "vinext dev",
     "build:sites": "vinext build",
     "lint": "oxlint",

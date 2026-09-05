@@ -271,9 +271,6 @@ class MockAIAdapter implements AIAdapter {
     const worldKind = input.world.id === 'storm-manor' ? 'storm' : 'draft';
     const incident = selectIncident(worldKind, input.world.surpriseLevel, nextTurn);
     const actionResult = selectedChoice?.outcomeHint || `你选择了“${input.userAction}”，世界记住了这个行动。`;
-    const narrative = input.nextScene
-      ? `${actionResult}\n\n${input.nextScene.narrative}`
-      : `${actionResult}\n\n这个行动没有把世界推向预写的下一幕，而是打开了一条新路线。其他角色也在利用这段时间推进各自的目标。`;
     const sceneChanged = Boolean(input.nextScene && input.nextScene.id !== input.currentScene.id);
     const imageRequired = sceneChanged || incident?.impact === 'major';
     const imageReason = incident?.impact === 'major' ? 'major_event' : sceneChanged ? 'location_changed' : 'reuse';
@@ -289,12 +286,28 @@ class MockAIAdapter implements AIAdapter {
     const requiredTaskIds = input.world.goals[0]?.requiredTaskIds ?? input.world.tasks.filter((task) => task.kind === 'main').map((task) => task.id);
     const endingReached = requiredTaskIds.length > 0 && requiredTaskIds.every((id) => completedAfter.includes(id));
     const remainingTasks = input.world.tasks.filter((task) => task.kind === 'main' && !completedAfter.includes(task.id));
+    const selectedCharacter = input.world.characters.find((character) => character.id === input.selectedRoleId) ?? input.world.characters[0];
+    const nonPlayerCharacters = input.world.characters.filter((character) => character.id !== input.selectedRoleId);
+    const counterpart = nonPlayerCharacters[0] ?? selectedCharacter;
+    const activeTask = availableTasks[0];
+    const nextTask = remainingTasks.find((task) => task.prerequisiteTaskIds.every((id) => completedAfter.includes(id)));
+    const narrative = `${actionResult}\n\n${input.nextScene?.narrative ?? `行动发生在${input.currentScene.title}。${selectedCharacter?.name ?? '体验者'}没有被送往一段预先写好的下一幕；现场的人依据自己的身份、目标和已经发生的事实作出回应。${counterpart?.name ?? '另一名角色'}先观察你的准备是否真实，再决定公开多少信息。空气中的迟疑并没有消失，反而让一个此前被忽略的现实条件变得清楚：任何捷径都会损失信任、证据或可用时间。`}\n\n当前可推进的是“${activeTask?.title ?? nextTask?.title ?? '处理行动造成的新局面'}”。你的选择带来了可以继续验证的结果，但没有自动替你完成尚未满足的条件。与此同时，${nonPlayerCharacters.map((character) => character.name).join('、') || '其他角色'}也在看不见的时间里调整各自计划；他们可能合作，也可能利用你刚暴露的信息抢先行动。下一步需要决定继续核对事实、与关键人物交换条件，还是承担代价改变路线。`;
+    const dialogueCharacters = nonPlayerCharacters.length > 0 ? nonPlayerCharacters : [selectedCharacter].filter(Boolean);
+    const dialogue = [
+      { characterId: dialogueCharacters[0]?.id ?? input.selectedRoleId, text: `“你可以这样做，但别把行动当成结果。先让我看看你能拿出什么条件。”`, visibleToRoleIds: [input.selectedRoleId] },
+      { characterId: dialogueCharacters[1]?.id ?? dialogueCharacters[0]?.id ?? input.selectedRoleId, text: `“世界已经记下刚才的变化。再走一步，其他人的立场也会跟着变。”`, visibleToRoleIds: [input.selectedRoleId] },
+    ];
+    const nextChoices = input.nextScene?.choices && input.nextScene.choices.length >= 3
+      ? input.nextScene.choices
+      : [
+        { id: `verify-${nextTurn}`, label: `${selectedCharacter?.name ?? '体验者'}：核对刚获得的信息，确认它能否推进当前任务`, intent: '验证事实并避免被误导' },
+        { id: `negotiate-${nextTurn}`, label: `${selectedCharacter?.name ?? '体验者'}：找${counterpart?.name ?? '关键人物'}交换有限条件`, intent: '在不泄露底牌的情况下建立合作' },
+        { id: `observe-${nextTurn}`, label: `${selectedCharacter?.name ?? '体验者'}：暂缓表态，观察其他角色正在推进什么`, intent: '识别非玩家角色的下一步' },
+      ];
     return Promise.resolve({
       actionDecision: { allowed: true },
       narrative: incident ? `${narrative}\n\n意外发生·${incident.title}\n${incident.narrative}` : narrative,
-      dialogue: input.nextScene?.dialogue && input.nextScene.speakerCharacterId
-        ? [{ characterId: input.nextScene.speakerCharacterId, text: input.nextScene.dialogue, visibleToRoleIds: [input.selectedRoleId] }]
-        : [],
+      dialogue,
       statePatch: {
         locationId: input.nextScene?.title,
         addClues: selectedChoice?.statePatchHint?.addClues ?? (selectedChoice ? [selectedChoice.intent] : ['你的自由行动改变了调查方向']),
@@ -306,7 +319,7 @@ class MockAIAdapter implements AIAdapter {
         relationshipDeltas: selectedChoice?.statePatchHint?.relationshipDeltas ?? { world: selectedChoice ? 5 : 3 },
         committedFacts: [actionResult],
       },
-      nextChoices: input.nextScene?.choices ?? [],
+      nextChoices,
       incident: incident ?? undefined,
       image: {
         required: imageRequired,

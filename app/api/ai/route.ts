@@ -3,8 +3,11 @@ import {
   isCreatorAgentResponse,
   isPersonalAgentResponse,
   isWorldGenerationResponse,
+  isWorldTurnRequest,
   isWorldTurnResponse,
 } from '@/lib/ai-validation';
+import { enforceWorldTurnGuardrails, makeRejectedWorldTurn } from '@/lib/world-agent-guardrails';
+import { validateAction } from '@/lib/world-state';
 
 type Operation = 'personal-agent' | 'co-create-world' | 'generate-world' | 'advance-world';
 type DeepSeekProvider = { apiKey: string; endpoint: string; model: string };
@@ -103,6 +106,16 @@ export async function POST(request: Request) {
   const version = (body.input as { contractVersion?: unknown }).contractVersion;
   if (version !== AI_CONTRACT_VERSION) return Response.json({ error: 'contract_version_mismatch' }, { status: 409 });
 
+  if (body.operation === 'advance-world') {
+    if (!isWorldTurnRequest(body.input)) return Response.json({ error: 'invalid_world_turn_request' }, { status: 400 });
+    const validation = validateAction(body.input.userAction, body.input.state, body.input.currentScene.choices.map((choice) => choice.label));
+    if (!validation.allowed) {
+      return Response.json(makeRejectedWorldTurn(body.input, validation), {
+        headers: { 'Cache-Control': 'no-store', 'X-AI-Provider': 'rules' },
+      });
+    }
+  }
+
   const provider = getDeepSeekProvider();
   if (!provider) return Response.json({ error: 'model_not_configured' }, { status: 503 });
   try {
@@ -110,7 +123,10 @@ export async function POST(request: Request) {
     if (!isValidOutput(body.operation, output)) {
       return Response.json({ error: 'invalid_model_output' }, { status: 502 });
     }
-    return Response.json(output, {
+    const guardedOutput = body.operation === 'advance-world' && isWorldTurnRequest(body.input) && isWorldTurnResponse(output)
+      ? enforceWorldTurnGuardrails(body.input, output)
+      : output;
+    return Response.json(guardedOutput, {
       headers: { 'Cache-Control': 'no-store', 'X-AI-Provider': 'deepseek' },
     });
   } catch {

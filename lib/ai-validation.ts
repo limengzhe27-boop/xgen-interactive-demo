@@ -1,8 +1,10 @@
-import type {
-  CreatorAgentResponse,
-  PersonalAgentResponse,
-  WorldGenerationResponse,
-  WorldTurnResponse,
+import {
+  AI_CONTRACT_VERSION,
+  type CreatorAgentResponse,
+  type PersonalAgentResponse,
+  type WorldGenerationResponse,
+  type WorldTurnRequest,
+  type WorldTurnResponse,
 } from '@/lib/ai-contracts';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -134,10 +136,18 @@ export function isWorldTurnResponse(value: unknown): value is WorldTurnResponse 
   return typeof value.actionDecision.allowed === 'boolean'
     && typeof value.narrative === 'string'
     && Array.isArray(value.dialogue)
+    && value.dialogue.every((item) => isRecord(item)
+      && typeof item.characterId === 'string'
+      && typeof item.text === 'string'
+      && isStringArray(item.visibleToRoleIds))
     && Array.isArray(value.nextChoices)
+    && value.nextChoices.every((choice) => isRecord(choice)
+      && typeof choice.id === 'string'
+      && typeof choice.label === 'string'
+      && typeof choice.intent === 'string')
     && isStringArray(value.statePatch.committedFacts)
     && typeof value.image.required === 'boolean'
-    && typeof value.image.reason === 'string'
+    && ['opening', 'location_changed', 'character_changed', 'major_event', 'reuse'].includes(value.image.reason as string)
     && typeof value.image.sceneId === 'string'
     && isRecord(value.goalProgress)
     && isStringArray(value.goalProgress.activeTaskIds)
@@ -145,4 +155,37 @@ export function isWorldTurnResponse(value: unknown): value is WorldTurnResponse 
     && typeof value.goalProgress.summary === 'string'
     && typeof value.ending.reached === 'boolean'
     && typeof value.ending.canContinue === 'boolean';
+}
+
+export function isWorldTurnRequest(value: unknown): value is WorldTurnRequest {
+  if (!isRecord(value)
+    || value.contractVersion !== AI_CONTRACT_VERSION
+    || typeof value.selectedRoleId !== 'string'
+    || typeof value.userAction !== 'string'
+    || !isRecord(value.world)
+    || !Array.isArray(value.world.characters)
+    || !Array.isArray(value.world.tasks)
+    || !Array.isArray(value.world.endingConditions)
+    || !isRecord(value.state)
+    || !isStringArray(value.state.completedTaskIds)
+    || !isStringArray(value.state.failedTaskIds)
+    || !isStringArray(value.state.clues)
+    || !isStringArray(value.state.knownSecrets)
+    || !Array.isArray(value.state.eventLedger)
+    || !isRecord(value.currentScene)
+    || !Array.isArray(value.currentScene.choices)) return false;
+
+  return value.world.characters.every((character) => isRecord(character) && typeof character.id === 'string')
+    && value.world.tasks.every((task) => isRecord(task)
+      && typeof task.id === 'string'
+      && (task.kind === 'main' || task.kind === 'side')
+      && isStringArray(task.prerequisiteTaskIds))
+    && value.world.endingConditions.every((condition) => isRecord(condition)
+      && typeof condition.id === 'string'
+      && isStringArray(condition.requiredTaskIds)
+      && isStringArray(condition.requiredFacts))
+    && value.currentScene.choices.every((choice) => isRecord(choice)
+      && typeof choice.id === 'string'
+      && typeof choice.label === 'string'
+      && typeof choice.intent === 'string');
 }
