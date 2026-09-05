@@ -38,6 +38,14 @@ function isStringArray(value: unknown): value is string[] {
   return Array.isArray(value) && value.every((item) => typeof item === 'string');
 }
 
+function isEndingCondition(value: unknown) {
+  return isRecord(value) && typeof value.id === 'string'
+    && isStringArray(value.requiredTaskIds) && isStringArray(value.requiredFacts)
+    && (value.outcome === undefined || value.outcome === 'success' || value.outcome === 'failure')
+    && (value.requiredFailedTaskIds === undefined || isStringArray(value.requiredFailedTaskIds))
+    && (value.forbiddenFacts === undefined || isStringArray(value.forbiddenFacts));
+}
+
 export function isPersonalAgentResponse(value: unknown): value is PersonalAgentResponse {
   if (!isRecord(value) || typeof value.reply !== 'string' || !Array.isArray(value.memoryCandidates) || !Array.isArray(value.recommendations)) return false;
   return value.memoryCandidates.every((memory) => isRecord(memory)
@@ -115,11 +123,7 @@ export function isWorldGenerationResponse(value: unknown): value is WorldGenerat
       && typeof event.effect === 'string')
     && Array.isArray(world.endingConditions)
     && world.endingConditions.length >= 1
-    && world.endingConditions.every((condition) => isRecord(condition)
-      && typeof condition.id === 'string'
-      && typeof condition.description === 'string'
-      && isStringArray(condition.requiredTaskIds)
-      && isStringArray(condition.requiredFacts))
+    && world.endingConditions.every(isEndingCondition)
     && isRecord(world.openingScene)
     && Array.isArray(world.openingScene.choices)
     && world.openingScene.choices.length >= 2
@@ -146,6 +150,7 @@ export function isWorldTurnResponse(value: unknown): value is WorldTurnResponse 
       && typeof choice.label === 'string'
       && typeof choice.intent === 'string')
     && isStringArray(value.statePatch.committedFacts)
+    && ['completeTaskIds', 'failTaskIds', 'addClues', 'addKnownSecrets', 'addInventory', 'removeInventory'].every((key) => value.statePatch && isRecord(value.statePatch) && (value.statePatch[key] === undefined || isStringArray(value.statePatch[key])))
     && typeof value.image.required === 'boolean'
     && ['opening', 'location_changed', 'character_changed', 'major_event', 'reuse'].includes(value.image.reason as string)
     && typeof value.image.sceneId === 'string'
@@ -180,10 +185,9 @@ export function isWorldTurnRequest(value: unknown): value is WorldTurnRequest {
       && typeof task.id === 'string'
       && (task.kind === 'main' || task.kind === 'side')
       && isStringArray(task.prerequisiteTaskIds))
-    && value.world.endingConditions.every((condition) => isRecord(condition)
-      && typeof condition.id === 'string'
-      && isStringArray(condition.requiredTaskIds)
-      && isStringArray(condition.requiredFacts))
+    && value.world.endingConditions.every(isEndingCondition)
+    && (value.state.committedFacts === undefined || isStringArray(value.state.committedFacts))
+    && (value.state.reachedEndingIds === undefined || isStringArray(value.state.reachedEndingIds))
     && value.currentScene.choices.every((choice) => isRecord(choice)
       && typeof choice.id === 'string'
       && typeof choice.label === 'string'

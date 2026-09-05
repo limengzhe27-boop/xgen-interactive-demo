@@ -10,6 +10,8 @@
     "build": "next build",
     "start": "next start",
     "eval:world-agent": "node scripts/evaluate-world-agent.mjs",
+    "test:world": "node --test scripts/test-world-endings.mjs",
+    "eval:endings": "node scripts/evaluate-world-endings.mjs",
     "dev:sites": "vinext dev",
     "build:sites": "vinext build",
     "lint": "oxlint",

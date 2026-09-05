@@ -537,7 +537,7 @@ function enforceBeatPerspective(beat: StoryBeat, selectedRole: Role, availableRo
 function responseToStoryBeat(response: WorldTurnResponse, fallback: StoryBeat, availableRoles: Role[], selectedRole: Role, world?: WorldDefinition): StoryBeat {
   const firstDialogue = response.dialogue[0];
   const speaker = availableRoles.find((role) => role.id === firstDialogue?.characterId)?.name ?? fallback.speaker;
-  const dialogue = response.dialogue.map((item) => item.text).join('\n') || fallback.dialogue;
+  const dialogue = response.dialogue.filter((item) => item.visibleToRoleIds.includes(selectedRole.id)).map((item) => item.text).join('\n');
   const choices = response.nextChoices.length > 0
     ? response.nextChoices.map((choice) => enforceRolePerspective({
       label: choice.label,
@@ -762,8 +762,13 @@ function buildCreatorWorld(
       description: normalizedBrief.successCondition || '完成所有主线任务后触发结局',
       requiredTaskIds: mainTaskIds,
       requiredFacts: [],
+      outcome: 'success',
       forbiddenFacts: normalizedBrief.failureCondition ? [normalizedBrief.failureCondition] : [],
-    }],
+    }, ...(normalizedBrief.failureCondition ? [{
+      id: 'creator-failure', outcome: 'failure' as const,
+      description: normalizedBrief.failureCondition, requiredTaskIds: [],
+      requiredFacts: [normalizedBrief.failureCondition],
+    }] : [])],
     locations: safeOutline.map((beat, index) => ({
       id: locationIds[index],
       name: beat.location.trim() || `场景 ${index + 1}`,
@@ -1194,7 +1199,7 @@ export default function Home() {
     });
   }
 
-  async function runAI<T>(operation: (adapter: AIAdapter) => Promise<T>): Promise<T> {
+  async function runAI<T>(operation: (adapter: AIAdapter) => Promise<T>, allowFallback = true): Promise<T> {
     if (modelMode === 'real' || modelMode === 'fallback') {
       for (let attempt = 0; attempt < 2; attempt += 1) {
         try {
@@ -1206,6 +1211,7 @@ export default function Home() {
         }
       }
     }
+    if (!allowFallback) throw new Error('真实模型暂时不可用，进度已保留，请重试这次行动。');
     return operation(mockAIAdapter);
   }
 
@@ -1372,28 +1378,15 @@ export default function Home() {
 
   function continueWorld() {
     cancelImageTask();
-    setTurn(2);
-    const continuedNarrative =
-      activeWorld !== 'storm'
-        ? `既定结局之后，${activeWorldTitle}中的人仍要面对选择留下的后果。一条此前被忽略的信息让已经形成的关系再次发生变化，这个世界因此继续运转。`
-        : '天已经亮了，但你拒绝让这个世界停在既定结局。地下通道尽头的无线电台突然亮起，传来了一个本不该出现的人的声音。';
-    setNarrative(continuedNarrative);
+    // Returning to play does not advance time, reset tasks, or invent a new event.
+    setTurn(worldState.turn);
+    setNarrative(endingDecision || narrative);
     setRuntimeBeat((current) => ({
-      ...(current ?? currentStory[Math.min(2, currentStory.length - 1)]),
-      title: '结局之后的新信号',
-      text: continuedNarrative,
-    }));
-    setLastAction('拒绝在既定结局停下');
-    setWorldState((current) => commitTurn(current, {
-      action: '拒绝在既定结局停下',
-      result: '结局后的世界继续运转，新的信号出现了。',
-      clue: '结局后仍在工作的无线电台',
-      nextLocation: current.location,
-      relationshipDelta: 0,
+      ...(current ?? currentBeat),
+      text: endingDecision || narrative,
     }));
     setActionFeedback(null);
     setLastIncident(null);
-    setImageTask((current) => ({ ...current, requestId: imageRequestRef.current, sceneId: 'post-ending', status: 'reused', reason: 'reuse', message: '结局后继续复用当前场景图' }));
     navigate('play');
   }
 
@@ -1420,7 +1413,6 @@ export default function Home() {
     setFreeAction('');
     setIsThinking(true);
     const nextTurn = turn + 1;
-    const chosen = currentBeat.choices.find((choice) => choice.label === nextAction);
     const runtimeWorld = activeWorldDefinition;
     const request: WorldTurnRequest = {
       contractVersion: AI_CONTRACT_VERSION,
@@ -1437,7 +1429,7 @@ export default function Home() {
     generationControllerRef.current = generationController;
     responseTimerRef.current = window.setTimeout(() => {
       responseTimerRef.current = null;
-      void runAI((adapter) => adapter.advanceWorld(request, generationController.signal)).then((response) => {
+      void runAI((adapter) => adapter.advanceWorld(request, generationController.signal), false).then((response) => {
         if (generationController.signal.aborted) return;
         generationControllerRef.current = null;
         if (!response.actionDecision.allowed) {
@@ -1455,25 +1447,31 @@ export default function Home() {
           sceneTitle: currentStory[nextTurn]?.title ?? '阶段结局',
           narrative: response.narrative,
         });
-        const responseClue = response.statePatch.addClues?.[0] ?? chosen?.clue ?? '你的自由行动改变了调查方向';
-        const responseRelation = response.statePatch.relationshipDeltas?.world ?? chosen?.relationDelta ?? 5;
+        const responseClue = response.statePatch.addClues?.[0] ?? '';
+        const responseRelation = response.statePatch.relationshipDeltas?.world ?? 0;
         if (response.ending.reached) {
+          setTurn(nextTurn);
+          setNarrative(response.narrative);
+          setRuntimeBeat(responseToStoryBeat(response, currentBeat, currentRoles, selectedRole, runtimeWorld));
           setWorldState((current) => commitTurn(current, {
             action: nextAction,
             result: response.narrative,
             clue: responseClue,
-            nextLocation: current.location,
+            nextLocation: runtimeWorld.locations.find((location) => location.id === response.statePatch.locationId)?.name || current.location,
+            reachedEndingId: response.ending.endingId,
             relationshipDelta: responseRelation,
             clock: response.statePatch.clock,
             addInventory: response.statePatch.addInventory,
             removeInventory: response.statePatch.removeInventory,
             addKnownSecrets: response.statePatch.addKnownSecrets,
+            committedFacts: response.statePatch.committedFacts,
+            addClues: response.statePatch.addClues,
             completeTaskIds: response.statePatch.completeTaskIds,
             failTaskIds: response.statePatch.failTaskIds,
             taskNotes: response.statePatch.taskNotes,
             characterUpdates: response.statePatch.characterUpdates,
           }));
-          setMemories((current) => Array.from(new Set([`在${activeWorldTitle}选择了${selectedRole.name}`, '倾向主动调查', ...current])).slice(0, 6));
+          setMemories((current) => Array.from(new Set([`在${activeWorldTitle}选择了${selectedRole.name}`, ...current])).slice(0, 6));
           setEndingDecision(response.narrative);
           setIsThinking(false);
           navigate('ending');
@@ -1497,6 +1495,8 @@ export default function Home() {
             addInventory: response.statePatch.addInventory,
             removeInventory: response.statePatch.removeInventory,
             addKnownSecrets: response.statePatch.addKnownSecrets,
+            committedFacts: response.statePatch.committedFacts,
+            addClues: response.statePatch.addClues,
             completeTaskIds: response.statePatch.completeTaskIds,
             failTaskIds: response.statePatch.failTaskIds,
             taskNotes: response.statePatch.taskNotes,
@@ -1859,7 +1859,7 @@ export default function Home() {
         />
       );
     }
-    if (view === 'ending') return <Ending worldTitle={activeWorldTitle} role={selectedRole} decision={endingDecision} onContinue={continueWorld} onReplay={() => navigate('roles')} onHome={() => navigate('home')} />;
+    if (view === 'ending') return <Ending worldTitle={activeWorldTitle} role={selectedRole} decision={endingDecision} state={worldState} world={activeWorldDefinition} imageUrl={imageTask.assetUrl} onContinue={continueWorld} onReplay={() => navigate('roles')} onHome={() => navigate('home')} />;
     return (
       <AgentHome
         message={message}
@@ -2461,17 +2461,18 @@ function CreateWorld({
   );
 }
 
-function Ending({ worldTitle, role, decision, onContinue, onReplay, onHome }: { worldTitle: string; role: Role; decision: string; onContinue: () => void; onReplay: () => void; onHome: () => void }) {
+function Ending({ worldTitle, role, decision, state, world, imageUrl, onContinue, onReplay, onHome }: { worldTitle: string; role: Role; decision: string; state: WorldState; world: WorldDefinition; imageUrl: string; onContinue: () => void; onReplay: () => void; onHome: () => void }) {
+  const ending = world.endingConditions.find((condition) => condition.id === state.reachedEndingIds?.at(-1));
   return (
     <div className="ending-shell">
-      <div className="ending-image"><img src="/assets/storm-manor-cover.png" alt="暴雨渐停，山庄窗户仍亮着灯" /><div /></div>
+      <div className="ending-image"><img src={imageUrl} alt={`${worldTitle}的当前场景`} /><div /></div>
       <section className="ending-card title-reveal">
         <span className="ending-mark"><Check /></span>
         <p className="eyebrow">{worldTitle} · 一条世界线已经抵达结局</p>
-        <h1>这条世界线，由你的选择抵达此刻</h1>
+        <h1>{ending?.outcome === 'failure' ? '目标未能达成，故事仍有余波' : '这条世界线，由你的选择抵达此刻'}</h1>
         <p>你以 {role.name} 的身份走到这条世界线的阶段结局。{decision || '你的最后选择改变了真相被公开的方式。'}</p>
-        <div className="ending-stats"><span><strong>3</strong><small>发现线索</small></span><span><strong>2</strong><small>关系改变</small></span><span><strong>1 / 4</strong><small>已见结局</small></span></div>
-        <div className="agent-afterword"><Sparkles /><span><small>个人 Agent 记下了</small>你更倾向主动调查，也愿意为获取真相承担风险。下一次推荐会考虑这一点。</span></div>
+        <div className="ending-stats"><span><strong>{state.turn}</strong><small>行动回合</small></span><span><strong>{state.completedTaskIds.length}</strong><small>完成任务</small></span><span><strong>{state.reachedEndingIds?.length ?? 0} / {world.endingConditions.length}</strong><small>已见结局</small></span></div>
+        <div className="agent-afterword"><Sparkles /><span><small>个人 Agent 记下了</small>你在{worldTitle}选择了{role.name}。你可以回到 Agent，告诉它这次体验中喜欢和不喜欢的部分。</span></div>
         <div className="ending-actions"><Button className="primary-action" onClick={onContinue}>继续这个世界<ArrowRight /></Button><Button variant="outline" onClick={onReplay}><RefreshCw />换一个角色重玩</Button><Button variant="ghost" onClick={onHome}>回到 Agent</Button></div>
       </section>
     </div>

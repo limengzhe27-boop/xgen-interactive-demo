@@ -75,6 +75,8 @@ export type WorldRule = {
 
 export type EndingCondition = {
   id: string;
+  outcome?: 'success' | 'failure';
+  requiredFailedTaskIds?: string[];
   description: string;
   requiredTaskIds: string[];
   requiredFacts: string[];
@@ -288,7 +290,7 @@ export type WorldTurnResponse = {
     completedTaskIds: string[];
     summary: string;
   };
-  ending: { reached: boolean; endingId?: string; canContinue: boolean };
+  ending: { reached: boolean; endingId?: string; outcome?: 'success' | 'failure'; canContinue: boolean };
 };
 
 export interface AIAdapter {

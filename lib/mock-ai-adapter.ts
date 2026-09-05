@@ -218,7 +218,12 @@ class MockAIAdapter implements AIAdapter {
           requiredTaskIds: mainTaskIds,
           requiredFacts: [],
           forbiddenFacts: input.creatorBrief.failureCondition ? [input.creatorBrief.failureCondition] : [],
-        }],
+          outcome: 'success',
+        }, ...(input.creatorBrief.failureCondition ? [{
+          id: 'core-failure', outcome: 'failure' as const,
+          description: input.creatorBrief.failureCondition, requiredTaskIds: [],
+          requiredFacts: [input.creatorBrief.failureCondition],
+        }] : [])],
         openingScene: {
           locationId: 'opening-location',
           narrative: `${premise}\n\n此刻，${leadName}先察觉到现场气氛不对：${counterpartName}的反应与平时不同，而另一名在场者似乎故意把一个重要细节轻描淡写地带过。没有超自然力量替任何人解释动机，也没有凭空出现的答案；能推动故事的，只有体验者接下来选择相信谁、追问什么，以及愿意承担怎样的关系后果。`,

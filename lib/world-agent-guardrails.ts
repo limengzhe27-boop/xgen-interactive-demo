@@ -1,42 +1,22 @@
 import type { WorldTurnRequest, WorldTurnResponse } from '@/lib/ai-contracts';
 import type { ActionValidation } from '@/lib/world-state';
 
-function unique(values: string[]) {
-  return [...new Set(values)];
-}
-
-function activeMainTaskIds(input: WorldTurnRequest, completedTaskIds: Set<string>, failedTaskIds: Set<string>) {
-  return input.world.tasks
-    .filter((task) => task.kind === 'main'
-      && !completedTaskIds.has(task.id)
-      && !failedTaskIds.has(task.id)
-      && task.prerequisiteTaskIds.every((id) => completedTaskIds.has(id)))
-    .map((task) => task.id);
+function activeTasks(input: WorldTurnRequest, completed: Set<string>, failed: Set<string>) {
+  return input.world.tasks.filter((task) => task.kind === 'main'
+    && !completed.has(task.id) && !failed.has(task.id)
+    && task.prerequisiteTaskIds.every((id) => completed.has(id))).map((task) => task.id);
 }
 
 export function makeRejectedWorldTurn(input: WorldTurnRequest, validation: ActionValidation): WorldTurnResponse {
-  const completedTaskIds = new Set(input.state.completedTaskIds ?? []);
-  const failedTaskIds = new Set(input.state.failedTaskIds ?? []);
   return {
-    actionDecision: {
-      allowed: false,
-      reason: validation.reason ?? '这个行动不符合当前世界规则。',
-      suggestedAlternative: validation.suggestion,
-    },
-    narrative: '',
-    dialogue: [],
-    statePatch: { committedFacts: [] },
+    actionDecision: { allowed: false, reason: validation.reason, suggestedAlternative: validation.suggestion },
+    narrative: '', dialogue: [], statePatch: { committedFacts: [] },
     nextChoices: input.currentScene.choices.map(({ id, label, intent }) => ({ id, label, intent })),
-    image: {
-      required: false,
-      reason: 'reuse',
-      sceneId: input.currentScene.id,
-      reuseAssetId: input.currentScene.id,
-    },
+    image: { required: false, reason: 'reuse', sceneId: input.currentScene.id },
     goalProgress: {
-      activeTaskIds: activeMainTaskIds(input, completedTaskIds, failedTaskIds),
-      completedTaskIds: [...completedTaskIds],
-      summary: '行动未通过世界规则检查，任务进度未改变',
+      activeTaskIds: activeTasks(input, new Set(input.state.completedTaskIds), new Set(input.state.failedTaskIds)),
+      completedTaskIds: input.state.completedTaskIds,
+      summary: '行动未通过，世界状态未改变',
     },
     ending: { reached: false, canContinue: true },
   };
@@ -44,115 +24,61 @@ export function makeRejectedWorldTurn(input: WorldTurnRequest, validation: Actio
 
 export function enforceWorldTurnGuardrails(input: WorldTurnRequest, output: WorldTurnResponse): WorldTurnResponse {
   if (!output.actionDecision.allowed) {
-    return makeRejectedWorldTurn(input, {
-      allowed: false,
-      reason: output.actionDecision.reason,
-      suggestion: output.actionDecision.suggestedAlternative,
-    });
+    // Even a model's rejection reason can accidentally disclose hidden facts.
+    return makeRejectedWorldTurn(input, { allowed: false,
+      reason: '当前条件不足以执行这个行动。', suggestion: '尝试观察现场、询问在场人物或先取得所需条件。' });
   }
-
-  const taskById = new Map(input.world.tasks.map((task) => [task.id, task]));
-  const characterIds = new Set(input.world.characters.map((character) => character.id));
-  const completedBefore = new Set(input.state.completedTaskIds ?? []);
-  const failedBefore = new Set(input.state.failedTaskIds ?? []);
-  const permittedCompletions = unique(output.statePatch.completeTaskIds ?? []).filter((taskId) => {
-    const task = taskById.get(taskId);
-    return Boolean(task)
-      && !failedBefore.has(taskId)
-      && task?.prerequisiteTaskIds.every((id) => completedBefore.has(id));
-  });
-  const permittedFailures = unique(output.statePatch.failTaskIds ?? []).filter((taskId) => taskById.has(taskId) && !completedBefore.has(taskId));
-  const completedAfter = new Set([...completedBefore, ...permittedCompletions]);
-  const failedAfter = new Set([...failedBefore, ...permittedFailures]);
-  const committedFacts = unique(output.statePatch.committedFacts ?? []);
-  const visibleFacts = new Set([
-    ...(input.state.clues ?? []),
-    ...(input.state.knownSecrets ?? []),
-    ...input.state.eventLedger.map((event) => event.result),
-    ...(output.statePatch.addClues ?? []),
-    ...(output.statePatch.addKnownSecrets ?? []),
-    ...committedFacts,
+  const completed = new Set(input.state.completedTaskIds ?? []);
+  const failed = new Set(input.state.failedTaskIds ?? []);
+  const tasks = new Map(input.world.tasks.map((task) => [task.id, task]));
+  const completions = [...new Set(output.statePatch.completeTaskIds ?? [])];
+  const failures = [...new Set(output.statePatch.failTaskIds ?? [])];
+  for (const id of [...completions, ...failures]) {
+    const task = tasks.get(id);
+    if (!task || !task.prerequisiteTaskIds.every((pre) => completed.has(pre))
+      || (completions.includes(id) && (failed.has(id) || failures.includes(id)))
+      || (failures.includes(id) && completed.has(id))) {
+      // Reject the whole turn so prose and state cannot disagree about a skipped task.
+      throw new Error('invalid_task_transition');
+    }
+  }
+  completions.forEach((id) => completed.add(id));
+  failures.forEach((id) => failed.add(id));
+  const facts = new Set([
+    ...(input.state.committedFacts ?? []), ...input.state.clues, ...input.state.knownSecrets,
+    ...input.state.eventLedger.filter((event) => event.status === 'committed').map((event) => event.result),
+    ...(output.statePatch.addClues ?? []), ...(output.statePatch.addKnownSecrets ?? []),
+    ...output.statePatch.committedFacts,
   ]);
-  const satisfiedEnding = input.world.endingConditions.find((condition) => condition.requiredTaskIds.every((id) => completedAfter.has(id))
-    && condition.requiredFacts.every((fact) => visibleFacts.has(fact))
-    && (condition.forbiddenFacts ?? []).every((fact) => !visibleFacts.has(fact)));
-  const endingReached = output.ending.reached && Boolean(satisfiedEnding);
-  const taskNotes = Object.fromEntries(Object.entries(output.statePatch.taskNotes ?? {}).filter(([taskId]) => taskById.has(taskId)));
-  const characterUpdates = Object.fromEntries(Object.entries(output.statePatch.characterUpdates ?? {}).filter(([characterId]) => characterIds.has(characterId)));
-  const selectedCharacter = input.world.characters.find((character) => character.id === input.selectedRoleId) ?? input.world.characters[0];
-  const nonPlayerCharacters = input.world.characters.filter((character) => character.id !== input.selectedRoleId);
-  const counterpart = nonPlayerCharacters[0] ?? selectedCharacter;
-  const activeTaskIds = activeMainTaskIds(input, completedAfter, failedAfter);
-  const activeTask = input.world.tasks.find((task) => task.id === activeTaskIds[0]);
-  const locationName = input.world.locations.find((location) => location.id === (output.statePatch.locationId ?? input.state.location))?.name
-    ?? output.statePatch.locationId
-    ?? input.state.location;
-  let narrative = output.narrative.trim();
-  if (narrative.length < 300) {
-    narrative += `\n\n行动之后，${locationName}里的局势没有停在这一刻。${nonPlayerCharacters.map((character) => character.name).join('、') || '其他角色'}各自依据已经掌握的信息调整计划；他们只会公开符合自身利益的部分，不会因为体验者提出要求就交出全部答案。当前真正能推进的是“${activeTask?.title ?? '处理行动造成的新局面'}”，完成标准仍是“${activeTask?.successCondition ?? '形成可以被世界验证的新事实'}”。这意味着下一步需要继续核对证据、交换条件或承担一次明确代价，而尚未满足前置的任务和结局不会因此自动发生。`;
+  const seen = new Set(input.state.reachedEndingIds ?? []);
+  const eligible = input.world.endingConditions.filter((condition) => {
+    const failedIds = condition.requiredFailedTaskIds ?? [];
+    const hasTrigger = condition.requiredTaskIds.length + failedIds.length + condition.requiredFacts.length > 0;
+    return hasTrigger && !seen.has(condition.id)
+      && condition.requiredTaskIds.every((id) => tasks.has(id) && completed.has(id))
+      && failedIds.every((id) => tasks.has(id) && failed.has(id))
+      && condition.requiredFacts.every((fact) => facts.has(fact))
+      && (condition.forbiddenFacts ?? []).every((fact) => !facts.has(fact));
+  });
+  const ending = eligible.find((condition) => condition.id === output.ending.endingId)
+    ?? eligible.find((condition) => condition.outcome === 'failure') ?? eligible[0];
+  if (output.ending.reached && !ending && !seen.has(output.ending.endingId ?? '')) {
+    throw new Error('premature_ending');
   }
-  if (narrative.length < 300) {
-    narrative += `\n\n与此同时，${counterpart?.name ?? '关键人物'}已经注意到${selectedCharacter?.name ?? '体验者'}的选择，并开始准备自己的下一步。世界会记住这次行动带来的关系变化、线索和时间消耗。`;
-  }
-
-  const dialogue = [...output.dialogue];
-  const dialogueCharacters = nonPlayerCharacters.length > 0 ? nonPlayerCharacters : [selectedCharacter].filter(Boolean);
-  while (dialogue.length < 2) {
-    const character = dialogueCharacters[dialogue.length % dialogueCharacters.length];
-    dialogue.push({
-      characterId: character?.id ?? input.selectedRoleId,
-      text: dialogue.length === 0
-        ? `“我会回应你的行动，但你还需要拿出能推进‘${activeTask?.title ?? '当前目标'}’的条件。”`
-        : '“别只看眼前的回答。你刚才的选择已经让其他人的计划发生了变化。”',
-      visibleToRoleIds: [input.selectedRoleId],
-    });
-  }
-
-  const rolePrefix = `${selectedCharacter?.name ?? '体验者'}：`;
-  const nextChoices = output.nextChoices.map((choice) => ({
-    ...choice,
-    label: choice.label.startsWith(selectedCharacter?.name ?? '体验者') ? choice.label : `${rolePrefix}${choice.label}`,
-  }));
-  const fallbackChoices = [
-    { id: `verify-${input.state.turn + 1}`, label: `${rolePrefix}核对刚获得的信息，确认它能否推进当前任务`, intent: '验证事实并避免被误导' },
-    { id: `negotiate-${input.state.turn + 1}`, label: `${rolePrefix}找${counterpart?.name ?? '关键人物'}交换有限条件`, intent: '在不泄露底牌的情况下建立合作' },
-    { id: `observe-${input.state.turn + 1}`, label: `${rolePrefix}观察其他角色正在暗中推进什么`, intent: '识别非玩家角色的下一步' },
-  ];
-  for (const choice of fallbackChoices) {
-    if (nextChoices.length >= 3) break;
-    nextChoices.push(choice);
-  }
-
-  if (nonPlayerCharacters.length > 0 && !Object.keys(characterUpdates).some((id) => id !== input.selectedRoleId)) {
-    characterUpdates[nonPlayerCharacters[0].id] = {
-      locationId: output.statePatch.locationId ?? input.state.location,
-      status: '根据当前局势调整立场',
-      lastAction: `注意到${selectedCharacter?.name ?? '体验者'}的行动后准备下一步`,
-    };
-  }
-
+  const role = input.world.characters.find((character) => character.id === input.selectedRoleId);
+  const npcNames = input.world.characters.filter((character) => character.id !== input.selectedRoleId).map((character) => character.name);
+  const nextChoices = output.nextChoices.filter((choice) => !npcNames.some((name) => choice.label.startsWith(name)))
+    .map((choice) => ({ ...choice, label: choice.label.startsWith(role?.name ?? '') ? choice.label : `${role?.name ?? '你'}：${choice.label}` }));
   return {
     ...output,
-    narrative,
-    dialogue,
+    // Do not invent prose, dialogue, or off-screen actions to pass length/count tests.
+    dialogue: output.dialogue.filter((line) => line.visibleToRoleIds.includes(input.selectedRoleId)),
     nextChoices,
-    statePatch: {
-      ...output.statePatch,
-      completeTaskIds: permittedCompletions,
-      failTaskIds: permittedFailures,
-      taskNotes,
-      characterUpdates,
-      committedFacts,
-    },
+    statePatch: { ...output.statePatch, completeTaskIds: completions, failTaskIds: failures },
     goalProgress: {
-      activeTaskIds,
-      completedTaskIds: [...completedAfter],
-      summary: output.goalProgress.summary,
+      activeTaskIds: activeTasks(input, completed, failed), completedTaskIds: [...completed],
+      summary: ending ? ending.description : output.goalProgress.summary,
     },
-    ending: {
-      reached: endingReached,
-      endingId: endingReached ? satisfiedEnding?.id : undefined,
-      canContinue: true,
-    },
+    ending: { reached: Boolean(ending), endingId: ending?.id, outcome: ending ? ending.outcome ?? 'success' : undefined, canContinue: true },
   };
 }

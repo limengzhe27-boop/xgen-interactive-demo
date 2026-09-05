@@ -16,6 +16,8 @@ export type WorldState = {
   inventory: string[];
   clues: string[];
   knownSecrets: string[];
+  committedFacts?: string[];
+  reachedEndingIds?: string[];
   activeGoalId?: string;
   completedTaskIds: string[];
   failedTaskIds: string[];
@@ -44,6 +46,9 @@ type CommitTurnInput = {
   action: string;
   result: string;
   clue: string;
+  addClues?: string[];
+  committedFacts?: string[];
+  reachedEndingId?: string;
   nextLocation: string;
   relationshipDelta: number;
   incident?: WorldIncident | null;
@@ -95,6 +100,8 @@ export function createInitialWorldState(
     inventory: generated ? [] : worldKind === 'draft' ? ['航海日志', '手电'] : (inventoryByRole[roleId] ?? []),
     clues: [generated ? `核心事件：${generated.coreEvent}` : worldKind === 'draft' ? '雾潮将在凌晨三点达到顶峰' : '遗嘱公布时间：午夜'],
     knownSecrets: [roleSecret],
+    committedFacts: [],
+    reachedEndingIds: [],
     activeGoalId: generated?.activeGoalId,
     completedTaskIds: [],
     failedTaskIds: [],
@@ -144,6 +151,8 @@ export function validateAction(action: string, state: WorldState, listedChoices:
 
 export function commitTurn(state: WorldState, input: CommitTurnInput): WorldState {
   const nextTurn = state.turn + 1;
+  const clockMinutes = /^\d{2}:\d{2}$/.test(state.clock)
+    ? (Number(state.clock.slice(0, 2)) * 60 + Number(state.clock.slice(3)) + 5) % 1440 : null;
   const incidentRecords: EventRecord[] = input.incident ? [{
     id: `incident-${input.incident.id}-${nextTurn}`,
     turn: nextTurn,
@@ -155,17 +164,19 @@ export function commitTurn(state: WorldState, input: CommitTurnInput): WorldStat
   return {
     ...state,
     turn: nextTurn,
-    clock: input.clock || (/^\d{2}:\d{2}$/.test(state.clock)
-      ? `${state.clock.slice(0, 3)}${Math.min(59, Number(state.clock.slice(3)) + nextTurn * 5).toString().padStart(2, '0')}`
-      : `${state.clock.replace(/ · 第 \d+ [幕轮]$/, '')} · 第 ${nextTurn + 1} 轮`),
+    clock: input.clock || (clockMinutes !== null
+      ? `${Math.floor(clockMinutes / 60).toString().padStart(2, '0')}:${(clockMinutes % 60).toString().padStart(2, '0')}`
+      : `${state.clock.replace(/ · 第 \d+ [幕轮]$/, '')} · 第 ${nextTurn} 轮`),
     location: input.nextLocation,
     inventory: unique([
       ...state.inventory.filter((item) => !input.removeInventory?.includes(item)),
       ...inferAcquiredItems(input.action, input.clue),
       ...(input.addInventory ?? []),
     ]),
-    clues: unique([...state.clues, input.clue, ...(input.incident ? [input.incident.clue] : [])]),
+    clues: unique([...state.clues, input.clue, ...(input.addClues ?? []), ...(input.incident ? [input.incident.clue] : [])].filter(Boolean)),
     knownSecrets: unique([...state.knownSecrets, ...(input.addKnownSecrets ?? [])]),
+    committedFacts: unique([...(state.committedFacts ?? []), ...(input.committedFacts ?? [])]),
+    reachedEndingIds: unique([...(state.reachedEndingIds ?? []), ...(input.reachedEndingId ? [input.reachedEndingId] : [])]),
     completedTaskIds: unique([...(state.completedTaskIds ?? []), ...(input.completeTaskIds ?? [])]),
     failedTaskIds: unique([...(state.failedTaskIds ?? []), ...(input.failTaskIds ?? [])]),
     taskNotes: { ...state.taskNotes, ...input.taskNotes },
