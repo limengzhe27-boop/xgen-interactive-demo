@@ -4,7 +4,7 @@ import type { SyntheticEvent } from 'react';
 import { useEffect, useRef } from 'react';
 import { ArrowRight, Check, LoaderCircle, Send, Sparkles, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
+import { MessageTextarea } from '@/components/message-textarea';
 import type { WorldCard } from '@/components/studio-home';
 import type { PersonalAgentResponse, PersonalAgentRequest } from '@/lib/ai-contracts';
 
@@ -22,7 +22,7 @@ export function PersonalAgent({ message, conversation, busy, error, recommendati
     <div className="personal-layout"><section className="personal-conversation" aria-label="与个人 Agent 对话">
       {!conversation.length && <div className="personal-intro"><h2>不必先有一个问题。</h2><p>可以说说今天发生的事，也可以让我帮你把一团乱的想法理出头绪。想找故事、捏角色时，我们再一起聊。</p><div className="personal-starters">{['今天有点累，先陪我聊聊，别急着给建议。', '我有几件事想做，帮我一起理清先后顺序。', '想和你构思一个争家产的世界，还没想好人物。', '给我推荐一个能当众打脸的逆袭故事。'].map((prompt) => <button type="button" className="studio-button" key={prompt} disabled={busy} onClick={() => onMessage(prompt)}>{prompt}<ArrowRight /></button>)}</div></div>}
       <div className="personal-log" ref={log} role="log" aria-live="polite" aria-busy={busy}>{conversation.map((turn, index) => <article className="personal-turn" data-role={turn.role} key={index}><small>{turn.role === 'user' ? '你' : '个人 Agent'}</small><p>{turn.content}</p><button type="button" className="personal-to-creation" disabled={busy} onClick={() => onCreate(turn.content)}>用这条消息开始创作<ArrowRight /></button></article>)}{busy && <output className="personal-empty">正在读你的话，想一想怎么回应…</output>}</div>
-      <form className="personal-composer" onSubmit={onSubmit}><label htmlFor="personal-message">说说你正在想的事</label><Textarea id="personal-message" value={message} onChange={(event) => onMessage(event.target.value)} disabled={busy} maxLength={2000} placeholder="今天的心情、想做的事、一个还没成形的念头……" />
+      <form className="personal-composer" onSubmit={onSubmit}><label htmlFor="personal-message">说说你正在想的事 · Enter 发送，Shift + Enter 换行</label><MessageTextarea id="personal-message" value={message} onChange={(event) => onMessage(event.target.value)} disabled={busy} maxLength={2000} placeholder="今天的心情、想做的事、一个还没成形的念头……" />
         {error && <p className="personal-error" role="alert">{error}</p>}
         <div className="personal-composer-footer"><small>回复由 DeepSeek 生成；不会替你执行外部操作。</small><Button type="submit" className="studio-button studio-solid" disabled={busy || !message.trim()}>{busy ? <LoaderCircle className="spin" /> : <Send />}{busy ? '正在回应' : '发送'}</Button></div>
       </form>

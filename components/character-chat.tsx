@@ -1,11 +1,11 @@
 'use client';
 /* oxlint-disable next/no-img-element -- generated portrait and scene assets */
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, LoaderCircle, RefreshCw, Send } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
+import { MessageTextarea } from '@/components/message-textarea';
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { remoteAIAdapter } from '@/lib/remote-ai-adapter';
+import { createRemoteAIAdapter } from '@/lib/remote-ai-adapter';
 import { generateSceneImage } from '@/lib/remote-image-service';
 import { shouldGenerateImage } from '@/lib/image-policy';
 import { cacheSceneImage, getCachedSceneImage, makeContentImageKey } from '@/lib/image-cache';
@@ -39,7 +39,8 @@ export function CharacterEntry({ entry, targetId, onClose, onStart }: { entry: S
   </DialogContent></Dialog>;
 }
 
-export function CharacterChat({ initial, onSave, onBack }: { initial: ChatSession; onSave: (session: ChatSession) => void; onBack: () => void }) {
+export function CharacterChat({ initial, accountScope, onSave, onBack }: { initial: ChatSession; accountScope: string; onSave: (session: ChatSession) => void; onBack: () => void }) {
+  const remoteAIAdapter = useMemo(() => createRemoteAIAdapter(accountScope), [accountScope]);
   const [session, setSession] = useState(initial);
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
@@ -58,9 +59,9 @@ export function CharacterChat({ initial, onSave, onBack }: { initial: ChatSessio
 
   useEffect(() => {
     let live = true;
-    if (initial.imageCacheKey) void getCachedSceneImage(initial.imageCacheKey).then((url) => { if (live && url) setImage(url); }).catch(() => {});
+    if (initial.imageCacheKey) void getCachedSceneImage(initial.imageCacheKey, accountScope).then((url) => { if (live && url) setImage(url); }).catch(() => {});
     return () => { live = false; controller.current?.abort(); imageController.current?.abort(); };
-  }, [initial.id, initial.imageCacheKey]);
+  }, [initial.id, initial.imageCacheKey, accountScope]);
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'auto', block: 'nearest' }); }, [session.turns.length]);
 
   async function makeImage(prompt: string, current: ChatSession) {
@@ -70,7 +71,7 @@ export function CharacterChat({ initial, onSave, onBack }: { initial: ChatSessio
     const normalizedPrompt = prompt.slice(0, 3900);
     const key = makeContentImageKey('scene', current.entry.world, current.playerRoleId, current.targetCharacterId, normalizedPrompt);
     try {
-      const existing = await getCachedSceneImage(key).catch(() => null);
+      const existing = await getCachedSceneImage(key, accountScope).catch(() => null);
       if (aborter.signal.aborted) return;
       if (existing) {
         setImage(existing); setImageState('复用已保存的场景图 · 未重新生图');
@@ -79,9 +80,9 @@ export function CharacterChat({ initial, onSave, onBack }: { initial: ChatSessio
         return;
       }
       lastImageAttemptTurn.current = current.state.turn;
-      const result = await generateSceneImage({ requestId: current.state.turn, sceneId: `chat-${current.state.turn}`, prompt: normalizedPrompt, seed: 690510, purpose: 'scene' }, aborter.signal);
+      const result = await generateSceneImage({ requestId: current.state.turn, sceneId: `chat-${current.state.turn}`, prompt: normalizedPrompt, seed: 690510, purpose: 'scene' }, aborter.signal, accountScope);
       if (aborter.signal.aborted) return;
-      const cached = await cacheSceneImage(key, result.assetUrl).catch(() => false);
+      const cached = await cacheSceneImage(key, result.assetUrl, accountScope).catch(() => false);
       if (aborter.signal.aborted) return;
       setImage(result.assetUrl); setImageState(cached ? '场景图已生成 · 本地已保存' : '场景图已生成 · 本地图片保存失败');
       const next = { ...sessionRef.current, imageCacheKey: cached ? key : undefined };
@@ -90,7 +91,7 @@ export function CharacterChat({ initial, onSave, onBack }: { initial: ChatSessio
   }
 
   async function send(action = input) {
-    if (!action.trim() || busy) return;
+    if (!action.trim() || busy || controller.current) return;
     setBusy(true); setError('');
     const aborter = new AbortController(); controller.current = aborter;
     try {
@@ -122,8 +123,8 @@ export function CharacterChat({ initial, onSave, onBack }: { initial: ChatSessio
       </article>)}
       <div ref={endRef} />
       <form className="studio-chat-composer" onSubmit={(event) => { event.preventDefault(); void send(); }}>
-        <label htmlFor="chat-input">以 {player.name} 的身份说话或行动</label>
-        <Textarea id="chat-input" value={input} onChange={(event) => setInput(event.target.value)} placeholder={`你想对${target.name}说什么？`} disabled={busy} maxLength={3000} />
+        <label htmlFor="chat-input">以 {player.name} 的身份说话或行动 · Enter 发送，Shift + Enter 换行</label>
+        <MessageTextarea id="chat-input" value={input} onChange={(event) => setInput(event.target.value)} placeholder={`你想对${target.name}说什么？`} disabled={busy} maxLength={3000} />
         {error && <p role="alert">{error}</p>}
         <Button className="studio-button" type="submit" disabled={busy || !input.trim()}>{busy ? <><LoaderCircle className="spin" />正在回应</> : <><Send />发送</>}</Button>
       </form>

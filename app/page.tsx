@@ -42,6 +42,7 @@ import { Input } from '@/components/ui/input';
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
+import { MessageTextarea } from '@/components/message-textarea';
 import { AI_CONTRACT_VERSION, mockAIAdapter } from '@/lib/mock-ai-adapter';
 import { cacheSceneImage as cacheImage, getCachedSceneImage as readImage, makeContentImageKey } from '@/lib/image-cache';
 import { createInitialImageTask, finishImageTask, startImageTask } from '@/lib/image-task';
@@ -2023,7 +2024,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
   }
 
   function renderScreen() {
-    if (view === 'chat' && activeChat) return <CharacterChat key={activeChat.id} initial={activeChat} onSave={saveChat} onBack={() => navigate('home')} />;
+    if (view === 'chat' && activeChat) return <CharacterChat key={`${accountScope}:${activeChat.id}`} accountScope={accountScope} initial={activeChat} onSave={saveChat} onBack={() => navigate('home')} />;
     if (view === 'home' || view === 'library' || view === 'characters') return <StudioHome
       section={view} worlds={[
         ...availableStudioWorlds.map((entry) => ({ ...entry, roleCount: entry.world.characters.length })),
@@ -2311,7 +2312,7 @@ function PlayWorld({
           <div className="free-action-block is-primary-input">
             <label htmlFor="free-action">{isThinking ? (liveMode ? '世界正在展开，你可随时介入' : '等待世界回应') : '你想怎么做？'}</label>
             {actionFeedback ? <output className="action-feedback"><strong>这个行动无法直接发生</strong><span>{actionFeedback.reason}</span>{actionFeedback.suggestion ? <small>{actionFeedback.suggestion}</small> : null}</output> : null}
-            <Textarea id="free-action" value={freeAction} onChange={(event) => onFreeAction(event.target.value)} placeholder="例如：我关掉手电，观察谁最先说话……" disabled={isThinking && !liveMode} />
+            <MessageTextarea id="free-action" value={freeAction} onChange={(event) => onFreeAction(event.target.value)} onSend={() => onAction(freeAction)} placeholder="例如：我关掉手电，观察谁最先说话……（Enter 发送，Shift + Enter 换行）" disabled={isThinking && !liveMode} />
             <Button className="primary-action free-action-button" disabled={!freeAction.trim() || (isThinking && !liveMode)} onClick={() => onAction(freeAction)}><Send />{isThinking && liveMode ? '介入当前生成' : '让世界回应'}</Button>
           </div>
           <div className="choice-suggestions-heading"><span>不知道怎么做？</span><small>以下只是行动灵感</small></div>
@@ -2433,7 +2434,7 @@ function CreateWorld({
               </div>
               <div className="creator-question-chips">{creatorQuestions.map((question) => <button type="button" key={question} disabled={creatorAgentThinking} onClick={() => onCreatorMessage(question)}>{question}</button>)}</div>
               <form className="creator-composer" onSubmit={onSubmitCreatorMessage}>
-                <label htmlFor="creator-message">和 Agent 讨论你的世界</label><Textarea id="creator-message" maxLength={3000} value={creatorMessage} onChange={(event) => onCreatorMessage(event.target.value)} placeholder="只有一句话也可以。比如：想做一个被逐出家门后回来争家产的故事，人物还没想好。" disabled={creatorAgentThinking} />
+                <label htmlFor="creator-message">和 Agent 讨论你的世界 · Enter 发送，Shift + Enter 换行</label><MessageTextarea id="creator-message" maxLength={3000} value={creatorMessage} onChange={(event) => onCreatorMessage(event.target.value)} placeholder="只有一句话也可以。比如：想做一个被逐出家门后回来争家产的故事，人物还没想好。" disabled={creatorAgentThinking} />
                 <Button className="agent-send" type="submit" disabled={!creatorMessage.trim() || creatorAgentThinking}><Send />继续讨论</Button>
               </form>
               {creatorProposal ? <div className="creator-proposal"><span><WandSparkles /></span><div><strong>待你确认的创作建议</strong><small>{creatorProposal.brief.tasks.filter((task) => task.kind === 'main').length} 个主线条件 · {creatorProposal.brief.difficulties.length} 个阻力</small></div><details className="creator-proposal-preview"><summary>查看将写入的角色与设定</summary><h3>{creatorProposal.title}</h3><p>{creatorProposal.premise}</p>{creatorProposal.characters?.map((role, index) => <p key={index}><strong>{role.name} · {role.identity}</strong><br />{role.persona}<br />{role.relationship}<br />{role.appearance}</p>)}<p>目标：{creatorProposal.brief.coreGoal}</p><p>成功：{creatorProposal.brief.successCondition}</p><p>失败：{creatorProposal.brief.failureCondition}</p>{creatorProposal.brief.tasks.map((task) => <p key={task.id}>{task.title}：{task.description}；完成条件：{task.successCondition}</p>)}<p>阻力：{creatorProposal.brief.difficulties.join("；")}</p><p>采纳会替换当前世界框架；提案包含角色时也会替换角色，原形象需重新生成。</p></details><Button disabled={creatorAgentThinking} onClick={onApplyCreatorProposal}>采纳这版设定</Button><button type="button" disabled={creatorAgentThinking} onClick={onDismissCreatorProposal}>暂不采纳</button></div> : null}
