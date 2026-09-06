@@ -28,11 +28,26 @@ const { knownRecommendations } = await import('../lib/personal-recommendations.t
 const { studioWorlds } = await import('../lib/studio-worlds.ts');
 const { POST } = await import('../app/api/ai/route.ts');
 const { pendingMemories, restorePersonalConversation } = await import('../lib/personal-memory.ts');
-const { isCreatorAgentResponse, isPersonalAgentResponse } = await import('../lib/ai-validation.ts');
+const { isCreatorAgentResponse, isPersonalAgentResponse, isWorldTurnRequest } = await import('../lib/ai-validation.ts');
+const { admitPersona } = await import('../lib/player-persona.ts');
+const { makeEndingFixture } = await import('./ending-fixture.mjs');
 const worlds = studioWorlds.map((entry) => ({ ...entry, roleCount: entry.world.characters.length }));
 const noop = () => {};
 const personalProps = { message: '', conversation: [], busy: false, error: '', recommendations: [], worlds,
   memories: [], onMessage: noop, onSubmit: noop, onRemoveMemory: noop, onOpenWorld: noop, onCreate: noop };
+
+test('world request validates persona admission before invoking a model', () => {
+  const base = studioWorlds[0];
+  const persona = { version: 1, ownerId: 'test', name: '林星', identity: '', personality: '', appearance: '', abilities: '瞬移', updatedAt: 1 };
+  const adapted = admitPersona(base, 'su', persona);
+  const input = { ...makeEndingFixture(), world: adapted.world, selectedRoleId: 'su' };
+  assert.equal(isWorldTurnRequest(input), true);
+  assert.equal(isWorldTurnRequest({ ...input, selectedRoleId: 'gu' }), false);
+  const changed = structuredClone(input); changed.world.entryAdmission.grantedAbilities = ['瞬移'];
+  assert.equal(isWorldTurnRequest(changed), false);
+  const malformed = structuredClone(input); malformed.world.entryPolicy.abilityMode = 'automatic';
+  assert.equal(isWorldTurnRequest(malformed), false);
+});
 
 test('personal Agent starts without a fabricated recommendation or fixed old-world promotion', () => {
   const html = renderToStaticMarkup(React.createElement(PersonalAgent, personalProps));

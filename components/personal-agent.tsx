@@ -1,6 +1,6 @@
 'use client';
 /* oxlint-disable next/no-img-element -- local catalogue artwork */
-import type { SyntheticEvent } from 'react';
+import type { ReactNode, SyntheticEvent } from 'react';
 import { useEffect, useRef } from 'react';
 import { ArrowRight, Check, LoaderCircle, Send, Sparkles, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -8,7 +8,8 @@ import { MessageTextarea } from '@/components/message-textarea';
 import type { WorldCard } from '@/components/studio-home';
 import type { PersonalAgentResponse, PersonalAgentRequest } from '@/lib/ai-contracts';
 
-export function PersonalAgent({ message, conversation, busy, error, recommendations, worlds, memories, pending = [], onMessage, onSubmit, onRemoveMemory, onConfirmMemory, onDismissMemory, onOpenWorld, onCreate }: {
+export function PersonalAgent({ identityPanel, message, conversation, busy, error, recommendations, worlds, memories, pending = [], onMessage, onSubmit, onRemoveMemory, onConfirmMemory, onDismissMemory, onOpenWorld, onCreate }: {
+  identityPanel?: ReactNode;
   message: string; conversation: NonNullable<PersonalAgentRequest['conversation']>; busy: boolean; error: string;
   recommendations: PersonalAgentResponse['recommendations']; worlds: WorldCard[]; memories: string[]; pending?: string[];
   onMessage: (value: string) => void; onSubmit: (event: SyntheticEvent<HTMLFormElement>) => void;
@@ -19,6 +20,7 @@ export function PersonalAgent({ message, conversation, busy, error, recommendati
   useEffect(() => { if (log.current) log.current.scrollTop = log.current.scrollHeight; }, [conversation.length, busy]);
   return <div className="personal-workspace">
     <header className="personal-heading"><Sparkles /><div><span className="studio-wordmark">个人 AGENT · 你的 AI 伙伴</span><h1>今天，想聊点什么？</h1><p>聊近况，理清想法，或者一起创造一个世界。慢慢认识你，从每一次对话开始。</p></div></header>
+    {identityPanel}
     <div className="personal-layout"><section className="personal-conversation" aria-label="与个人 Agent 对话">
       {!conversation.length && <div className="personal-intro"><h2>不必先有一个问题。</h2><p>可以说说今天发生的事，也可以让我帮你把一团乱的想法理出头绪。想找故事、捏角色时，我们再一起聊。</p><div className="personal-starters">{['今天有点累，先陪我聊聊，别急着给建议。', '我有几件事想做，帮我一起理清先后顺序。', '想和你构思一个争家产的世界，还没想好人物。', '给我推荐一个能当众打脸的逆袭故事。'].map((prompt) => <button type="button" className="studio-button" key={prompt} disabled={busy} onClick={() => onMessage(prompt)}>{prompt}<ArrowRight /></button>)}</div></div>}
       <div className="personal-log" ref={log} role="log" aria-live="polite" aria-busy={busy}>{conversation.map((turn, index) => <article className="personal-turn" data-role={turn.role} key={index}><small>{turn.role === 'user' ? '你' : '个人 Agent'}</small><p>{turn.content}</p><button type="button" className="personal-to-creation" disabled={busy} onClick={() => onCreate(turn.content)}>用这条消息开始创作<ArrowRight /></button></article>)}{busy && <output className="personal-empty">正在读你的话，想一想怎么回应…</output>}</div>

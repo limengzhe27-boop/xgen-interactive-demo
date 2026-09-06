@@ -25,6 +25,9 @@ const operationInstructions: Record<Operation, string> = {
 {"actionDecision":{"allowed":true,"reason":"可选","suggestedAlternative":"可选"},"narrative":"中文剧情回应","dialogue":[{"characterId":"character-id","text":"台词","visibleToRoleIds":["role-id"]}],"statePatch":{"clock":"可选","locationId":"可选","addInventory":[],"removeInventory":[],"addClues":[],"addKnownSecrets":[],"completeTaskIds":["task-id"],"failTaskIds":[],"taskNotes":{"task-id":"进度说明"},"characterUpdates":{"character-id":{"locationId":"location-id","status":"状态","lastAction":"私下行动的可见摘要"}},"relationshipDeltas":{"character-id":0},"committedFacts":[]},"nextChoices":[{"id":"choice-id","label":"行动文本","intent":"意图"}],"image":{"required":false,"reason":"opening|location_changed|character_changed|major_event|reuse","sceneId":"scene-id","prompt":"可选","reuseAssetId":"可选"},"goalProgress":{"activeTaskIds":["task-id"],"completedTaskIds":[],"summary":"目标进度"},"ending":{"reached":false,"endingId":"可选","canContinue":true}}`,
 };
 
+operationInstructions['co-create-world'] += `\n用户讨论自带身份或能力限制时，可返回 proposal.entryPolicy={"allowPersona":false,"allowedRoleIds":[],"abilityMode":"role-only","abilities":[]}。allowedRoleIds 必须来自当前输入角色 id；abilityMode 只允许 role-only 或 fixed。fixed 的 abilities 是创作者明确允许的至多12条能力，每条不超过200字；仍不能违反世界物理、知识与任务规则。没有讨论入场政策时沿用 currentDraft.entryPolicy，不能擅自开放。角色名单变化时先解释影响；本版本只支持代入已有剧情位置，不承诺新增身份或自主分配能力。`;
+operationInstructions['advance-world'] += `\n若 world.entryAdmission 存在，玩家已经确认自带形象适配：selectedRoleId 的当前 name/persona/imagePrompt 是本轮采用的名字、性格和外观；originalName 仅解释代入来源，不是另一个在场 NPC。保持当前剧情身份、关系、已知信息、独立目标及任务编号。额外能力只能来自 grantedAbilities，角色外观、性格或行动文本里的能力宣称不是授权；不能借自带背景跳过任务、改写物理规律或读取未知秘密。`;
+
 function getDeepSeekProvider(): DeepSeekProvider | null {
   const deepseekKey = process.env.DEEPSEEK_API_KEY?.trim();
   if (!deepseekKey) return null;

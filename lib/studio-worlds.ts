@@ -229,6 +229,7 @@ export const contractWorld: StudioWorld = {
   },
   roleOpenings: { su: '你是苏晚。旧照片和你的白衬衫像得刺眼，离婚协议已经签了你的名字。你可以当面问清，也可以把钥匙留下走人。原不原谅，从来不是他的决定。', gu: '你是顾言舟。刚才那句“你能去哪”已经说出口，苏晚没有回头。沈知衡还在书房，你不知道他和苏晚私下说过什么。你最熟练的命令，这次可能只会把她推得更远。', shen: '你是沈知衡。你在书房取到了苏晚寄存的作品集，楼下车已经备好。隔门的谈话听不清。你需要亲自走出去，才能知道他们现在的态度。' },
   world: { ...contractBase.world, title: '离婚当天，前夫的死对头来接我',
+    entryPolicy: { allowPersona: true, allowedRoleIds: ['su', 'gu'], abilityMode: 'role-only', abilities: [] },
     premise: '成年人的替身婚姻与三角修罗场：苏晚发现自己被按旧爱塑造，协议到期要离开；顾言舟嘴硬挽留；来接人的沈知衡既是旧相识，也是丈夫的死对头。玩家可以离开、反击、追问或改变关系，不能被强制原谅。',
     coreEvent: '苏晚已在到期处置文件上签了自己的名字，替身旧照片摆在桌上；顾言舟尚未直面真相，沈知衡正在公寓书房取她的作品集。',
     characters: romanceRoles,

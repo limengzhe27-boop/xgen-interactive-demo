@@ -125,6 +125,9 @@ export type ScheduledWorldEvent = {
 };
 
 export type WorldDefinition = {
+  entryPolicy?: import('./player-persona').EntryPolicy;
+  /** Private runtime adaptation; never publish a player's session as the original world. */
+  entryAdmission?: { roleId: string; originalName: string; name: string; grantedAbilities: string[] };
   id: string;
   title: string;
   premise: string;
@@ -191,6 +194,7 @@ export type CreatorAgentRequest = {
   editingContext?: { step: number; section: string; focusedField?: string };
   relationshipNotes: string[];
   currentDraft: {
+    entryPolicy?: import('./player-persona').EntryPolicy;
     title: string;
     premise: string;
     surpriseLevel: 1 | 2 | 3 | 4;
@@ -201,6 +205,7 @@ export type CreatorAgentRequest = {
 export type CreatorAgentResponse = {
   reply: string;
   proposal: {
+    entryPolicy?: import('./player-persona').EntryPolicy;
     surpriseLevel?: 1 | 2 | 3 | 4;
     title: string;
     premise: string;

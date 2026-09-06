@@ -7,6 +7,8 @@ import {
   type WorldTurnResponse,
 } from '@/lib/ai-contracts';
 
+import { validEntryPolicy, validPersonaAdmission } from './player-persona.ts';
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
@@ -71,6 +73,7 @@ export function isCreatorAgentResponse(value: unknown): value is CreatorAgentRes
   return isRecord(value)
     && typeof value.reply === 'string'
     && isRecord(value.proposal)
+    && (value.proposal.entryPolicy === undefined || validEntryPolicy(value.proposal.entryPolicy))
     && (value.proposal.surpriseLevel === undefined || [1, 2, 3, 4].includes(value.proposal.surpriseLevel as number))
     && typeof value.proposal.title === 'string'
     && typeof value.proposal.premise === 'string'
@@ -193,6 +196,7 @@ export function isWorldTurnRequest(value: unknown): value is WorldTurnRequest {
     || !Array.isArray(value.currentScene.choices)) return false;
 
   if (!value.world.characters.some((character) => isRecord(character) && character.id === value.selectedRoleId)) return false;
+  if (!validPersonaAdmission(value.world as WorldTurnRequest['world'], value.selectedRoleId)) return false;
   if (value.interaction !== undefined) {
     if (!isRecord(value.interaction) || value.interaction.mode !== 'character-chat'
       || typeof value.interaction.targetCharacterId !== 'string'

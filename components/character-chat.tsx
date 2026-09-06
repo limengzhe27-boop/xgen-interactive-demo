@@ -13,19 +13,22 @@ import { commitTurn, createInitialWorldState, selectRoleGoal } from '@/lib/world
 import { chatRequest, conversationEntry } from '@/lib/studio-session';
 import type { ChatSession } from '@/lib/studio-session';
 import type { StudioWorld } from '@/lib/studio-worlds';
+import type { PlayerPersona } from '@/lib/player-persona';
+import { PersonaAdmission } from '@/components/player-persona';
 
-export function CharacterEntry({ entry, targetId, onClose, onStart }: { entry: StudioWorld; targetId: string; onClose: () => void; onStart: (session: ChatSession) => void }) {
+export function CharacterEntry({ entry, targetId, persona = null, onClose, onStart }: { entry: StudioWorld; targetId: string; persona?: PlayerPersona | null; onClose: () => void; onStart: (session: ChatSession) => void }) {
   const target = entry.world.characters.find((role) => role.id === targetId)!;
   const others = entry.world.characters.filter((role) => role.id !== targetId);
   const [playerId, setPlayerId] = useState(others[0]?.id ?? '');
   const player = others.find((role) => role.id === playerId);
   const relationship = entry.world.relationships.find((link) => (link.fromCharacterId === playerId && link.toCharacterId === targetId) || (link.toCharacterId === playerId && link.fromCharacterId === targetId));
-  function start(savedAt: number, id: string) {
+  function start(savedAt: number, id: string, adapted?: StudioWorld) {
     if (!player) return;
-    const meeting = conversationEntry(entry, playerId, targetId);
-    const state = createInitialWorldState('draft', playerId, player.secrets[0] ?? '', meeting.world.locations.find((place) => place.id === target.startLocationId)!.name,
+    const meeting = conversationEntry(adapted ?? entry, playerId, targetId);
+    const participant = meeting.world.characters.find(role => role.id === playerId)!;
+    const state = createInitialWorldState('draft', playerId, participant.secrets[0] ?? '', meeting.world.locations.find((place) => place.id === target.startLocationId)!.name,
       { timeSetting: meeting.world.timeSetting, coreEvent: meeting.world.coreEvent, activeGoalId: selectRoleGoal(meeting.world, playerId)?.id,
-        roleKnowledge: [...player.privateKnowledge, ...player.secrets], characterIds: meeting.world.characters.map((role) => role.id),
+        roleKnowledge: [...participant.privateKnowledge, ...participant.secrets], characterIds: meeting.world.characters.map((role) => role.id),
         openingLocationId: target.startLocationId, characterLocations: Object.fromEntries(meeting.world.characters.map((role) => [role.id, role.startLocationId])) });
     onStart({ id, entry: meeting, playerRoleId: playerId, targetCharacterId: targetId, state, narrative: meeting.world.openingScene.narrative, turns: [], savedAt });
   }
@@ -36,6 +39,7 @@ export function CharacterEntry({ entry, targetId, onClose, onStart }: { entry: S
     <fieldset className="studio-identity-options"><legend>你以谁的身份与 TA 对话？</legend>{others.map((role) => <label key={role.id} htmlFor={`identity-${role.id}`}><input id={`identity-${role.id}`} aria-label={`以${role.name}的身份对话`} type="radio" name="chat-identity" value={role.id} checked={playerId === role.id} onChange={() => setPlayerId(role.id)} /><span><strong>{role.name}</strong><small>{role.identity}</small></span></label>)}</fieldset>
     <p className="studio-identity-summary">你是 {player?.name} · 对方是 {target.name}<br />你们的关系：{relationship?.publicLabel ?? '同一世界中的人物'}</p>
     <Button className="studio-button" disabled={!player} onClick={() => start(Date.now(), crypto.randomUUID())}>以 {player?.name} 的身份开始对话<Send /></Button>
+    <PersonaAdmission key={playerId} entry={entry} roleId={playerId} persona={persona} onEnter={adapted => start(Date.now(), crypto.randomUUID(), adapted)} />
   </DialogContent></Dialog>;
 }
 
@@ -113,6 +117,7 @@ export function CharacterChat({ initial, accountScope, onSave, onBack }: { initi
   return <div className="studio-chat">
     <button className="studio-text-button" onClick={onBack} type="button"><ArrowLeft />返回世界工作台</button>
     <header className="studio-chat-heading"><img src={session.entry.portraits[target.id] || session.entry.cover} alt={target.name} /><div><small>{session.entry.title}</small><h1>与 {target.name} 的对话</h1><p>你是 {player.name} · {player.identity}</p></div></header>
+    {session.entry.world.entryAdmission && <p className="persona-runtime">自带身份独立会面 · 额外能力：{session.entry.world.entryAdmission.grantedAbilities.join('；') || '无，仅剧情身份原有能力'}</p>}
     <div className="studio-chat-layout"><section className="studio-chat-reading" aria-label="对话记录">
       <p className="studio-chat-prologue">{session.entry.world.openingScene.narrative}</p>
       {session.turns.map((turn, index) => <article className="studio-chat-turn" key={index}>

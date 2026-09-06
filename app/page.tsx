@@ -30,6 +30,8 @@ import { AccountBar, PublishWorldDialog } from '@/components/account-publication
 import { AccountBoundary } from '@/components/account-boundary';
 import { accountStorageKey } from '@/lib/account-scope';
 import { PersonalAgent } from '@/components/personal-agent';
+import { PersonaEditor, PersonaAdmission, EntryPolicyEditor } from '@/components/player-persona';
+import { closedEntryPolicy, restoreEntryPolicy, restorePlayerPersona, type PlayerPersona, type EntryPolicy } from '@/lib/player-persona';
 import { pendingMemories, restorePersonalConversation } from '@/lib/personal-memory';
 import { knownRecommendations, restoreRecommendations, resolveWorldSelection, recommendationReply } from '@/lib/personal-recommendations';
 import type { PersonalAgentRequest, PersonalAgentResponse } from '@/lib/ai-contracts';
@@ -96,6 +98,7 @@ type Role = {
   crop: string;
   visualAnchor: string;
   imageUrl?: string;
+  ownPersona?: boolean;
 };
 
 type StoryChoice = {
@@ -157,6 +160,8 @@ type PresetWorld = {
 };
 
 type PersistedDemoState = {
+  playerPersona?: PlayerPersona;
+  entryPolicy?: EntryPolicy;
   memories: string[];
   agentConversation?: NonNullable<PersonalAgentRequest['conversation']>;
   personalRecommendations?: PersonalAgentResponse['recommendations'];
@@ -177,14 +182,14 @@ type PersistedDemoState = {
 
 type CreatorDocument = {
   id: string; savedAt: number;
-  data: Pick<PersistedDemoState, 'worldTitle' | 'worldSeed' | 'surprise' | 'draftRoles' | 'generated' | 'generatedWorld' | 'creatorDetailBaseline' | 'generatedStoryOutline' | 'creatorBrief' | 'creatorMessages' | 'publishedWorld'>;
+  data: Pick<PersistedDemoState, 'entryPolicy' | 'worldTitle' | 'worldSeed' | 'surprise' | 'draftRoles' | 'generated' | 'generatedWorld' | 'creatorDetailBaseline' | 'generatedStoryOutline' | 'creatorBrief' | 'creatorMessages' | 'publishedWorld'>;
 };
 type StudioStorage = { version: 1; runs: (SavedRun & { id: string })[]; chats: ChatSession[]; documents: CreatorDocument[]; draftId: string };
 
 function entryRoles(entry: StudioWorld): Role[] {
   return entry.world.characters.map((role, index) => ({ id: role.id, name: role.name, identity: role.identity, personality: role.persona,
     publicStory: role.publicBackground, secret: role.secrets[0] || role.privateKnowledge[0] || '暂无额外私密信息', goal: role.goal,
-    crop: ['left', 'center', 'right'][index % 3], visualAnchor: role.imagePrompt, imageUrl: entry.portraits[role.id] }));
+    crop: ['left', 'center', 'right'][index % 3], visualAnchor: role.imagePrompt, imageUrl: entry.portraits[role.id], ownPersona: entry.world.entryAdmission?.roleId === role.id }));
 }
 
 function entryStory(entry: StudioWorld, roleId: string): StoryBeat[] {
@@ -907,6 +912,8 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
   const cacheSceneImage = (key: string, url: string) => cacheImage(key, url, accountScope);
   const remoteAIAdapter = createRemoteAIAdapter(accountScope);
   const [view, setView] = useState<View>('home');
+  const [playerPersona, setPlayerPersona] = useState<PlayerPersona | null>(null);
+  const [entryPolicy, setEntryPolicy] = useState<EntryPolicy>(closedEntryPolicy);
   const [message, setMessage] = useState('');
   const [agentConversation, setAgentConversation] = useState<NonNullable<PersonalAgentRequest['conversation']>>([]);
   const [agentError, setAgentError] = useState('');
@@ -1014,7 +1021,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
   const suggestedStories: Record<string, StoryBeat[]> = suggestedPreset && suggestedWorldDefinition
     ? makeGeneratedDraftStory(suggestedRoles, suggestedWorldDefinition, suggestedPreset.outline)
     : {};
-  const currentRoles = activeLibrary ? entryRoles(activeLibrary).map((role) => ({ ...role, imageUrl: role.imageUrl || libraryRoleImages[`${activeLibrary.id}:${role.id}`] })) : activeWorld === 'draft' ? playableDraftRoles : activeWorld === 'suggestion' ? suggestedRoles : roles;
+  const currentRoles = activeLibrary ? entryRoles(activeLibrary).map((role) => ({ ...role, imageUrl: role.imageUrl || (!role.ownPersona ? libraryRoleImages[`${activeLibrary.id}:${role.id}`] : undefined) })) : activeWorld === 'draft' ? playableDraftRoles : activeWorld === 'suggestion' ? suggestedRoles : roles;
   const draftStories = generatedWorld && generatedStoryOutline.length > 0
     ? makeGeneratedDraftStory(playableDraftRoles, generatedWorld, generatedStoryOutline)
     : makeDraftStory(playableDraftRoles, worldSeed);
@@ -1104,6 +1111,8 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
           const backupKey = `${demoStorageKey}-before-worldstudio`;
           if (!window.localStorage.getItem(backupKey)) window.localStorage.setItem(backupKey, raw);
           const saved = JSON.parse(raw) as Partial<PersistedDemoState>;
+          setPlayerPersona(restorePlayerPersona(saved.playerPersona, accountScope));
+          setEntryPolicy(restoreEntryPolicy(saved.entryPolicy ?? saved.generatedWorld?.entryPolicy));
           if (Array.isArray(saved.memories)) setMemories(saved.memories.filter((item) => typeof item === 'string').slice(0, 24));
           setAgentConversation(restorePersonalConversation(saved.agentConversation));
           setPersonalRecommendations(restoreRecommendations(saved.personalRecommendations));
@@ -1175,6 +1184,8 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
   useEffect(() => {
     if (!storageReady || storageReadFailed.current) return;
     const snapshot: PersistedDemoState = {
+      playerPersona: playerPersona ?? undefined,
+      entryPolicy,
       memories,
       agentConversation: agentConversation.slice(-40),
       personalRecommendations,
@@ -1194,9 +1205,9 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     };
     try { window.localStorage.setItem(demoStorageKey, JSON.stringify(snapshot)); }
     catch { window.setTimeout(() => setStorageError('浏览器空间不足，最新修改还没有保存。请保持页面打开，勿刷新。'), 0); }
-  }, [agentConversation, personalRecommendations, creatorBrief, creatorDetailBaseline, creatorMessages, draftRoles, generated, generatedStoryOutline, generatedWorld, liveMode, memories, publishedWorld, savedRun, storageReady, surprise, worldSeed, worldTitle]);
+  }, [playerPersona, entryPolicy, agentConversation, personalRecommendations, creatorBrief, creatorDetailBaseline, creatorMessages, draftRoles, generated, generatedStoryOutline, generatedWorld, liveMode, memories, publishedWorld, savedRun, storageReady, surprise, worldSeed, worldTitle]);
 
-  const creatorDocumentJSON = JSON.stringify({ worldTitle, worldSeed, surprise, draftRoles, generated, generatedWorld: generatedWorld ?? undefined,
+  const creatorDocumentJSON = JSON.stringify({ entryPolicy, worldTitle, worldSeed, surprise, draftRoles, generated, generatedWorld: generatedWorld ?? undefined,
     creatorDetailBaseline: creatorDetailBaseline ?? undefined, generatedStoryOutline, creatorBrief, creatorMessages, publishedWorld });
   useEffect(() => {
     if (!storageReady) return;
@@ -1554,38 +1565,45 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     return true;
   }
 
-  function beginWorld() {
+  function beginWorld(adapted?: StudioWorld) {
+    const startingEntry = adapted ?? activeLibrary;
+    const startingWorld = startingEntry?.world ?? activeWorldDefinition;
+    const startingRole = adapted ? entryRoles(adapted).find(role => role.id === selectedRole.id)! : selectedRole;
+    const startingStory = adapted ? entryStory(adapted, startingRole.id) : currentStory;
+    if (adapted) { setActiveLibrary(adapted); setSelectedRole(startingRole); }
     stopActiveGeneration();
     lastImageAttemptTurnRef.current = 0;
     setRunId(crypto.randomUUID());
-    const openingBeat = currentStory[0];
+    const openingBeat = startingStory[0];
     setTurn(0);
     setRuntimeBeat(openingBeat);
     setNarrative(openingBeat.text);
     setLastAction('');
     setEndingDecision('');
-    const roleDefinition = activeWorldDefinition.characters.find((character) => character.id === selectedRole.id);
-    const openingLocationId = activeLibrary ? roleDefinition?.startLocationId ?? activeWorldDefinition.openingScene.locationId : activeWorldDefinition.openingScene.locationId;
+    const roleDefinition = startingWorld.characters.find((character) => character.id === startingRole.id);
+    const openingLocationId = startingEntry ? roleDefinition?.startLocationId ?? startingWorld.openingScene.locationId : startingWorld.openingScene.locationId;
     setWorldState(createInitialWorldState(
       activeWorld,
-      selectedRole.id,
-      selectedRole.secret,
+      startingRole.id,
+      startingRole.secret,
       openingBeat.location,
       {
-        timeSetting: activeWorldDefinition.timeSetting,
-        coreEvent: activeWorldDefinition.coreEvent,
-        activeGoalId: selectRoleGoal(activeWorldDefinition, selectedRole.id)?.id,
-        roleKnowledge: roleDefinition ? [...roleDefinition.privateKnowledge, ...roleDefinition.secrets] : [selectedRole.secret],
-        characterLocations: Object.fromEntries(activeWorldDefinition.characters.map((character) => [character.id,
-          character.id === selectedRole.id ? openingLocationId : character.startLocationId])),
-        characterIds: activeWorldDefinition.characters.map((character) => character.id),
+        timeSetting: startingWorld.timeSetting,
+        coreEvent: startingWorld.coreEvent,
+        activeGoalId: selectRoleGoal(startingWorld, startingRole.id)?.id,
+        roleKnowledge: roleDefinition ? [...roleDefinition.privateKnowledge, ...roleDefinition.secrets] : [startingRole.secret],
+        characterLocations: Object.fromEntries(startingWorld.characters.map((character) => [character.id,
+          character.id === startingRole.id ? openingLocationId : character.startLocationId])),
+        characterIds: startingWorld.characters.map((character) => character.id),
         openingLocationId,
       },
     ));
     setActionFeedback(null);
     setLastIncident(null);
     setImageTask(createInitialImageTask(activeLibrary?.cover || (activeWorld === 'suggestion' ? (suggestedPreset?.id === 'sea-train' ? '/assets/sea-train-cover.jpg' : '/assets/roommate-cover.jpg') : '/assets/storm-manor-cover.png')));
-    applyImageDirective({
+    // Persona entry reuses existing scene artwork; later turns use the adapted world.
+    // Do not dispatch a request with the previous render's identity or world snapshot.
+    if (!adapted) applyImageDirective({
       required: true,
       reason: 'opening',
       sceneId: `${activeWorld}-opening-${selectedRole.id}`,
@@ -1660,6 +1678,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
             suggestion: response.actionDecision.suggestedAlternative,
           } satisfies ActionValidation;
           setActionFeedback(rejected);
+          setFreeAction(current => current || nextAction);
           setWorldState((current) => recordRejectedEvent(current, nextAction, rejected.reason ?? '行动未通过世界规则检查。'));
           setIsThinking(false);
           return;
@@ -1745,6 +1764,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
         if (error instanceof DOMException && error.name === 'AbortError') return;
         generationControllerRef.current = null;
         setActionFeedback({ allowed: false, reason: '世界暂时没有成功回应这个行动。', suggestion: '请重试，或选择另一种行动。' });
+        setFreeAction(current => current || nextAction);
         setIsThinking(false);
       });
     }, liveMode ? 140 : 680);
@@ -1769,6 +1789,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
 
   function removeDraftRole(index: number) {
     if (draftRoles.length <= 2) return;
+    setEntryPolicy(current => ({ ...current, allowedRoleIds: current.allowedRoleIds.filter(id => id !== `draft-role-${index}`).map(id => { const n = Number(id.replace('draft-role-', '')); return n > index ? `draft-role-${n - 1}` : id; }) }));
     // Index-based legacy IDs must be rebased with the cast, including assignments.
     setCreatorBrief((current) => ({ ...current, tasks: current.tasks.filter((task) => !(task.assignedRoleIds?.length === 1 && task.assignedRoleIds[0] === `draft-role-${index}`)).map((task) => ({ ...task,
       assignedRoleIds: task.assignedRoleIds?.filter((id) => id !== `draft-role-${index}`).map((id) => { const n = Number(id.replace('draft-role-', '')); return n > index ? `draft-role-${n - 1}` : id; }),
@@ -1853,6 +1874,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
         })),
         relationshipNotes: draftRoles.map((role) => role.relationship).filter(Boolean),
         currentDraft: {
+          entryPolicy,
           title: worldTitle,
           premise: worldSeed,
           surpriseLevel: normalizeSurpriseLevel(surprise),
@@ -1864,10 +1886,11 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       setCreatorProposal(response.proposal);
       const brief = normalizeCreatorBrief(response.proposal.brief);
       const nextRoles = response.proposal.characters?.length ? identifyProposedRoles(draftRoles, response.proposal.characters.map((role, index) => ({ name: role.name, identity: role.identity, personality: role.persona, relationship: role.relationship, appearance: role.appearance, goal: role.goal ?? draftRoles[index]?.goal ?? '' }))) : draftRoles;
-      setProposalChanges(creatorChanges(baseline, { ...brief, surpriseLevel: response.proposal.surpriseLevel ?? surprise, title: response.proposal.title, premise: response.proposal.premise, castAndTasks: { roles: nextRoles, tasks: brief.tasks } }, {
+      setProposalChanges(creatorChanges(baseline, { ...brief, entryPolicy: response.proposal.entryPolicy ?? entryPolicy, surpriseLevel: response.proposal.surpriseLevel ?? surprise, title: response.proposal.title, premise: response.proposal.premise, castAndTasks: { roles: nextRoles, tasks: brief.tasks } }, {
+        entryPolicy: '身份入场与能力规则',
         surpriseLevel: '意外程度',
         title: '世界名称', premise: '背景与冲突', castAndTasks: '角色目标与任务编排', coreGoal: '世界核心目标', successCondition: '成功条件', failureCondition: '失败条件', complexityLevel: '世界复杂度', difficulties: '世界级困难', scheduledEvents: '预设事件',
-      }));
+      }).map(change => change.key === 'entryPolicy' ? { ...change, roleOrder: draftRoles.map(role => role.editorId!), referenceLabels: Object.fromEntries(draftRoles.map((role, index) => [`draft-role-${index}`, role.name || `角色 ${index + 1}`])) } : change));
       setCreatorChangeNotice('');
       setCreatorQuestions(response.nextQuestions.slice(0, 3));
     } catch {
@@ -1880,10 +1903,11 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
   }
 
   function creatorSections(): Record<string, unknown> {
-    return { ...creatorBrief, surpriseLevel: surprise, title: worldTitle, premise: worldSeed, castAndTasks: { roles: draftRoles, tasks: creatorBrief.tasks } };
+    return { ...creatorBrief, entryPolicy, surpriseLevel: surprise, title: worldTitle, premise: worldSeed, castAndTasks: { roles: draftRoles, tasks: creatorBrief.tasks } };
   }
 
   function creatorProposalProblem(change: CreatorChange, undo = false) {
+    if (change.key === 'entryPolicy' && (JSON.stringify(change.roleOrder) !== JSON.stringify(draftRoles.map(role => role.editorId)) || restoreEntryPolicy(undo ? change.before : change.after).allowedRoleIds.some(id => !draftRoles.some((_, index) => id === `draft-role-${index}`)))) return '角色名单已变化或引用了不存在的角色，请重新讨论入场规则。';
     const next = applyCreatorChange(creatorSections(), change, undo);
     if (!next) return '相关字段或角色名单已有新修改，未覆盖。请保留手改或重新讨论。';
     if (change.key === 'castAndTasks' || change.target?.kind === 'task') {
@@ -1900,6 +1924,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     const next = applyCreatorChange(creatorSections(), change, undo);
     if (!next) { setCreatorChangeNotice(`「${change.label}」已有新的手动修改，未覆盖。请重新讨论或手动调整。`); return; }
     if (change.key === 'title') setWorldTitle(next.title as string);
+    else if (change.key === 'entryPolicy') setEntryPolicy(restoreEntryPolicy(next.entryPolicy));
     else if (change.key === 'surpriseLevel') setSurprise(next.surpriseLevel as number);
     else if (change.key === 'premise') setWorldSeed(next.premise as string);
     else if (change.key === 'castAndTasks' || change.target) {
@@ -1913,7 +1938,11 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
           setRoleImageStates((current) => ({ ...current, [id]: 'idle' }));
         }
       });
-      if (cast.roles.length !== draftRoles.length || cast.roles.some((role, index) => role.editorId !== draftRoles[index]?.editorId)) { setGeneratedWorld(null); setGeneratedStoryOutline([]); }
+      if (cast.roles.length !== draftRoles.length || cast.roles.some((role, index) => role.editorId !== draftRoles[index]?.editorId)) {
+        setGeneratedWorld(null); setGeneratedStoryOutline([]);
+        // Preserve opt-in by editor identity; never grant a new/replacement character an old slot.
+        setEntryPolicy(current => ({ ...current, allowedRoleIds: current.allowedRoleIds.flatMap(id => { const old = draftRoles[Number(id.replace('draft-role-', ''))]; const index = cast.roles.findIndex(role => old && role.editorId === old.editorId); return index < 0 ? [] : [`draft-role-${index}`]; }) }));
+      }
       setDraftRoles(cast.roles);
       setCreatorBrief((current) => ({ ...current, tasks: cast.tasks }));
     } else setCreatorBrief((current) => ({ ...current, [change.key]: next[change.key] }));
@@ -1988,7 +2017,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       const normalizedWorld = normalizeGeneratedWorld(response.world, draftRoles);
       const generatedDraftRoles = draftRoles.map((role, index) => ({ ...role, goal: role.goal || normalizedWorld.characters[index]?.goal || '', appearance: role.appearance || normalizedWorld.characters[index]?.imagePrompt || '' }));
       setCreatorDetailBaseline({ roles: generatedDraftRoles, outline: response.storyOutline });
-      setGeneratedWorld(normalizedWorld);
+      setGeneratedWorld({ ...normalizedWorld, entryPolicy: restoreEntryPolicy(entryPolicy) });
       setGeneratedStoryOutline(response.storyOutline);
       setCreatorBrief({
         ...effectiveBrief,
@@ -2038,9 +2067,10 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       };
     const edited = buildCreatorWorld(safeTitle, safeSeed, draftRoles, safeOutline, surprise, effectiveBrief, generatedWorld);
     const nextBaseline = { roles: draftRoles, outline: safeOutline };
-    const world = generatedWorld
+    const worldDetails = generatedWorld
       ? preserveCreatorDetails(generatedWorld, preserveCreatorFramework(generatedWorld, edited, effectiveBrief.tasks.filter((task) => task.assignedRoleIds !== undefined).map((task) => task.id)), creatorDetailBaseline ?? nextBaseline, nextBaseline)
       : edited;
+    const world = { ...worldDetails, entryPolicy: restoreEntryPolicy(entryPolicy) };
     setCreatorDetailBaseline(nextBaseline);
     setWorldTitle(safeTitle);
     setWorldSeed(safeSeed);
@@ -2089,6 +2119,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     if (data.worldTitle.trim() || data.worldSeed.trim() || data.generatedWorld) setCreatorDocuments((current) => upsertById(current, { id: draftId, savedAt: Date.now(), data }));
     setActiveLibrary(null); setActiveWorld('storm'); setSelectedRole(roles[0]); setRuntimeBeat(null);
     setDraftId(crypto.randomUUID());
+    setEntryPolicy(restoreEntryPolicy(undefined));
     setWorldTitle(''); setWorldSeed(seed); setSurprise(2); setGenerated(false); setGeneratedWorld(null); setPublishedWorld(false);
     setGeneratedStoryOutline([]); setCreatorDetailBaseline(null); setCreatorBrief(emptyCreatorBrief); setCreatorProposal(null);
     setCreatorMessages([{ role: 'agent', content: '先聊聊你想创造什么。不用先填完角色，我可以和你一起想人物、关系、目标和阻力。建议只有在你采纳后才会写入设定。' }]);
@@ -2102,6 +2133,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     if (worldGenerating || creatorAgentThinking) { setStorageError('请等当前创作回应结束后再切换作品。'); return; }
     setActiveLibrary(null); setActiveWorld('storm'); setSelectedRole(roles[0]); setRuntimeBeat(null);
     const data = doc.data;
+    setEntryPolicy(restoreEntryPolicy(data.entryPolicy ?? data.generatedWorld?.entryPolicy));
     setDraftId(doc.id); setWorldTitle(data.worldTitle); setWorldSeed(data.worldSeed); setSurprise(data.surprise);
     setDraftRoles(ensureCreatorRoleIds(data.draftRoles)); setGenerated(data.generated); setPublishedWorld(data.publishedWorld);
     setGeneratedWorld(data.generatedWorld ?? null); setCreatorDetailBaseline(data.creatorDetailBaseline ?? null);
@@ -2126,7 +2158,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       section={view} worlds={[
         ...availableStudioWorlds.map((entry) => ({ ...entry, roleCount: entry.world.characters.length })),
         ...worldCatalog.map((world) => ({ ...world, roleCount: world.id === 'storm-manor' ? roles.length : presetWorlds.find((preset) => preset.id === world.id)?.roles.length ?? 0, cover: world.id === 'storm-manor' ? '/assets/storm-manor-cover.png' : world.id === 'sea-train' ? '/assets/sea-train-cover.jpg' : '/assets/roommate-cover.jpg' }))]}
-      characters={[...studioWorlds, ...communityWorlds].flatMap((entry) => entry.world.characters.map((role) => ({ id: role.id, worldId: entry.id, worldTitle: entry.title, name: role.name, identity: role.identity, persona: role.persona, image: entry.portraits[role.id] || entry.cover })))}
+      characters={availableStudioWorlds.flatMap((entry) => entry.world.characters.map((role) => ({ id: role.id, worldId: entry.id, worldTitle: entry.title, name: role.name, identity: role.identity, persona: role.persona, image: entry.portraits[role.id] || entry.cover })))}
       recent={[
         ...creatorDocuments.map((doc) => ({ id: `doc-${doc.id}`, savedAt: doc.savedAt, title: doc.data.worldTitle || '未命名世界', subtitle: '继续编辑角色与故事框架', label: doc.data.publishedWorld ? '可试玩 · 本机作品' : '创作草稿', cover: '/assets/storm-manor-cover.png' })),
         ...savedRuns.map((run) => ({ id: `run-${run.id}`, savedAt: run.savedAt, title: run.worldTitle, subtitle: `${run.worldSnapshot?.world.characters.find((role) => role.id === run.roleId)?.name ?? run.roleId} · ${run.worldState.location}`, label: run.status === 'ending' ? '阶段结局' : '探索记录', cover: run.worldSnapshot?.cover || '/assets/storm-manor-cover.png' })),
@@ -2134,7 +2166,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       ].sort((a, b) => b.savedAt - a.savedAt)}
       onCreate={newCreator} onOpenWorld={openCatalogWorld} onChat={(worldId, targetId) => { const entry = availableStudioWorlds.find((item) => item.id === worldId); if (entry) setChatEntry({ entry, targetId }); }} onPersonal={() => navigate('personal')} onLibrary={() => navigate('library')} onOpenRecord={openRecord}
     />;
-    if (view === 'roles') return <RoleSelection worldTitle={activeWorldTitle} availableRoles={currentRoles} selected={selectedRole} onSelect={setSelectedRole} onBack={() => navigate('home')} onStart={beginWorld} />;
+    if (view === 'roles') return <RoleSelection worldTitle={activeWorldTitle} availableRoles={currentRoles} selected={selectedRole} onSelect={setSelectedRole} onBack={() => navigate('home')} onStart={() => beginWorld()} personaEntry={activeLibrary ? <PersonaAdmission key={`${activeLibrary.id}:${selectedRole.id}`} entry={activeLibrary} roleId={selectedRole.id} persona={playerPersona} onEdit={() => navigate('personal')} onEnter={beginWorld} /> : undefined} />;
     if (view === 'play') {
       return (
         <PlayWorld
@@ -2168,7 +2200,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
           onFreeAction={setFreeAction}
           onLiveMode={setLiveMode}
           onAction={takeAction}
-          onBack={() => navigate('roles')}
+          onBack={() => { if (activeLibrary?.world.entryAdmission) { if (!openCatalogWorld(activeLibrary.id)) navigate('home'); } else navigate('roles'); }}
         />
       );
     }
@@ -2178,6 +2210,8 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
           step={createStep}
           roles={draftRoles}
           surprise={surprise}
+          entryPolicy={entryPolicy}
+          onEntryPolicy={setEntryPolicy}
           generated={generated}
           generating={worldGenerating}
           worldTitle={worldTitle}
@@ -2224,9 +2258,15 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
         />
       );
     }
-    if (view === 'ending') return <Ending worldTitle={activeWorldTitle} role={selectedRole} decision={endingDecision} state={worldState} world={activeWorldDefinition} imageUrl={imageTask.assetUrl} onContinue={continueWorld} onReplay={() => navigate('roles')} onHome={() => navigate('home')} />;
+    if (view === 'ending') return <Ending worldTitle={activeWorldTitle} role={selectedRole} decision={endingDecision} state={worldState} world={activeWorldDefinition} imageUrl={imageTask.assetUrl} onContinue={continueWorld} onReplay={() => { if (activeLibrary?.world.entryAdmission) { if (!openCatalogWorld(activeLibrary.id)) navigate('home'); } else navigate('roles'); }} onHome={() => navigate('home')} />;
     return (
       <PersonalAgent
+        identityPanel={<PersonaEditor value={playerPersona} accountScope={accountScope} onSave={(value) => {
+          const valid = restorePlayerPersona(value, accountScope);
+          if (!valid || !storageReady || storageReadFailed.current) return false;
+          try { const saved = JSON.parse(window.localStorage.getItem(demoStorageKey) || '{}'); window.localStorage.setItem(demoStorageKey, JSON.stringify({ ...saved, playerPersona: valid })); setPlayerPersona(valid); return true; }
+          catch { return false; }
+        }} />}
         worlds={[
           ...availableStudioWorlds.map((entry) => ({ ...entry, roleCount: entry.world.characters.length })),
           ...worldCatalog.map((world) => ({ ...world, roleCount: world.id === 'storm-manor' ? roles.length : presetWorlds.find((preset) => preset.id === world.id)?.roles.length ?? 0, cover: world.id === 'storm-manor' ? '/assets/storm-manor-cover.png' : world.id === 'sea-train' ? '/assets/sea-train-cover.jpg' : '/assets/roommate-cover.jpg' })),
@@ -2260,10 +2300,11 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       <StudioNav section={view} onNavigate={navigate} onCreate={newCreator} />
       <AccountBar />
       {storageError && <p className="studio-storage-error" role="alert">{storageError}</p>}
+      {(view === 'play' || view === 'ending') && activeLibrary?.world.entryAdmission && <p className="persona-runtime">你以 {selectedRole.name} 的形象代入 {activeLibrary.world.entryAdmission.originalName} 的剧情身份 · 额外能力：{activeLibrary.world.entryAdmission.grantedAbilities.join('；') || '无'}。这是独立会话，原世界未改变。</p>}
       {screen}
       {publicationNotice && <p className="account-bar" role="status">{publicationNotice}</p>}
       {publicationEntry && <PublishWorldDialog accountScope={accountScope} entry={publicationEntry} onClose={() => setPublicationEntry(null)} onPublished={(entry) => { setCommunityWorlds(current => upsertById(current, entry)); setPublicationEntry(null); setPublicationNotice('世界已公开发布，其他访客现在可以在世界探索中找到它。'); navigate('home'); }} />}
-      {chatEntry && <CharacterEntry key={`${chatEntry.entry.id}:${chatEntry.targetId}`} entry={chatEntry.entry} targetId={chatEntry.targetId} onClose={() => setChatEntry(null)} onStart={(session) => { saveChat(session); setActiveChat(session); setChatEntry(null); navigate('chat'); }} />}
+      {chatEntry && <CharacterEntry key={`${chatEntry.entry.id}:${chatEntry.targetId}`} entry={chatEntry.entry} targetId={chatEntry.targetId} persona={playerPersona} onClose={() => setChatEntry(null)} onStart={(session) => { saveChat(session); setActiveChat(session); setChatEntry(null); navigate('chat'); }} />}
     </main>
   );
 }
@@ -2272,12 +2313,12 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
 function RolePortrait({ role, className = '' }: { role: Role; className?: string }) {
   return (
     <div className={`role-portrait role-${role.crop} ${className}`}>
-      <img className={role.imageUrl ? 'role-generated-image' : undefined} src={role.imageUrl || '/assets/storm-manor-cast.png'} alt={`${role.name}，${role.identity}`} />
+      {role.ownPersona && !role.imageUrl ? <span className="persona-no-image"><UserRound />{role.name} · 尚未生成形象</span> : <img className={role.imageUrl ? 'role-generated-image' : undefined} src={role.imageUrl || '/assets/storm-manor-cast.png'} alt={`${role.name}，${role.identity}`} />}
     </div>
   );
 }
 
-function RoleSelection({ worldTitle, availableRoles, selected, onSelect, onBack, onStart }: { worldTitle: string; availableRoles: Role[]; selected: Role; onSelect: (role: Role) => void; onBack: () => void; onStart: () => void }) {
+function RoleSelection({ worldTitle, availableRoles, selected, onSelect, onBack, onStart, personaEntry }: { worldTitle: string; availableRoles: Role[]; selected: Role; onSelect: (role: Role) => void; onBack: () => void; onStart: () => void; personaEntry?: import('react').ReactNode }) {
   return (
     <div className="subpage-shell role-page">
       <button className="back-link" type="button" onClick={onBack}><ArrowLeft />返回推荐</button>
@@ -2301,6 +2342,7 @@ function RoleSelection({ worldTitle, availableRoles, selected, onSelect, onBack,
         </div>
         <Button className="primary-action" size="lg" onClick={onStart}>以 {selected.name} 的身份进入<ArrowRight /></Button>
       </section>
+      {personaEntry}
     </div>
   );
 }
@@ -2446,6 +2488,7 @@ function CreateWorld({
   step,
   roles: draftRoles,
   surprise,
+  entryPolicy, onEntryPolicy,
   generated,
   generating,
   worldTitle,
@@ -2490,6 +2533,7 @@ function CreateWorld({
   step: number;
   roles: DraftRole[];
   surprise: number;
+  entryPolicy: EntryPolicy; onEntryPolicy: (value: EntryPolicy) => void;
   generated: boolean;
   generating: boolean;
   worldTitle: string;
@@ -2625,6 +2669,7 @@ function CreateWorld({
 
       {step === 3 && (
         <section className="create-card settings-card">
+          <EntryPolicyEditor value={entryPolicy} roles={draftRoles.map((role, index) => ({ id: `draft-role-${index}`, name: role.name }))} onChange={onEntryPolicy} />
           <div className="generated-summary"><span><Check /></span><div><small>{generated ? 'AI 已生成故事框架' : '故事框架已就绪'}</small><h2>{worldTitle}</h2><p>{worldSeed}</p></div><button type="button" onClick={() => onStep(2)}><Pencil />修改</button></div>
           <div className="setting-block">
             <div><span className="setting-label">意外程度</span><strong>{surpriseLabels[surprise - 1]}</strong></div>

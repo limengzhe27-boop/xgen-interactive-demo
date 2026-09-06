@@ -1,0 +1,67 @@
+'use client';
+/* oxlint-disable next/no-img-element -- account-owned generated portrait */
+import { useEffect, useRef, useState } from 'react';
+import { ChevronDown, UserRound } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { generateSceneImage } from '@/lib/remote-image-service';
+import { admitPersona, personaEntryProblem, restoreEntryPolicy, type PlayerPersona, type EntryPolicy } from '@/lib/player-persona';
+import type { StudioWorld } from '@/lib/studio-worlds';
+
+export function PersonaEditor({ value, accountScope, onSave }: { value: PlayerPersona | null; accountScope: string; onSave: (value: PlayerPersona) => boolean }) {
+  const [draft, setDraft] = useState({ name: value?.name || '', identity: value?.identity || '', personality: value?.personality || '', appearance: value?.appearance || '', abilities: value?.abilities || '', portraitUrl: value?.portraitUrl });
+  const [busy, setBusy] = useState(false); const [notice, setNotice] = useState('');
+  const controller = useRef<AbortController | null>(null);
+  useEffect(() => () => controller.current?.abort(), []);
+  const loggedIn = !['guest', 'pending'].includes(accountScope);
+  async function portrait() {
+    if (controller.current || !loggedIn || !draft.appearance.trim()) return;
+    const aborter = new AbortController(); controller.current = aborter; setBusy(true); setNotice('');
+    try {
+      const result = await generateSceneImage({ purpose: 'portrait', requestId: 1, sceneId: 'player-persona', seed: 90601,
+        prompt: `虚构人物半身形象，单人，无文字。固定外观：${draft.appearance}。` }, aborter.signal, accountScope);
+      if (!aborter.signal.aborted) { setDraft(current => ({ ...current, portraitUrl: result.assetUrl })); setNotice('形象已生成，点击保存身份后用于入场。'); }
+    } catch { if (!aborter.signal.aborted) setNotice('形象生成失败，保留原图。可先保存文字身份，不必生图。'); }
+    finally { if (!aborter.signal.aborted) setBusy(false); controller.current = null; }
+  }
+  return <details className="persona-editor">
+    <summary><UserRound />我的虚构身份 <small>{value ? value.name : '点击设定'}</small><ChevronDown /></summary>
+    <p>这是故事里的你，不是个人 Agent 对真实你的记忆。按账号分别保存在当前浏览器，尚未云同步；进入世界前还需确认适配。</p>
+    {!loggedIn && <output>请先通过页面上方登录账号，再保存身份。游客仍可使用原剧情角色试玩。</output>}
+    <form onSubmit={event => { event.preventDefault(); if (!loggedIn || busy || !draft.name.trim()) return; if (onSave({ ...draft, name: draft.name.trim(), version: 1, ownerId: accountScope, updatedAt: Date.now() })) setNotice('身份已保存在本机；已有探索和角色对话不会随之改变。'); else setNotice('身份保存失败，请保留页面并重试。'); }}>
+      <fieldset disabled={!loggedIn || busy} className="persona-fields">
+        {([['name', '身份名称'], ['identity', '你设想的身份背景'], ['personality', '性格与相处方式'], ['appearance', '固定外观'], ['abilities', '希望拥有的能力（入场时不自动生效）']] as const).map(([key, label]) => <label key={key} className={key === 'abilities' ? 'persona-full' : ''} htmlFor={`persona-${key}`}>{label}{key === 'name' ? <Input id={`persona-${key}`} maxLength={40} required value={draft[key]} onChange={e => setDraft({ ...draft, [key]: e.target.value })} /> : <Textarea id={`persona-${key}`} maxLength={1000} value={draft[key]} onChange={e => setDraft({ ...draft, [key]: e.target.value, ...(key === 'appearance' ? { portraitUrl: undefined } : {}) })} />}</label>)}
+      </fieldset>
+      <div className="persona-actions">{draft.portraitUrl && <img src={draft.portraitUrl} alt={`${draft.name || '我的身份'}的形象`} />}<Button type="button" variant="outline" disabled={!loggedIn || busy || !draft.appearance.trim()} onClick={portrait}>{busy ? '正在生成形象…' : draft.portraitUrl ? '重新生成形象' : '生成形象（可选）'}</Button><Button type="submit" disabled={!loggedIn || busy || !draft.name.trim()}>保存身份</Button></div>
+      <p>仅生成形象时调用生图；使用现有经济模型与缓存，不随打开页面重复生成。</p>{notice && <output>{notice}</output>}
+    </form>
+  </details>;
+}
+
+export function EntryPolicyEditor({ value, roles, onChange }: { value: EntryPolicy; roles: { id: string; name: string }[]; onChange: (value: EntryPolicy) => void }) {
+  return <section className="entry-policy-editor" aria-label="世界入场规则"><h3>谁能带着自己的形象进入？</h3>
+    <label className="persona-check"><input type="checkbox" checked={value.allowPersona} onChange={e => onChange({ ...value, allowPersona: e.target.checked })} />允许使用账号的虚构身份</label>
+    <p>玩家保留自己的名字、外观和性格，代入下方开放角色的剧情身份、关系、知识与目标。未开放的世界仍只使用原角色。</p>
+    {value.allowPersona && <><fieldset><legend>允许代入的剧情位置</legend>{roles.map(role => <label className="persona-check" key={role.id}><input type="checkbox" checked={value.allowedRoleIds.includes(role.id)} onChange={e => onChange({ ...value, allowedRoleIds: e.target.checked ? [...value.allowedRoleIds, role.id] : value.allowedRoleIds.filter(id => id !== role.id) })} />{role.name || '未命名角色'}</label>)}</fieldset>
+      {!value.allowedRoleIds.length && <p>尚未开放任何剧情位置；玩家暂不能使用自带身份。</p>}
+      <label htmlFor="entry-ability-mode">能力如何适配？<select id="entry-ability-mode" value={value.abilityMode} onChange={e => onChange({ ...value, abilityMode: e.target.value as EntryPolicy['abilityMode'] })}><option value="role-only">仅使用剧情身份本身的能力</option><option value="fixed">创作者指定额外允许的能力</option></select></label>
+      {value.abilityMode === 'fixed' && <label htmlFor="entry-abilities">额外能力（每行一项，最多 12 项）<Textarea id="entry-abilities" maxLength={2400} value={value.abilities.join('\n')} onChange={e => onChange({ ...value, abilities: e.target.value.split('\n').slice(0, 12).map(line => line.slice(0, 200)) })} placeholder="例如：善于观察细微表情，但不能直接读心" /></label>}
+      <p>能力仍受物理规律、可知信息和任务条件约束。不会直接带入玩家自述的超能力；Agent 自主分配能力将在后续加入。</p></>}
+  </section>;
+}
+
+export function PersonaAdmission({ entry, roleId, persona, onEdit, onEnter }: { entry: StudioWorld; roleId: string; persona: PlayerPersona | null; onEdit?: () => void; onEnter: (entry: StudioWorld) => void }) {
+  const [confirmed, setConfirmed] = useState(false); const [error, setError] = useState('');
+  const policy = restoreEntryPolicy(entry.world.entryPolicy); const role = entry.world.characters.find(c => c.id === roleId);
+  const problem = personaEntryProblem(entry.world, roleId, persona);
+  return <section className="persona-admission" aria-label="自带身份入场"><h3>或者，带上我的虚构身份</h3>
+    {problem ? <><p>{problem}</p>{!persona && onEdit && <Button variant="outline" onClick={onEdit}>去设定我的身份</Button>}</> : <>
+      <p><strong>{persona!.name}</strong> → 代入 {role?.name} 的剧情位置</p>
+      <dl><dt>本世界身份</dt><dd>{role?.identity}</dd><dt>本次目标</dt><dd>{role?.goal}</dd><dt>保留的个性与外观</dt><dd>{persona!.personality || '使用剧情角色性格'}；{persona!.appearance || '使用剧情角色外观'}</dd><dt>额外允许的能力</dt><dd>{policy.abilityMode === 'fixed' ? policy.abilities.filter(Boolean).join('；') || '无' : '无，仅剧情身份原有能力'}</dd></dl>
+      <p>自带背景与愿望能力不会自动生效；关系、知识、任务和世界规则保持不变。这里只适配一个新会话，不覆盖原世界。确认进入后，上述虚构设定会用于世界模型演绎，不附带你的私人聊天或个人记忆。</p>
+      <label className="persona-check"><input type="checkbox" checked={confirmed} onChange={e => setConfirmed(e.target.checked)} />我确认本次身份与能力适配</label>
+      <Button disabled={!confirmed} onClick={() => { try { onEnter(admitPersona(entry, roleId, persona!)); } catch (err) { setError(err instanceof Error ? err.message : '入场失败'); } }}>以我的身份 {persona!.name} 进入</Button>
+    </>}{error && <p role="alert">{error}</p>}
+  </section>;
+}

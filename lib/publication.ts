@@ -1,9 +1,11 @@
 import type { WorldDefinition } from './ai-contracts';
+import { validEntryPolicy } from './player-persona.ts';
 
 type Shape = 'string' | 'number' | 'boolean' | { [key: string]: Shape } | [Shape];
 const texts: Shape = ['string'];
 const schema: Shape = {
   id: 'string', title: 'string', premise: 'string', timeSetting: 'string', coreEvent: 'string', surpriseLevel: 'number',
+  'entryPolicy?': { allowPersona: 'boolean', allowedRoleIds: texts, abilityMode: 'string', abilities: texts },
   locations: [{ id: 'string', name: 'string', description: 'string', connectedLocationIds: texts }],
   characters: [{ id: 'string', name: 'string', identity: 'string', persona: 'string', publicBackground: 'string', privateKnowledge: texts, secrets: texts, goal: 'string', startLocationId: 'string', imagePrompt: 'string' }],
   relationships: [{ fromCharacterId: 'string', toCharacterId: 'string', publicLabel: 'string', 'privateContext?': 'string', initialTrust: 'number' }],
@@ -34,6 +36,7 @@ function select(value: unknown, shape: Shape): unknown {
 }
 
 export function publicationWorld(value: unknown): WorldDefinition {
+  if (value && typeof value === 'object' && 'entryAdmission' in value) throw new Error('private_session_cannot_be_published');
   // Whitelist every nested field: saved chats, Agent memory and unknown metadata cannot hitchhike.
   const world = select(value, schema) as WorldDefinition;
   const ids = (items: { id: string }[]) => {
@@ -42,6 +45,7 @@ export function publicationWorld(value: unknown): WorldDefinition {
     return result;
   };
   const roles = ids(world.characters), places = ids(world.locations), tasks = ids(world.tasks);
+  if (world.entryPolicy && (!validEntryPolicy(world.entryPolicy) || world.entryPolicy.allowedRoleIds.some(id => !roles.has(id)))) throw new Error('invalid_entry_policy');
   ids(world.goals); ids(world.rules); ids(world.scheduledEvents); ids(world.endingConditions);
   const all = (values: string[], set: Set<string>) => values.every(id => set.has(id));
   if (!world.title.trim() || world.title.length > 120 || !world.premise.trim() || world.characters.length < 2 || world.characters.length > 8

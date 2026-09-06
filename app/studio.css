@@ -390,3 +390,45 @@ html[data-account-locked] [data-slot="dialog-content"], html[data-account-locked
 @media (prefers-reduced-motion: reduce) {
   .creator-layout *, .creator-chapters button, .creator-mobile-tabs button { animation: none; transition: none; }
 }
+
+/* Account fiction is separate from private Agent memory and from the world master. */
+.persona-editor, .persona-admission, .entry-policy-editor { border: 1px solid var(--color-border); background: var(--color-bg-elevated); border-radius: 16px; padding: 22px; margin: 20px 0; min-width: 0; overflow-wrap: anywhere; animation: studio-enter 240ms ease-out; }
+.persona-editor summary { display: flex; gap: 12px; align-items: center; min-height: 44px; cursor: pointer; font-size: 18px; color: var(--color-primary); }
+.persona-editor summary small { margin-left: auto; color: var(--color-text-secondary); }
+.persona-editor summary:hover { color: var(--color-primary-hover); }
+.persona-editor summary:active { color: var(--color-primary-active); }
+.persona-editor summary:focus-visible, .persona-check:focus-within { outline: 2px solid var(--color-agent); outline-offset: 3px; }
+.persona-editor p, .persona-admission p, .entry-policy-editor p { color: var(--color-text-secondary); font-size: 15px; line-height: 1.8; margin: 12px 0; }
+.persona-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; border: 0; padding: 0; min-width: 0; }
+.persona-fields label, .entry-policy-editor > label { display: grid; align-content: start; gap: 8px; font-size: 15px; min-width: 0; }
+.persona-fields input { min-height: 44px; }
+.persona-fields input, .persona-fields textarea { font-size: 15px; line-height: 1.8; }
+.persona-full { grid-column: 1 / -1; }
+.persona-fields textarea { min-height: 88px; }
+.persona-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 18px 0 10px; }
+.persona-actions img { width: 64px; height: 80px; object-fit: cover; border-radius: 10px; }
+.persona-actions button, .persona-admission button { min-height: 44px; height: auto; white-space: normal; }
+.persona-editor output { display: block; color: var(--color-agent); font-size: 15px; }
+.persona-check, .entry-policy-editor > .persona-check { display: flex; align-items: center; gap: 10px; min-height: 44px; cursor: pointer; font-size: 15px; }
+.persona-check input { width: 20px; height: 20px; accent-color: var(--color-primary); flex-shrink: 0; }
+.entry-policy-editor fieldset { border: 1px solid var(--color-border); border-radius: 10px; padding: 12px; margin: 14px 0; }
+.entry-policy-editor select { min-height: 44px; width: 100%; border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-surface); color: var(--color-text); padding: 8px; }
+.entry-policy-editor select:hover { border-color: var(--color-border-strong); }
+.entry-policy-editor select:focus-visible { outline: 2px solid var(--color-agent); outline-offset: 2px; }
+.persona-admission h3, .entry-policy-editor h3 { font-size: 20px; line-height: 1.7; }
+.persona-admission dl { display: grid; grid-template-columns: 130px minmax(0, 1fr); gap: 10px 16px; margin: 18px 0; font-size: 15px; line-height: 1.8; }
+.persona-admission dt { color: var(--color-agent); }
+.persona-admission dd { margin: 0; white-space: pre-wrap; }
+.persona-runtime { margin: 12px 32px 12px 128px; padding: 12px 18px; background: var(--color-agent-soft); color: var(--color-text-secondary); border-left: 2px solid var(--color-agent); font-size: 15px; overflow-wrap: anywhere; }
+.studio-chat .persona-runtime { margin: 12px 0; }
+.persona-no-image { display: flex; height: 100%; min-height: 160px; align-items: center; justify-content: center; flex-direction: column; gap: 10px; color: var(--color-text-muted); padding: 16px; font-size: 15px; }
+.player-role .persona-no-image { min-height: 0; padding: 0; font-size: 0; gap: 0; }
+.player-role .persona-no-image svg { width: 24px; height: 24px; }
+@media (max-width: 600px) {
+  .persona-fields { grid-template-columns: minmax(0, 1fr); }
+  .persona-editor, .persona-admission, .entry-policy-editor { padding: 16px; }
+  .persona-admission dl { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+  .persona-admission dd { margin-bottom: 10px; }
+  .persona-runtime { margin: 12px 16px; }
+}
+@media (prefers-reduced-motion: reduce) { .persona-editor, .persona-admission, .entry-policy-editor { animation: none; } }
