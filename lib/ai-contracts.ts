@@ -164,6 +164,8 @@ export type CreatorTaskDraft = {
   prerequisiteTaskIds: string[];
   successCondition: string;
   difficulty: string;
+  /** Missing means legacy/all roles; an explicit list assigns this task. */
+  assignedRoleIds?: string[];
 };
 
 export type CreatorBrief = {
@@ -185,7 +187,8 @@ export type CreatorAgentRequest = {
   contractVersion: typeof AI_CONTRACT_VERSION;
   userMessage: string;
   conversation: CreatorChatMessage[];
-  characters: (Pick<CharacterDefinition, 'name' | 'identity' | 'persona'> & { relationship?: string; appearance?: string })[];
+  characters: (Pick<CharacterDefinition, 'name' | 'identity' | 'persona'> & { id?: string; goal?: string; relationship?: string; appearance?: string })[];
+  editingContext?: { step: number; section: string; focusedField?: string };
   relationshipNotes: string[];
   currentDraft: {
     title: string;
@@ -198,9 +201,10 @@ export type CreatorAgentRequest = {
 export type CreatorAgentResponse = {
   reply: string;
   proposal: {
+    surpriseLevel?: 1 | 2 | 3 | 4;
     title: string;
     premise: string;
-    characters?: { name: string; identity: string; persona: string; relationship: string; appearance: string }[];
+    characters?: { name: string; identity: string; persona: string; relationship: string; appearance: string; goal?: string }[];
     brief: CreatorBrief;
   };
   nextQuestions: string[];
@@ -210,7 +214,7 @@ export type CreatorAgentResponse = {
 export type WorldGenerationRequest = {
   contractVersion: typeof AI_CONTRACT_VERSION;
   creatorIntent?: string;
-  characters: Pick<CharacterDefinition, 'name' | 'identity' | 'persona'>[];
+  characters: (Pick<CharacterDefinition, 'name' | 'identity' | 'persona'> & { id?: string; goal?: string })[];
   relationshipNotes: string[];
   storySeed?: string;
   surpriseLevel: 1 | 2 | 3 | 4;

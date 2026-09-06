@@ -59,6 +59,10 @@ import {
 } from '@/lib/world-state';
 import { normalizeSurpriseLevel } from '@/lib/surprise-engine';
 import { preserveCreatorDetails, preserveCreatorFramework } from '@/lib/creator-framework';
+import { applyCreatorChange, creatorChanges, type CreatorChange } from '@/lib/creator-changes';
+import { CreatorProposalReview } from '@/components/creator-proposal-review';
+import { CreatorTaskEditor } from '@/components/creator-task-editor';
+import { creatorTaskIssues } from '@/lib/creator-task-graph';
 import type { CreatorDetailBaseline } from '@/lib/creator-framework';
 import type {
   AgentMemory,
@@ -111,6 +115,7 @@ type StoryBeat = {
 };
 
 type DraftRole = {
+  goal?: string;
   name: string;
   identity: string;
   personality: string;
@@ -420,7 +425,7 @@ function makePlayableDraftRoles(drafts: DraftRole[]): Role[] {
     personality: draft.personality.trim() || '性格待定',
     publicStory: draft.relationship.trim() || '人物背景尚待创作者补充。',
     secret: '暂无额外私密信息',
-    goal: '根据当前世界的目标推进事件。',
+    goal: draft.goal?.trim() || '根据当前世界的目标推进事件。',
     crop: crops[index % crops.length],
     visualAnchor: draft.appearance.trim() || fallbackAppearances[index % fallbackAppearances.length],
   }));
@@ -528,6 +533,7 @@ function normalizeGeneratedWorld(world: WorldDefinition, drafts: DraftRole[]): W
       name: drafts[index]?.name.trim() || character.name,
       identity: drafts[index]?.identity.trim() || character.identity,
       persona: drafts[index]?.personality.trim() || character.persona,
+      goal: drafts[index]?.goal?.trim() || character.goal,
       imagePrompt: drafts[index]?.appearance.trim() || character.imagePrompt,
     })),
     relationships: world.relationships.map((relationship) => ({
@@ -632,7 +638,7 @@ function briefTasksToWorldTasks(tasks: CreatorTaskDraft[], roleIds: string[]): W
   return tasks.map((task, index) => ({
     ...task,
     id: task.id || `creator-task-${index + 1}`,
-    assignedRoleIds: roleIds,
+    assignedRoleIds: task.assignedRoleIds === undefined ? roleIds : task.assignedRoleIds.filter((id) => roleIds.includes(id)),
   }));
 }
 
@@ -780,6 +786,8 @@ function buildCreatorWorld(
     ? briefTasksToWorldTasks(normalizedBrief.tasks, playableRoles.map((role) => role.id))
     : tasksFromStory(fallbackStory, playableRoles.map((role) => role.id));
   const mainTaskIds = creatorTasks.filter((task) => task.kind === 'main').map((task) => task.id);
+  const hasRolePlan = drafts.some((role) => role.goal?.trim()) || normalizedBrief.tasks.some((task) => task.assignedRoleIds?.length);
+  const roleMainIds = (id: string) => creatorTasks.filter((task) => task.kind === 'main' && (!task.assignedRoleIds.length || task.assignedRoleIds.includes(id))).map((task) => task.id);
   return {
     ...nextWorld,
     id: baseWorld?.id || 'draft-generated-world',
@@ -793,8 +801,8 @@ function buildCreatorWorld(
       title: normalizedBrief.coreGoal || '完成你的角色目标',
       description: normalizedBrief.successCondition || '完成主线任务并对核心事件作出选择',
       scope: 'world',
-      requiredTaskIds: mainTaskIds,
-    }],
+      requiredTaskIds: hasRolePlan ? creatorTasks.filter((task) => task.kind === 'main' && (!task.assignedRoleIds.length || task.assignedRoleIds.length === playableRoles.length)).map((task) => task.id) : mainTaskIds,
+    }, ...(hasRolePlan ? playableRoles.map((role, index) => ({ id: `creator-goal-${role.id}`, title: drafts[index].goal?.trim() || normalizedBrief.coreGoal || role.goal, description: drafts[index].goal?.trim() || normalizedBrief.successCondition, scope: 'role' as const, roleId: role.id, requiredTaskIds: roleMainIds(role.id) })) : [])],
     tasks: creatorTasks,
     difficultyConstraints: normalizedBrief.difficulties.map((description, index) => ({
       id: `creator-constraint-${index + 1}`,
@@ -808,14 +816,20 @@ function buildCreatorWorld(
       ...event,
       earliestTurn: Math.max(2, index + 2),
     })),
-    endingConditions: [{
+    endingConditions: [...(hasRolePlan ? playableRoles.map((role, index) => ({
+      id: `creator-ending-${role.id}`, applicableRoleIds: [role.id], outcome: 'success' as const,
+      description: drafts[index].goal?.trim() || normalizedBrief.successCondition || '达成角色目标',
+      requiredTaskIds: roleMainIds(role.id),
+      requiredFacts: [drafts[index].goal?.trim() || normalizedBrief.successCondition || '达成角色目标'],
+      forbiddenFacts: normalizedBrief.failureCondition ? [normalizedBrief.failureCondition] : [],
+    })) : [{
       id: 'creator-ending',
       description: normalizedBrief.successCondition || '完成所有主线任务后触发结局',
       requiredTaskIds: mainTaskIds,
       requiredFacts: [],
-      outcome: 'success',
+      outcome: 'success' as const,
       forbiddenFacts: normalizedBrief.failureCondition ? [normalizedBrief.failureCondition] : [],
-    }, ...(normalizedBrief.failureCondition ? [{
+    }]), ...(normalizedBrief.failureCondition ? [{
       id: 'creator-failure', outcome: 'failure' as const,
       description: normalizedBrief.failureCondition, requiredTaskIds: [],
       requiredFacts: [normalizedBrief.failureCondition],
@@ -837,7 +851,7 @@ function buildCreatorWorld(
         publicBackground: role.publicStory,
         privateKnowledge: existing?.privateKnowledge ?? [role.secret],
         secrets: existing?.secrets ?? [role.secret],
-        goal: existing?.goal || normalizedBrief.coreGoal || role.goal,
+        goal: drafts[index].goal?.trim() || existing?.goal || normalizedBrief.coreGoal || role.goal,
         startLocationId: locationIds[0],
         imagePrompt: role.visualAnchor,
       };
@@ -928,6 +942,10 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
   const [creatorMessage, setCreatorMessage] = useState('');
   const [creatorAgentThinking, setCreatorAgentThinking] = useState(false);
   const [creatorProposal, setCreatorProposal] = useState<CreatorAgentResponse['proposal'] | null>(null);
+  const [proposalChanges, setProposalChanges] = useState<CreatorChange[]>([]);
+  const [creatorUndo, setCreatorUndo] = useState<CreatorChange[]>([]);
+  const [creatorChangeNotice, setCreatorChangeNotice] = useState('');
+  const [creatorFocus, setCreatorFocus] = useState('');
   const [creatorQuestions, setCreatorQuestions] = useState<string[]>(['玩家最终获得什么？', '谁最希望阻止他？', '走捷径要付出什么代价？']);
   const [generated, setGenerated] = useState(false);
   const [generatedWorld, setGeneratedWorld] = useState<WorldDefinition | null>(null);
@@ -954,7 +972,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
   const [storageError, setStorageError] = useState('');
   const [activeWorld, setActiveWorld] = useState<WorldKind>('storm');
   const [suggestedPreset, setSuggestedPreset] = useState<PresetWorld | null>(null);
-  const [draftRoles, setDraftRoles] = useState([
+  const [draftRoles, setDraftRoles] = useState<DraftRole[]>([
     { name: '许知遥', identity: '民俗学研究生', personality: '理性、好奇、怕欠人情', relationship: '为调查失踪渔船首次上岛，对陆沉保持警惕', appearance: '二十四岁，齐肩黑发，墨绿色防风外套，随身携带旧笔记本' },
     { name: '陆沉', identity: '守塔人', personality: '寡言、谨慎、极度守时', relationship: '受上一任守塔人委托保护许知遥，却不愿说明原因', appearance: '三十一岁，黑色短发，深蓝守塔人工作服，左腕佩戴旧机械表' },
   ]);
@@ -1749,6 +1767,11 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
   }
 
   function removeDraftRole(index: number) {
+    if (draftRoles.length <= 2) return;
+    // Index-based legacy IDs must be rebased with the cast, including assignments.
+    setCreatorBrief((current) => ({ ...current, tasks: current.tasks.filter((task) => !(task.assignedRoleIds?.length === 1 && task.assignedRoleIds[0] === `draft-role-${index}`)).map((task) => ({ ...task,
+      assignedRoleIds: task.assignedRoleIds?.filter((id) => id !== `draft-role-${index}`).map((id) => { const n = Number(id.replace('draft-role-', '')); return n > index ? `draft-role-${n - 1}` : id; }),
+    })).map((task, _, tasks) => ({ ...task, prerequisiteTaskIds: task.prerequisiteTaskIds.filter((id) => tasks.some((candidate) => candidate.id === id)) })) }));
     Object.keys(roleImageRequestRef.current).forEach((id) => { roleImageRequestRef.current[id] += 1; });
     setDraftRoles((current) => current.length <= 2 ? current : current.filter((_, roleIndex) => roleIndex !== index));
     setRoleImages({});
@@ -1805,6 +1828,8 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     event.preventDefault();
     const value = creatorMessage.trim();
     if (!value || creatorAgentThinking) return;
+    const baseline = creatorSections();
+    const revision = navigationRevision.current;
     const userEntry: CreatorChatMessage = { role: 'creator', content: value };
     const conversation = [...creatorMessages, userEntry].slice(-10);
     setCreatorMessages(conversation);
@@ -1816,7 +1841,9 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
         contractVersion: AI_CONTRACT_VERSION,
         userMessage: value,
         conversation,
-        characters: draftRoles.filter((role) => role.name.trim() || role.identity.trim() || role.personality.trim()).map((role) => ({
+        editingContext: { step: createStep, section: ['角色与目标', '故事与任务', '意外与规则', '预览检查'][createStep - 1], focusedField: creatorFocus },
+        characters: draftRoles.map((role, index) => ({
+          id: `draft-role-${index}`, goal: role.goal || '',
           name: role.name,
           identity: role.identity,
           persona: role.personality,
@@ -1831,45 +1858,65 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
           brief: normalizeCreatorBrief(creatorBrief),
         },
       }), false);
+      if (revision !== navigationRevision.current) return;
       setCreatorMessages((current) => [...current, { role: 'agent', content: response.reply } satisfies CreatorChatMessage].slice(-12));
       setCreatorProposal(response.proposal);
+      const brief = normalizeCreatorBrief(response.proposal.brief);
+      const nextRoles = response.proposal.characters?.length ? response.proposal.characters.map((role, index) => ({ name: role.name, identity: role.identity, personality: role.persona, relationship: role.relationship, appearance: role.appearance, goal: role.goal ?? draftRoles[index]?.goal ?? '' })) : draftRoles;
+      setProposalChanges(creatorChanges(baseline, { ...brief, surpriseLevel: response.proposal.surpriseLevel ?? surprise, title: response.proposal.title, premise: response.proposal.premise, castAndTasks: { roles: nextRoles, tasks: brief.tasks } }, {
+        surpriseLevel: '意外程度',
+        title: '世界名称', premise: '背景与冲突', castAndTasks: '角色目标与任务编排', coreGoal: '世界核心目标', successCondition: '成功条件', failureCondition: '失败条件', complexityLevel: '世界复杂度', difficulties: '世界级困难', scheduledEvents: '预设事件',
+      }));
+      setCreatorChangeNotice('');
       setCreatorQuestions(response.nextQuestions.slice(0, 3));
     } catch {
+      if (revision !== navigationRevision.current) return;
       setCreatorMessage(value);
-      setCreatorMessages((current) => [...current, { role: 'agent', content: '这轮没有成功整理。你的现有设定没有被覆盖，可以重试或先手动编辑右侧框架。' } satisfies CreatorChatMessage].slice(-12));
+      setCreatorMessages((current) => [...current, { role: 'agent', content: '这轮没有成功整理。你的现有设定没有被覆盖，可以重试或先手动编辑世界框架。' } satisfies CreatorChatMessage].slice(-12));
     } finally {
       setCreatorAgentThinking(false);
     }
   }
 
-  function applyCreatorProposal() {
-    if (!creatorProposal) return;
-    const brief = normalizeCreatorBrief(creatorProposal.brief);
-    setWorldTitle(creatorProposal.title);
-    setWorldSeed(creatorProposal.premise);
-    setCreatorBrief(brief);
-    if (creatorProposal.characters?.length) {
-      setDraftRoles(creatorProposal.characters.map((role) => ({ name: role.name, identity: role.identity, personality: role.persona, relationship: role.relationship, appearance: role.appearance })));
-      Object.keys(roleImageRequestRef.current).forEach((id) => { roleImageRequestRef.current[id] += 1; });
-      setRoleImages({}); setRoleImageStates({});
-    }
-    setGeneratedStoryOutline(brief.tasks.filter((task) => task.kind === 'main').map((task, index) => ({
-      id: `agent-guide-${index + 1}`,
-      title: task.title,
-      location: generatedStoryOutline[index]?.location || (index === 0 ? '开场场景' : `推进场景 ${index + 1}`),
-      objective: task.description,
-      turningPoint: task.successCondition,
-    })));
-    setCreatorProposal(null);
+  function creatorSections(): Record<string, unknown> {
+    return { ...creatorBrief, surpriseLevel: surprise, title: worldTitle, premise: worldSeed, castAndTasks: { roles: draftRoles, tasks: creatorBrief.tasks } };
+  }
+
+  function applyCreatorProposal(change: CreatorChange, undo = false) {
+    const next = applyCreatorChange(creatorSections(), change, undo);
+    if (!next) { setCreatorChangeNotice(`「${change.label}」已有新的手动修改，未覆盖。请重新讨论或手动调整。`); return; }
+    if (change.key === 'title') setWorldTitle(next.title as string);
+    else if (change.key === 'surpriseLevel') setSurprise(next.surpriseLevel as number);
+    else if (change.key === 'premise') setWorldSeed(next.premise as string);
+    else if (change.key === 'castAndTasks') {
+      const cast = next.castAndTasks as { roles: DraftRole[]; tasks: CreatorTaskDraft[] };
+      const ids = cast.roles.map((_, index) => `draft-role-${index}`);
+      if (creatorTaskIssues(cast.tasks, ids.length).length) {
+        setCreatorChangeNotice('角色或前置任务的引用不完整，未采纳。请让 Agent 修正。'); return;
+      }
+      cast.roles.forEach((role, index) => {
+        if (!draftRoles[index] || portraitCacheKey(role) !== portraitCacheKey(draftRoles[index])) {
+          const id = `draft-role-${index}`;
+          roleImageRequestRef.current[id] = (roleImageRequestRef.current[id] ?? 0) + 1;
+          setRoleImages((current) => Object.fromEntries(Object.entries(current).filter(([key]) => key !== id)));
+          setRoleImageStates((current) => ({ ...current, [id]: 'idle' }));
+        }
+      });
+      if (cast.roles.length !== draftRoles.length || cast.roles.some((role, index) => role.name !== draftRoles[index]?.name)) { setGeneratedWorld(null); setGeneratedStoryOutline([]); }
+      setDraftRoles(cast.roles);
+      setCreatorBrief((current) => ({ ...current, tasks: cast.tasks }));
+    } else setCreatorBrief((current) => ({ ...current, [change.key]: next[change.key] }));
     setGenerated(false);
-    setGeneratedWorld(null);
+    if (undo) setCreatorUndo((items) => items.filter((item) => item !== change));
+    else { setProposalChanges((items) => items.filter((item) => item !== change)); setCreatorUndo((items) => [...items, change].slice(-12)); }
+    setCreatorChangeNotice(`${undo ? '已撤销' : '已采纳'}「${change.label}」，其他设定保持不变。`);
   }
 
   function updateCreatorBriefField(key: keyof Pick<CreatorBrief, 'coreGoal' | 'successCondition' | 'failureCondition'>, value: string) {
     setCreatorBrief((current) => ({ ...current, [key]: value }));
   }
 
-  function updateCreatorTask(index: number, key: keyof Pick<CreatorTaskDraft, 'title' | 'description' | 'successCondition' | 'difficulty'>, value: string) {
+  function updateCreatorTask(index: number, key: keyof CreatorTaskDraft, value: string | string[]) {
     setCreatorBrief((current) => ({
       ...current,
       tasks: current.tasks.map((task, taskIndex) => taskIndex === index ? { ...task, [key]: value } : task),
@@ -1879,7 +1926,6 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
   function addCreatorTask() {
     setCreatorBrief((current) => {
       const index = current.tasks.length;
-      const previousMain = [...current.tasks].reverse().find((task) => task.kind === 'main');
       return {
         ...current,
         tasks: [...current.tasks, {
@@ -1887,7 +1933,8 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
           title: '新的主线条件',
           description: '玩家需要完成的事情',
           kind: 'main',
-          prerequisiteTaskIds: previousMain ? [previousMain.id] : [],
+          prerequisiteTaskIds: [],
+          assignedRoleIds: [],
           successCondition: '写下可以明确判定的完成条件',
           difficulty: index === 0 ? '设置一个不能直接跳过的障碍' : '需要完成前一项主线条件',
         }],
@@ -1916,7 +1963,8 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       const response = await runAI((adapter) => adapter.generateWorld({
         contractVersion: AI_CONTRACT_VERSION,
         creatorIntent: worldTitle,
-        characters: draftRoles.map((role) => ({
+        characters: draftRoles.map((role, index) => ({
+          id: `draft-role-${index}`, goal: role.goal || '',
           name: role.name,
           identity: role.identity,
           persona: `${role.personality}${role.appearance ? `；固定外观：${role.appearance}` : ''}`,
@@ -1927,7 +1975,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
         creatorBrief: effectiveBrief,
       }));
       const normalizedWorld = normalizeGeneratedWorld(response.world, draftRoles);
-      const generatedDraftRoles = draftRoles.map((role, index) => ({ ...role, appearance: role.appearance || normalizedWorld.characters[index]?.imagePrompt || '' }));
+      const generatedDraftRoles = draftRoles.map((role, index) => ({ ...role, goal: role.goal || normalizedWorld.characters[index]?.goal || '', appearance: role.appearance || normalizedWorld.characters[index]?.imagePrompt || '' }));
       setCreatorDetailBaseline({ roles: generatedDraftRoles, outline: response.storyOutline });
       setGeneratedWorld(normalizedWorld);
       setGeneratedStoryOutline(response.storyOutline);
@@ -1944,6 +1992,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
           prerequisiteTaskIds: task.prerequisiteTaskIds,
           successCondition: task.successCondition,
           difficulty: task.difficulty,
+          assignedRoleIds: normalizedWorld.tasks.find((item) => item.id === task.id)?.assignedRoleIds,
         })),
         difficulties: response.world.difficultyConstraints.map((constraint) => constraint.description),
         scheduledEvents: response.world.scheduledEvents.map((worldEvent) => ({ title: worldEvent.title, trigger: worldEvent.trigger, effect: worldEvent.effect })),
@@ -1951,6 +2000,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       setWorldTitle(normalizedWorld.title);
       setWorldSeed(normalizedWorld.premise);
       setDraftRoles((current) => current.map((role, index) => ({ ...role,
+        goal: role.goal || normalizedWorld.characters[index]?.goal || '',
         appearance: role.appearance || normalizedWorld.characters[index]?.imagePrompt || '',
       })));
       setGenerated(true);
@@ -1978,7 +2028,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     const edited = buildCreatorWorld(safeTitle, safeSeed, draftRoles, safeOutline, surprise, effectiveBrief, generatedWorld);
     const nextBaseline = { roles: draftRoles, outline: safeOutline };
     const world = generatedWorld
-      ? preserveCreatorDetails(generatedWorld, preserveCreatorFramework(generatedWorld, edited), creatorDetailBaseline ?? nextBaseline, nextBaseline)
+      ? preserveCreatorDetails(generatedWorld, preserveCreatorFramework(generatedWorld, edited, effectiveBrief.tasks.filter((task) => task.assignedRoleIds !== undefined).map((task) => task.id)), creatorDetailBaseline ?? nextBaseline, nextBaseline)
       : edited;
     setCreatorDetailBaseline(nextBaseline);
     setWorldTitle(safeTitle);
@@ -2023,6 +2073,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
 
   function newCreator(seed = '') {
     if (worldGenerating || creatorAgentThinking) { setStorageError('创作 Agent 仍在处理当前作品，请等本次回应结束后再新建。'); return; }
+    setProposalChanges([]); setCreatorUndo([]); setCreatorChangeNotice(''); setCreatorFocus('');
     const data = JSON.parse(creatorDocumentJSON) as CreatorDocument['data'];
     if (data.worldTitle.trim() || data.worldSeed.trim() || data.generatedWorld) setCreatorDocuments((current) => upsertById(current, { id: draftId, savedAt: Date.now(), data }));
     setActiveLibrary(null); setActiveWorld('storm'); setSelectedRole(roles[0]); setRuntimeBeat(null);
@@ -2044,7 +2095,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     setDraftRoles(data.draftRoles); setGenerated(data.generated); setPublishedWorld(data.publishedWorld);
     setGeneratedWorld(data.generatedWorld ?? null); setCreatorDetailBaseline(data.creatorDetailBaseline ?? null);
     setGeneratedStoryOutline(data.generatedStoryOutline ?? []); setCreatorBrief(data.creatorBrief ?? emptyCreatorBrief);
-    setCreatorMessages(data.creatorMessages ?? []); setCreatorProposal(null); setCreateStep(1); navigate('create');
+    setCreatorMessages(data.creatorMessages ?? []); setCreatorProposal(null); setProposalChanges([]); setCreatorUndo([]); setCreatorChangeNotice(''); setCreatorFocus(''); setCreateStep(1); navigate('create');
   }
 
   function saveChat(session: ChatSession) { setChatSessions((current) => upsertById(current, session)); }
@@ -2125,11 +2176,15 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
           creatorMessage={creatorMessage}
           creatorAgentThinking={creatorAgentThinking}
           creatorProposal={creatorProposal}
+          proposalChanges={proposalChanges}
+          creatorUndo={creatorUndo}
+          creatorChangeNotice={creatorChangeNotice}
+          onCreatorFocus={setCreatorFocus}
           creatorQuestions={creatorQuestions}
           storyOutline={generatedStoryOutline}
           roleImages={roleImages}
           roleImageStates={roleImageStates}
-          onStep={setCreateStep}
+          onStep={(value) => { setCreateStep(value); setCreatorFocus(''); }}
           onAddRole={addDraftRole}
           onRemoveRole={removeDraftRole}
           onUpdateRole={updateDraftRole}
@@ -2388,6 +2443,7 @@ function CreateWorld({
   creatorMessage,
   creatorAgentThinking,
   creatorProposal,
+  proposalChanges, creatorUndo, creatorChangeNotice, onCreatorFocus,
   creatorQuestions,
   storyOutline,
   roleImages,
@@ -2430,6 +2486,10 @@ function CreateWorld({
   creatorMessage: string;
   creatorAgentThinking: boolean;
   creatorProposal: CreatorAgentResponse['proposal'] | null;
+  proposalChanges: CreatorChange[];
+  creatorUndo: CreatorChange[];
+  creatorChangeNotice: string;
+  onCreatorFocus: (field: string) => void;
   creatorQuestions: string[];
   storyOutline: StoryOutlineBeat[];
   roleImages: Record<string, string>;
@@ -2443,13 +2503,13 @@ function CreateWorld({
   onWorldSeed: (value: string) => void;
   onCreatorMessage: (value: string) => void;
   onSubmitCreatorMessage: (event: SyntheticEvent<HTMLFormElement>) => void;
-  onApplyCreatorProposal: () => void;
+  onApplyCreatorProposal: (change: CreatorChange, undo?: boolean) => void;
   onDismissCreatorProposal: () => void;
   onUpdateCreatorBrief: (key: keyof Pick<CreatorBrief, 'coreGoal' | 'successCondition' | 'failureCondition'>, value: string) => void;
   onComplexity: (value: number) => void;
   onAddCreatorTask: () => void;
   onRemoveCreatorTask: (index: number) => void;
-  onUpdateCreatorTask: (index: number, key: keyof Pick<CreatorTaskDraft, 'title' | 'description' | 'successCondition' | 'difficulty'>, value: string) => void;
+  onUpdateCreatorTask: (index: number, key: keyof CreatorTaskDraft, value: string | string[]) => void;
   onGenerate: () => void;
   onUseManualStory: () => void;
   onAcceptPlot: () => void;
@@ -2460,6 +2520,8 @@ function CreateWorld({
   onPublish: () => void;
   onShare: () => void;
 }) {
+  const [mobileDiscussion, setMobileDiscussion] = useState(false);
+  const taskIssues = creatorTaskIssues(creatorBrief.tasks, draftRoles.length);
   const discussionPanel = (
             <section className="creator-agent-panel" aria-label="与创作 Agent 讨论">
               <div className="creator-agent-heading"><span><Sparkles /></span><div><small>创作 Agent</small><strong>一起搭世界框架</strong></div><em>{creatorAgentThinking ? '正在整理' : '等待你的想法'}</em></div>
@@ -2472,7 +2534,7 @@ function CreateWorld({
                 <label htmlFor="creator-message">和 Agent 讨论你的世界 · Enter 发送，Shift + Enter 换行</label><MessageTextarea id="creator-message" maxLength={3000} value={creatorMessage} onChange={(event) => onCreatorMessage(event.target.value)} placeholder="只有一句话也可以。比如：想做一个被逐出家门后回来争家产的故事，人物还没想好。" disabled={creatorAgentThinking} />
                 <Button className="agent-send" type="submit" disabled={!creatorMessage.trim() || creatorAgentThinking}><Send />继续讨论</Button>
               </form>
-              {creatorProposal ? <div className="creator-proposal"><span><WandSparkles /></span><div><strong>待你确认的创作建议</strong><small>{creatorProposal.brief.tasks.filter((task) => task.kind === 'main').length} 个主线条件 · {creatorProposal.brief.difficulties.length} 个阻力</small></div><details className="creator-proposal-preview"><summary>查看将写入的角色与设定</summary><h3>{creatorProposal.title}</h3><p>{creatorProposal.premise}</p>{creatorProposal.characters?.map((role, index) => <p key={index}><strong>{role.name} · {role.identity}</strong><br />{role.persona}<br />{role.relationship}<br />{role.appearance}</p>)}<p>目标：{creatorProposal.brief.coreGoal}</p><p>成功：{creatorProposal.brief.successCondition}</p><p>失败：{creatorProposal.brief.failureCondition}</p>{creatorProposal.brief.tasks.map((task) => <p key={task.id}>{task.title}：{task.description}；完成条件：{task.successCondition}</p>)}<p>阻力：{creatorProposal.brief.difficulties.join("；")}</p><p>采纳会替换当前世界框架；提案包含角色时也会替换角色，原形象需重新生成。</p></details><Button disabled={creatorAgentThinking} onClick={onApplyCreatorProposal}>采纳这版设定</Button><button type="button" disabled={creatorAgentThinking} onClick={onDismissCreatorProposal}>暂不采纳</button></div> : null}
+              <CreatorProposalReview changes={creatorProposal ? proposalChanges : []} undo={creatorUndo} notice={creatorChangeNotice} busy={creatorAgentThinking} onApply={onApplyCreatorProposal} onDismiss={onDismissCreatorProposal} />
             </section>
   );
   return (
@@ -2483,11 +2545,15 @@ function CreateWorld({
         <span>{step} / 4</span>
       </div>
       <div className="create-progress" aria-label={`创建进度，第 ${step} 步，共 4 步`}>{[1, 2, 3, 4].map((item) => <span key={item} data-active={item <= step} />)}</div>
+      {taskIssues.length > 0 && <div className="creator-validation" role="alert"><strong>先修正任务关系再生成或发布</strong>{taskIssues.map((issue) => <p key={issue}>{issue}</p>)}</div>}
 
-      {step === 1 && <div className="creator-first-discussion">{discussionPanel}</div>}
+      <nav className="creator-chapters" aria-label="创作章节">{['角色与目标', '故事与任务', '意外与规则', '预览与发布'].map((label, index) => <button key={label} type="button" aria-current={step === index + 1 ? 'step' : undefined} onClick={() => onStep(index + 1)}>{String(index + 1).padStart(2, '0')} · {label}</button>)}</nav>
+      <div className="creator-mobile-tabs"><button type="button" onClick={() => setMobileDiscussion(false)} aria-pressed={!mobileDiscussion}>编辑设定</button><button type="button" onClick={() => setMobileDiscussion(true)} aria-pressed={mobileDiscussion}>和 Agent 讨论</button></div>
+      <div className="creator-layout" data-discussion={mobileDiscussion}>
+      <div className="creator-editor" onFocusCapture={(event) => { const el = event.target as HTMLElement; onCreatorFocus(el.getAttribute('aria-label') || el.id || el.textContent?.slice(0, 80) || ''); }}>
       {step === 1 && (
         <section className="create-card">
-          <div className="create-card-title"><div><h2>添加这个世界中的角色</h2><p>可以先和上方 Agent 一起想角色，也可以直接在这里写。所有设定都能手动修改。</p></div><div className="create-title-actions"><Button variant="outline" onClick={onGenerateAllRoleImages} disabled={Object.values(roleImageStates).includes('generating')}><ImageIcon />生成全部形象</Button><Button variant="outline" onClick={onAddRole}><Plus />添加角色</Button></div></div>
+          <div className="create-card-title"><div><h2>添加这个世界中的角色</h2><p>可以先和创作 Agent 一起想角色，也可以直接在这里写。所有设定都能手动修改。</p></div><div className="create-title-actions"><Button variant="outline" onClick={onGenerateAllRoleImages} disabled={Object.values(roleImageStates).includes('generating')}><ImageIcon />生成全部形象</Button><Button variant="outline" onClick={onAddRole}><Plus />添加角色</Button></div></div>
           <div className="draft-role-list">
             {draftRoles.map((role, index) => (
               <article className="draft-role" key={index}>
@@ -2507,12 +2573,13 @@ function CreateWorld({
                   <div className="draft-field full-field"><label htmlFor={`role-personality-${index}`}>性格与行为倾向</label><Input id={`role-personality-${index}`} value={role.personality} onChange={(event) => onUpdateRole(index, 'personality', event.target.value)} placeholder="例如：理性、好奇，但害怕欠人情" /></div>
                   <div className="draft-field full-field"><label htmlFor={`role-appearance-${index}`}>固定外观（用于保持连续）</label><Input id={`role-appearance-${index}`} value={role.appearance} onChange={(event) => onUpdateRole(index, 'appearance', event.target.value)} placeholder="例如：齐肩黑发、墨绿色防风外套、随身携带旧笔记本" /></div>
                   <div className="draft-field full-field"><label htmlFor={`role-relationship-${index}`}>与其他角色的关系</label><Input id={`role-relationship-${index}`} value={role.relationship} onChange={(event) => onUpdateRole(index, 'relationship', event.target.value)} placeholder="例如：受上一任守塔人委托保护许知遥" /></div>
+                  <div className="draft-field full-field"><label htmlFor={`role-goal-${index}`}>这个角色想达成什么？</label><Textarea id={`role-goal-${index}`} value={role.goal || ''} onChange={(event) => onUpdateRole(index, 'goal', event.target.value)} placeholder="例如：拿回属于自己的继承权，而不是帮其他人完成目标" /></div>
                 </div>
                 <button className="remove-role" type="button" disabled={draftRoles.length <= 2} onClick={() => onRemoveRole(index)} aria-label={`删除角色 ${role.name || index + 1}`}><Trash2 /></button>
               </article>
             ))}
           </div>
-          <div className="create-actions"><span>建议 2—5 个角色，至少两个角色才能形成关系。</span><Button className="primary-action" onClick={() => onStep(2)}>继续创建故事<ArrowRight /></Button></div>
+          <div className="create-actions"><span>建议 2—5 个角色。删除角色也会删除其专属任务；仅修改目标不会重新生图。</span><Button className="primary-action" onClick={() => onStep(2)}>继续创建故事<ArrowRight /></Button></div>
         </section>
       )}
 
@@ -2520,7 +2587,6 @@ function CreateWorld({
         <section className="create-card story-seed-card">
           <div className="create-card-title"><div><h2>和创作 Agent 一起把想法变成可玩世界</h2><p>你定义想表达的东西；Agent 帮你追问目标、条件和代价。不按分钟数定长短。</p></div></div>
           <div className="creator-workbench">
-            {discussionPanel}
 
             <section className="creator-framework-panel" aria-label="可编辑的世界框架">
               <div className="framework-heading"><div><small>随时手动修改</small><strong>世界框架</strong></div><span>{creatorBrief.tasks.filter((task) => task.kind === 'main').length} 个主线条件</span></div>
@@ -2530,16 +2596,16 @@ function CreateWorld({
               <div className="condition-grid"><label htmlFor="success-condition">成功条件<Input id="success-condition" value={creatorBrief.successCondition} onChange={(event) => onUpdateCreatorBrief('successCondition', event.target.value)} placeholder="什么状态才算成功" /></label><label htmlFor="failure-condition">失败条件<Input id="failure-condition" value={creatorBrief.failureCondition} onChange={(event) => onUpdateCreatorBrief('failureCondition', event.target.value)} placeholder="什么时候进入失败结局" /></label></div>
               <div className="complexity-picker"><span><strong>世界复杂度</strong><small>决定任务深度，不是预设分钟数</small></span><div>{['轻量', '标准', '丰富', '多线'].map((label, index) => <button type="button" key={label} data-selected={creatorBrief.complexityLevel === index + 1} onClick={() => onComplexity(index + 1)}>{label}</button>)}</div></div>
               <div className="creator-task-heading"><span><strong>目标下的任务条件</strong><small>前置条件与困难防止玩家一句话直达结局</small></span><Button variant="outline" onClick={onAddCreatorTask}><Plus />添加任务</Button></div>
-              <ol className="creator-task-list">{creatorBrief.tasks.map((task, index) => <li key={task.id}><span>{String(index + 1).padStart(2, '0')}</span><div><Input aria-label={`任务 ${index + 1} 名称`} value={task.title} onChange={(event) => onUpdateCreatorTask(index, 'title', event.target.value)} /><Textarea aria-label={`任务 ${index + 1} 内容`} value={task.description} onChange={(event) => onUpdateCreatorTask(index, 'description', event.target.value)} /><div><Input aria-label={`任务 ${index + 1} 完成条件`} value={task.successCondition} onChange={(event) => onUpdateCreatorTask(index, 'successCondition', event.target.value)} placeholder="完成条件" /><Input aria-label={`任务 ${index + 1} 困难`} value={task.difficulty} onChange={(event) => onUpdateCreatorTask(index, 'difficulty', event.target.value)} placeholder="困难或代价" /></div></div><button type="button" onClick={() => onRemoveCreatorTask(index)} aria-label={`删除任务 ${index + 1}`}><Trash2 /></button></li>)}</ol>
+              <CreatorTaskEditor tasks={creatorBrief.tasks} roles={draftRoles} onUpdate={onUpdateCreatorTask} onRemove={onRemoveCreatorTask} />
               {creatorBrief.tasks.length === 0 ? <div className="empty-task-state"><Target /><span><strong>还没有任务条件</strong><small>先和 Agent 讨论，或手动添加。直接生成时也会自动补齐。</small></span></div> : null}
             </section>
           </div>
           <div className="creation-paths" aria-label="选择世界生成方式">
-            <button type="button" onClick={onUseManualStory} disabled={generating || !worldSeed.trim()}><Pencil /><span><strong>直接使用我的设定</strong><small>不让 AI 改写，按当前框架建立世界</small></span><ArrowRight /></button>
-            <button type="button" onClick={onGenerate} disabled={generating}><WandSparkles /><span><strong>{generating ? 'AI 正在补全世界' : '让 AI 补全世界'}</strong><small>保留你的设定，补全角色秘密、场景和推进参考</small></span><ArrowRight /></button>
+            <button type="button" onClick={onUseManualStory} disabled={generating || !worldSeed.trim() || taskIssues.length > 0}><Pencil /><span><strong>直接使用我的设定</strong><small>不让 AI 改写，按当前框架建立世界</small></span><ArrowRight /></button>
+            <button type="button" onClick={onGenerate} disabled={generating || taskIssues.length > 0}><WandSparkles /><span><strong>{generating ? 'AI 正在补全世界' : '让 AI 补全世界'}</strong><small>保留你的设定，补全角色秘密、场景和推进参考</small></span><ArrowRight /></button>
           </div>
           {storyOutline.length > 0 ? <details className="generated-guide"><summary>查看 AI 给出的推进参考（不决定何时结束）</summary><ol>{storyOutline.map((beat, index) => <li key={beat.id}><span>{String(index + 1).padStart(2, '0')}</span><div className="outline-fields"><label htmlFor={`outline-title-${index}`}><small>节点</small><Input id={`outline-title-${index}`} value={beat.title} onChange={(event) => onUpdateStoryBeat(index, 'title', event.target.value)} /></label><label htmlFor={`outline-location-${index}`}><small>地点</small><Input id={`outline-location-${index}`} value={beat.location} onChange={(event) => onUpdateStoryBeat(index, 'location', event.target.value)} /></label><label className="outline-full" htmlFor={`outline-objective-${index}`}><small>可能目标</small><Textarea id={`outline-objective-${index}`} value={beat.objective} onChange={(event) => onUpdateStoryBeat(index, 'objective', event.target.value)} /></label><label className="outline-full" htmlFor={`outline-turning-${index}`}><small>可能转折</small><Textarea id={`outline-turning-${index}`} value={beat.turningPoint} onChange={(event) => onUpdateStoryBeat(index, 'turningPoint', event.target.value)} /></label></div></li>)}</ol></details> : null}
-          <div className="create-actions"><Button variant="outline" onClick={() => onStep(1)} disabled={generating}><ArrowLeft />返回角色</Button><div className="plot-actions">{storyOutline.length > 0 ? <Button className="primary-action" onClick={onAcceptPlot}>保存框架并继续<ArrowRight /></Button> : null}</div></div>
+          <div className="create-actions"><Button variant="outline" onClick={() => onStep(1)} disabled={generating}><ArrowLeft />返回角色</Button><div className="plot-actions">{storyOutline.length > 0 ? <Button className="primary-action" onClick={onAcceptPlot} disabled={taskIssues.length > 0}>保存框架并继续<ArrowRight /></Button> : null}</div></div>
         </section>
       )}
 
@@ -2554,8 +2620,7 @@ function CreateWorld({
             </div>
             <Slider min={1} max={4} step={1} value={[surprise]} onValueChange={(value) => onSurprise(typeof value === 'number' ? value : value[0])} aria-label="拖动调整意外程度" />
           </div>
-          <div className="setting-row"><span><strong>允许自由输入行动</strong><small>体验者可以跳出预设选项</small></span><Switch defaultChecked /></div>
-          <div className="setting-row"><span><strong>结局后允许继续</strong><small>保留状态，探索结局之后</small></span><Switch defaultChecked /></div>
+          <p>体验中支持自由输入行动；达成结局后可以选择继续。这两项目前是所有世界共有的能力。</p>
           <div className="create-actions"><Button variant="outline" onClick={() => onStep(2)}><ArrowLeft />返回故事</Button><Button className="primary-action" onClick={() => onStep(4)}>预览世界<ArrowRight /></Button></div>
         </section>
       )}
@@ -2570,10 +2635,11 @@ function CreateWorld({
             <p className="eyebrow">生成前确认</p><h2>世界设定卡</h2>
             <dl><div><dt>角色</dt><dd>{draftRoles.map((role) => role.name || '未命名').join('、')}</dd></div><div><dt>意外程度</dt><dd>{surpriseLabels[surprise - 1]}</dd></div><div><dt>世界复杂度</dt><dd>{['轻量', '标准', '丰富', '多线'][creatorBrief.complexityLevel - 1]} · {creatorBrief.tasks.filter((task) => task.kind === 'main').length || 3} 个主线条件</dd></div><div><dt>结束方式</dt><dd>达成目标条件后结束</dd></div></dl>
             <div className="preview-tip"><Lightbulb /><span>世界只建立角色的过去、当下状态、目标和任务条件。之后如何发展由玩家行动与世界 Agent 共同推演，不依赖固定分幕。</span></div>
-            <div className="preview-buttons"><Button variant="outline" onClick={() => onStep(3)}><ArrowLeft />继续修改</Button><Button variant="outline" onClick={onPublish}>保存并试玩<ArrowRight /></Button><Button className="primary-action" onClick={onShare}>公开发布<ArrowRight /></Button></div>
+            <div className="preview-buttons"><Button variant="outline" onClick={() => onStep(3)}><ArrowLeft />继续修改</Button><Button variant="outline" onClick={onPublish} disabled={taskIssues.length > 0}>保存并试玩<ArrowRight /></Button><Button className="primary-action" onClick={onShare} disabled={taskIssues.length > 0}>公开发布<ArrowRight /></Button></div>
           </aside>
         </section>
       )}
+      </div><aside className="creator-discussion-column">{discussionPanel}</aside></div>
     </div>
   );
 }

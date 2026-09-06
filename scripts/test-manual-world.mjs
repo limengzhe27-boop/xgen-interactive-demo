@@ -17,4 +17,16 @@ test('manual creation uses its own brief, not the legacy lighthouse story', asyn
   assert.ok(world.characters.every(c => c.goal === '共同找到旧书并归还'));
   assert.equal(world.openingScene.choices[0].label, '先观察当前现场');
   assert.doesNotMatch(JSON.stringify(world), /灯塔|雾潮|航海日志|凌晨三点|明天的内容/);
+  const roleWorld = buildCreatorWorld('两个目标', '对立的继承人', ['林舟','周岚'].map((name, index) => ({name, identity:'成年人', personality:'冷静', relationship:'对手', appearance:'', goal: index === 0 ? '拿回继承权' : '保住自己的公司'})), [], 2, { coreGoal:'家产分配',successCondition:'争夺结束',failureCondition:'',complexityLevel:2,difficulties:[],scheduledEvents:[], tasks: [
+    {id:'a',title:'核验遗嘱',description:'核验',kind:'main',assignedRoleIds:['draft-role-0'],prerequisiteTaskIds:[],successCondition:'核验完成',difficulty:'假证人'},
+    {id:'b',title:'赢得股东支持',description:'协商',kind:'main',assignedRoleIds:['draft-role-1'],prerequisiteTaskIds:[],successCondition:'表决通过',difficulty:'反对者'},
+    {id:'c',title:'探望旧友',description:'拜访',kind:'side',assignedRoleIds:['draft-role-0'],prerequisiteTaskIds:[],successCondition:'已拜访',difficulty:'交通'},
+  ] });
+  assert.equal(roleWorld.characters[0].goal, '拿回继承权');
+  assert.equal(roleWorld.characters[1].goal, '保住自己的公司');
+  assert.deepEqual(roleWorld.goals.find(goal => goal.roleId === 'draft-role-0').requiredTaskIds, ['a']);
+  assert.deepEqual(roleWorld.goals.find(goal => goal.roleId === 'draft-role-1').requiredTaskIds, ['b']);
+  assert.deepEqual(roleWorld.endingConditions.find(ending => ending.applicableRoleIds.includes('draft-role-0')).requiredTaskIds, ['a']);
+  assert.deepEqual(roleWorld.endingConditions.find(ending => ending.applicableRoleIds.includes('draft-role-1')).requiredTaskIds, ['b']);
+  assert.deepEqual(roleWorld.tasks.find(task => task.id === 'c').assignedRoleIds, ['draft-role-0']);
 });

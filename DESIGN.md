@@ -1,5 +1,17 @@
 # DESIGN.md
 
+## 2026-09-06 创作工作台（沿用已确认方向）
+
+1. **Visual Theme & Atmosphere**：黑金 L1 编辑工具，右侧雾蓝 Agent 常驻所有步骤；不做宣传页或新视觉方向。
+2. **Color Palette & Roles**：沿用下方全部 `--color-*` 变量；金色表示当前步骤／采纳，雾蓝表示讨论，危险色只用于删除与冲突。
+3. **Typography Rules**：沿用已加载的 Noto Sans SC / Noto Serif SC；页面标题 28px、区块 20px、正文 15–16px / 1.8。文字无渐变或投影。
+4. **Component Stylings**：复用 Button/Input/MessageTextarea；任务以原生 details 卡片折叠，摘要显示归属和主支线。建议显示独立设定块、展开前后对照、分项采纳／撤销；已手改冲突不得覆盖。按钮沿用默认、hover、active、focus-visible、disabled 状态。
+5. **Layout Principles**：桌面最大 1480px，章节条在上，编辑区与 360px 讨论栏两列，间距 24px；编辑卡 20px 内边距。讨论栏粘性定位、内部滚动；不把长提案撑满整个工作区。
+6. **Depth & Elevation**：编辑卡弱边框、Agent 次级表面；无额外大阴影，无图片上叠长文。
+7. **Animation & Interaction**：L1 CSS only，沿用 240ms 淡入和 180ms 状态变化；reduced-motion 下取消。切换步骤不断开讨论、不自动发送、不自动生图。
+8. **Do's and Don'ts**：保留纯手动入口、旧存档、角色独立目标、主支线与任务归属；AI 建议主动采纳、可撤销。禁止整包静默覆盖、覆盖采纳后的手动编辑、为修改目标清除形象、假开关、把 NPC 任务强加给玩家、跨步骤重复输入框、自动公开、虚构云同步。
+9. **Responsive Behavior**：1100px 以下变单列并提供“编辑／讨论”切换；600px 以下章节两列、字段单列。触摸目标 44px，所有子项 min-width:0，长内容换行，不出现水平滚动。
+
 ## 2026-09-06 账号与公开发布
 
 - 沿用已确认的黑金 L1 规范、原有 Button / Dialog / Input，不引入新视觉方向或生图。

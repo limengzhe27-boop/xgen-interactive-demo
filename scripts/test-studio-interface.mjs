@@ -166,6 +166,7 @@ test('personal instructions support everyday conversation; creation discussion i
   assert.ok(system.includes('个人 AI 助理'));
   assert.ok(!system.includes('而不是泛用助手'));
   const page = readFileSync(new URL('../app/page.tsx', import.meta.url), 'utf8');
-  assert.ok(page.includes('{step === 1 && <div className="creator-first-discussion">{discussionPanel}</div>}'));
+  assert.ok(page.includes('<aside className="creator-discussion-column">{discussionPanel}</aside>'));
+  assert.equal(page.split('{discussionPanel}').length - 1, 1, 'one persistent composer across every step');
   assert.ok(page.includes('setCreatorMessage(seed)'));
 });

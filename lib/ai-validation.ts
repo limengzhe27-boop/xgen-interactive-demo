@@ -27,7 +27,8 @@ function isCreatorBrief(value: unknown) {
     && (task.kind === 'main' || task.kind === 'side')
     && isStringArray(task.prerequisiteTaskIds)
     && typeof task.successCondition === 'string'
-    && typeof task.difficulty === 'string')
+    && typeof task.difficulty === 'string'
+    && (task.assignedRoleIds === undefined || isStringArray(task.assignedRoleIds)))
     && value.scheduledEvents.every((event) => isRecord(event)
       && typeof event.title === 'string'
       && typeof event.trigger === 'string'
@@ -70,11 +71,12 @@ export function isCreatorAgentResponse(value: unknown): value is CreatorAgentRes
   return isRecord(value)
     && typeof value.reply === 'string'
     && isRecord(value.proposal)
+    && (value.proposal.surpriseLevel === undefined || [1, 2, 3, 4].includes(value.proposal.surpriseLevel as number))
     && typeof value.proposal.title === 'string'
     && typeof value.proposal.premise === 'string'
     && (value.proposal.characters === undefined || (Array.isArray(value.proposal.characters)
       && value.proposal.characters.length <= 5
-      && value.proposal.characters.every((role) => isRecord(role) && ['name', 'identity', 'persona', 'relationship', 'appearance'].every((key) => typeof role[key] === 'string'))))
+      && value.proposal.characters.every((role) => isRecord(role) && (role.goal === undefined || typeof role.goal === 'string') && ['name', 'identity', 'persona', 'relationship', 'appearance'].every((key) => typeof role[key] === 'string'))))
     && isCreatorBrief(value.proposal.brief)
     && isStringArray(value.nextQuestions)
     && (value.readiness === 'needs_detail' || value.readiness === 'ready');
