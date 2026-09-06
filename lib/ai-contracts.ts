@@ -21,6 +21,7 @@ export type ExperienceSummary = {
 };
 
 export type PersonalAgentRequest = {
+  recommendationContext?: PersonalAgentResponse['recommendations'];
   conversation?: { role: 'user' | 'assistant'; content: string }[];
   contractVersion: typeof AI_CONTRACT_VERSION;
   userMessage: string;
@@ -37,6 +38,7 @@ export type PersonalAgentRequest = {
 };
 
 export type PersonalAgentResponse = {
+  action?: { type: 'none' } | { type: 'open-world'; worldId: string };
   reply: string;
   memoryCandidates: AgentMemory[];
   recommendations: {

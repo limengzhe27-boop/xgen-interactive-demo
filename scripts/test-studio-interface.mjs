@@ -80,17 +80,17 @@ test('melodramatic revision changes rules, openings and tasks while preserving i
   assert.ok(studioWorlds[2].world.openingScene.narrative.includes('你又不姓何'));
 });
 
-async function mockedPersonal(recommendedId) {
+async function mockedPersonal(recommendedId, action, userMessage = '换一个') {
   const originalFetch = globalThis.fetch;
   const previousKey = process.env.DEEPSEEK_API_KEY;
   process.env.DEEPSEEK_API_KEY = 'synthetic-test-only';
   let payload; let calls = 0;
   globalThis.fetch = async (_url, init) => {
     calls++; payload = JSON.parse(init.body);
-    return Response.json({ choices: [{ message: { content: JSON.stringify({ reply: '这次按你说的换口味。', memoryCandidates: [], recommendations: [{ worldId: recommendedId, reason: '符合本次表达', matchedMemoryIds: [] }] }) } }] });
+    return Response.json({ choices: [{ message: { content: JSON.stringify({ reply: '这次按你说的换口味。', memoryCandidates: [], action, recommendations: [{ worldId: recommendedId, reason: '符合本次表达', matchedMemoryIds: [] }] }) } }] });
   };
   try {
-    const input = { contractVersion: '2026-09-04.v2', userMessage: '换一个', currentMemories: [], recentExperiences: [], availableWorldIds: ['fixture'], availableWorlds: [{ id: 'fixture', title: '合成测试', genre: '虚构', premise: '测试', surpriseLevel: 2 }], conversation: [{ role: 'user', content: '刚才想玩追悔，现在想逆袭' }] };
+    const input = { contractVersion: '2026-09-04.v2', userMessage, currentMemories: [], recentExperiences: [], availableWorldIds: ['fixture'], availableWorlds: [{ id: 'fixture', title: '合成测试', genre: '虚构', premise: '测试', surpriseLevel: 2 }], conversation: [{ role: 'user', content: '刚才想玩追悔，现在想逆袭' }] };
     const response = await POST(new Request('http://localhost/api/ai', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ operation: 'personal-agent', input }) }));
     return { response, payload, calls };
   } finally {
@@ -109,6 +109,24 @@ test('personal endpoint rejects an invented world rather than exposing it as a r
   const result = await mockedPersonal('invented-world');
   assert.equal(result.response.status, 502); assert.equal(result.calls, 1);
   assert.equal((await result.response.json()).error, 'recommendation_outside_catalogue');
+});
+
+test('personal endpoint validates action targets and suppresses an unsolicited open', async () => {
+  const valid = await mockedPersonal('fixture', { type: 'open-world', worldId: 'fixture' }, '带我去那个合成世界');
+  const output = await valid.response.json();
+  assert.equal(output.action.type, 'open-world'); assert.deepEqual(output.recommendations, []);
+  const invalid = await mockedPersonal('fixture', { type: 'open-world', worldId: 'missing' }, '带我进去');
+  assert.equal(invalid.response.status, 502);
+  const denied = await mockedPersonal('fixture', { type: 'open-world', worldId: 'fixture' }, '先不要进去');
+  assert.equal((await denied.response.json()).action.type, 'none');
+});
+
+test('action schema rejects unsupported operations and missing world IDs', () => {
+  const response = { reply: '测试', recommendations: [], memoryCandidates: [] };
+  assert.ok(isPersonalAgentResponse({ ...response, action: { type: 'none' } }));
+  assert.ok(isPersonalAgentResponse({ ...response, action: { type: 'open-world', worldId: 'fixture' } }));
+  assert.ok(!isPersonalAgentResponse({ ...response, action: { type: 'open-world' } }));
+  assert.ok(!isPersonalAgentResponse({ ...response, action: { type: 'publish-world', worldId: 'fixture' } }));
 });
 
 test('new personal memories are explicit candidates, never automatic behavioral profiles', () => {

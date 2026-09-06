@@ -31,7 +31,7 @@ import { AccountBoundary } from '@/components/account-boundary';
 import { accountStorageKey } from '@/lib/account-scope';
 import { PersonalAgent } from '@/components/personal-agent';
 import { pendingMemories, restorePersonalConversation } from '@/lib/personal-memory';
-import { knownRecommendations } from '@/lib/personal-recommendations';
+import { knownRecommendations, restoreRecommendations, resolveWorldSelection, recommendationReply } from '@/lib/personal-recommendations';
 import type { PersonalAgentRequest, PersonalAgentResponse } from '@/lib/ai-contracts';
 import { CharacterChat, CharacterEntry } from '@/components/character-chat';
 import { studioWorlds, getRoleOpening } from '@/lib/studio-worlds';
@@ -153,6 +153,7 @@ type PresetWorld = {
 type PersistedDemoState = {
   memories: string[];
   agentConversation?: NonNullable<PersonalAgentRequest['conversation']>;
+  personalRecommendations?: PersonalAgentResponse['recommendations'];
   liveMode: boolean;
   surprise: number;
   worldTitle: string;
@@ -895,6 +896,8 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
   const [agentConversation, setAgentConversation] = useState<NonNullable<PersonalAgentRequest['conversation']>>([]);
   const [agentError, setAgentError] = useState('');
   const [personalRecommendations, setPersonalRecommendations] = useState<PersonalAgentResponse['recommendations']>([]);
+  const personalRequestBusy = useRef(false);
+  const navigationRevision = useRef(0);
   const [modelMode, setModelMode] = useState<ModelMode>('checking');
   const [imageModelMode, setImageModelMode] = useState<ImageModelMode>('checking');
   const lastImageAttemptTurnRef = useRef(0);
@@ -1084,6 +1087,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
           const saved = JSON.parse(raw) as Partial<PersistedDemoState>;
           if (Array.isArray(saved.memories)) setMemories(saved.memories.filter((item) => typeof item === 'string').slice(0, 24));
           setAgentConversation(restorePersonalConversation(saved.agentConversation));
+          setPersonalRecommendations(restoreRecommendations(saved.personalRecommendations));
           if (typeof saved.liveMode === 'boolean') setLiveMode(saved.liveMode);
           if (typeof saved.surprise === 'number') setSurprise(Math.max(1, Math.min(4, saved.surprise)));
           if (typeof saved.worldTitle === 'string') setWorldTitle(saved.worldTitle);
@@ -1154,6 +1158,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     const snapshot: PersistedDemoState = {
       memories,
       agentConversation: agentConversation.slice(-40),
+      personalRecommendations,
       liveMode,
       surprise,
       worldTitle,
@@ -1170,7 +1175,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     };
     try { window.localStorage.setItem(demoStorageKey, JSON.stringify(snapshot)); }
     catch { window.setTimeout(() => setStorageError('浏览器空间不足，最新修改还没有保存。请保持页面打开，勿刷新。'), 0); }
-  }, [agentConversation, creatorBrief, creatorDetailBaseline, creatorMessages, draftRoles, generated, generatedStoryOutline, generatedWorld, liveMode, memories, publishedWorld, savedRun, storageReady, surprise, worldSeed, worldTitle]);
+  }, [agentConversation, personalRecommendations, creatorBrief, creatorDetailBaseline, creatorMessages, draftRoles, generated, generatedStoryOutline, generatedWorld, liveMode, memories, publishedWorld, savedRun, storageReady, surprise, worldSeed, worldTitle]);
 
   const creatorDocumentJSON = JSON.stringify({ worldTitle, worldSeed, surprise, draftRoles, generated, generatedWorld: generatedWorld ?? undefined,
     creatorDetailBaseline: creatorDetailBaseline ?? undefined, generatedStoryOutline, creatorBrief, creatorMessages, publishedWorld });
@@ -1266,6 +1271,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
   }, []);
 
   function navigate(next: View) {
+    navigationRevision.current++;
     if (next !== 'play') stopActiveGeneration();
     setView(next);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -1386,29 +1392,30 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
   function openDraftWorld() {
     setActiveLibrary(null);
     const nextRoles = makePlayableDraftRoles(draftRoles);
-    if (nextRoles.length === 0) return;
+    if (nextRoles.length === 0) return false;
     if (!generatedWorld?.tasks?.length) materializeCreatorWorld();
     setActiveWorld('draft');
     setSelectedRole(nextRoles[0]);
     setRuntimeBeat(null);
     navigate('roles');
+    return true;
   }
 
   function openCatalogWorld(worldId: string) {
     const libraryEntry = availableStudioWorlds.find((entry) => entry.id === worldId);
     if (libraryEntry) {
-      setActiveLibrary(libraryEntry); setActiveWorld('draft'); setSelectedRole(entryRoles(libraryEntry)[0]); setRuntimeBeat(null); navigate('roles'); return;
+      if (!libraryEntry.world.characters.length) return false;
+      setActiveLibrary(libraryEntry); setActiveWorld('draft'); setSelectedRole(entryRoles(libraryEntry)[0]); setRuntimeBeat(null); navigate('roles'); return true;
     }
     if (worldId === 'creator-world') {
-      openDraftWorld();
-      return;
+      return openDraftWorld();
     }
     if (worldId === 'storm-manor') {
       openStormWorld();
-      return;
+      return true;
     }
     const preset = presetWorlds.find((world) => world.id === worldId);
-    if (!preset) return;
+    if (!preset) return false;
     const nextRoles = makePlayableDraftRoles(preset.roles);
     setActiveLibrary(null);
     setSuggestedPreset(preset);
@@ -1416,6 +1423,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     setSelectedRole(nextRoles[0]);
     setRuntimeBeat(null);
     navigate('roles');
+    return true;
   }
 
   function resumeSavedWorld(input?: SavedRun) {
@@ -1476,28 +1484,55 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
   async function submitMessage(event: SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
     const value = message.trim();
-    if (!value || agentThinking) return;
+    if (!value || agentThinking || personalRequestBusy.current) return;
     setAgentError('');
+    const selection = resolveWorldSelection(value, personalRecommendations, personalCatalog);
+    if (selection.kind === 'open') { openPersonalWorld(selection.worldId, value); return; }
+    if (selection.kind === 'clarify') {
+      setAgentConversation((current) => restorePersonalConversation([...current, { role: 'user', content: value }, { role: 'assistant', content: selection.reply }]));
+      setMessage(''); return;
+    }
+    personalRequestBusy.current = true;
+    const revision = navigationRevision.current;
     setAgentThinking(true);
     try {
       const response = await runAI((adapter) => adapter.talkToPersonalAgent({
         contractVersion: AI_CONTRACT_VERSION,
         userMessage: value,
         conversation: agentConversation.slice(-8),
+        recommendationContext: personalRecommendations,
         currentMemories: toAgentMemories(memories),
         recentExperiences: [],
         availableWorldIds: personalCatalog.map((entry) => entry.id),
         availableWorlds: personalCatalog,
       }), false);
-      setAgentConversation((current) => restorePersonalConversation([...current, { role: 'user', content: value }, { role: 'assistant', content: response.reply }]));
+      // A late response must never pull someone back from a different screen.
+      if (revision !== navigationRevision.current) return;
+      const recommendations = knownRecommendations(response.recommendations, personalCatalog.map((entry) => entry.id));
+      if (response.action?.type === 'open-world') {
+        if (!openPersonalWorld(response.action.worldId, value)) return;
+      } else {
+        setAgentConversation((current) => restorePersonalConversation([...current, { role: 'user', content: value }, { role: 'assistant', content: recommendationReply(response.reply, recommendations, personalCatalog) }]));
+      }
       setMessage('');
       setPendingPersonalMemories(pendingMemories(response.memoryCandidates, memories));
-      setPersonalRecommendations(knownRecommendations(response.recommendations, personalCatalog.map((entry) => entry.id)));
+      if (recommendations.length) setPersonalRecommendations(recommendations);
     } catch {
       setAgentError('这次没有收到有效回应。输入、已有对话和记忆已保留，可以重试。');
     } finally {
+      personalRequestBusy.current = false;
       setAgentThinking(false);
     }
+  }
+
+  function openPersonalWorld(worldId: string, userMessage?: string) {
+    const world = personalCatalog.find((entry) => entry.id === worldId);
+    if (!world || !openCatalogWorld(worldId)) { setAgentError('这本世界目前不可用，请重新推荐或选择其他世界。'); return false; }
+    setAgentConversation((current) => restorePersonalConversation([...current,
+      { role: 'user', content: userMessage || `打开《${world.title}》` },
+      { role: 'assistant', content: `已打开《${world.title}》的身份选择。选好角色后，再开始体验；现在还没有创建新的游戏进度。` }]));
+    setMessage('');
+    return true;
   }
 
   function beginWorld() {
@@ -2145,7 +2180,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
           setPendingPersonalMemories((current) => current.filter((item) => item !== memory));
         }}
         onDismissMemory={(memory) => setPendingPersonalMemories((current) => current.filter((item) => item !== memory))}
-        onOpenWorld={openCatalogWorld}
+        onOpenWorld={openPersonalWorld}
         onCreate={newCreator}
       />
     );

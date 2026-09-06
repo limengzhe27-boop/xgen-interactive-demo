@@ -1,5 +1,6 @@
 import { AI_CONTRACT_VERSION } from '@/lib/ai-contracts';
 import { requestAccount } from '@/lib/server-auth';
+import { guardPersonalAction, personalActionInstructions } from '@/lib/personal-recommendations';
 import {
   isCreatorAgentResponse,
   isPersonalAgentResponse,
@@ -64,6 +65,7 @@ async function callDeepSeek(provider: DeepSeekProvider, operation: Operation, in
         model: provider.model,
         messages: [
           { role: 'system', content: `你正在驱动一个图文交互小世界 Demo。只输出一个有效 JSON 对象，不使用 Markdown。契约版本：${AI_CONTRACT_VERSION}。${operationInstructions[operation]}${operation === 'advance-world' ? '如果输入 interaction.mode=character-chat，这是独立的角色会面，体验者仍是selectedRoleId，对话对象是interaction.targetCharacterId，两者绝不互换。重点呈现目标角色对本次话语的真实回应，并保持世界知识、关系与任务约束；不要为凑长度强行转场或安排不在场角色登场，不替玩家说下一句话或接受关系。目标角色不在场时如实说明，不让其隔空回答。普通对话优先复用图片；关键可见场景变化才生图。' : ''}` },
+          ...(operation === 'personal-agent' ? [{ role: 'system', content: personalActionInstructions }] : []),
           { role: 'user', content: `请处理以下运行时输入，并只返回符合上述结构的 JSON：\n${JSON.stringify(input)}` },
         ],
         response_format: { type: 'json_object' },
@@ -138,6 +140,9 @@ async function handlePost(request: Request) {
       if (!Array.isArray(catalogue) || output.recommendations.some((item) => !catalogue.includes(item.worldId))) {
         return Response.json({ error: 'recommendation_outside_catalogue' }, { status: 502 });
       }
+      const userMessage = (body.input as { userMessage?: unknown }).userMessage;
+      if (typeof userMessage !== 'string') return Response.json({ error: 'invalid_personal_message' }, { status: 400 });
+      guardedOutput = guardPersonalAction(output, userMessage, catalogue.filter((id): id is string => typeof id === 'string'));
     }
     if (body.operation === 'advance-world' && isWorldTurnRequest(body.input)) {
       try {
