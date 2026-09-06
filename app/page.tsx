@@ -1,7 +1,7 @@
 'use client';
 /* oxlint-disable next/no-img-element -- local prototype assets avoid vinext/next-image runtime duplication */
 
-import { SyntheticEvent, useEffect, useRef, useState } from 'react';
+import { SyntheticEvent, useEffect, useEffectEvent, useRef, useState } from 'react';
 import {
   ArrowLeft,
   ArrowRight,
@@ -30,6 +30,8 @@ import { AccountBar, PublishWorldDialog } from '@/components/account-publication
 import { AccountBoundary } from '@/components/account-boundary';
 import { accountStorageKey } from '@/lib/account-scope';
 import { PersonalAgent } from '@/components/personal-agent';
+import { CompanionHandoff, CompanionContextPanel } from '@/components/companion-handoff';
+import { makeCompanionInput, restoreCompanionContext, type CompanionContext } from '@/lib/companion-context';
 import { PersonaEditor, PersonaAdmission, EntryPolicyEditor } from '@/components/player-persona';
 import { closedEntryPolicy, restoreEntryPolicy, restorePlayerPersona, type PlayerPersona, type EntryPolicy } from '@/lib/player-persona';
 import { pendingMemories, restorePersonalConversation } from '@/lib/personal-memory';
@@ -160,6 +162,7 @@ type PresetWorld = {
 };
 
 type PersistedDemoState = {
+  companionContext?: CompanionContext;
   playerPersona?: PlayerPersona;
   entryPolicy?: EntryPolicy;
   memories: string[];
@@ -182,7 +185,7 @@ type PersistedDemoState = {
 
 type CreatorDocument = {
   id: string; savedAt: number;
-  data: Pick<PersistedDemoState, 'entryPolicy' | 'worldTitle' | 'worldSeed' | 'surprise' | 'draftRoles' | 'generated' | 'generatedWorld' | 'creatorDetailBaseline' | 'generatedStoryOutline' | 'creatorBrief' | 'creatorMessages' | 'publishedWorld'>;
+  data: Pick<PersistedDemoState, 'companionContext' | 'entryPolicy' | 'worldTitle' | 'worldSeed' | 'surprise' | 'draftRoles' | 'generated' | 'generatedWorld' | 'creatorDetailBaseline' | 'generatedStoryOutline' | 'creatorBrief' | 'creatorMessages' | 'publishedWorld'>;
 };
 type StudioStorage = { version: 1; runs: (SavedRun & { id: string })[]; chats: ChatSession[]; documents: CreatorDocument[]; draftId: string };
 
@@ -918,6 +921,10 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
   const [agentConversation, setAgentConversation] = useState<NonNullable<PersonalAgentRequest['conversation']>>([]);
   const [agentError, setAgentError] = useState('');
   const [personalRecommendations, setPersonalRecommendations] = useState<PersonalAgentResponse['recommendations']>([]);
+  const [companionContext, setCompanionContext] = useState<CompanionContext>(() => restoreCompanionContext(undefined));
+  const [companionHandoff, setCompanionHandoff] = useState<{ seed: string } | null>(null);
+  const [creationSuggestion, setCreationSuggestion] = useState<string | null>(null);
+  const creatorKickoff = useRef<string | null>(null);
   const personalRequestBusy = useRef(false);
   const navigationRevision = useRef(0);
   const [modelMode, setModelMode] = useState<ModelMode>('checking');
@@ -1121,6 +1128,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
           if (typeof saved.worldTitle === 'string') setWorldTitle(saved.worldTitle);
           if (typeof saved.worldSeed === 'string') setWorldSeed(saved.worldSeed);
           if (saved.creatorBrief && typeof saved.creatorBrief === 'object') setCreatorBrief(normalizeCreatorBrief(saved.creatorBrief));
+          setCompanionContext(restoreCompanionContext(saved.companionContext));
           if (Array.isArray(saved.creatorMessages) && saved.creatorMessages.length > 0) {
             setCreatorMessages(saved.creatorMessages.filter((item) => item && (item.role === 'creator' || item.role === 'agent') && typeof item.content === 'string').slice(-12));
           }
@@ -1184,6 +1192,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
   useEffect(() => {
     if (!storageReady || storageReadFailed.current) return;
     const snapshot: PersistedDemoState = {
+      companionContext,
       playerPersona: playerPersona ?? undefined,
       entryPolicy,
       memories,
@@ -1205,14 +1214,15 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     };
     try { window.localStorage.setItem(demoStorageKey, JSON.stringify(snapshot)); }
     catch { window.setTimeout(() => setStorageError('浏览器空间不足，最新修改还没有保存。请保持页面打开，勿刷新。'), 0); }
-  }, [playerPersona, entryPolicy, agentConversation, personalRecommendations, creatorBrief, creatorDetailBaseline, creatorMessages, draftRoles, generated, generatedStoryOutline, generatedWorld, liveMode, memories, publishedWorld, savedRun, storageReady, surprise, worldSeed, worldTitle]);
+  }, [companionContext, playerPersona, entryPolicy, agentConversation, personalRecommendations, creatorBrief, creatorDetailBaseline, creatorMessages, draftRoles, generated, generatedStoryOutline, generatedWorld, liveMode, memories, publishedWorld, savedRun, storageReady, surprise, worldSeed, worldTitle]);
 
-  const creatorDocumentJSON = JSON.stringify({ entryPolicy, worldTitle, worldSeed, surprise, draftRoles, generated, generatedWorld: generatedWorld ?? undefined,
+  const hasCreation = Boolean(worldTitle.trim() || worldSeed.trim() || generatedWorld || creatorMessages.some(turn => turn.role === 'creator') || companionContext.conversation.length);
+  const creatorDocumentJSON = JSON.stringify({ companionContext, entryPolicy, worldTitle, worldSeed, surprise, draftRoles, generated, generatedWorld: generatedWorld ?? undefined,
     creatorDetailBaseline: creatorDetailBaseline ?? undefined, generatedStoryOutline, creatorBrief, creatorMessages, publishedWorld });
   useEffect(() => {
     if (!storageReady) return;
     const data = JSON.parse(creatorDocumentJSON) as CreatorDocument['data'];
-    if (!data.worldTitle.trim() && !data.worldSeed.trim() && !data.generatedWorld) return;
+    if (!data.worldTitle.trim() && !data.worldSeed.trim() && !data.generatedWorld && !data.creatorMessages?.some(turn => turn.role === 'creator') && !data.companionContext?.conversation.length) return;
     const timer = window.setTimeout(() => setCreatorDocuments((current) => upsertById(current, { id: draftId, savedAt: Date.now(), data })), 0);
     return () => window.clearTimeout(timer);
   }, [creatorDocumentJSON, draftId, storageReady]);
@@ -1527,6 +1537,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     setAgentThinking(true);
     try {
       const response = await runAI((adapter) => adapter.talkToPersonalAgent({
+        activeCreation: hasCreation ? { title: worldTitle || '正在讨论的世界', step: createStep, premise: worldSeed.slice(0, 2000), conversation: creatorMessages.slice(-4).map(turn => ({ ...turn, content: turn.content.slice(0, 2000) })) } : undefined,
         contractVersion: AI_CONTRACT_VERSION,
         userMessage: value,
         conversation: agentConversation.slice(-8),
@@ -1539,6 +1550,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       // A late response must never pull someone back from a different screen.
       if (revision !== navigationRevision.current) return;
       const recommendations = knownRecommendations(response.recommendations, personalCatalog.map((entry) => entry.id));
+      setCreationSuggestion(response.action?.type === 'create-world' ? response.action.seed : null);
       if (response.action?.type === 'open-world') {
         if (!openPersonalWorld(response.action.worldId, value)) return;
       } else {
@@ -1848,7 +1860,10 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
 
   async function submitCreatorMessage(event: SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
-    const value = creatorMessage.trim();
+    await discussCreator(creatorMessage.trim());
+  }
+
+  async function discussCreator(value: string) {
     if (!value || creatorAgentThinking) return;
     const baseline = creatorSections();
     const revision = navigationRevision.current;
@@ -1860,6 +1875,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     setCreatorProposal(null);
     try {
       const response = await runAI((adapter) => adapter.coCreateWorld({
+        companionContext: makeCompanionInput(companionContext, memories),
         contractVersion: AI_CONTRACT_VERSION,
         userMessage: value,
         conversation,
@@ -1905,6 +1921,14 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
   function creatorSections(): Record<string, unknown> {
     return { ...creatorBrief, entryPolicy, surpriseLevel: surprise, title: worldTitle, premise: worldSeed, castAndTasks: { roles: draftRoles, tasks: creatorBrief.tasks } };
   }
+
+  const beginCompanionDiscussion = useEffectEvent((value: string) => { void discussCreator(value); });
+  useEffect(() => {
+    // Consume once after the new draft and its private context have committed.
+    const value = creatorKickoff.current;
+    creatorKickoff.current = null;
+    if (value) beginCompanionDiscussion(value);
+  }, [draftId]);
 
   function creatorProposalProblem(change: CreatorChange, undo = false) {
     if (change.key === 'entryPolicy' && (JSON.stringify(change.roleOrder) !== JSON.stringify(draftRoles.map(role => role.editorId)) || restoreEntryPolicy(undo ? change.before : change.after).allowedRoleIds.some(id => !draftRoles.some((_, index) => id === `draft-role-${index}`)))) return '角色名单已变化或引用了不存在的角色，请重新讨论入场规则。';
@@ -2112,17 +2136,19 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       cover: roleImages['draft-role-0'] || '/assets/storm-manor-cover.png', portraits, world });
   }
 
-  function newCreator(seed = '') {
+  function newCreator(seed = '', context?: CompanionContext) {
     if (worldGenerating || creatorAgentThinking) { setStorageError('创作 Agent 仍在处理当前作品，请等本次回应结束后再新建。'); return; }
     setProposalChanges([]); setCreatorUndo([]); setCreatorChangeNotice(''); setCreatorFocus('');
     const data = JSON.parse(creatorDocumentJSON) as CreatorDocument['data'];
-    if (data.worldTitle.trim() || data.worldSeed.trim() || data.generatedWorld) setCreatorDocuments((current) => upsertById(current, { id: draftId, savedAt: Date.now(), data }));
+    if (hasCreation) setCreatorDocuments((current) => upsertById(current, { id: draftId, savedAt: Date.now(), data }));
+    setCompanionContext(restoreCompanionContext(context));
     setActiveLibrary(null); setActiveWorld('storm'); setSelectedRole(roles[0]); setRuntimeBeat(null);
     setDraftId(crypto.randomUUID());
     setEntryPolicy(restoreEntryPolicy(undefined));
-    setWorldTitle(''); setWorldSeed(seed); setSurprise(2); setGenerated(false); setGeneratedWorld(null); setPublishedWorld(false);
+    setWorldTitle(''); setWorldSeed(context ? '' : seed); setSurprise(2); setGenerated(false); setGeneratedWorld(null); setPublishedWorld(false);
     setGeneratedStoryOutline([]); setCreatorDetailBaseline(null); setCreatorBrief(emptyCreatorBrief); setCreatorProposal(null);
-    setCreatorMessages([{ role: 'agent', content: '先聊聊你想创造什么。不用先填完角色，我可以和你一起想人物、关系、目标和阻力。建议只有在你采纳后才会写入设定。' }]);
+    setCreatorMessages(context ? [{ role: 'agent', content: '还是我，我们接着创作。我会参考你选好的上下文讨论角色、关系与目标，建议等你采纳后再写入设定。' }]
+      : [{ role: 'agent', content: '我也可以陪你一起创作。不用先填完角色，先聊人物、关系、目标和阻力；如果需要我参考已确认的记忆，可以在上方开启。建议只有在你采纳后才会写入设定。' }]);
     setCreatorMessage(seed);
     setCreatorQuestions(['先帮我想几个互相有纠葛的人物', '一起讨论玩家最终想得到什么', '怎样增加一个有代价的困难？']);
     setDraftRoles(ensureCreatorRoleIds([{ name: '', identity: '', personality: '', relationship: '', appearance: '' }, { name: '', identity: '', personality: '', relationship: '', appearance: '' }]));
@@ -2133,6 +2159,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     if (worldGenerating || creatorAgentThinking) { setStorageError('请等当前创作回应结束后再切换作品。'); return; }
     setActiveLibrary(null); setActiveWorld('storm'); setSelectedRole(roles[0]); setRuntimeBeat(null);
     const data = doc.data;
+    setCompanionContext(restoreCompanionContext(data.companionContext));
     setEntryPolicy(restoreEntryPolicy(data.entryPolicy ?? data.generatedWorld?.entryPolicy));
     setDraftId(doc.id); setWorldTitle(data.worldTitle); setWorldSeed(data.worldSeed); setSurprise(data.surprise);
     setDraftRoles(ensureCreatorRoleIds(data.draftRoles)); setGenerated(data.generated); setPublishedWorld(data.publishedWorld);
@@ -2218,6 +2245,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
           worldSeed={worldSeed}
           creatorBrief={creatorBrief}
           creatorMessages={creatorMessages}
+          companionPanel={<CompanionContextPanel context={companionContext} memoryCount={memories.length} busy={creatorAgentThinking || worldGenerating} onChange={setCompanionContext} onPersonal={() => navigate('personal')} />}
           creatorMessage={creatorMessage}
           creatorAgentThinking={creatorAgentThinking}
           creatorProposal={creatorProposal}
@@ -2288,7 +2316,11 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
         }}
         onDismissMemory={(memory) => setPendingPersonalMemories((current) => current.filter((item) => item !== memory))}
         onOpenWorld={openPersonalWorld}
-        onCreate={newCreator}
+        onCreate={(seed = '') => setCompanionHandoff({ seed })}
+        creationSuggestion={creationSuggestion}
+        onDismissCreation={() => setCreationSuggestion(null)}
+        activeCreation={hasCreation ? worldTitle || '正在讨论的世界' : undefined}
+        onResumeCreation={() => navigate('create')}
       />
     );
   }
@@ -2299,6 +2331,11 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     <main className="studio-frame">
       <StudioNav section={view} onNavigate={navigate} onCreate={newCreator} />
       <AccountBar />
+      {companionHandoff && <CompanionHandoff seed={companionHandoff.seed} conversation={agentConversation} memoryCount={memories.length} onClose={() => setCompanionHandoff(null)} onConfirm={(seed, context) => {
+        if (worldGenerating || creatorAgentThinking) { setStorageError('请等当前创作回应结束后再新建。'); return; }
+        creatorKickoff.current = seed || '接着我们的讨论，一起想一个小世界的角色、关系和目标。';
+        newCreator(seed, context); setCompanionHandoff(null); setCreationSuggestion(null);
+      }} />}
       {storageError && <p className="studio-storage-error" role="alert">{storageError}</p>}
       {(view === 'play' || view === 'ending') && activeLibrary?.world.entryAdmission && <p className="persona-runtime">你以 {selectedRole.name} 的形象代入 {activeLibrary.world.entryAdmission.originalName} 的剧情身份 · 额外能力：{activeLibrary.world.entryAdmission.grantedAbilities.join('；') || '无'}。这是独立会话，原世界未改变。</p>}
       {screen}
@@ -2495,6 +2532,7 @@ function CreateWorld({
   worldSeed,
   creatorBrief,
   creatorMessages,
+  companionPanel,
   creatorMessage,
   creatorAgentThinking,
   creatorProposal,
@@ -2540,6 +2578,7 @@ function CreateWorld({
   worldSeed: string;
   creatorBrief: CreatorBrief;
   creatorMessages: CreatorChatMessage[];
+  companionPanel: import('react').ReactNode;
   creatorMessage: string;
   creatorAgentThinking: boolean;
   creatorProposal: CreatorAgentResponse['proposal'] | null;
@@ -2582,7 +2621,8 @@ function CreateWorld({
   const taskIssues = creatorTaskIssues(creatorBrief.tasks, draftRoles.length);
   const discussionPanel = (
             <section className="creator-agent-panel" aria-label="与创作 Agent 讨论">
-              <div className="creator-agent-heading"><span><Sparkles /></span><div><small>创作 Agent</small><strong>一起搭世界框架</strong></div><em>{creatorAgentThinking ? '正在整理' : '等待你的想法'}</em></div>
+              <div className="creator-agent-heading"><span><Sparkles /></span><div><small>你的 Agent · 创作中</small><strong>一起搭世界框架</strong></div><em>{creatorAgentThinking ? '正在整理' : '等待你的想法'}</em></div>
+              {companionPanel}
               <div className="creator-conversation" aria-live="polite" aria-busy={creatorAgentThinking}>
                 {creatorMessages.slice(-6).map((item, index) => <p key={`${item.role}-${index}`} data-role={item.role}><small>{item.role === 'agent' ? 'Agent' : '你'}</small><span>{item.content}</span></p>)}
                 {creatorAgentThinking ? <p data-role="agent"><small>Agent</small><span>正在把你的想法和已有设定放在一起考虑……</span></p> : null}

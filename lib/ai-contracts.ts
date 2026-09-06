@@ -21,6 +21,7 @@ export type ExperienceSummary = {
 };
 
 export type PersonalAgentRequest = {
+  activeCreation?: { title: string; step: number; premise: string; conversation: CreatorChatMessage[] };
   recommendationContext?: PersonalAgentResponse['recommendations'];
   conversation?: { role: 'user' | 'assistant'; content: string }[];
   contractVersion: typeof AI_CONTRACT_VERSION;
@@ -38,7 +39,7 @@ export type PersonalAgentRequest = {
 };
 
 export type PersonalAgentResponse = {
-  action?: { type: 'none' } | { type: 'open-world'; worldId: string };
+  action?: { type: 'none' } | { type: 'open-world'; worldId: string } | { type: 'create-world'; seed: string } | { type: 'resume-creation' };
   reply: string;
   memoryCandidates: AgentMemory[];
   recommendations: {
@@ -187,6 +188,7 @@ export type CreatorChatMessage = {
 };
 
 export type CreatorAgentRequest = {
+  companionContext?: { confirmedMemories: string[]; conversation: NonNullable<PersonalAgentRequest['conversation']> };
   contractVersion: typeof AI_CONTRACT_VERSION;
   userMessage: string;
   conversation: CreatorChatMessage[];

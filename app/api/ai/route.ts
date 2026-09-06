@@ -1,5 +1,6 @@
 import { AI_CONTRACT_VERSION } from '@/lib/ai-contracts';
 import { requestAccount } from '@/lib/server-auth';
+import { companionInstructions, makeCompanionInput, restoreCompanionContext } from '@/lib/companion-context';
 import { guardPersonalAction, personalActionInstructions } from '@/lib/personal-recommendations';
 import {
   isCreatorAgentResponse,
@@ -72,6 +73,8 @@ async function callDeepSeek(provider: DeepSeekProvider, operation: Operation, in
         messages: [
           { role: 'system', content: `你正在驱动一个图文交互小世界 Demo。只输出一个有效 JSON 对象，不使用 Markdown。契约版本：${AI_CONTRACT_VERSION}。${operationInstructions[operation]}${operation === 'advance-world' ? '如果输入 interaction.mode=character-chat，这是独立的角色会面，体验者仍是selectedRoleId，对话对象是interaction.targetCharacterId，两者绝不互换。重点呈现目标角色对本次话语的真实回应，并保持世界知识、关系与任务约束；不要为凑长度强行转场或安排不在场角色登场，不替玩家说下一句话或接受关系。目标角色不在场时如实说明，不让其隔空回答。普通对话优先复用图片；关键可见场景变化才生图。' : ''}` },
           ...(operation === 'personal-agent' ? [{ role: 'system', content: personalActionInstructions }] : []),
+          ...(operation === 'personal-agent' ? [{ role: 'system', content: '你也可以调用创作能力：用户明确要求把想法做成世界或开始创作时，action={"type":"create-world","seed":"本次虚构创作方向，最多2000字"}。这只提出一个待用户确认的创作入口，不代表完成创作；不要把真实私人资料写进seed。只是闲聊构思时继续讨论，不必调用。activeCreation提供当前作品标题与步骤，用户要求继续且它存在时可用action={"type":"resume-creation"}。你与创作界面是同一个助手的不同工作模式。' }] : []),
+          ...(operation === 'co-create-world' ? [{ role: 'system', content: companionInstructions }] : []),
           { role: 'user', content: `请处理以下运行时输入，并只返回符合上述结构的 JSON：\n${JSON.stringify(input)}` },
         ],
         response_format: { type: 'json_object' },
@@ -121,6 +124,12 @@ async function handlePost(request: Request) {
   }
   const version = (body.input as { contractVersion?: unknown }).contractVersion;
   if (version !== AI_CONTRACT_VERSION) return Response.json({ error: 'contract_version_mismatch' }, { status: 409 });
+
+  if (body.operation === 'co-create-world') {
+    const input = body.input as Record<string, unknown>;
+    const context = input.companionContext as Record<string, unknown> | undefined;
+    if (context) input.companionContext = makeCompanionInput(restoreCompanionContext({ useConfirmedMemories: true, conversation: context.conversation }), Array.isArray(context.confirmedMemories) ? context.confirmedMemories : []);
+  }
 
   const adaptationInput = body.operation === 'adapt-persona' ? readPersonaAdaptationRequest(body.input) : null;
   if (body.operation === 'adapt-persona') {

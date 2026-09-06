@@ -53,7 +53,9 @@ function isEndingCondition(value: unknown) {
 export function isPersonalAgentResponse(value: unknown): value is PersonalAgentResponse {
   if (!isRecord(value) || typeof value.reply !== 'string' || !value.reply.trim() || !Array.isArray(value.memoryCandidates) || !Array.isArray(value.recommendations)) return false;
   if (value.action !== undefined && (!isRecord(value.action)
-    || !(value.action.type === 'none' || (value.action.type === 'open-world' && typeof value.action.worldId === 'string' && value.action.worldId.length > 0)))) return false;
+    || !(value.action.type === 'none' || value.action.type === 'resume-creation'
+      || (value.action.type === 'create-world' && typeof value.action.seed === 'string' && value.action.seed.trim().length > 0 && value.action.seed.length <= 2000)
+      || (value.action.type === 'open-world' && typeof value.action.worldId === 'string' && value.action.worldId.length > 0)))) return false;
   return value.memoryCandidates.every((memory) => isRecord(memory)
     && typeof memory.id === 'string'
     && typeof memory.value === 'string'

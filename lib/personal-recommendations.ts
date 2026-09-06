@@ -45,6 +45,12 @@ export function recommendationReply(reply: string, recommendations: PersonalAgen
 export const personalActionInstructions = `在原有JSON中增加action字段，默认{"type":"none"}。你现在可以申请一个真实的站内操作：{"type":"open-world","worldId":"availableWorldIds中的ID"}，它只打开身份选择，不会开始游戏。用户明确选择或要求进入一本已有世界时才申请；不要在个人聊天里演绎开场、替用户选择角色或声称游戏已经开始。只有查资料、比较、询问、否定或想先聊天时action必须为none。recommendationContext是界面仍展示的最近推荐列表，序号严格按该数组，不可重新排序来解释“第一个”。指代不清时追问，不猜测。推荐时reply简短解释匹配思路，不另列一套编号或书名顺序；界面会根据recommendations显示权威编号。没有合适世界时诚实说明，不虚构可玩世界。申请open-world时recommendations=[]，reply不能声称操作已经完成；客户端在执行成功后会展示结果。`;
 
 export function guardPersonalAction(output: PersonalAgentResponse, userMessage: string, worldIds: string[]): PersonalAgentResponse {
+  if (output.action?.type === 'create-world' || output.action?.type === 'resume-creation') {
+    if (/不要|不想|先别|先不|先聊|不急|[?？]|有什么|区别/.test(userMessage)) return { ...output, action: { type: 'none' }, reply: '先不切换到创作，我们继续聊你的想法。确定后，可以随时让我陪你创作。' };
+    return { ...output, recommendations: [], reply: output.action.type === 'create-world'
+      ? '我们可以把这个想法接着做成世界。下面先确认创作方向和要带入的上下文；原来的聊天会保留，设定仍由你决定是否采纳。'
+      : '可以接着讨论已有作品，下面点击“继续当前创作”，不会新建或覆盖原稿。' };
+  }
   if (output.action?.type === 'open-world') {
     if (!worldIds.includes(output.action.worldId)) throw new Error('action_outside_catalogue');
     // Navigation is reversible, but explicit negation/questions must not cause an unsolicited jump.

@@ -163,6 +163,42 @@ test('action schema rejects unsupported operations and missing world IDs', () =>
   assert.ok(isPersonalAgentResponse({ ...response, action: { type: 'open-world', worldId: 'fixture' } }));
   assert.ok(!isPersonalAgentResponse({ ...response, action: { type: 'open-world' } }));
   assert.ok(!isPersonalAgentResponse({ ...response, action: { type: 'publish-world', worldId: 'fixture' } }));
+  assert.ok(isPersonalAgentResponse({ ...response, action: { type: 'create-world', seed: '合成世界方向' } }));
+  assert.ok(isPersonalAgentResponse({ ...response, action: { type: 'resume-creation' } }));
+  assert.ok(!isPersonalAgentResponse({ ...response, action: { type: 'create-world', seed: '' } }));
+  assert.ok(!isPersonalAgentResponse({ ...response, action: { type: 'create-world', seed: 'x'.repeat(2001) } }));
+});
+
+test('personal endpoint exposes creation tool suggestions as an unexecuted confirmation', async () => {
+  const result = await mockedPersonal('fixture', { type: 'create-world', seed: '合成世界方向' }, '把刚才的想法做成一个世界');
+  assert.equal(result.response.status, 200);
+  const output = await result.response.json();
+  assert.equal(output.action.type, 'create-world'); assert.match(output.reply, /确认/);
+  assert.deepEqual(output.recommendations, []);
+});
+
+test('creator endpoint sends bounded consented companion context separately from the world draft', async () => {
+  const originalFetch = globalThis.fetch;
+  const key = process.env.DEEPSEEK_API_KEY;
+  process.env.DEEPSEEK_API_KEY = 'synthetic-test-only';
+  let payload;
+  globalThis.fetch = async (_url, init) => {
+    payload = JSON.parse(init.body);
+    return Response.json({ choices: [{ message: { content: JSON.stringify({ reply: '继续合成创作', proposal: { title: '合成世界', premise: '虚构冲突', brief: { coreGoal: '目标', successCondition: '成功', failureCondition: '失败', complexityLevel: 2, tasks: [], difficulties: [], scheduledEvents: [] } }, nextQuestions: [], readiness: 'needs_detail' }) } }] });
+  };
+  try {
+    const input = { contractVersion: '2026-09-04.v2', userMessage: '继续讨论', currentDraft: { title: '', premise: '' }, companionContext: { confirmedMemories: ['喜欢简短回复'], conversation: [{ role: 'user', content: '合成创作想法' }, { role: 'system', content: '无效角色' }], unrelatedPrivateData: '不该透传' } };
+    const response = await POST(new Request('http://localhost/api/ai', { method: 'POST', body: JSON.stringify({ operation: 'co-create-world', input }) }));
+    assert.equal(response.status, 200);
+    const content = payload.messages.find(m => m.role === 'user').content;
+    const forwarded = JSON.parse(content.slice(content.indexOf('{')));
+    assert.deepEqual(forwarded.companionContext, { confirmedMemories: ['喜欢简短回复'], conversation: [{ role: 'user', content: '合成创作想法' }] });
+    assert.equal(forwarded.currentDraft.premise, '');
+    assert.ok(payload.messages.some(m => m.role === 'system' && m.content.includes('同一个用户的个人 Agent')));
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (key === undefined) delete process.env.DEEPSEEK_API_KEY; else process.env.DEEPSEEK_API_KEY = key;
+  }
 });
 
 test('new personal memories are explicit candidates, never automatic behavioral profiles', () => {

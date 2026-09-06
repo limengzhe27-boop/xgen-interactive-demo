@@ -312,3 +312,25 @@
   .gallery-hero-heading h1 span, .gallery-reveal, .gallery-eyebrow { opacity: 1; transform: none; clip-path: none; }
   .gallery-ambient, .gallery-card:hover img, .gallery-card:focus-within img { transform: none; }
 }
+/* One companion, separate private work contexts. Reuses the approved gallery tokens. */
+.companion-handoff {
+  width: min(640px, calc(100vw - 32px)); max-width: calc(100vw - 32px);
+  max-height: calc(100dvh - 40px); overflow-y: auto; padding: 28px;
+  background: var(--color-surface); color: var(--color-text); border-radius: 24px;
+  font-size: 16px; line-height: 1.8; overflow-wrap: anywhere;
+}
+.companion-handoff textarea { width: 100%; min-height: 100px; padding: 12px; border: 1px solid var(--color-border); border-radius: 12px; background: var(--color-bg); color: var(--color-text); resize: vertical; }
+.companion-check { display: flex; align-items: flex-start; gap: 12px; padding: 12px 0; min-height: 44px; cursor: pointer; }
+.companion-check input { width: 20px; height: 20px; flex: 0 0 20px; margin-top: 5px; accent-color: var(--color-primary); }
+.companion-check small, .companion-selection small { display: block; color: var(--color-text-secondary); font-size: 13px; }
+.companion-selection { max-height: 220px; overflow-y: auto; overflow-wrap: anywhere; }
+.companion-selection p { padding: 8px 0; white-space: pre-wrap; }
+.companion-context { margin: 0 0 16px; font-size: 15px; overflow-wrap: anywhere; }
+.companion-context summary, .companion-handoff summary { min-height: 44px; padding: 10px 0; cursor: pointer; color: var(--color-primary); }
+.companion-context summary:hover, .companion-handoff summary:hover { color: var(--color-text); }
+.companion-context summary:active, .companion-handoff summary:active { opacity: .75; }
+.companion-action { padding: 16px; margin: 12px 0; background: var(--color-bg); border-radius: 16px; overflow-wrap: anywhere; }
+.companion-action p { margin: 8px 0; white-space: pre-wrap; }
+.companion-action > div { display: flex; flex-wrap: wrap; gap: 8px; }
+.companion-action button { white-space: normal; }
+@media (max-width: 600px) { .companion-handoff { padding: 24px 18px; } }
