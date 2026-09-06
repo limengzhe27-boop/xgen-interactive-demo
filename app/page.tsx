@@ -59,7 +59,7 @@ import {
 } from '@/lib/world-state';
 import { normalizeSurpriseLevel } from '@/lib/surprise-engine';
 import { preserveCreatorDetails, preserveCreatorFramework } from '@/lib/creator-framework';
-import { applyCreatorChange, creatorChanges, type CreatorChange } from '@/lib/creator-changes';
+import { applyCreatorChange, creatorChanges, ensureCreatorRoleIds, identifyProposedRoles, type CreatorChange } from '@/lib/creator-changes';
 import { CreatorProposalReview } from '@/components/creator-proposal-review';
 import { CreatorTaskEditor } from '@/components/creator-task-editor';
 import { creatorTaskIssues } from '@/lib/creator-task-graph';
@@ -115,6 +115,7 @@ type StoryBeat = {
 };
 
 type DraftRole = {
+  editorId?: string;
   goal?: string;
   name: string;
   identity: string;
@@ -973,8 +974,8 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
   const [activeWorld, setActiveWorld] = useState<WorldKind>('storm');
   const [suggestedPreset, setSuggestedPreset] = useState<PresetWorld | null>(null);
   const [draftRoles, setDraftRoles] = useState<DraftRole[]>([
-    { name: '许知遥', identity: '民俗学研究生', personality: '理性、好奇、怕欠人情', relationship: '为调查失踪渔船首次上岛，对陆沉保持警惕', appearance: '二十四岁，齐肩黑发，墨绿色防风外套，随身携带旧笔记本' },
-    { name: '陆沉', identity: '守塔人', personality: '寡言、谨慎、极度守时', relationship: '受上一任守塔人委托保护许知遥，却不愿说明原因', appearance: '三十一岁，黑色短发，深蓝守塔人工作服，左腕佩戴旧机械表' },
+    { editorId: 'initial-role-0', name: '许知遥', identity: '民俗学研究生', personality: '理性、好奇、怕欠人情', relationship: '为调查失踪渔船首次上岛，对陆沉保持警惕', appearance: '二十四岁，齐肩黑发，墨绿色防风外套，随身携带旧笔记本' },
+    { editorId: 'initial-role-1', name: '陆沉', identity: '守塔人', personality: '寡言、谨慎、极度守时', relationship: '受上一任守塔人委托保护许知遥，却不愿说明原因', appearance: '三十一岁，黑色短发，深蓝守塔人工作服，左腕佩戴旧机械表' },
   ]);
   const [storageReady, setStorageReady] = useState(false);
   const responseTimerRef = useRef<number | null>(null);
@@ -1141,7 +1142,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
             setSavedRun({ ...legacy, worldSnapshot: frozenWorld });
           }
           if (Array.isArray(saved.draftRoles) && saved.draftRoles.length > 0) {
-            setDraftRoles(saved.draftRoles.map((role) => ({ ...role, relationship: role.relationship ?? '', appearance: role.appearance ?? '' })));
+            setDraftRoles(ensureCreatorRoleIds(saved.draftRoles.map((role) => ({ ...role, relationship: role.relationship ?? '', appearance: role.appearance ?? '' }))));
           }
         }
       } catch {
@@ -1760,7 +1761,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
   }
 
   function addDraftRole() {
-    setDraftRoles((current) => [...current, { name: '', identity: '', personality: '', relationship: '', appearance: '' }]);
+    setDraftRoles((current) => ensureCreatorRoleIds([...current, { name: '', identity: '', personality: '', relationship: '', appearance: '' }]));
     setGenerated(false);
     setGeneratedWorld(null);
     setGeneratedStoryOutline([]);
@@ -1862,7 +1863,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       setCreatorMessages((current) => [...current, { role: 'agent', content: response.reply } satisfies CreatorChatMessage].slice(-12));
       setCreatorProposal(response.proposal);
       const brief = normalizeCreatorBrief(response.proposal.brief);
-      const nextRoles = response.proposal.characters?.length ? response.proposal.characters.map((role, index) => ({ name: role.name, identity: role.identity, personality: role.persona, relationship: role.relationship, appearance: role.appearance, goal: role.goal ?? draftRoles[index]?.goal ?? '' })) : draftRoles;
+      const nextRoles = response.proposal.characters?.length ? identifyProposedRoles(draftRoles, response.proposal.characters.map((role, index) => ({ name: role.name, identity: role.identity, personality: role.persona, relationship: role.relationship, appearance: role.appearance, goal: role.goal ?? draftRoles[index]?.goal ?? '' }))) : draftRoles;
       setProposalChanges(creatorChanges(baseline, { ...brief, surpriseLevel: response.proposal.surpriseLevel ?? surprise, title: response.proposal.title, premise: response.proposal.premise, castAndTasks: { roles: nextRoles, tasks: brief.tasks } }, {
         surpriseLevel: '意外程度',
         title: '世界名称', premise: '背景与冲突', castAndTasks: '角色目标与任务编排', coreGoal: '世界核心目标', successCondition: '成功条件', failureCondition: '失败条件', complexityLevel: '世界复杂度', difficulties: '世界级困难', scheduledEvents: '预设事件',
@@ -1882,27 +1883,37 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     return { ...creatorBrief, surpriseLevel: surprise, title: worldTitle, premise: worldSeed, castAndTasks: { roles: draftRoles, tasks: creatorBrief.tasks } };
   }
 
+  function creatorProposalProblem(change: CreatorChange, undo = false) {
+    const next = applyCreatorChange(creatorSections(), change, undo);
+    if (!next) return '相关字段或角色名单已有新修改，未覆盖。请保留手改或重新讨论。';
+    if (change.key === 'castAndTasks' || change.target?.kind === 'task') {
+      const cast = next.castAndTasks as { roles: DraftRole[]; tasks: CreatorTaskDraft[] };
+      const problems = creatorTaskIssues(cast.tasks, cast.roles.length);
+      if (problems.length) return `暂不能${undo ? '撤销' : '采纳'}：${problems[0]} 请先处理关联任务或手动调整。`;
+    }
+    return '';
+  }
+
   function applyCreatorProposal(change: CreatorChange, undo = false) {
+    const problem = creatorProposalProblem(change, undo);
+    if (problem) { setCreatorChangeNotice(problem); return; }
     const next = applyCreatorChange(creatorSections(), change, undo);
     if (!next) { setCreatorChangeNotice(`「${change.label}」已有新的手动修改，未覆盖。请重新讨论或手动调整。`); return; }
     if (change.key === 'title') setWorldTitle(next.title as string);
     else if (change.key === 'surpriseLevel') setSurprise(next.surpriseLevel as number);
     else if (change.key === 'premise') setWorldSeed(next.premise as string);
-    else if (change.key === 'castAndTasks') {
+    else if (change.key === 'castAndTasks' || change.target) {
       const cast = next.castAndTasks as { roles: DraftRole[]; tasks: CreatorTaskDraft[] };
-      const ids = cast.roles.map((_, index) => `draft-role-${index}`);
-      if (creatorTaskIssues(cast.tasks, ids.length).length) {
-        setCreatorChangeNotice('角色或前置任务的引用不完整，未采纳。请让 Agent 修正。'); return;
-      }
-      cast.roles.forEach((role, index) => {
-        if (!draftRoles[index] || portraitCacheKey(role) !== portraitCacheKey(draftRoles[index])) {
+      Array.from({ length: Math.max(cast.roles.length, draftRoles.length) }).forEach((_, index) => {
+        const role = cast.roles[index];
+        if (!role || !draftRoles[index] || role.editorId !== draftRoles[index].editorId || portraitCacheKey(role) !== portraitCacheKey(draftRoles[index])) {
           const id = `draft-role-${index}`;
           roleImageRequestRef.current[id] = (roleImageRequestRef.current[id] ?? 0) + 1;
           setRoleImages((current) => Object.fromEntries(Object.entries(current).filter(([key]) => key !== id)));
           setRoleImageStates((current) => ({ ...current, [id]: 'idle' }));
         }
       });
-      if (cast.roles.length !== draftRoles.length || cast.roles.some((role, index) => role.name !== draftRoles[index]?.name)) { setGeneratedWorld(null); setGeneratedStoryOutline([]); }
+      if (cast.roles.length !== draftRoles.length || cast.roles.some((role, index) => role.editorId !== draftRoles[index]?.editorId)) { setGeneratedWorld(null); setGeneratedStoryOutline([]); }
       setDraftRoles(cast.roles);
       setCreatorBrief((current) => ({ ...current, tasks: cast.tasks }));
     } else setCreatorBrief((current) => ({ ...current, [change.key]: next[change.key] }));
@@ -2083,7 +2094,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     setCreatorMessages([{ role: 'agent', content: '先聊聊你想创造什么。不用先填完角色，我可以和你一起想人物、关系、目标和阻力。建议只有在你采纳后才会写入设定。' }]);
     setCreatorMessage(seed);
     setCreatorQuestions(['先帮我想几个互相有纠葛的人物', '一起讨论玩家最终想得到什么', '怎样增加一个有代价的困难？']);
-    setDraftRoles([{ name: '', identity: '', personality: '', relationship: '', appearance: '' }, { name: '', identity: '', personality: '', relationship: '', appearance: '' }]);
+    setDraftRoles(ensureCreatorRoleIds([{ name: '', identity: '', personality: '', relationship: '', appearance: '' }, { name: '', identity: '', personality: '', relationship: '', appearance: '' }]));
     setRoleImages({}); setCreateStep(1); navigate('create');
   }
 
@@ -2092,7 +2103,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     setActiveLibrary(null); setActiveWorld('storm'); setSelectedRole(roles[0]); setRuntimeBeat(null);
     const data = doc.data;
     setDraftId(doc.id); setWorldTitle(data.worldTitle); setWorldSeed(data.worldSeed); setSurprise(data.surprise);
-    setDraftRoles(data.draftRoles); setGenerated(data.generated); setPublishedWorld(data.publishedWorld);
+    setDraftRoles(ensureCreatorRoleIds(data.draftRoles)); setGenerated(data.generated); setPublishedWorld(data.publishedWorld);
     setGeneratedWorld(data.generatedWorld ?? null); setCreatorDetailBaseline(data.creatorDetailBaseline ?? null);
     setGeneratedStoryOutline(data.generatedStoryOutline ?? []); setCreatorBrief(data.creatorBrief ?? emptyCreatorBrief);
     setCreatorMessages(data.creatorMessages ?? []); setCreatorProposal(null); setProposalChanges([]); setCreatorUndo([]); setCreatorChangeNotice(''); setCreatorFocus(''); setCreateStep(1); navigate('create');
@@ -2194,7 +2205,8 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
           onCreatorMessage={setCreatorMessage}
           onSubmitCreatorMessage={submitCreatorMessage}
           onApplyCreatorProposal={applyCreatorProposal}
-          onDismissCreatorProposal={() => setCreatorProposal(null)}
+          onCreatorProposalProblem={creatorProposalProblem}
+          onDismissCreatorProposal={(change) => change ? setProposalChanges((current) => current.filter((item) => item !== change)) : setCreatorProposal(null)}
           onUpdateCreatorBrief={updateCreatorBriefField}
           onComplexity={(value) => setCreatorBrief((current) => ({ ...current, complexityLevel: normalizeSurpriseLevel(value) }))}
           onAddCreatorTask={addCreatorTask}
@@ -2458,6 +2470,7 @@ function CreateWorld({
   onCreatorMessage,
   onSubmitCreatorMessage,
   onApplyCreatorProposal,
+  onCreatorProposalProblem,
   onDismissCreatorProposal,
   onUpdateCreatorBrief,
   onComplexity,
@@ -2504,7 +2517,8 @@ function CreateWorld({
   onCreatorMessage: (value: string) => void;
   onSubmitCreatorMessage: (event: SyntheticEvent<HTMLFormElement>) => void;
   onApplyCreatorProposal: (change: CreatorChange, undo?: boolean) => void;
-  onDismissCreatorProposal: () => void;
+  onDismissCreatorProposal: (change?: CreatorChange) => void;
+  onCreatorProposalProblem: (change: CreatorChange, undo?: boolean) => string;
   onUpdateCreatorBrief: (key: keyof Pick<CreatorBrief, 'coreGoal' | 'successCondition' | 'failureCondition'>, value: string) => void;
   onComplexity: (value: number) => void;
   onAddCreatorTask: () => void;
@@ -2534,7 +2548,7 @@ function CreateWorld({
                 <label htmlFor="creator-message">和 Agent 讨论你的世界 · Enter 发送，Shift + Enter 换行</label><MessageTextarea id="creator-message" maxLength={3000} value={creatorMessage} onChange={(event) => onCreatorMessage(event.target.value)} placeholder="只有一句话也可以。比如：想做一个被逐出家门后回来争家产的故事，人物还没想好。" disabled={creatorAgentThinking} />
                 <Button className="agent-send" type="submit" disabled={!creatorMessage.trim() || creatorAgentThinking}><Send />继续讨论</Button>
               </form>
-              <CreatorProposalReview changes={creatorProposal ? proposalChanges : []} undo={creatorUndo} notice={creatorChangeNotice} busy={creatorAgentThinking} onApply={onApplyCreatorProposal} onDismiss={onDismissCreatorProposal} />
+              <CreatorProposalReview changes={creatorProposal ? proposalChanges : []} undo={creatorUndo} notice={creatorChangeNotice} busy={creatorAgentThinking} onApply={onApplyCreatorProposal} onDismiss={onDismissCreatorProposal} problemFor={onCreatorProposalProblem} />
             </section>
   );
   return (

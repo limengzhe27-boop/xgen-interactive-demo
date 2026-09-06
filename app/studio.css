@@ -367,6 +367,11 @@ html[data-account-locked] [data-slot="dialog-content"], html[data-account-locked
 .creator-compare > div { border-top: 1px solid var(--color-border-soft); padding-top: 10px; }
 .creator-compare small { color: var(--color-agent); }
 .creator-undo-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; }
+.creator-change-card summary small { display: inline-block; margin-left: 8px; color: var(--color-text-muted); }
+.creator-change-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.creator-change-actions button { height: auto; min-height: 44px; white-space: normal; overflow-wrap: anywhere; }
+.creator-review .creator-change-problem { padding: 10px; border-left: 2px solid var(--color-agent); background: var(--color-surface); color: var(--color-text-secondary); }
+.creator-undo-item + .creator-undo-item { border-top: 1px solid var(--color-border-soft); margin-top: 12px; padding-top: 8px; }
 @media (max-width: 1100px) {
   .creator-layout { grid-template-columns: 1fr; }
   .creator-mobile-tabs { display: flex; gap: 8px; margin-bottom: 16px; }
