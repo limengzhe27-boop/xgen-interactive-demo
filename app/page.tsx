@@ -2154,7 +2154,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
 
   function renderScreen() {
     if (view === 'chat' && activeChat) return <CharacterChat key={`${accountScope}:${activeChat.id}`} accountScope={accountScope} initial={activeChat} onSave={saveChat} onBack={() => navigate('home')} />;
-    if (view === 'home' || view === 'library' || view === 'characters') return <StudioHome
+    if (view === 'home' || view === 'library' || view === 'characters') return <StudioHome key={`${accountScope}:${view}`}
       section={view} worlds={[
         ...availableStudioWorlds.map((entry) => ({ ...entry, roleCount: entry.world.characters.length })),
         ...worldCatalog.map((world) => ({ ...world, roleCount: world.id === 'storm-manor' ? roles.length : presetWorlds.find((preset) => preset.id === world.id)?.roles.length ?? 0, cover: world.id === 'storm-manor' ? '/assets/storm-manor-cover.png' : world.id === 'sea-train' ? '/assets/sea-train-cover.jpg' : '/assets/roommate-cover.jpg' }))]}

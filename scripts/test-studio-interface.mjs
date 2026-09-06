@@ -52,7 +52,7 @@ test('world request validates persona admission before invoking a model', () => 
 test('personal Agent starts without a fabricated recommendation or fixed old-world promotion', () => {
   const html = renderToStaticMarkup(React.createElement(PersonalAgent, personalProps));
   assert.ok(html.includes('不必先有一个问题'));
-  assert.ok(html.includes('帮我一起理清先后顺序'));
+  assert.ok(html.includes('帮我理清思路'));
   assert.ok(!html.includes('aria-label="推荐结果"'));
   assert.ok(!html.includes('暴雨山庄'));
   assert.ok(!html.includes('在线'));
@@ -75,14 +75,35 @@ test('recommendations exclude unknown IDs, empty reasons and duplicates, and cap
   const row = (worldId, reason = '符合本次偏好') => ({ worldId, reason, matchedMemoryIds: [] });
   assert.deepEqual(knownRecommendations([row('missing'), row('a', ''), row('a'), row('a'), row('b'), row('c')], ['a', 'b', 'c']).map((item) => item.worldId), ['a', 'b']);
 });
-test('catalogue server-renders a single featured world, distinct remaining cards and a synopsis entry', () => {
-  const html = renderToStaticMarkup(React.createElement(StudioHome, { section: 'home', worlds, characters: [], recent: [], onCreate: noop, onOpenWorld: noop, onChat: noop, onPersonal: noop, onLibrary: noop, onOpenRecord: noop }));
-  assert.equal((html.match(/class="studio-featured"/g) || []).length, 1);
-  assert.equal((html.match(/class="studio-card"/g) || []).length, worlds.length - 1);
-  assert.ok(html.includes('剧情简介'));
-  const css = readFileSync(new URL('../app/studio.css', import.meta.url), 'utf8');
-  assert.match(css, /\.studio-card p[^}]*-webkit-line-clamp: 3/);
-  assert.match(css, /\.studio-world-grid[^}]*align-items: start/);
+const homeProps = { section: 'home', worlds, characters: [], recent: [], onCreate: noop, onOpenWorld: noop, onChat: noop, onPersonal: noop, onLibrary: noop, onOpenRecord: noop };
+test('gallery renders each real world once, with synopsis actions but no long premise or empty recent banner', () => {
+  const html = renderToStaticMarkup(React.createElement(StudioHome, homeProps));
+  assert.equal((html.match(/class="gallery-card"/g) || []).length, worlds.length);
+  assert.ok(!html.includes('studio-featured') && !html.includes('gallery-recent-item'));
+  assert.ok(!html.includes(worlds[0].premise));
+  worlds.forEach(world => assert.ok(html.includes('剧情简介：' + world.title)));
+  assert.ok(html.includes('搜索世界或角色'));
+  assert.ok(html.includes('你想创造怎样的世界') && html.includes('<textarea'));
+  const css = readFileSync(new URL('../app/gallery.css', import.meta.url), 'utf8');
+  assert.match(css, /\.gallery-feed[^}]*align-items: start/);
+  assert.match(css, /@media \(hover: none\)/);
+  assert.match(css, /prefers-reduced-motion/);
+  assert.match(css, /gallery-card:focus-within/);
+});
+test('mixed gallery preserves both entries and character-only view excludes world cards', () => {
+  const characters = [{ id: 'su', worldId: worlds[0].id, worldTitle: worlds[0].title, name: '苏晚', identity: '虚构角色', persona: '果断', image: '/assets/contract-su.jpg' }];
+  const mixed = renderToStaticMarkup(React.createElement(StudioHome, { ...homeProps, characters }));
+  assert.ok(mixed.includes('和苏晚聊聊') && mixed.includes('进入世界：'));
+  assert.equal((mixed.match(/data-kind="character"/g) || []).length, 1);
+  const roleOnly = renderToStaticMarkup(React.createElement(StudioHome, { ...homeProps, section: 'characters', characters }));
+  assert.ok(roleOnly.includes('和苏晚聊聊') && !roleOnly.includes('data-kind="world"'));
+  assert.ok(!roleOnly.includes('gallery-composer-anchor'));
+});
+test('personal message creation actions and privacy explanation remain available on demand', () => {
+  const html = renderToStaticMarkup(React.createElement(PersonalAgent, { ...personalProps, conversation: [{ role: 'user', content: '合成测试消息' }], identityPanel: React.createElement('div', null, '独立虚构身份') }));
+  assert.ok(html.includes('<details class="personal-message-actions">') && html.includes('用这条消息开始创作'));
+  assert.ok(html.includes('关于记忆与隐私') && html.includes('不跨设备同步'));
+  assert.ok(html.indexOf('独立虚构身份') > html.indexOf('personal-sidebar'));
 });
 test('melodramatic revision changes rules, openings and tasks while preserving independent role goals', () => {
   for (const entry of studioWorlds) {

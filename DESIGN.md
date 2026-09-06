@@ -1,896 +1,451 @@
-# DESIGN.md
+# DESIGN.md · Worldstudio 浅色画廊工作台
 
-### 世界 Agent 入场建议（2026-09-06）
+> 让图片成为入口，让对话成为创作工具；界面退后，故事与人物走到前面。
 
-- 沿用既有黑金 L1 App UI。入场预览内新增雾蓝建议区，不新增弹窗；先主动请求，再确认，不自动发送、不自动生图。
-- 创作者增加“Agent 从允许清单中挑选”模式，与固定授予区分；清单为空时不能开启该模式的自带身份入场。
-- 玩家可填写本次适配偏好（Enter 发送、Shift+Enter 换行），只发送虚构档案和当前剧情位置的公开设定，不发送账号、私人聊天、个人记忆、角色秘密。
-- 建议分为“如何代入”“建议授予”“未采用的愿望”，明确说明文字建议不是能力授权。角色位置、关系、目标、任务不由模型改写；清单外能力直接拒绝。
-- 请求期间禁用重复发送／入场，提供取消；失败保留输入和旧建议，旧建议不可冒充本轮结果。切换世界、角色、账号、档案或政策后建议和确认全部失效。
-- 复用现有表单、按钮和提示样式：正文至少15px、1.8行高，44px操作目标；手机单列和换行，沿用reduced-motion，无新字体、图片或动效依赖。
-
-### 我的虚构身份与世界入场（2026-09-06）
-
-- 沿用已确认黑金 L1／CSS-only 规范；个人 Agent 页增加可折叠的身份档案，不挤占日常对话。真实记忆、登录账号与虚构身份明确分区。
-- 身份档案含名称、背景、性格、固定外观、希望拥有的能力及可选形象；显式保存到当前账号的本机空间。首次不自动读聊天填表，不自动生图，不宣称云同步。
-- 创作第三步可选择是否允许自带形象、允许代入哪些剧情角色、是否授予固定能力。默认关闭；能力受世界物理、知识和任务规则约束。
-- 入场先选剧情位置，再展开自带身份预览：带入名称／外观／性格；剧情身份、关系、知识、目标保留；原身份背景与愿望能力不直接生效。明确确认才建立新会话快照，不覆盖原世界或历史进度。
-- 使用现有 Input/Textarea/Button 和 Dialog 焦点规范；44px 操作目标，长文本自然换行。桌面档案两列，600px 以下单列；无新字体或装饰图片，无渐变标题。任意新身份／Agent 自动裁定能力属于后续扩展，不提供假开关。
-
-### 创作建议精细采纳补充（2026-09-06）
-
-- 继承下方九章黑金 L1 规范与现有双栏，不新增配色、图片或动画依赖。
-- 普通修改按“角色名称 · 目标／性格／外观”等字段展开，任务按名称独立展开；只展示改变的字段。任务归属和前置关系显示人物／任务名称，不向创作者显示内部编号。
-- 建议卡保留展开前后对照、44px 采纳／忽略按钮、键盘焦点和禁用态；手机单列，自然换行。阻塞说明显示在对应卡片，明确应先采纳哪个前置或重新讨论。
-- 新增、删除、重排角色影响现有索引归属，继续作为明确标记的“角色名单与关联任务调整”组合确认；普通字段修改不因此覆盖其他角色或清空已有世界细节。
-- 撤销同样检查字段的新修改与任务依赖，不允许撤销后留下悬空引用。禁止隐藏级联删除，禁止角色删除后将旧建议误写到后来占据该位置的新角色。
-
-## 2026-09-06 创作工作台（沿用已确认方向）
-
-1. **Visual Theme & Atmosphere**：黑金 L1 编辑工具，右侧雾蓝 Agent 常驻所有步骤；不做宣传页或新视觉方向。
-2. **Color Palette & Roles**：沿用下方全部 `--color-*` 变量；金色表示当前步骤／采纳，雾蓝表示讨论，危险色只用于删除与冲突。
-3. **Typography Rules**：沿用已加载的 Noto Sans SC / Noto Serif SC；页面标题 28px、区块 20px、正文 15–16px / 1.8。文字无渐变或投影。
-4. **Component Stylings**：复用 Button/Input/MessageTextarea；任务以原生 details 卡片折叠，摘要显示归属和主支线。建议显示独立设定块、展开前后对照、分项采纳／撤销；已手改冲突不得覆盖。按钮沿用默认、hover、active、focus-visible、disabled 状态。
-5. **Layout Principles**：桌面最大 1480px，章节条在上，编辑区与 360px 讨论栏两列，间距 24px；编辑卡 20px 内边距。讨论栏粘性定位、内部滚动；不把长提案撑满整个工作区。
-6. **Depth & Elevation**：编辑卡弱边框、Agent 次级表面；无额外大阴影，无图片上叠长文。
-7. **Animation & Interaction**：L1 CSS only，沿用 240ms 淡入和 180ms 状态变化；reduced-motion 下取消。切换步骤不断开讨论、不自动发送、不自动生图。
-8. **Do's and Don'ts**：保留纯手动入口、旧存档、角色独立目标、主支线与任务归属；AI 建议主动采纳、可撤销。禁止整包静默覆盖、覆盖采纳后的手动编辑、为修改目标清除形象、假开关、把 NPC 任务强加给玩家、跨步骤重复输入框、自动公开、虚构云同步。
-9. **Responsive Behavior**：1100px 以下变单列并提供“编辑／讨论”切换；600px 以下章节两列、字段单列。触摸目标 44px，所有子项 min-width:0，长内容换行，不出现水平滚动。
-
-## 2026-09-06 账号与公开发布
-
-- 沿用已确认的黑金 L1 规范、原有 Button / Dialog / Input，不引入新视觉方向或生图。
-- 账号入口独立于个人 Agent，不把登录、真实身份和虚构角色混在一起；游客仍可试玩。
-- 创作保留“保存并试玩”，公开发布必须单独确认发布范围。登录不会自动上传草稿、个人记忆或聊天记录。
-- 发布弹窗列出将公开的世界标题、剧情框架、角色设定与图片，并明确不公开个人 Agent 对话、创作讨论与游玩记录。完整剧本可能包含虚构角色秘密与结局，不能描述为技术上不可查看。
-- 桌面弹窗宽度不超过 640px，手机两侧 16px；正文可滚动，按钮换行且不小于 44px。沿用主题色、焦点、关闭和 reduced-motion 行为。
-
-## 2026-09-05 交互修复与 Agent 定位校正
-
-- 沿用已确认的黑金 L1 规范，不另换视觉方向。恢复 Next.js 的 Tailwind 编译，让 Dialog 的定位、遮罩、焦点辅助和表单宽度真正进入生产 CSS；不得只修改源码里的类名而不检查构建产物。
-- 个人 Agent 是认识用户的 AI 助理与聊天伙伴，剧情匹配只是按需能力。首屏提供聊近况、整理事情、讨论创作与找故事；没有推荐时不展示空的推荐区域。
-- 个人记忆采用“提出候选 → 用户确认 → 本机保存”，支持删除；最近对话保留在当前浏览器。不得把角色扮演推断成用户真实性格，不自动把私人记忆带入世界创作。
-- 新建世界第一屏开放创作对话，零角色也能讨论；结构化人物与世界框架先预览、再主动采纳。手动填写角色与故事继续可用。
-- 手机与桌面实测弹窗居中、身份切换、Escape 关闭、输入宽度与对话入口。复用现有图片，不增加生图费用。
-
-## 2026-09-05 第二版执行补充（用户已确认，覆盖下方同名旧规则）
-
-1. **Visual Theme & Atmosphere**：黑金剧集片库，内容消费而非宣传落地页。保留 Frank 的侧栏、创作输入、最近互动、世界／角色双入口；主推封面形成视觉重心，轻量 L1，不使用 3D 或持续发光。
-2. **Color Palette & Roles**：继续使用已有完整 `--color-*` 与 RGB 变量。黑色画布、炭黑表面、暖金主操作、雾蓝个人 Agent。组件内零新增硬编码颜色；图片上的渐变遮罩仅保障文字可读。
-3. **Typography Rules**：沿用已加载的 Noto Sans SC 与 Noto Serif SC、原有字体 URL 和 fallback。主推标题使用 `--font-story`，桌面 36–44px／手机 28px；页面标题 28px，卡片 20px，正文 16px／1.8，标签 14px／1.7，字距 0.02em。各级文字无渐变和投影。
-4. **Component Stylings**：主推封面＋独立剧情简介 Dialog＋紧凑世界卡；卡片简介最多三行、标题最多两行，完整内容在 Dialog 阅读。现有 Button、Textarea、Tabs、Dialog 保留。默认弱边框；hover 强化边框／图片轻放大；active 复位；focus-visible 2px 主题色轮廓；disabled 降低透明度并禁止操作。个人 Agent 推荐卡只显示本次真实结果，不枚举整库。
-5. **Layout Principles**：内容区最大 1440px，桌面 40px／移动 16px 边距。世界片库三列、平板两列、手机一列；网格 align-items:start，不让长内容撑高整排。主推横幅内部左文右图，最小高度 330px，文字增长时自然增高；最近互动卡压缩为约 144px。个人 Agent 主区与 340px 结果侧栏，间隔 28px。
-6. **Depth & Elevation**：普通卡片仅边框与细微表面层次；主推底部渐变与原有阴影强调内容；Dialog 使用原有遮罩与弹层阴影。正文不压在大幅人像上。
-7. **Animation & Interaction**：L1，CSS only；复用 `studio-enter` 240ms 淡入，hover 180–280ms，位移不超过 2px、图片缩放不超过 1.025。所有动效受 prefers-reduced-motion 降级，无新依赖。
-8. **Do's and Don'ts**：保留手写创作；保留双入口身份隔离；保留旧存档；只推荐已有世界；偏好可删除；卡片长文可打开阅读全文。不展示虚构在线状态，不默认固定推荐旧悬疑本，不重复铺满整库，不虚构评分人数，不用空白撑高卡片，不为本轮换皮重生成图片，不把狗血写成全员理性开会，不把刺激误解为替玩家强制选择或强迫亲密。
-9. **Responsive Behavior**：1100px 以下片库两列、Agent 单列；600px 以下片库单列、主推图片改为上图下文、简介按钮与主操作可换行。768px 以下仍使用原底部导航。触摸目标至少 44px，所有网格子项 min-width:0，长字串可换行，200% 字体放大时正文自然增高。
-
-### 内容与个人 Agent 范围
-
-- 原创三本分别加强替身／死对头三角关系、抢功／当众打脸、逼弃继承／家族权力反转。改动人物立场、开场、任务障碍和后续事件，不仅换标题；旧存档继续使用自身世界快照。
-- 个人 Agent 页面：对话记录、明确的匹配进度／错误、至多两项本次推荐、可删除的兴趣记忆。未产生匹配时不伪造推荐。最近对话进入下一轮请求，失败不清除用户输入。
-- 该产品不是 Landing Page，故不套用宣传页“爆点”和滚动大场景要求。沿用现有图片与节省生图逻辑。
-
-> **设计宣言（2026-09-05 改版）**：一个可以挑本、遇见角色、继续创作的黑金世界工作台。用户已确认 Frank 草图的侧栏、紧凑创作入口、最近互动和双入口内容库。下述 Worldstudio 规则覆盖旧版首页及 L2 动效说明；原有创作、探索规则不冲突时保留。
-
-### Worldstudio 本轮执行规范
-
-- 首页结构：96px 固定侧栏；主区上方紧凑创作输入；我的世界／最近互动；世界与角色切换的内容库。桌面 3–4 列卡片，移动端单列，底部五项导航。
-- 视觉：沿用下方颜色变量，主画布调整为近黑 `--color-bg: #090a0c`（RGB 9,10,12），主强调色调整为浅暖金 `--color-primary: #e8c879`（RGB 232,200,121）。个人 Agent 保留雾蓝识别。首页取消大范围动态背景。
-- 字体：沿用 Noto Sans SC；首页 H1 24px，H2 22px，H3 18px，正文 16px，标签 14px；行高 1.7、字距 0.02em。首页所有标题无渐变、投影。剧情正文仍允许使用原中文衬线体。
-- 组件：`.studio-button`、`.studio-card`、`.studio-nav-button`、`.studio-composer` 和 `.studio-filter` 的完整 default/hover/active/focus-visible/disabled 样式以 `app/studio.css` 为实现规范；Tabs 与 Dialog 复用现有可访问组件，不修改供应商组件。
-- 布局：主区最大 1480px，桌面边距 36px，卡片间隔 20px，区块间隔 32px；封面 16:10、角色半身肖像 4:5。长标题允许换行，容器 min-width:0。
-- 层次：普通卡片边框分隔、不默认悬浮；详情层使用原 Overlay 阴影。正文在不透明阅读区内，不在大幅人物立绘上叠字。
-- 动效：**L1，CSS only**；淡入 240ms，hover 上移 2px／边框变化 180ms，active 复位；没有滚动视差、持续发光或鼠标跟随。`prefers-reduced-motion` 下取消动画和位移。
-- 护栏：世界进入是代入所选角色；角色聊天必须展示不同的用户／对方身份；两种会话独立；不虚构热度、分享或参考图能力；未完成本子不作为可玩卡片；个人 Agent 只能推荐实际世界；手动创作仍可用；本地存储明确标注，失败可见，不删除旧存档。
-- 响应式：1280px 以下内容库 3 列，1000px 以下 2 列，600px 以下 1 列；768px 以下侧栏转底栏，主区预留底部安全距离。触摸目标至少 44×44px，长文字可换行。
+状态：2026-09-07 用户已确认浅色画廊与 L2，进入实施。本规范覆盖历史黑金 L1 视觉；原有身份、任务、记忆同意、手动创作与数据隔离约束继续保留。旧规范归档至 docs/DESIGN_HISTORY.md。
 
 ## 1. Visual Theme & Atmosphere
 
-**Philosophy**：界面不是游戏宣传页，而是“个人 Agent + 世界入口 + 互动舞台”组成的工作表面。深色背景降低环境干扰，暖金用于行动与世界入口，雾蓝用于个人 Agent 与记忆线索；图片和角色立绘承担情绪，UI 本身保持克制。
+**Style**：Editorial Creative Gallery，编辑式创作画廊。
 
-**Keywords**：暗色叙事、电影感、角色中心、档案感、温暖科技、层次清晰、低噪声
+**Keywords**：图片优先、轻盈、中性底色、紧密错落、安静的工具栏、精确反馈。
 
-**Visual Direction**：
-- 基础来自“暗黑科技”的深色层级，但去掉刺眼霓虹和赛博装饰。
-- 排版融入“中文编辑感”：世界标题与剧情关键句使用中文衬线体，操作界面使用中文无衬线体。
-- 世界卡片像可以被打开的“故事档案”，角色选择像一组不同视角的入场凭证。
-- 探索页采用视觉小说式舞台：背景图为环境，角色立绘持续在场，对话与行动位于画面下方。
-- 个人 Agent 使用稳定的雾蓝光标识，不使用拟人卡通机器人图标。
+**Tone**：像浏览艺术作品一样发现世界，像和朋友讨论一样开始创作。避免后台管理系统的满屏容器、金色描边和说明书式文字。
 
-**Working Product Name**：小世界（仅作为 Demo 工作名，可随时替换）
+**Interaction Tier**：采用 L2 流畅交互。以短距离、短时长、有明确触发的动效为主，不做 3D、滚动劫持或宣传页大场景。
 
-**Interaction Tier**：L2 流畅交互
+**Dependencies**：沿用 Next.js、React、已有 Radix/Lucide；CSS + IntersectionObserver + requestAnimationFrame，不新增动画运行库。优先复用已有 reveal 逻辑，不并行叠加旧动画。
 
-**L2 选择理由**：产品需要世界卡片、角色选择、Agent 对话和场景切换产生沉浸感，但当前 Demo 不需要 WebGL、滚动劫持、全局自定义光标或电影级长页面。
+### 参考与实测依据
+
+参考：[即梦 AI 首页](https://jimeng.jianying.com/ai-tool/home?need_login=true) 与用户提供的浅色瀑布流截图。已通过 Tabbit 的真实浏览器查看首页、滚动后的画廊及卡片悬停；未登录、未生成图片、未上传项目资料。使用当前浏览器读取 DOM/CSS，避免独立爬虫切换浏览器环境。
+
+实际官网的四个主要区域：窄侧栏；标题与大输入面板；创作快捷入口；发现筛选与瀑布流。下滚后出现紧凑的底部输入面板。推广横幅不属于我们要移植的产品功能。
+
+| 项目 | 实际观察 | 本项目采用方式 |
+| --- | --- | --- |
+| 配色 | 本次访问官网默认深色；用户截图是浅色观感 | 浅色为主提案，深色为备选；不声称官网默认浅色 |
+| 导航 | 窄侧栏、简洁图标与小标签 | 80px 桌面侧栏，保留新建、发现、我的世界、角色、个人 Agent |
+| 图片 | 1440px 视口约五列，列宽约 252px，部分图片 9:16，接近无圆角 | 3–5 列、6–10px 缝隙；世界横图与角色竖图混排 |
+| 主输入面板 | 约 1000×174px，内部输入区约 900×96px | 最大 920px、约 150px 高；仅保留真实可用的创作功能 |
+| 悬浮输入面板 | 滚动后约 622×72px | 680px 上限，继续同一份输入；移动端适配安全区 |
+| 图片悬停 | scale 约 1.02；200ms；cubic-bezier(.4,.95,.6,1.1) | 保留相近幅度与节奏；键盘焦点提供同等信息 |
+| 面板变化 | 输入区 height/padding 约 350ms；cubic-bezier(.15,.75,.3,1) | 以输入面板状态切换实现，不频繁重排整页 |
+
+滚动 reveal、标题短入场与微视差是本项目拟增加的 L2 设计，不是对官网已有实现的断言。
+
+保留原创封面和人物素材、原有世界与角色双入口；不搬用即梦用户作品、品牌标识、专有字体或未实现的参考图上传功能。
 
 ## 2. Color Palette & Roles
 
+以下为提案 Token，并非官网色值的逐项复制。组件不得硬编码颜色；批准后将现有 `--color-*` 变量映射到本规范，以保证创作、弹窗、探索页一致。
+
 ```css
 :root {
-  color-scheme: dark;
+  --bg: #f7f7f5;
+  --surface: #ffffff;
+  --surface-alt: #efefed;
+  --surface-hover: #e9eae7;
+  --border: #dedfda;
+  --border-hover: #a8b7b0;
+  --text: #202521;
+  --text-secondary: #59615b;
+  --text-tertiary: #68716a;
+  --accent: #176650;
+  --accent-hover: #10533f;
+  --on-accent: #ffffff;
+  --on-image: #ffffff;
+  --image-shade-rgb: 8, 15, 13;
+  --bg-rgb: 247, 247, 245;
+  --surface-rgb: 255, 255, 255;
+  --accent-rgb: 23, 102, 80;
+  --ink-rgb: 20, 28, 23;
+  --success: #287141;
+  --error: #b53837;
+  --warning: #805b16;
+  --ambient: #e4ebe6;
+  --focus: #177558;
+  --radius-card: 8px;
+  --radius-panel: 24px;
+  --radius-control: 12px;
+}
 
-  /* Foundations */
-  --color-bg: #090b10;
-  --color-bg-rgb: 9, 11, 16;
-  --color-bg-elevated: #0d1118;
-  --color-bg-elevated-rgb: 13, 17, 24;
-  --color-surface: #121721;
-  --color-surface-rgb: 18, 23, 33;
-  --color-surface-strong: #191f2b;
-  --color-surface-strong-rgb: 25, 31, 43;
-  --color-surface-hover: #202735;
-  --color-surface-hover-rgb: 32, 39, 53;
-
-  /* Borders */
-  --color-border: #2a3241;
-  --color-border-rgb: 42, 50, 65;
-  --color-border-soft: #202735;
-  --color-border-soft-rgb: 32, 39, 53;
-  --color-border-strong: #465268;
-  --color-border-strong-rgb: 70, 82, 104;
-
-  /* Text */
-  --color-text: #f4f1e9;
-  --color-text-rgb: 244, 241, 233;
-  --color-text-secondary: #b7becb;
-  --color-text-secondary-rgb: 183, 190, 203;
-  --color-text-muted: #858f9f;
-  --color-text-muted-rgb: 133, 143, 159;
-  --color-text-disabled: #596273;
-  --color-text-disabled-rgb: 89, 98, 115;
-
-  /* Primary action / world entry */
-  --color-primary: #e2b66f;
-  --color-primary-rgb: 226, 182, 111;
-  --color-primary-hover: #efc782;
-  --color-primary-hover-rgb: 239, 199, 130;
-  --color-primary-active: #c99a52;
-  --color-primary-active-rgb: 201, 154, 82;
-  --color-on-primary: #171108;
-  --color-on-primary-rgb: 23, 17, 8;
-
-  /* Personal Agent */
-  --color-agent: #78b8c8;
-  --color-agent-rgb: 120, 184, 200;
-  --color-agent-hover: #91ccda;
-  --color-agent-hover-rgb: 145, 204, 218;
-  --color-agent-soft: #172830;
-  --color-agent-soft-rgb: 23, 40, 48;
-
-  /* Semantic */
-  --color-success: #75b68a;
-  --color-success-rgb: 117, 182, 138;
-  --color-warning: #d9a85f;
-  --color-warning-rgb: 217, 168, 95;
-  --color-danger: #dc7a82;
-  --color-danger-rgb: 220, 122, 130;
-  --color-info: #7fa6d9;
-  --color-info-rgb: 127, 166, 217;
-
-  /* Overlays */
-  --color-overlay: rgba(var(--color-bg-rgb), 0.76);
-  --color-image-scrim: rgba(var(--color-bg-rgb), 0.58);
-  --color-focus-ring: rgba(var(--color-agent-rgb), 0.72);
-  --color-selection: rgba(var(--color-primary-rgb), 0.24);
+/* 仅在选择深色方向时启用，不默认增加主题切换功能。 */
+[data-gallery-theme="dark"] {
+  --bg: #121313;
+  --surface: #1d1f1e;
+  --surface-alt: #272a28;
+  --surface-hover: #343934;
+  --border: #383d38;
+  --border-hover: #6a8277;
+  --text: #f0f2ef;
+  --text-secondary: #bbc4bd;
+  --text-tertiary: #9aa69d;
+  --accent: #b8e0ce;
+  --accent-hover: #d1edde;
+  --on-accent: #15291e;
+  --bg-rgb: 18, 19, 19;
+  --surface-rgb: 29, 31, 30;
+  --accent-rgb: 184, 224, 206;
+  --ink-rgb: 0, 0, 0;
+  --success: #90c9a1;
+  --error: #ffb2ac;
+  --warning: #e5c381;
+  --ambient: #23352c;
+  --focus: #b8e0ce;
 }
 ```
 
-**Usage Rules**：
-- 页面 70% 以上面积使用 `--color-bg` 与 `--color-bg-elevated`。
-- 暖金 `--color-primary` 只用于主操作、选中角色、世界入口和关键进度。
-- 雾蓝 `--color-agent` 专属于个人 Agent、Agent 记忆和推荐理由，避免与普通系统信息混用。
-- 危险色只用于删除、退出未保存创作和明确失败状态。
-- 世界封面可拥有自己的图片色彩，但文字区必须叠加统一遮罩保证可读性。
+规则：中性色承担绝大部分面积；绿只用于焦点与主要动作。图片上的文字使用独立遮罩，不受页面主题切换影响。错误与警告同时带文字，不仅依赖颜色。上线前以最终实际字号检查正文、标签、按钮与焦点对比度。
 
 ## 3. Typography Rules
 
+沿用项目已有 Noto 字体，避免额外字体种类或下载。字体来源记录如下，应用只加载一次：
+
 ```css
-@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&family=Noto+Serif+SC:wght@500;600;700&display=swap');
-
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&family=Noto+Serif+SC:wght@400;600&display=swap');
 :root {
-  --font-ui: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
-  --font-story: "Noto Serif SC", "Songti SC", "SimSun", serif;
-  --font-mono: "SFMono-Regular", "Cascadia Code", "Roboto Mono", monospace;
+  --font-ui: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --font-reading: "Noto Serif SC", "Songti SC", serif;
 }
-
-body {
-  font-family: var(--font-ui);
-  font-size: 1rem;
-  line-height: 1.72;
-  letter-spacing: 0.02em;
-}
+body { font-family: var(--font-ui); letter-spacing: .02em; line-height: 1.7; }
 ```
 
-| Level | Size | Weight | Line height | Font | Use |
-|---|---:|---:|---:|---|---|
-| Display | clamp(2.5rem, 6vw, 5rem) | 600 | 1.08 | Story | 世界名称、沉浸式开场 |
-| H1 | clamp(2rem, 4vw, 3.5rem) | 600 | 1.15 | Story | 页面主标题 |
-| H2 | clamp(1.5rem, 2.4vw, 2.25rem) | 600 | 1.3 | Story | 区域标题、角色选择标题 |
-| H3 | 1.25rem | 600 | 1.45 | UI | 卡片标题、角色名称 |
-| Body L | 1.125rem | 400 | 1.8 | Story | 剧情正文、开场叙述 |
-| Body | 1rem | 400 | 1.72 | UI | Agent 对话、说明、表单正文 |
-| Label | 0.875rem | 600 | 1.45 | UI | 输入标签、选项标签 |
-| Meta | 0.75rem | 500 | 1.5 | UI | 时间、状态和次要信息 |
+| 层级 | 字体 | 桌面 / 手机 | 字重 | 行高 |
+| --- | --- | --- | --- | --- |
+| 首页 H1 | UI | 36 / 28px | 600 | 1.7 |
+| 区块 H2 | UI | 24 / 22px | 600 | 1.7 |
+| 图片卡标题 | UI | 18 / 16px | 600 | 1.7 |
+| 表单 / 聊天正文 | UI | 16 / 16px | 400 | 1.8 |
+| 剧情正文 | Reading | 18 / 17px | 400 | 1.9 |
+| 标签 / 辅助说明 | UI | 13 / 13px | 500 | 1.7 |
 
-**Text Decoration**：
-- Display/H1：不使用渐变文字。暗色背景上的世界主标题允许非常轻的暖金环境投影：`0 0 36px rgba(var(--color-primary-rgb), 0.16)`。
-- H2/H3：无渐变、无投影，依靠字体与间距建立层级。
-- Agent 名称或记忆标题：使用雾蓝色，不加发光文字。
-- 正文：禁止渐变、投影、描边和全大写装饰。
-- 链接：hover 时增加下划线偏移，不使用发光。
-
-**Forbidden Fonts**：
-- 禁止只设置 Inter、Arial 等英文字体导致中文随机回退。
-- 禁止在正文使用手写体、圆体或过度装饰字体。
-- 禁止世界标题与 UI 操作都使用同一种衬线体，必须保持“故事／操作”区分。
+文字装饰判断：H1/H2 均不采用渐变文字或投影。艺术感来自真实图片、布局密度和字体节奏；标题使用短距离遮罩入场，不用发光文字。禁用系统 Times 作为中文展示标题、全站衬线化、装饰英文替代真实中文导航。
 
 ## 4. Component Stylings
 
-### Buttons
+### 按钮、链接、标签与导航
 
 ```css
-.button {
-  min-height: 44px;
-  padding: 0.75rem 1.125rem;
-  border: 1px solid transparent;
-  border-radius: 12px;
-  font: 600 0.9375rem/1 var(--font-ui);
-  letter-spacing: 0.02em;
-  cursor: pointer;
-  transition: transform 160ms ease, background-color 180ms ease,
-              border-color 180ms ease, color 180ms ease, box-shadow 180ms ease;
+.gallery-button, .gallery-filter, .gallery-nav-button {
+  min-height: 44px; min-width: 44px; border: 0;
+  border-radius: var(--radius-control); font: inherit;
+  color: var(--text); background: var(--surface-alt);
+  padding: 10px 16px; cursor: pointer;
+  transition: background-color .18s, color .18s, transform .18s;
 }
-
-.button--primary {
-  color: var(--color-on-primary);
-  background: var(--color-primary);
-  box-shadow: 0 8px 28px rgba(var(--color-primary-rgb), 0.15);
+.gallery-button[data-primary="true"] {
+  background: var(--accent); color: var(--on-accent);
 }
-
-.button--primary:hover {
-  background: var(--color-primary-hover);
-  transform: translateY(-1px);
-  box-shadow: 0 12px 32px rgba(var(--color-primary-rgb), 0.22);
+.gallery-button:hover, .gallery-filter:hover, .gallery-nav-button:hover {
+  background: var(--surface-hover);
 }
-
-.button--primary:active {
-  background: var(--color-primary-active);
-  transform: translateY(0) scale(0.98);
-  box-shadow: 0 4px 14px rgba(var(--color-primary-rgb), 0.12);
+.gallery-button[data-primary="true"]:hover { background: var(--accent-hover); }
+.gallery-button:active, .gallery-filter:active, .gallery-nav-button:active {
+  transform: scale(.98);
 }
-
-.button--secondary {
-  color: var(--color-text);
-  background: var(--color-surface-strong);
-  border-color: var(--color-border);
+.gallery-button:disabled, .gallery-filter:disabled, .gallery-nav-button:disabled {
+  opacity: .48; cursor: not-allowed; transform: none;
 }
-
-.button--secondary:hover {
-  background: var(--color-surface-hover);
-  border-color: var(--color-border-strong);
+.gallery-filter { border-radius: 999px; background: transparent; }
+.gallery-filter[aria-pressed="true"], .gallery-nav-button[aria-current="page"] {
+  color: var(--accent); background: rgba(var(--accent-rgb), .09);
 }
-
-.button:focus-visible {
-  outline: 3px solid var(--color-focus-ring);
-  outline-offset: 3px;
+.gallery-nav { background: var(--bg); border-inline-end: 1px solid var(--border); }
+.gallery-nav-button { display: grid; place-content: center; background: transparent; }
+.gallery-nav[data-scrolled="true"] { box-shadow: 1px 0 12px rgba(var(--ink-rgb), .025); }
+.gallery-link { color: var(--accent); text-underline-offset: 5px; }
+.gallery-link:hover { text-decoration: underline; }
+.gallery-link:active { opacity: .72; }
+.gallery-link[aria-disabled="true"] { opacity: .48; pointer-events: none; }
+:where(button, a, input, textarea, summary):focus-visible {
+  outline: 2px solid var(--focus); outline-offset: 4px;
 }
+.gallery-badge { padding: 3px 9px; border-radius: 999px; background: var(--surface-alt); }
+```
 
-.button:disabled,
-.button[aria-disabled="true"] {
-  color: var(--color-text-disabled);
-  background: var(--color-surface);
-  border-color: var(--color-border-soft);
-  box-shadow: none;
-  cursor: not-allowed;
-  transform: none;
+### 世界 / 人物作品卡
+
+卡片是图片入口，不是盛放全文的表格。固定显示名称、类型与必要身份提示；简介、进入世界、和 TA 聊聊按需显现。触摸端不依赖 hover。完整简介与角色详情放入可访问 Dialog。无虚构点赞、评分、在线人数。
+
+```css
+.gallery-card { position: relative; border-radius: var(--radius-card); overflow: hidden; }
+.gallery-card img { display: block; width: 100%; height: auto; transition: transform .2s cubic-bezier(.4,.95,.6,1.1); }
+.gallery-card-cover { position: absolute; inset: 0; overflow: hidden; }
+.gallery-card-copy {
+  position: absolute; inset: auto 0 0; padding: 44px 16px 14px;
+  color: var(--on-image);
+  background: linear-gradient(transparent, rgba(var(--image-shade-rgb), .82));
+}
+.gallery-card-actions {
+  opacity: 0; transform: translateY(6px);
+  transition: opacity .18s, transform .2s;
+}
+.gallery-card:hover img, .gallery-card:focus-within img { transform: scale(1.02); }
+.gallery-card:hover .gallery-card-actions, .gallery-card:focus-within .gallery-card-actions {
+  opacity: 1; transform: none;
+}
+.gallery-card:focus-within { outline: 2px solid var(--focus); outline-offset: 3px; }
+.gallery-card [aria-disabled="true"] { opacity: .5; cursor: not-allowed; }
+@media (hover: none) {
+  .gallery-card-actions { opacity: 1; transform: none; }
 }
 ```
 
-### World Cards
+封面使用同一世界自身封面或自身角色，不借用其他世界图片伪装。标题最多两行、角色说明最多一行；没有图片时展示有名称、动作和真实状态的文本卡，不用空色块冒充封面，不自动生图填空。
+
+### 创作输入面板、聊天、弹层
 
 ```css
-.world-card {
-  position: relative;
-  min-height: 320px;
-  overflow: hidden;
-  border: 1px solid var(--color-border-soft);
-  border-radius: 18px;
-  background: var(--color-surface);
-  color: var(--color-text);
-  isolation: isolate;
-  transition: transform 260ms cubic-bezier(0.16, 1, 0.3, 1),
-              border-color 220ms ease, box-shadow 260ms ease;
+.gallery-composer {
+  width: min(920px, 100%); padding: 20px;
+  border: 1px solid var(--border); border-radius: var(--radius-panel);
+  background: var(--surface); box-shadow: var(--shadow-panel);
+  transition: box-shadow .22s, border-color .22s;
 }
-
-.world-card::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  background: radial-gradient(360px circle at var(--pointer-x, 50%) var(--pointer-y, 40%),
-    rgba(var(--color-primary-rgb), 0.13), transparent 68%);
-  opacity: 0;
-  transition: opacity 220ms ease;
+.gallery-composer:focus-within {
+  border-color: var(--border-hover); box-shadow: var(--shadow-focus);
 }
-
-.world-card:hover {
-  transform: translateY(-5px);
-  border-color: rgba(var(--color-primary-rgb), 0.58);
-  box-shadow: 0 24px 60px rgba(var(--color-bg-rgb), 0.42);
+.gallery-composer textarea {
+  width: 100%; min-height: 72px; border: 0; resize: none;
+  color: var(--text); background: transparent; font: inherit; line-height: 1.8;
 }
-
-.world-card:hover::after { opacity: 1; }
-.world-card:active { transform: translateY(-2px) scale(0.995); }
-.world-card:focus-visible {
-  outline: 3px solid var(--color-focus-ring);
-  outline-offset: 4px;
+.gallery-composer textarea::placeholder { color: var(--text-tertiary); }
+.gallery-composer textarea:disabled { opacity: .5; cursor: not-allowed; }
+.gallery-composer[data-floating="true"] {
+  position: fixed; bottom: 24px; left: calc(50% + 40px);
+  transform: translateX(-50%); width: min(680px, calc(100vw - 128px)); z-index: 35;
 }
-.world-card[aria-disabled="true"] {
-  opacity: 0.48;
-  pointer-events: none;
+.gallery-dialog {
+  background: var(--surface); color: var(--text); border: 1px solid var(--border);
+  border-radius: var(--radius-panel); box-shadow: var(--shadow-dialog);
+  width: min(680px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); overflow-y: auto;
+}
+.gallery-message { max-width: 720px; overflow-wrap: anywhere; }
+.gallery-message[data-speaker="user"] {
+  margin-inline-start: auto; background: var(--surface-alt);
+  border-radius: 18px 18px 5px 18px; padding: 12px 18px;
 }
 ```
 
-### Character Cards
+输入始终铺满面板可用宽度，发送按钮不夹在半截输入后。Enter 发送、Shift+Enter 换行，保留 IME 保护、请求中状态、取消与错误反馈。主输入与悬浮输入共用草稿；不在输入法组合、聚焦或手机键盘展开时强行迁移焦点。
 
-```css
-.character-card {
-  position: relative;
-  display: grid;
-  grid-template-rows: minmax(220px, 1fr) auto;
-  overflow: hidden;
-  border: 1px solid var(--color-border);
-  border-radius: 16px;
-  background: var(--color-surface);
-  transition: transform 220ms ease, border-color 220ms ease, box-shadow 220ms ease;
-}
-
-.character-card:hover {
-  transform: translateY(-3px);
-  border-color: var(--color-border-strong);
-}
-
-.character-card[data-selected="true"] {
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 1px var(--color-primary),
-              0 18px 44px rgba(var(--color-primary-rgb), 0.14);
-}
-
-.character-card:active { transform: scale(0.99); }
-.character-card:focus-visible {
-  outline: 3px solid var(--color-focus-ring);
-  outline-offset: 4px;
-}
-.character-card[aria-disabled="true"] {
-  opacity: 0.46;
-  pointer-events: none;
-}
-```
-
-### Navigation
-
-```css
-.app-nav {
-  position: sticky;
-  top: 0;
-  z-index: 50;
-  min-height: 64px;
-  background: rgba(var(--color-bg-rgb), 0.72);
-  border-bottom: 1px solid transparent;
-  transition: background-color 220ms ease, border-color 220ms ease, box-shadow 220ms ease;
-}
-
-.app-nav[data-scrolled="true"] {
-  background: rgba(var(--color-bg-rgb), 0.9);
-  border-bottom-color: var(--color-border-soft);
-  box-shadow: 0 8px 28px rgba(var(--color-bg-rgb), 0.3);
-  backdrop-filter: blur(12px);
-}
-
-.nav-link {
-  color: var(--color-text-secondary);
-  border-radius: 9px;
-  transition: color 160ms ease, background-color 160ms ease;
-}
-.nav-link:hover { color: var(--color-text); background: var(--color-surface); }
-.nav-link:active { background: var(--color-surface-strong); }
-.nav-link[aria-current="page"] { color: var(--color-primary); }
-.nav-link:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; }
-.nav-link[aria-disabled="true"] { color: var(--color-text-disabled); pointer-events: none; }
-```
-
-### Links
-
-```css
-.text-link {
-  color: var(--color-agent);
-  text-decoration-color: transparent;
-  text-underline-offset: 0.28em;
-  transition: color 160ms ease, text-decoration-color 160ms ease;
-}
-.text-link:hover { color: var(--color-agent-hover); text-decoration-color: currentColor; }
-.text-link:active { color: var(--color-primary); }
-.text-link:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 3px; }
-.text-link[aria-disabled="true"] { color: var(--color-text-disabled); pointer-events: none; }
-```
-
-### Tags / Badges
-
-```css
-.badge {
-  display: inline-flex;
-  align-items: center;
-  min-height: 28px;
-  padding: 0.25rem 0.625rem;
-  border: 1px solid var(--color-border);
-  border-radius: 999px;
-  color: var(--color-text-secondary);
-  background: rgba(var(--color-surface-rgb), 0.78);
-  font: 500 0.75rem/1.2 var(--font-ui);
-}
-.badge[data-tone="agent"] {
-  color: var(--color-agent-hover);
-  border-color: rgba(var(--color-agent-rgb), 0.34);
-  background: var(--color-agent-soft);
-}
-.badge:hover { border-color: var(--color-border-strong); color: var(--color-text); }
-.badge:active { background: var(--color-surface-strong); }
-.badge:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; }
-.badge[aria-disabled="true"] { opacity: 0.46; pointer-events: none; }
-```
-
-### Inputs and Textareas
-
-```css
-.field {
-  width: 100%;
-  min-height: 48px;
-  padding: 0.75rem 0.875rem;
-  border: 1px solid var(--color-border);
-  border-radius: 12px;
-  color: var(--color-text);
-  background: var(--color-bg-elevated);
-  font: 400 1rem/1.6 var(--font-ui);
-  caret-color: var(--color-primary);
-  transition: border-color 160ms ease, background-color 160ms ease, box-shadow 160ms ease;
-}
-.field::placeholder { color: var(--color-text-muted); }
-.field:hover { border-color: var(--color-border-strong); }
-.field:focus {
-  outline: none;
-  border-color: var(--color-agent);
-  background: var(--color-surface);
-  box-shadow: 0 0 0 3px rgba(var(--color-agent-rgb), 0.16);
-}
-.field:active { border-color: var(--color-agent); }
-.field:disabled { color: var(--color-text-disabled); background: var(--color-surface); cursor: not-allowed; }
-```
-
-### Agent Chat
-
-```css
-.agent-panel {
-  border: 1px solid rgba(var(--color-agent-rgb), 0.22);
-  border-radius: 20px;
-  background: linear-gradient(145deg,
-    rgba(var(--color-agent-soft-rgb), 0.9),
-    rgba(var(--color-surface-rgb), 0.94));
-  box-shadow: 0 22px 64px rgba(var(--color-bg-rgb), 0.36);
-}
-.agent-message {
-  color: var(--color-text);
-  border-left: 2px solid var(--color-agent);
-  padding-left: 1rem;
-}
-.agent-panel:hover { border-color: rgba(var(--color-agent-rgb), 0.4); }
-.agent-panel:active { border-color: rgba(var(--color-agent-rgb), 0.52); }
-.agent-panel:focus-within { box-shadow: 0 0 0 3px rgba(var(--color-agent-rgb), 0.13); }
-.agent-panel[aria-disabled="true"] { opacity: 0.5; pointer-events: none; }
-```
-
-### Story Choices
-
-```css
-.story-choice {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  align-items: center;
-  gap: 0.75rem;
-  width: 100%;
-  min-height: 52px;
-  padding: 0.75rem 1rem;
-  color: var(--color-text-secondary);
-  background: rgba(var(--color-surface-rgb), 0.86);
-  border: 1px solid var(--color-border);
-  border-radius: 12px;
-  text-align: left;
-  transition: color 160ms ease, background-color 160ms ease,
-              border-color 160ms ease, transform 160ms ease;
-}
-.story-choice:hover {
-  color: var(--color-text);
-  background: var(--color-surface-hover);
-  border-color: rgba(var(--color-primary-rgb), 0.52);
-  transform: translateX(4px);
-}
-.story-choice:active { transform: translateX(2px) scale(0.995); }
-.story-choice:focus-visible { outline: 3px solid var(--color-focus-ring); outline-offset: 3px; }
-.story-choice:disabled { color: var(--color-text-disabled); background: var(--color-surface); transform: none; cursor: not-allowed; }
-```
-
-### Slider / Surprise Level
-
-```css
-.surprise-slider {
-  accent-color: var(--color-primary);
-  min-height: 44px;
-}
-.surprise-slider:hover { filter: brightness(1.08); }
-.surprise-slider:active { accent-color: var(--color-primary-active); }
-.surprise-slider:focus-visible { outline: 3px solid var(--color-focus-ring); outline-offset: 3px; }
-.surprise-slider:disabled { opacity: 0.42; cursor: not-allowed; }
-```
-
-### Creator Agent Workbench
-
-- 第二步使用“左侧 Agent 对话，右侧可编辑框架”的工作台。桌面端对话区可在视口内粘滞，框架区独立展示目标、成功/失败条件、复杂度与任务。
-- Agent 的建议不得直接覆盖用户内容；必须先以雾蓝建议卡呈现，由用户点击“采纳到右侧”后才写入框架。
-- 任务卡使用扁平边框，按“名称—内容—成功条件—困难/代价”排列；不使用复杂节点图。
-- 世界复杂度使用 4 个显式选项，文案是“轻量/标准/丰富/多线”，不显示预计分钟数。
-
-### Goal Progress
-
-- 探索页顶部进度条表示“已完成的主线条件 / 全部必要条件”，不以回合数或预设分幕伪装成剧情进度。
-- 自由输入是主行动面，使用暖金边框和主按钮；AI 生成选项放在其后，标注为“行动灵感”。
-- 任务进度卡只公开目标、完成状态和已知困难，不泄露其他角色的私密行动。
+个人 Agent 保持朋友与助理定位；消息正文不夹大块“用这条消息开始创作”按钮，改为消息旁的紧凑操作入口。推荐结果使用真正可进入的世界卡；候选记忆仍需同意，不把虚构身份当成真人资料。
 
 ## 5. Layout Principles
 
-**Container**：
-- Application max width: `1440px`
-- Page horizontal padding: desktop `32px`, tablet `24px`, mobile `16px`
-- Reading/story column: `680px`
-- Creation form column: `760px`
-- Agent side panel: `320px`
+桌面主区不再限于一张窄大卡片；侧栏 80px，主内容横向留白 28px，画廊随可用宽度扩展，最大 1800px。输入区域居中，不超过 920px；正文阅读宽度不超过 760px。
 
-**Spacing Scale**：
-- `--space-1: 4px`
-- `--space-2: 8px`
-- `--space-3: 12px`
-- `--space-4: 16px`
-- `--space-5: 24px`
-- `--space-6: 32px`
-- `--space-7: 48px`
-- `--space-8: 64px`
-- Page section padding: `48px 0`
-- Component gap: `16px–24px`
-- Card padding: `20px–24px`
+首页自上而下：简洁标题 → 创作输入 → 紧凑的继续互动（仅有真实记录时显示）→ 世界 / 角色筛选 → 混合画廊。取消把内容推到第二屏的大型主推横幅和空白最近记录卡。普通 1440×900 视口中应能看见第一排作品的主体，不把首屏用说明占满。
 
-**Primary Shell**：
+画廊默认可同时发现世界横封面和角色竖肖像，用户可切换仅世界或仅角色。分组语义与键盘焦点保持阅读顺序；采用保持 DOM 行序的 CSS Grid 行跨距测量，而不是造成视觉横读与键盘竖读冲突的 CSS columns。图片解码和容器改变时更新跨行数，测量经 ResizeObserver 与 rAF 合并；不每次滚动重排。
 
 ```css
-.app-shell {
-  width: min(100% - 64px, 1440px);
-  margin-inline: auto;
+.gallery-main { margin-left: 80px; padding: 28px 28px 128px; }
+.gallery-feed {
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-auto-rows: 4px; gap: 8px; align-items: start;
 }
-
-.agent-home-grid {
-  display: grid;
-  grid-template-columns: minmax(300px, 0.78fr) minmax(0, 1.7fr);
-  gap: 32px;
-  align-items: start;
-}
-
-.world-grid {
-  display: grid;
-  grid-template-columns: repeat(12, minmax(0, 1fr));
-  gap: 20px;
-}
-
-.world-grid > :nth-child(1) { grid-column: span 7; }
-.world-grid > :nth-child(2) { grid-column: span 5; }
-.world-grid > :nth-child(n + 3) { grid-column: span 4; }
-
-.explore-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 320px;
-  gap: 24px;
-  min-height: calc(100dvh - 96px);
-}
-
-.story-stage {
-  position: relative;
-  min-height: 620px;
-  overflow: hidden;
-  border-radius: 22px;
-  background: var(--color-surface);
-}
+.gallery-feed > * { min-width: 0; grid-row-end: span var(--gallery-span, 30); }
+.gallery-copy { width: min(760px, 100%); margin-inline: auto; }
+.agent-workspace { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 28px; }
+.creator-workspace { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 24px; }
 ```
 
-**Hierarchy Rules**：
-- 首屏优先级：个人 Agent 对话 > 推荐世界 > 创建入口，不放宣传 Hero。
-- 推荐区至少展示三个可进入世界；个人 Agent 的推荐结果用雾蓝描边标记，但不隐藏其他选择。
-- 创作流程使用分步进度，但每一步只出现当前必要字段。
-- 故事创作必须并列提供“直接使用我的剧情”和“让 AI 帮我展开”，AI 结果以可编辑表单呈现，不能锁死成只读草案。
-- 创作 Agent 的对话与框架编辑同屏存在；用户既可通过对话获得灵感，也可不经 Agent 直接修改任何字段。
-- 世界长度以复杂度、主线任务数量和前置条件表达，不用固定分钟数。
-- 意外程度同时提供四个文字档位卡和滑杆，明确由创作者手动决定；选择结果必须真正写入世界运行状态。
-- 探索页舞台占据主要面积，状态信息放右侧可收起面板。
-- 行动选项必须位于剧情文本之后且无需滚动即可触达。
+世界封面优先保持原始横图比例；人物保留竖图。不同类型混合带来错落，不任意拉伸人脸。现有资产不足以覆盖的大图不放大成模糊巨幅。
+
+个人 Agent：对话为主，记忆/虚构身份置于可折叠辅助区；未有推荐时不保留空推荐栏。创建世界：编辑与讨论双栏保留，进度条压缩为小型步骤导航，角色、目标、任务独立折叠；模型建议仍分项采纳和撤销。探索页保留独立的场景图与文字阅读区，不恢复人像压住长篇正文。
+
+间距尺度：4 / 8 / 12 / 16 / 24 / 32 / 48px。图与图紧密，工具与内容保持清楚的呼吸空间；不靠卡片 min-height 和空白拉齐。
 
 ## 6. Depth & Elevation
 
 ```css
 :root {
-  --shadow-flat: none;
-  --shadow-subtle: 0 8px 24px rgba(var(--color-bg-rgb), 0.22);
-  --shadow-raised: 0 18px 48px rgba(var(--color-bg-rgb), 0.36);
-  --shadow-overlay: 0 28px 80px rgba(var(--color-bg-rgb), 0.56);
-  --shadow-agent: 0 20px 64px rgba(var(--color-agent-rgb), 0.1);
-  --shadow-primary: 0 16px 42px rgba(var(--color-primary-rgb), 0.16);
+  --shadow-panel: 0 8px 30px rgba(var(--ink-rgb), .045);
+  --shadow-focus: 0 8px 32px rgba(var(--accent-rgb), .085);
+  --shadow-floating: 0 12px 48px rgba(var(--ink-rgb), .14);
+  --shadow-dialog: 0 24px 80px rgba(var(--ink-rgb), .18);
 }
+.gallery-composer[data-floating="true"] { box-shadow: var(--shadow-floating); }
 ```
 
-| Level | Treatment | Use |
-|---|---|---|
-| Flat | No shadow, border only | 输入区、列表行、状态项 |
-| Subtle | `--shadow-subtle` | 普通角色卡、创建步骤卡 |
-| Raised | `--shadow-raised` | 世界卡、推荐结果、探索舞台 |
-| Overlay | `--shadow-overlay` | Dialog、Sheet、结局卡 |
-| Agent | `--shadow-agent` | 个人 Agent 面板和记忆确认 |
-
-规则：阴影只用于表达层级，不用于给所有元素增加“悬浮感”；同一视口最多一个 Overlay 层级。
+| 层级 | 用途 | 表现 |
+| --- | --- | --- |
+| 平面 | 图片流、常规文字 | 无阴影、无外层描边 |
+| 抬高一级 | 输入框、局部工具 | 微弱阴影与中性表面 |
+| 悬浮 | 滚动创作栏 | 紧凑清晰阴影，不模糊整屏 |
+| 模态 | 身份选择、剧情详情、发布确认 | 独立遮罩与焦点锁定；不嵌到侧栏下方 |
 
 ## 7. Animation & Interaction
 
-**Motion Philosophy**：动效服务于“世界被打开”和“选择产生影响”。使用 opacity、transform、clip-path 与轻量径向光；不使用移动模糊、不劫持滚动。
+**Motion Philosophy**：动作只解释进入、选择、展开和继续，不抢夺读图与阅读注意力。
 
-**Tier**：L2 流畅交互
+**Tier**：L2，已确认。六类覆盖如下；不复制未经阅读的第三方源码，不虚构使用 reactbits。
 
-### Dependencies
+| 类别 | 落点 | 触发 / 驱动 | 效果与时长 |
+| --- | --- | --- | --- |
+| H1 | 首页短标题 | 首次进入 / CSS | 两段遮罩上移 12px，480ms，间隔 70ms |
+| H2 | 发现 / 继续互动标题 | 首次可见 / Observer | 上移 8px、淡入，360ms |
+| 正文 / 标签 | eyebrow 和辅助短句 | 首次进入 / CSS | 淡入，300ms；不逐字打印长文 |
+| 元素 | 图片、发送按钮 | hover、focus、active | 图片 scale 1.02 / 200ms；按钮按下 .98 |
+| 构件 | 画廊、主输入→悬浮输入 | Observer 与受控状态 | 卡片错峰入场 360ms，延迟上限 240ms；输入切换 350ms |
+| 氛围层 | 标题后的一层低对比光感 | CSS + 页面可见状态 | 静态径向渐变缓慢移动一次，7s；滚动微视差上限 8px |
 
-无需 GSAP、Lenis 或 WebGL。React 状态、CSS 动画与 `IntersectionObserver` 足够完成第一版。
-
-### 7.1 Text Animation — Page H1
-
-世界名称和个人 Agent 首句使用一次性 mask reveal：
-
-```css
-@keyframes titleReveal {
-  from { opacity: 0; transform: translateY(24px); clip-path: inset(0 0 100% 0); }
-  to { opacity: 1; transform: translateY(0); clip-path: inset(0 0 0 0); }
-}
-.title-reveal {
-  animation: titleReveal 720ms cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-```
-
-### 7.2 Text Animation — Section H2
-
-页面区块标题进入视口时淡入上浮：
+至少四个可辨识时刻：标题展开；第一组图片错峰出现；卡片放大与操作显现；滚动后悬浮输入接续草稿。不会每次切筛选重复整页淡出，也不让内容在等待动画时不可操作。
 
 ```css
-.section-heading {
-  opacity: 0;
-  transform: translateY(18px);
-  transition: opacity 560ms ease, transform 560ms cubic-bezier(0.16, 1, 0.3, 1);
+@keyframes gallery-title-in {
+  from { opacity: 0; transform: translateY(12px); clip-path: inset(0 0 100%); }
+  to { opacity: 1; transform: none; clip-path: inset(0); }
 }
-.section-heading[data-visible="true"] {
-  opacity: 1;
-  transform: translateY(0);
-}
-```
-
-### 7.3 Text Animation — Agent Body / Label
-
-Agent 正在组织推荐时使用克制的逐段出现，不模拟无限打字：
-
-```css
-@keyframes messageIn {
+@keyframes gallery-label-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes gallery-reveal-in {
   from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
+  to { opacity: 1; transform: none; }
 }
-.agent-message-line {
-  animation: messageIn 360ms ease both;
-  animation-delay: calc(var(--line-index, 0) * 90ms);
+@keyframes gallery-atmosphere {
+  from { transform: translate(-1%, 0); opacity: .35; }
+  to { transform: translate(1%, 1%); opacity: .7; }
 }
+.gallery-title-part { display: inline-block; animation: gallery-title-in .48s both; }
+.gallery-title-part + .gallery-title-part { animation-delay: .07s; }
+.gallery-eyebrow { animation: gallery-label-in .3s both; }
+.gallery-reveal[data-visible="true"] {
+  animation: gallery-reveal-in .36s both;
+  animation-delay: min(var(--reveal-delay, 0ms), 240ms);
+}
+.gallery-ambient { pointer-events: none; transform: translateY(var(--ambient-y, 0px)); }
+.gallery-ambient::before {
+  content: ""; position: absolute; inset: 0;
+  background: radial-gradient(ellipse at 50% 20%, var(--ambient), transparent 65%);
+  animation: gallery-atmosphere 7s ease-in-out both;
+}
+.gallery-ambient[data-visible="false"]::before { animation-play-state: paused; }
 ```
 
-### 7.4 Element Interaction — Choice Feedback
-
-用户点击行动后，选中项短暂向右推进，其他选项淡出：
-
-```css
-.choice-group[data-committed="true"] .story-choice:not([data-selected="true"]) {
-  opacity: 0.38;
-  transform: translateX(-6px);
-}
-.story-choice[data-selected="true"] {
-  color: var(--color-on-primary);
-  background: var(--color-primary);
-  border-color: var(--color-primary);
-  transform: translateX(8px);
-}
-```
-
-### 7.5 Component Interaction — World Spotlight Cards
-
-世界卡响应指针位置产生轻量聚光，指针监听必须通过 `requestAnimationFrame` 节流；触摸设备禁用聚光，仅保留按压反馈。
+下面为可运行的挂载/清理基线；React 中在 Effect 挂载并返回清理函数，不以全局重复监听替代生命周期。
 
 ```js
-export function updateSpotlight(card, event) {
-  if (!window.matchMedia('(hover: hover)').matches) return;
-  if (card.__spotlightFrame) return;
-  card.__spotlightFrame = requestAnimationFrame(() => {
-    const rect = card.getBoundingClientRect();
-    card.style.setProperty('--pointer-x', `${event.clientX - rect.left}px`);
-    card.style.setProperty('--pointer-y', `${event.clientY - rect.top}px`);
-    card.__spotlightFrame = null;
-  });
+function mountGalleryMotion(root = document) {
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)');
+  const ambient = root.querySelector('.gallery-ambient');
+  const nav = root.querySelector('.gallery-nav');
+  const targets = root.querySelectorAll('.gallery-reveal');
+  let raf = 0;
+  let observer;
+  const update = () => {
+    raf = 0;
+    nav?.setAttribute('data-scrolled', String(scrollY > 24));
+    ambient?.style.setProperty('--ambient-y', `${reduce.matches ? 0 : Math.min(8, scrollY * .025)}px`);
+  };
+  const scroll = () => { if (!raf) raf = requestAnimationFrame(update); };
+  if ('IntersectionObserver' in window) {
+    observer = new IntersectionObserver(entries => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.setAttribute('data-visible', 'true');
+          observer.unobserve(entry.target);
+        }
+      });
+    }, { threshold: .1 });
+    targets.forEach(target => observer.observe(target));
+  } else {
+    targets.forEach(target => target.setAttribute('data-visible', 'true'));
+  }
+  addEventListener('scroll', scroll, { passive: true });
+  reduce.addEventListener('change', update);
+  update();
+  return () => {
+    observer?.disconnect();
+    removeEventListener('scroll', scroll);
+    reduce.removeEventListener('change', update);
+    cancelAnimationFrame(raf);
+  };
 }
 ```
 
-### 7.6 Background Atmosphere
-
-个人 Agent 首页使用两层静态径向渐变和一个缓慢漂移的低透明光层。动画仅改变 transform 与 opacity，禁止在移动元素上使用 blur。
-
-```css
-@keyframes ambientDrift {
-  0%, 100% { transform: translate3d(-3%, -2%, 0) scale(1); opacity: 0.42; }
-  50% { transform: translate3d(4%, 3%, 0) scale(1.08); opacity: 0.58; }
-}
-.ambient-light {
-  position: fixed;
-  inset: -20%;
-  pointer-events: none;
-  background:
-    radial-gradient(circle at 26% 30%, rgba(var(--color-agent-rgb), 0.12), transparent 30%),
-    radial-gradient(circle at 76% 62%, rgba(var(--color-primary-rgb), 0.09), transparent 34%);
-  animation: ambientDrift 18s ease-in-out infinite;
-}
-```
-
-### 7.7 Scroll Reveal and Navigation State
-
-世界列表卡片使用 stagger fadeInUp；导航在滚动超过 32px 后进入紧凑毛玻璃状态。背景图允许最大 20px 的轻微视差，不影响内容命中区域。
-
-```js
-export function observeReveal() {
-  const observer = new IntersectionObserver((entries) => {
-    for (const entry of entries) {
-      if (!entry.isIntersecting) continue;
-      entry.target.setAttribute('data-visible', 'true');
-      observer.unobserve(entry.target);
-    }
-  }, { threshold: 0.16 });
-  document.querySelectorAll('[data-reveal]').forEach((node) => observer.observe(node));
-  return () => observer.disconnect();
-}
-```
-
-### 7.8 Scene Transition
-
-场景变化时先淡出文字与角色，再交叉淡入新背景；总时长不超过 520ms。普通角色对话不触发全场景转场。
-
-```css
-.scene-layer {
-  transition: opacity 360ms ease, transform 520ms cubic-bezier(0.16, 1, 0.3, 1);
-}
-.scene-layer[data-transitioning="true"] {
-  opacity: 0;
-  transform: scale(1.015);
-}
-```
-
-### Reduced Motion
+必须补充氛围层离开可视区与 document.hidden 的暂停控制；无持续 rAF 循环。禁止全页 opacity 动画、对运动元素叠 blur、全屏 backdrop blur、滚动时测量所有卡片、不限制数量的 will-change。
 
 ```css
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
+  .gallery-main *, .gallery-main *::before, .gallery-nav * {
+    animation: none !important; transition: none !important;
     scroll-behavior: auto !important;
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
   }
-  .ambient-light { display: none; }
-  .world-card:hover,
-  .character-card:hover,
-  .story-choice:hover,
-  .story-choice[data-selected="true"] { transform: none; }
+  .gallery-title-part, .gallery-reveal, .gallery-eyebrow { opacity: 1; transform: none; clip-path: none; }
+  .gallery-ambient { transform: none; }
+  .gallery-card:hover img, .gallery-card:focus-within img { transform: none; }
 }
 ```
+
+减少动效不隐藏信息，不取消操作显现或键盘焦点。手机关闭微视差与氛围移动，保留即时状态反馈。
 
 ## 8. Do's and Don'ts
 
 ### Do
 
-- 用个人 Agent 面板作为产品入口，并通过雾蓝色建立持续识别。
-- 让角色形象和当前场景成为探索页视觉中心。
-- 用暖金色明确表达“进入、选择、生成、继续”等主行动。
-- 世界卡片使用真实故事标题、角色和冲突，不使用抽象营销文案。
-- 明确区分角色公开信息、选角后私密信息和 Agent 记忆。
-- 创作流程每一步只呈现当前必要字段，复杂配置折叠到“进一步设置”。
-- 所有生成、空状态、错误和重试状态都保留清晰反馈。
-- 图片加载时保留上一个有效场景，避免舞台闪成空白。
-- 桌面与移动端都保证操作按钮和行动选项至少 44px 高。
-- 动效必须解释状态变化：进入、选中、生成、场景切换或结局。
+- 从用户真实世界、角色、记录构建画廊，世界与角色两种入口始终可辨识。
+- 标题短、封面大；完整剧情按需阅读，操作靠近当前内容。
+- 复用原创公共图片与共享存储地址；浏览、切换、滚动不触发生图。
+- 保留个人 Agent 对话、记忆确认、虚构身份和账号资料的区分。
+- 保留每个角色的目标、任务、能力边界与身份确认，创作四步都有 Agent 讨论入口。
+- 桌面与手机都以实际浏览器验收，查看截图而非仅检查源代码。
+- 先测试、再提交、再部署 Vercel，最后验证正式地址及关键接口。
 
 ### Don't
 
-- ❌ 不做宣传型大 Hero，不让用户滚动后才能开始使用产品。
-- ❌ 不把每个故事角色表现成独立 Agent；当前角色是可选、可代入的世界对象。
-- ❌ 不使用高饱和霓虹紫蓝填满界面，避免廉价“AI 产品”视觉。
-- ❌ 不使用大面积玻璃拟态或超过 14px 的背景模糊。
-- ❌ 不在移动元素上使用 `filter: blur()`。
-- ❌ 不为每个按钮、卡片和标签同时添加阴影与发光。
-- ❌ 不使用 Emoji 代替功能图标、人物头像或状态图标。
-- ❌ 不让正文、剧情和按钮出现渐变文字或描边字。
-- ❌ 不在每轮普通对话重新生成完整场景图。
-- ❌ 不隐藏自由输入入口，也不让预设选项成为唯一行动方式。
-- ❌ 不用“离谱程度”暗示世界规则可以失控；界面名称统一为“意外程度”。
-- ❌ 不偷偷保存个人 Agent 推断出的敏感信息；记忆需要可见、可修改。
-- ❌ 不使用全局自定义光标、滚动劫持、长时间加载动画或无意义粒子特效。
-- ❌ 不让旧图片或旧生成结果覆盖用户已经进入的新场景。
+- ❌ 不再用黑金描边卡片包裹每一块内容，不把按钮和标签排成满屏药丸。
+- ❌ 不把整段剧情塞进首页卡片，不让一篇长简介撑高同排卡片。
+- ❌ 不用假评分、假热度、假点赞和虚构在线人数充当视觉装饰。
+- ❌ 不复制即梦用户作品、品牌 Logo 或没有实现的生图/参考图工具。
+- ❌ 不为本次视觉改版自动重新生成图片，不默认切昂贵模型。
+- ❌ 不牺牲键盘和触摸用户：操作不能只在鼠标 hover 时可见可用。
+- ❌ 不在滚动过程中清除输入、切断中文输入法组合或丢失草稿。
+- ❌ 不把角色对话假装成主线探索，不让 NPC 的选择替代玩家选择。
+- ❌ 不因换主题覆盖角色目标、任务、世界规则、账号、本地存档或访问权限。
+- ❌ 不把尚未完成的跨设备云同步和公开发布画成已启用；实际状态必须可见。
+- ❌ 不让动效遮住内容、制造大幅视差眩晕、增加生图或文本模型费用。
+- ❌ 不通过多个文件末尾反复叠加互相冲突的样式覆盖。旧规则应有明确退役范围。
 
 ## 9. Responsive Behavior
 
-**Breakpoints**：
+| 断点 | 结构 |
+| --- | --- |
+| ≥1600px | 五列图流，主区最大 1800px；80px 左导航 |
+| 1200–1599px | 四列图流；个人 Agent / 创作双栏 |
+| 900–1199px | 三列图流；必要时辅助栏折叠，不挤压聊天正文 |
+| 601–899px | 两列图流；创作编辑/讨论切换；底部导航 |
+| ≤600px | 两列简洁图片流；长详情、编辑、聊天均单列 |
 
-| Name | Width | Key Changes |
-|---|---:|---|
-| Wide desktop | `> 1280px` | 个人 Agent 与推荐世界双栏；探索舞台 + 320px 状态栏 |
-| Desktop/tablet | `769px–1280px` | 双栏比例收紧；世界卡 2 列；状态栏缩至 280px |
-| Mobile | `≤ 768px` | 全部单栏；底部固定操作区；状态栏改为 Sheet；角色卡横向滚动 |
-| Small mobile | `≤ 480px` | 页面边距 16px；世界卡单列；按钮默认满宽；Display 最大 2.5rem |
-
-**Touch Targets**：最小 `44px × 44px`；剧情选项建议最小高度 `52px`。
-
-**Collapsing Strategy**：
-- 个人 Agent 首页：Agent 对话在前，推荐世界在后，不把 Agent 折叠成悬浮聊天按钮。
-- 世界卡片：桌面使用不等宽布局，移动端变为单列；封面比例统一为 `4:5` 或 `16:10`。
-- 角色选择：桌面卡片网格，移动端横向 snap 列表；选中角色详情固定显示在列表下方。
-- 世界创作：步骤导航在移动端变为顶部简化进度“2 / 4”。
-- 探索页：桌面右侧状态栏在移动端变为底部 Sheet；对话与操作区贴近视口底部但不得遮挡剧情。
-- 结局页：关键选择时间线由双栏变为单列。
+手机两列画廊只显示图片、短标题和 44px 入口，复杂简介放详情层；若 200% 字号下空间不足则切为单列，不能裁切正文。所有操作目标至少 44×44px，不用放大整个卡片空白实现。
 
 ```css
-@media (max-width: 1280px) {
-  .app-shell { width: min(100% - 48px, 1180px); }
-  .explore-layout { grid-template-columns: minmax(0, 1fr) 280px; }
-  .world-grid > * { grid-column: span 6; }
+@media (min-width: 1600px) { .gallery-feed { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
+@media (max-width: 1199px) {
+  .gallery-feed { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .agent-workspace, .creator-workspace { grid-template-columns: minmax(0, 1fr); }
 }
-
-@media (max-width: 768px) {
-  .app-shell { width: min(100% - 32px, 100%); }
-  .agent-home-grid,
-  .explore-layout { grid-template-columns: 1fr; }
-  .world-grid { grid-template-columns: 1fr; gap: 16px; }
-  .world-grid > * { grid-column: auto; }
-  .desktop-state-panel { display: none; }
-  .mobile-state-trigger { display: inline-flex; }
-  .story-stage { min-height: calc(100dvh - 116px); border-radius: 16px; }
-  .character-strip {
-    display: grid;
-    grid-auto-flow: column;
-    grid-auto-columns: minmax(78%, 300px);
-    overflow-x: auto;
-    scroll-snap-type: x mandatory;
-    scrollbar-width: none;
-  }
-  .character-strip > * { scroll-snap-align: center; }
+@media (max-width: 899px) {
+  .gallery-main { margin-left: 0; padding: 24px 16px 172px; }
+  .gallery-feed { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .gallery-nav { position: fixed; inset: auto 0 0; display: flex; justify-content: space-around; z-index: 40; padding-bottom: env(safe-area-inset-bottom); }
+  .gallery-composer[data-floating="true"] { left: 50%; bottom: calc(80px + env(safe-area-inset-bottom)); width: calc(100vw - 24px); }
 }
-
-@media (max-width: 480px) {
-  .button { width: 100%; }
-  .app-nav { min-height: 56px; }
-  .world-card { min-height: 280px; }
+@media (max-width: 600px) {
+  .gallery-main { padding-inline: 12px; }
+  .gallery-composer { padding: 14px; border-radius: 20px; }
+  .gallery-card-copy { padding-inline: 10px; }
+  .gallery-card-actions { opacity: 1; transform: none; }
+  .gallery-ambient, .gallery-ambient::before { transform: none; animation: none; }
 }
 ```
 
-**Accessibility Notes**：
-- 图片必须提供与剧情相关的替代文本，不重复图片下方已有完整文本。
-- 颜色不作为角色选择、关系变化或意外程度的唯一表达方式。
-- Agent 流式文本使用适当的 `aria-live="polite"`，避免每个字符都被读屏重复播报。
-- 对话输入提交后，将焦点移动到新剧情标题或状态摘要，再允许用户进入下一组选项。
-- 所有 Sheet、Dialog 和角色详情支持 Escape 关闭与正确焦点返回。
+### 实施顺序与验收
+
+1. 主题与 L2 方向确认；将批准规范迁入应用，保留历史产品行为约束。
+2. 先改首页、导航、世界/角色图片流、详情层与悬浮创作输入；检查滚动、筛选、进入角色和草稿保持。
+3. 再统一个人 Agent 与创作工作台：减少常驻说明、弱化容器、整理表单与消息操作，不改模型权限或存储行为。
+4. 桌面 1440、手机 390、键盘、减少动效、长中文标题、空数据、加载失败、弹窗、输入法与 Enter 行为验收。确认没有新增自动生图请求。
+5. 跑现有回归与构建，提交本轮代码，部署并检查 Vercel 正式地址；未验证不声称完成。
+6. 视觉闭环之后回到未完成的跨设备云同步和公开发布，不在本次换皮中混入未经验证的账号/存储迁移。
