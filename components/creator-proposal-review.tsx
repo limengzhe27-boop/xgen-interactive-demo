@@ -14,7 +14,7 @@ function preview(change: CreatorChange, after: boolean) {
   const value = after ? change.after : change.before;
   if (change.key === 'entryPolicy' && value && typeof value === 'object') {
     const policy = value as import('@/lib/player-persona').EntryPolicy;
-    return `自带身份：${policy.allowPersona ? '允许' : '不允许'}\n开放角色：${policy.allowedRoleIds.map(id => change.referenceLabels?.[id] || '未知角色').join('、') || '未开放'}\n能力：${policy.abilityMode === 'fixed' ? policy.abilities.filter(Boolean).join('；') || '无额外能力' : '仅剧情身份原有能力'}`;
+    return `自带身份：${policy.allowPersona ? '允许' : '不允许'}\n开放角色：${policy.allowedRoleIds.map(id => change.referenceLabels?.[id] || '未知角色').join('、') || '未开放'}\n能力：${policy.abilityMode === 'agent-select' ? `Agent 从清单中挑选：${policy.abilities.filter(Boolean).join('；') || '清单为空，暂不能自带身份入场'}` : policy.abilityMode === 'fixed' ? policy.abilities.filter(Boolean).join('；') || '无额外能力' : '仅剧情身份原有能力'}`;
   }
   if (value === undefined) return after ? '删除此任务（不会自动删除其他任务）' : '尚未添加';
   if (change.target?.kind === 'task' && change.before && change.after) {

@@ -6,14 +6,14 @@ export type PlayerPersona = {
   appearance: string; abilities: string; portraitUrl?: string; updatedAt: number;
 };
 export type EntryPolicy = {
-  allowPersona: boolean; allowedRoleIds: string[]; abilityMode: 'role-only' | 'fixed'; abilities: string[];
+  allowPersona: boolean; allowedRoleIds: string[]; abilityMode: 'role-only' | 'fixed' | 'agent-select'; abilities: string[];
 };
 export const closedEntryPolicy: EntryPolicy = { allowPersona: false, allowedRoleIds: [], abilityMode: 'role-only', abilities: [] };
 const record = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
 const strings = (value: unknown, max: number) => Array.isArray(value) && value.length <= max && value.every(v => typeof v === 'string' && v.length <= 200);
 export function validEntryPolicy(value: unknown): value is EntryPolicy {
   return record(value) && typeof value.allowPersona === 'boolean' && strings(value.allowedRoleIds, 8)
-    && (value.abilityMode === 'role-only' || value.abilityMode === 'fixed') && strings(value.abilities, 12);
+    && ['role-only', 'fixed', 'agent-select'].includes(value.abilityMode as string) && strings(value.abilities, 12);
 }
 export function restoreEntryPolicy(value: unknown): EntryPolicy {
   return validEntryPolicy(value) ? { allowPersona: value.allowPersona, allowedRoleIds: [...new Set(value.allowedRoleIds)], abilityMode: value.abilityMode, abilities: [...new Set(value.abilities)] } : { ...closedEntryPolicy, allowedRoleIds: [], abilities: [] };
@@ -32,6 +32,7 @@ export function personaEntryProblem(world: WorldDefinition, roleId: string, pers
   const policy = restoreEntryPolicy(world.entryPolicy);
   if (!policy.allowPersona) return '创作者未开放自带身份，请使用原剧情角色。';
   if (!policy.allowedRoleIds.includes(roleId)) return '此剧情身份不允许自带形象，请选择开放的角色。';
+  if (policy.abilityMode === 'agent-select' && !policy.abilities.some(a => a.trim())) return '创作者尚未填写允许的能力清单，请先使用原剧情角色。';
   if (!persona) return '请先登录，并在个人 Agent 页保存一个虚构身份。';
   if (!world.characters.some(c => c.id === roleId)) return '该剧情身份已不存在。';
   if (world.characters.some(c => c.id !== roleId && c.name === persona.name)) return '你的名字与另一位角色相同，请先换一个名称，避免混淆。';
@@ -47,7 +48,16 @@ export function validPersonaAdmission(world: WorldDefinition, roleId: string): b
     && typeof admission.name === 'string' && admission.name.length > 0 && admission.name.length <= 40
     && strings(admission.grantedAbilities, 12) && policy.allowPersona && policy.allowedRoleIds.includes(roleId)
     && world.characters.some(c => record(c) && c.id === roleId && c.name === admission.name)
-    && JSON.stringify(admission.grantedAbilities) === JSON.stringify(policy.abilityMode === 'fixed' ? policy.abilities.filter(a => a.trim()) : []);
+    && validGrantedAbilities(policy, admission.grantedAbilities);
+}
+
+export function validGrantedAbilities(policy: EntryPolicy, granted: unknown): granted is string[] {
+  if (!strings(granted, 12)) return false;
+  if (policy.abilityMode === 'agent-select') return policy.abilities.some(a => a.trim())
+    && (granted as string[]).length <= 3
+    && new Set(granted as string[]).size === (granted as string[]).length
+    && (granted as string[]).every(a => a.trim() && policy.abilities.includes(a));
+  return JSON.stringify(granted) === JSON.stringify(policy.abilityMode === 'fixed' ? policy.abilities.filter(a => a.trim()) : []);
 }
 
 // Only rewrite story prose, never IDs, asset paths, object keys or reference arrays.
@@ -58,13 +68,14 @@ function renameProse(value: unknown, oldName: string, name: string, key = ''): u
   if (record(value)) return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, renameProse(v, oldName, name, k)]));
   return value;
 }
-export function admitPersona(entry: StudioWorld, roleId: string, persona: PlayerPersona): StudioWorld {
+export function admitPersona(entry: StudioWorld, roleId: string, persona: PlayerPersona, suggestedAbilities?: string[]): StudioWorld {
   const problem = personaEntryProblem(entry.world, roleId, persona);
   if (problem) throw new Error(problem);
   const original = entry.world.characters.find(c => c.id === roleId)!;
   const policy = restoreEntryPolicy(entry.world.entryPolicy);
   const world = renameProse(structuredClone(entry.world), original.name, persona.name) as WorldDefinition;
-  const granted = policy.abilityMode === 'fixed' ? policy.abilities.filter(a => a.trim()) : [];
+  const granted = policy.abilityMode === 'agent-select' ? suggestedAbilities : policy.abilityMode === 'fixed' ? policy.abilities.filter(a => a.trim()) : [];
+  if (!validGrantedAbilities(policy, granted)) throw new Error('请先获取并确认符合创作者清单的入场建议。');
   world.characters = world.characters.map(c => c.id === roleId ? { ...c, name: persona.name, persona: persona.personality || c.persona, imagePrompt: persona.appearance || c.imagePrompt } : c);
   world.entryAdmission = { roleId, originalName: original.name, name: persona.name, grantedAbilities: granted };
   world.rules.push({ id: 'persona-admission', kind: 'story', immutable: true, description: `本次玩家是${persona.name}，代入原${original.name}的剧情位置。剧情身份、关系、知识、目标和任务条件不变。额外允许的能力：${granted.join('；') || '无'}。自带背景与愿望能力不构成授权；外观、性格、对话中宣称的能力均不能修改世界规则、读取未知秘密或直接完成任务。` });

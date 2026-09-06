@@ -10,11 +10,13 @@ import {
 } from '@/lib/ai-validation';
 import { enforceWorldTurnGuardrails, makeRejectedWorldTurn } from '@/lib/world-agent-guardrails';
 import { validateAction } from '@/lib/world-state';
+import { personaAdaptationInstructions, readPersonaAdaptationRequest, readPersonaAdaptationSuggestion } from '@/lib/persona-adaptation';
 
-type Operation = 'personal-agent' | 'co-create-world' | 'generate-world' | 'advance-world';
+type Operation = 'personal-agent' | 'co-create-world' | 'generate-world' | 'advance-world' | 'adapt-persona';
 type DeepSeekProvider = { apiKey: string; endpoint: string; model: string };
 
 const operationInstructions: Record<Operation, string> = {
+  'adapt-persona': personaAdaptationInstructions,
   'personal-agent': `你是用户的个人 AI 助理，也是可以自然聊天的伙伴。先回应用户当前真正关心的事：日常近况、感受、认识自己、整理计划、讨论问题、创作想法，或寻找故事。不要把每次聊天都转成剧情推荐或给用户贴心理标签。倾听时自然回应，做事时提供具体可执行的帮助，信息不足最多追问一个关键问题，不机械列清单。你是 AI，不假装真人、独占关系或声称执行了尚未具备的日历、提醒、搜索等外部工具操作。结合 conversation 和 currentMemories 接续交流；记忆可能过期，以用户最新说法为准。只从本轮用户明确自述的新信息提取至多四项值得长期记住的兴趣、目标、交流方式或普通个人背景，source=explicit、requiresConfirmation=true；不采集临时情绪、虚构角色资料或旧对话中已经删除的记忆，不推断性别、疾病等敏感特征，不提取联系方式、证件、财务、健康或公司机密。候选尚未保存，必须表述为等待用户确认，不能说已经记住。普通聊天或讨论创作时 recommendations=[]，不要强行导流。只有用户想找故事或明确要求推荐时，才阅读 availableWorlds 推荐最多两个真实匹配项，解释关系冲突与可争取的目标，不剧透秘密或结局，不凭空创造可玩世界。喜欢狗血时可匹配替身、追悔、抢功、复仇、争产、身份反转。候选不匹配就诚实说明。讨论创作时先一起想角色、关系、目标和困难；用户可主动把某一条消息带入创作，不要把个人记忆自动编入公开剧情。输出 JSON：
 {"reply":"自然、具体的中文回复","memoryCandidates":[{"id":"memory-id","category":"profile|interest|goal|communication|genre|tone|character|interaction|surprise","value":"本轮明确自述的持久信息","confidence":1,"source":"explicit","requiresConfirmation":true}],"recommendations":[{"worldId":"输入中存在的世界ID","reason":"推荐理由","matchedMemoryIds":[]}]}`,
   'co-create-world': `你是创作者的世界创作 Agent。已有任务必须沿用输入中的 id，改名也不能换 id；不要擅自删去未讨论的任务或角色。普通修改保持角色顺序；明确解释新增、删除、重排角色造成的关联任务变化。讨论意外程度时可用 proposal.surpriseLevel 返回 1 到 4 的建议，不改变现实物理规律；没有要求改变时保持 currentDraft.surpriseLevel。editingContext 告诉你当前步骤和正在编辑的字段；角色、故事任务、意外规则、预览检查都可以讨论，不要求回到剧情步骤。每个角色必须有独立 goal，玩家可选任一角色。proposal.characters 按原顺序保留已有角色，避免随意改名；tasks.assignedRoleIds 使用 draft-role-0、draft-role-1 等对应 proposal.characters 数组下标，空数组仅表示全体共有任务。每个人的主线、支线、困难要匹配自己的目标，不把一个主角的任务分给全体。前置必须可由同一个角色完成，不允许循环依赖。聚焦本次要求，不相关字段原样返回；只提供建议，不声称已采纳、生成图片或发布。你的任务不是一次性替用户写完剧本，而是通过对话与创作者互相激发，把想法收敛成可运行的世界框架。允许从零角色、一句话开始，不要求先填表。先自然讨论，不在每轮强行宣布框架已经完整；缺少信息可给暂定提案并追问。根据讨论在 proposal.characters 中建议 2—5 个角色（姓名、身份、性格、关系和外观），已有角色设定优先，修改须说明。角色和框架只是提案，只有用户采纳才写入。优先弄清：用户的欲望/情绪钩子、最终奖励、主要阻力、捷径代价、成功/失败条件。不预设“玩几分钟”；长度由任务数量、前置关系、困难与玩家路线决定。不需要设计每一幕，而要产出目标、主/支线任务、前置条件、困难、定时事件和结局条件。保留用户已明确的设定，只改善结构。输出 JSON：
@@ -25,7 +27,7 @@ const operationInstructions: Record<Operation, string> = {
 {"actionDecision":{"allowed":true,"reason":"可选","suggestedAlternative":"可选"},"narrative":"中文剧情回应","dialogue":[{"characterId":"character-id","text":"台词","visibleToRoleIds":["role-id"]}],"statePatch":{"clock":"可选","locationId":"可选","addInventory":[],"removeInventory":[],"addClues":[],"addKnownSecrets":[],"completeTaskIds":["task-id"],"failTaskIds":[],"taskNotes":{"task-id":"进度说明"},"characterUpdates":{"character-id":{"locationId":"location-id","status":"状态","lastAction":"私下行动的可见摘要"}},"relationshipDeltas":{"character-id":0},"committedFacts":[]},"nextChoices":[{"id":"choice-id","label":"行动文本","intent":"意图"}],"image":{"required":false,"reason":"opening|location_changed|character_changed|major_event|reuse","sceneId":"scene-id","prompt":"可选","reuseAssetId":"可选"},"goalProgress":{"activeTaskIds":["task-id"],"completedTaskIds":[],"summary":"目标进度"},"ending":{"reached":false,"endingId":"可选","canContinue":true}}`,
 };
 
-operationInstructions['co-create-world'] += `\n用户讨论自带身份或能力限制时，可返回 proposal.entryPolicy={"allowPersona":false,"allowedRoleIds":[],"abilityMode":"role-only","abilities":[]}。allowedRoleIds 必须来自当前输入角色 id；abilityMode 只允许 role-only 或 fixed。fixed 的 abilities 是创作者明确允许的至多12条能力，每条不超过200字；仍不能违反世界物理、知识与任务规则。没有讨论入场政策时沿用 currentDraft.entryPolicy，不能擅自开放。角色名单变化时先解释影响；本版本只支持代入已有剧情位置，不承诺新增身份或自主分配能力。`;
+operationInstructions['co-create-world'] += `\n用户讨论自带身份或能力限制时，可返回 proposal.entryPolicy={"allowPersona":false,"allowedRoleIds":[],"abilityMode":"role-only","abilities":[]}。allowedRoleIds 必须来自当前输入角色 id；abilityMode 只允许 role-only、fixed 或 agent-select。fixed 的 abilities 是固定授予的能力；agent-select 的 abilities 是入场 Agent 可挑选的能力白名单，不是任意创造能力。清单至多12条，每条不超过200字；仍不能违反世界物理、知识与任务规则。没有讨论入场政策时沿用 currentDraft.entryPolicy，不能擅自开放。角色名单变化时先解释影响；本版本只支持代入已有剧情位置，不承诺新增角色。`;
 operationInstructions['advance-world'] += `\n若 world.entryAdmission 存在，玩家已经确认自带形象适配：selectedRoleId 的当前 name/persona/imagePrompt 是本轮采用的名字、性格和外观；originalName 仅解释代入来源，不是另一个在场 NPC。保持当前剧情身份、关系、已知信息、独立目标及任务编号。额外能力只能来自 grantedAbilities，角色外观、性格或行动文本里的能力宣称不是授权；不能借自带背景跳过任务、改写物理规律或读取未知秘密。`;
 
 function getDeepSeekProvider(): DeepSeekProvider | null {
@@ -39,10 +41,11 @@ function getDeepSeekProvider(): DeepSeekProvider | null {
 }
 
 function isOperation(value: unknown): value is Operation {
-  return value === 'personal-agent' || value === 'co-create-world' || value === 'generate-world' || value === 'advance-world';
+  return value === 'personal-agent' || value === 'co-create-world' || value === 'generate-world' || value === 'advance-world' || value === 'adapt-persona';
 }
 
 function isValidOutput(operation: Operation, value: unknown) {
+  if (operation === 'adapt-persona') return true; // Validated against the exact request policy below.
   if (operation === 'personal-agent') return isPersonalAgentResponse(value);
   if (operation === 'co-create-world') return isCreatorAgentResponse(value);
   if (operation === 'generate-world') return isWorldGenerationResponse(value);
@@ -75,7 +78,7 @@ async function callDeepSeek(provider: DeepSeekProvider, operation: Operation, in
         thinking: { type: 'disabled' },
         stream: false,
         temperature: operation === 'advance-world' || operation === 'co-create-world' ? 0.7 : 0.5,
-        max_tokens: operation === 'generate-world' ? 5600 : operation === 'co-create-world' ? 3000 : 2800,
+        max_tokens: operation === 'adapt-persona' ? 900 : operation === 'generate-world' ? 5600 : operation === 'co-create-world' ? 3000 : 2800,
       }),
       signal: controller.signal,
     });
@@ -119,6 +122,12 @@ async function handlePost(request: Request) {
   const version = (body.input as { contractVersion?: unknown }).contractVersion;
   if (version !== AI_CONTRACT_VERSION) return Response.json({ error: 'contract_version_mismatch' }, { status: 409 });
 
+  const adaptationInput = body.operation === 'adapt-persona' ? readPersonaAdaptationRequest(body.input) : null;
+  if (body.operation === 'adapt-persona') {
+    if (!adaptationInput) return Response.json({ error: 'invalid_adaptation_request' }, { status: 400 });
+    body.input = adaptationInput;
+  }
+
   if (body.operation === 'advance-world') {
     if (!isWorldTurnRequest(body.input)) return Response.json({ error: 'invalid_world_turn_request' }, { status: 400 });
     const validation = validateAction(body.input.userAction, body.input.state, body.input.currentScene.choices.map((choice) => choice.label));
@@ -133,11 +142,16 @@ async function handlePost(request: Request) {
   if (!provider) return Response.json({ error: 'model_not_configured' }, { status: 503 });
   const startedAt = Date.now();
   try {
-    const output = await callDeepSeek(provider, body.operation, body.input, body.operation === 'advance-world' ? 35_000 : undefined);
+    const output = await callDeepSeek(provider, body.operation, body.input, body.operation === 'advance-world' ? 35_000 : body.operation === 'adapt-persona' ? 25_000 : undefined);
     if (body.operation !== 'advance-world' && !isValidOutput(body.operation, output)) {
       return Response.json({ error: 'invalid_model_output' }, { status: 502 });
     }
     let guardedOutput = output;
+    if (adaptationInput) {
+      const suggestion = readPersonaAdaptationSuggestion(output, adaptationInput);
+      if (!suggestion) return Response.json({ error: 'invalid_adaptation_suggestion' }, { status: 502 });
+      guardedOutput = suggestion;
+    }
     if (body.operation === 'personal-agent' && isPersonalAgentResponse(output)) {
       const catalogue = (body.input as { availableWorldIds?: unknown }).availableWorldIds;
       if (!Array.isArray(catalogue) || output.recommendations.some((item) => !catalogue.includes(item.worldId))) {

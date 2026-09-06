@@ -419,6 +419,13 @@ html[data-account-locked] [data-slot="dialog-content"], html[data-account-locked
 .persona-admission dl { display: grid; grid-template-columns: 130px minmax(0, 1fr); gap: 10px 16px; margin: 18px 0; font-size: 15px; line-height: 1.8; }
 .persona-admission dt { color: var(--color-agent); }
 .persona-admission dd { margin: 0; white-space: pre-wrap; }
+.persona-adaptation { margin-block: 20px; padding: 18px; border: 1px solid var(--color-agent); border-radius: 12px; background: var(--color-agent-soft); min-width: 0; }
+.persona-adaptation h4 { display: flex; align-items: center; gap: 8px; color: var(--color-agent); font-size: 17px; line-height: 1.8; margin: 0; }
+.persona-adaptation h4 svg { width: 20px; flex-shrink: 0; }
+.persona-adaptation label { display: grid; gap: 8px; font-size: 15px; }
+.persona-adaptation textarea { width: 100%; min-height: 88px; font-size: 15px; line-height: 1.8; }
+.persona-adaptation-result { border-top: 1px solid var(--color-border); margin-top: 16px; padding-top: 16px; }
+.persona-adaptation-result strong { color: var(--color-agent); font-size: 15px; }
 .persona-runtime { margin: 12px 32px 12px 128px; padding: 12px 18px; background: var(--color-agent-soft); color: var(--color-text-secondary); border-left: 2px solid var(--color-agent); font-size: 15px; overflow-wrap: anywhere; }
 .studio-chat .persona-runtime { margin: 12px 0; }
 .persona-no-image { display: flex; height: 100%; min-height: 160px; align-items: center; justify-content: center; flex-direction: column; gap: 10px; color: var(--color-text-muted); padding: 16px; font-size: 15px; }
