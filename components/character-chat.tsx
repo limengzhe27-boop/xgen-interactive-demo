@@ -35,6 +35,7 @@ export function CharacterEntry({ entry, targetId, persona = null, onClose, onSta
   return <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}><DialogContent className="studio-identity-dialog">
     <DialogTitle>和 {target.name} 聊聊</DialogTitle>
     <DialogDescription>{entry.title} · 先确认你们的身份。这段会面独立保存，不改变已有探索。</DialogDescription>
+    {entry.artNote && <small>{entry.artNote}</small>}
     <div className="studio-target"><img src={entry.portraits[targetId] || entry.cover} alt={target.name} /><div><strong>{target.name}</strong><p>{target.identity}</p><p>{target.persona}</p></div></div>
     <fieldset className="studio-identity-options"><legend>你以谁的身份与 TA 对话？</legend>{others.map((role) => <label key={role.id} htmlFor={`identity-${role.id}`}><input id={`identity-${role.id}`} aria-label={`以${role.name}的身份对话`} type="radio" name="chat-identity" value={role.id} checked={playerId === role.id} onChange={() => setPlayerId(role.id)} /><span><strong>{role.name}</strong><small>{role.identity}</small></span></label>)}</fieldset>
     <p className="studio-identity-summary">你是 {player?.name} · 对方是 {target.name}<br />你们的关系：{relationship?.publicLabel ?? '同一世界中的人物'}</p>

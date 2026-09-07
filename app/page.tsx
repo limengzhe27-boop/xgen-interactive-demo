@@ -2202,7 +2202,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       ].sort((a, b) => b.savedAt - a.savedAt)}
       onCreate={newCreator} onOpenWorld={openCatalogWorld} onChat={(worldId, targetId) => { const entry = availableStudioWorlds.find((item) => item.id === worldId); if (entry) setChatEntry({ entry, targetId }); }} onPersonal={() => navigate('personal')} onLibrary={() => navigate('library')} onOpenRecord={openRecord}
     />;
-    if (view === 'roles') return <RoleSelection worldTitle={activeWorldTitle} availableRoles={currentRoles} selected={selectedRole} onSelect={setSelectedRole} onBack={() => navigate('home')} onStart={() => beginWorld()} personaEntry={activeLibrary ? <PersonaAdmission key={`${activeLibrary.id}:${selectedRole.id}`} entry={activeLibrary} roleId={selectedRole.id} persona={playerPersona} onEdit={() => navigate('personal')} onEnter={beginWorld} /> : undefined} />;
+    if (view === 'roles') return <RoleSelection worldTitle={activeWorldTitle} artNote={activeLibrary?.artNote} availableRoles={currentRoles} selected={selectedRole} onSelect={setSelectedRole} onBack={() => navigate('home')} onStart={() => beginWorld()} personaEntry={activeLibrary ? <PersonaAdmission key={`${activeLibrary.id}:${selectedRole.id}`} entry={activeLibrary} roleId={selectedRole.id} persona={playerPersona} onEdit={() => navigate('personal')} onEnter={beginWorld} /> : undefined} />;
     if (view === 'play') {
       return (
         <PlayWorld
@@ -2364,14 +2364,15 @@ function RolePortrait({ role, className = '' }: { role: Role; className?: string
   );
 }
 
-function RoleSelection({ worldTitle, availableRoles, selected, onSelect, onBack, onStart, personaEntry }: { worldTitle: string; availableRoles: Role[]; selected: Role; onSelect: (role: Role) => void; onBack: () => void; onStart: () => void; personaEntry?: import('react').ReactNode }) {
+function RoleSelection({ worldTitle, artNote, availableRoles, selected, onSelect, onBack, onStart, personaEntry }: { worldTitle: string; artNote?: string; availableRoles: Role[]; selected: Role; onSelect: (role: Role) => void; onBack: () => void; onStart: () => void; personaEntry?: import('react').ReactNode }) {
   return (
     <div className="subpage-shell role-page">
       <button className="back-link" type="button" onClick={onBack}><ArrowLeft />返回推荐</button>
       <div className="role-page-heading title-reveal">
         <div><p className="eyebrow">{worldTitle} · 角色入口</p><h1>你将以谁的身份进入？</h1></div>
-        <p>同一个夜晚，每个人知道的真相都不同。选择一个角色，你会继承他的身份、信息和目标。</p>
+        <p>同一个世界，每个人知道的真相都不同。选择一个角色，你会继承他的身份、信息和目标。</p>
       </div>
+      {artNote && <p className="muted">{artNote}</p>}
       <div className="role-grid" aria-label="选择角色">
         {availableRoles.map((role) => (
           <button key={role.id} className="character-card reveal-in" data-selected={selected.id === role.id} type="button" onClick={() => onSelect(role)}>

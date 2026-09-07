@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/compone
 import { GalleryAtmosphere, GalleryMasonry, GalleryReveal } from '@/components/gallery-motion';
 
 export type StudioSection = 'home' | 'library' | 'characters' | 'personal';
-export type WorldCard = { id: string; title: string; genre: string; premise: string; cover: string; roleCount: number };
+export type WorldCard = { id: string; title: string; genre: string; premise: string; cover: string; roleCount: number; artNote?: string };
 export type CharacterCard = { id: string; worldId: string; worldTitle: string; name: string; identity: string; persona: string; image: string };
 export type RecentCard = { id: string; title: string; subtitle: string; label: string; cover: string };
 type GalleryItem = { kind: 'world'; value: WorldCard } | { kind: 'character'; value: CharacterCard };
@@ -107,6 +107,6 @@ export function StudioHome({ section, worlds, characters, recent, onCreate, onOp
       {!items.length && <div className="gallery-no-results" aria-live="polite"><Search /><h3>暂时没有找到</h3><p>换一个词，或者和 Agent 一起创造它。</p><button className="studio-button" type="button" onClick={() => { setQuery(''); setGenre('全部'); setKind('all'); }}>清除筛选</button></div>}
     </section>}
     <p className="studio-local-note">设定来自创作者，后续故事由 AI 实时演绎。草稿与互动记录保存在当前浏览器。</p>
-    {detail && <Dialog open onOpenChange={open => { if (!open) setDetail(null); }}><DialogContent className="studio-world-detail"><DialogTitle>{detail.title}</DialogTitle><DialogDescription>{detail.genre} · {detail.roleCount} 个可选身份</DialogDescription><Artwork src={detail.cover} alt="" /><p>{detail.premise}</p><Button className="studio-button studio-solid" onClick={() => { onOpenWorld(detail.id); setDetail(null); }}>选择身份进入<ArrowRight /></Button></DialogContent></Dialog>}
+    {detail && <Dialog open onOpenChange={open => { if (!open) setDetail(null); }}><DialogContent className="studio-world-detail"><DialogTitle>{detail.title}</DialogTitle><DialogDescription>{detail.genre} · {detail.roleCount} 个可选身份</DialogDescription><Artwork src={detail.cover} alt="" /><p>{detail.premise}</p>{detail.artNote && <small>{detail.artNote}</small>}<Button className="studio-button studio-solid" onClick={() => { onOpenWorld(detail.id); setDetail(null); }}>选择身份进入<ArrowRight /></Button></DialogContent></Dialog>}
   </div>;
 }

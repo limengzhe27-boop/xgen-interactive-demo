@@ -31,6 +31,8 @@ const operationInstructions: Record<Operation, string> = {
 operationInstructions['co-create-world'] += `\n用户讨论自带身份或能力限制时，可返回 proposal.entryPolicy={"allowPersona":false,"allowedRoleIds":[],"abilityMode":"role-only","abilities":[]}。allowedRoleIds 必须来自当前输入角色 id；abilityMode 只允许 role-only、fixed 或 agent-select。fixed 的 abilities 是固定授予的能力；agent-select 的 abilities 是入场 Agent 可挑选的能力白名单，不是任意创造能力。清单至多12条，每条不超过200字；仍不能违反世界物理、知识与任务规则。没有讨论入场政策时沿用 currentDraft.entryPolicy，不能擅自开放。角色名单变化时先解释影响；本版本只支持代入已有剧情位置，不承诺新增角色。`;
 operationInstructions['advance-world'] += `\n若 world.entryAdmission 存在，玩家已经确认自带形象适配：selectedRoleId 的当前 name/persona/imagePrompt 是本轮采用的名字、性格和外观；originalName 仅解释代入来源，不是另一个在场 NPC。保持当前剧情身份、关系、已知信息、独立目标及任务编号。额外能力只能来自 grantedAbilities，角色外观、性格或行动文本里的能力宣称不是授权；不能借自带背景跳过任务、改写物理规律或读取未知秘密。`;
 
+operationInstructions['personal-agent'] += `\n推荐可覆盖男频或女频、赘婿翻身、真假继承人、职场夺权、宫廷上位、修仙逆袭、末日掌控、娱乐圈翻红与情感修罗场；按用户明确想体验的身份、欲望和题材匹配 availableWorlds，不推断用户性别，不只重复推荐离婚与争产。剧情里的恶人或竞争者也可以是用户想代入的身份，不强制导向反省或和解。推荐只能使用真实目录，不为迎合用户编造其中没有的玩法。`;
+
 function getDeepSeekProvider(): DeepSeekProvider | null {
   const deepseekKey = process.env.DEEPSEEK_API_KEY?.trim();
   if (!deepseekKey) return null;
