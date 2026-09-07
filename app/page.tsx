@@ -30,6 +30,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { StudioHome, StudioNav } from '@/components/studio-home';
 import { AccountBar, PublishWorldDialog } from '@/components/account-publication';
+import { MyPublications } from '@/components/my-publications';
 import { AccountBoundary } from '@/components/account-boundary';
 import { CloudWorkspace } from '@/components/cloud-workspace';
 import { applyPendingWorkspace, restoredImage, workspaceKeys } from '@/lib/cloud-workspace';
@@ -989,6 +990,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
   const [roleImageStates, setRoleImageStates] = useState<Record<string, 'idle' | 'generating' | 'ready' | 'error'>>({});
   const [publishedWorld, setPublishedWorld] = useState(false);
   const [communityWorlds, setCommunityWorlds] = useState<StudioWorld[]>([]);
+  const [catalogRevision, setCatalogRevision] = useState(0);
   const [publicationEntry, setPublicationEntry] = useState<StudioWorld | null>(null);
   const [publicationNotice, setPublicationNotice] = useState('');
   const [savedRun, setSavedRun] = useState<SavedRun | null>(null);
@@ -1093,7 +1095,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       if (live && Array.isArray(data.worlds)) setCommunityWorlds(data.worlds);
     }).catch(() => {});
     return () => { live = false; };
-  }, []);
+  }, [catalogRevision]);
   const personalCatalog = [...worldCatalog, ...availableStudioWorlds.map((entry) => ({ id: entry.id, title: entry.title, genre: entry.genre, premise: entry.premise, surpriseLevel: entry.world.surpriseLevel }))];
   const libraryPortraitJSON = JSON.stringify({ id: activeLibrary?.id, keys: activeLibrary?.portraitCacheKeys ?? {} });
   useEffect(() => {
@@ -2369,6 +2371,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       }} />}
       {storageError && <p className="studio-storage-error" role="alert">{storageError}</p>}
       {(view === 'play' || view === 'ending') && activeLibrary?.world.entryAdmission && <p className="persona-runtime">你以 {selectedRole.name} 的形象代入 {activeLibrary.world.entryAdmission.originalName} 的剧情身份 · 额外能力：{activeLibrary.world.entryAdmission.grantedAbilities.join('；') || '无'}。这是独立会话，原世界未改变。</p>}
+      {view === 'library' && <MyPublications key={accountScope} accountScope={accountScope} drafts={creatorDocuments.map(doc => ({ id: doc.id, title: doc.data.worldTitle }))} onEdit={id => { const doc = creatorDocuments.find(item => item.id === id); if (doc) editCreator(doc); }} onChanged={() => setCatalogRevision(value => value + 1)} />}
       {screen}
       {publicationNotice && <p className="account-bar" role="status">{publicationNotice}</p>}
       {publicationEntry && <PublishWorldDialog accountScope={accountScope} entry={publicationEntry} onClose={() => setPublicationEntry(null)} onPublished={(entry) => { setCommunityWorlds(current => upsertById(current, entry)); setPublicationEntry(null); setPublicationNotice('世界已公开发布，其他访客现在可以在世界探索中找到它。'); navigate('home'); }} />}

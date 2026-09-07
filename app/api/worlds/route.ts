@@ -31,12 +31,52 @@ async function publishImage(path: unknown, request: Request, userId: string): Pr
   return `${publicPrefix()}${publishedId}.webp`;
 }
 
-export async function GET() {
+export async function GET(request?: Request) {
+  if (request && new URL(request.url).searchParams.get('mine') === 'true') {
+    if (!authConfigured()) return Response.json({ error: 'login_required' }, { status: 401, headers: noStore });
+    const auth = authContext(request);
+    const reply = (body: unknown, status = 200) => auth.finish(Response.json(body, { status }));
+    try {
+      const { data: { user }, error } = await auth.client.auth.getUser();
+      if (error || !user) return reply({ error: 'login_required' }, 401);
+      if (request.headers.get('x-xgen-account') !== user.id) return reply({ error: 'account_changed' }, 409);
+      const response = await storageFetch(`/rest/v1/demo_world_publications?owner_id=eq.${encodeURIComponent(user.id)}&select=id,document,published,updated_at&order=updated_at.desc&limit=10`);
+      return reply({ publications: await response.json(), canPublish: process.env.WORLD_PUBLICATION_ENABLED === 'true' });
+    } catch { return reply({ error: 'publications_unavailable' }, 503); }
+  }
   try {
-    const response = await storageFetch('/rest/v1/demo_world_publications?published=eq.true&select=document&order=updated_at.desc&limit=20');
-    const rows = await response.json() as { document: unknown }[];
-    return Response.json({ worlds: rows.map(row => row.document) }, { headers: noStore });
+    const response = await storageFetch('/rest/v1/demo_world_publications?published=eq.true&select=document&order=updated_at.desc&limit=200');
+    const rows = await response.json() as { document: Record<string, unknown> }[];
+    return Response.json({ worlds: rows.map(row => {
+      const { sourceId: _privateDraftId, ...document } = row.document;
+      return document;
+    }) }, { headers: noStore });
   } catch { return Response.json({ error: 'world_catalog_unavailable', worlds: [] }, { status: 503, headers: noStore }); }
+}
+
+// Unpublishing remains available even while new publication is paused.
+export async function PATCH(request: Request) {
+  if (!sameOrigin(request)) return Response.json({ error: 'invalid_origin' }, { status: 403, headers: noStore });
+  if (!authConfigured()) return Response.json({ error: 'login_required' }, { status: 401, headers: noStore });
+  const auth = authContext(request);
+  const reply = (body: unknown, status = 200) => auth.finish(Response.json(body, { status }));
+  try {
+    const { data: { user }, error } = await auth.client.auth.getUser();
+    if (error || !user) return reply({ error: 'login_required' }, 401);
+    if (request.headers.get('x-xgen-account') !== user.id) return reply({ error: 'account_changed' }, 409);
+    const text = await request.text();
+    if (text.length > 2000) return reply({ error: 'request_too_large' }, 413);
+    const body = JSON.parse(text);
+    if (!/^[a-f0-9]{64}$/.test(body.id) || typeof body.published !== 'boolean' || typeof body.updatedAt !== 'string' || !Number.isFinite(Date.parse(body.updatedAt))) return reply({ error: 'invalid_request' }, 400);
+    if (body.published && (process.env.WORLD_PUBLICATION_ENABLED !== 'true' || body.consent !== 'publish-world-and-selected-images-v1')) return reply({ error: 'publication_not_open_or_no_consent' }, 403);
+    const response = await storageFetch(`/rest/v1/demo_world_publications?id=eq.${body.id}&owner_id=eq.${encodeURIComponent(user.id)}&updated_at=eq.${encodeURIComponent(body.updatedAt)}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json', Prefer: 'return=representation' },
+      body: JSON.stringify({ published: body.published, updated_at: new Date().toISOString() }),
+    });
+    const rows = await response.json() as unknown[];
+    if (!rows.length) return reply({ error: 'publication_changed', message: '作品不存在、无权管理或已在别处更新，请刷新列表。' }, 409);
+    return reply({ ok: true });
+  } catch { return reply({ error: 'publication_update_failed' }, 503); }
 }
 
 export async function POST(request: Request) {
@@ -59,7 +99,7 @@ export async function POST(request: Request) {
     // Images may become public only after the caller explicitly acknowledges the scope.
     for (const role of world.characters) portraits[role.id] = await publishImage(body.portraits?.[role.id], request, user.id);
     const cover = await publishImage(body.cover, request, user.id);
-    const document = { id: `community-${id}`, title: world.title, premise: world.premise, genre: '社区创作', cover, portraits, world: { ...world, id: `community-${id}` } };
+    const document = { id: `community-${id}`, sourceId: body.sourceId, title: world.title, premise: world.premise, genre: '社区创作', cover, portraits, world: { ...world, id: `community-${id}` } };
     await storageFetch('/rest/v1/rpc/demo_publish_world', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ p_id: id, p_owner: user.id, p_document: document }) });
     return reply({ published: true, world: document });
   } catch { return reply({ error: 'publication_failed', message: '发布未完成。请检查角色、地点、任务及图片是否有效；原草稿不会被删除。' }, 400); }
