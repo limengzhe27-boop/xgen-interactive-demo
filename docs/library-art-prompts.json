@@ -1,0 +1,333 @@
+[
+  {
+    "id": "banquet-creditor-cover",
+    "worldId": "banquet-creditor",
+    "kind": "cover",
+    "prompt": "Use case: illustration-story. Asset type: landscape 3:2 cinematic story cover, a single polished image, not a collage or interface. Fictional interactive story \"岳父寿宴把我赶到门外，债主却喊了我一声老板\". Setting and situation: “这里是给客人坐的。”许廷把一张名牌压在周砚面前，笑着让服务员再搬一把椅子，搬到门边。桌上的酒已经倒好，寿宴还没开，几个亲戚却先看起了热闹。\n\n周砚在沈家三年，修过漏水的厨房，接送过喝醉的亲戚，从来没人给他在主桌留过位置。今晚许廷带来一份注资意向，所有人都叫他贵客。那份意向还没有签字，他却已经开始替沈家安排人坐在哪里。\n\n“听说你最近也做投资？”许廷把酒杯往前送了半寸，“那你应该懂规矩。喝了这杯，过去的事就算了。”宴厅门外，接待人员正在确认另一批客人的身份。沈知意还在接待室等授权文件。她的电话没有接通，门口那把椅子也还空着。现在没有任何人替周砚作出回应，许廷的手仍举在半空，等着他接杯。 Location: 主桌摆着许廷的名牌，周砚面前只有一只倒扣的杯子。宾客能听见这里公开说出的话。. Depict the opening moment only, with dramatic body language, environment dominant, narrative tension and a strong focal point. Style: premium cinematic illustrated key art, natural textures and richly controlled light, coherent faces, atmospheric depth. All characters adults. No text, subtitles, logos, watermarks, UI, or gore. No unrelated modern suits in historical/fantasy settings. For fanfiction use illustrated fictional character designs rather than live-action actors."
+  },
+  {
+    "id": "banquet-creditor-yan",
+    "worldId": "banquet-creditor",
+    "roleId": "yan",
+    "kind": "portrait",
+    "prompt": "Use case: illustration-story. Asset type: single vertical 2:3 character portrait for an interactive fiction gallery. Character 周砚 in the fictional story \"岳父寿宴把我赶到门外，债主却喊了我一声老板\". Exact appearance: 31岁中国男性，黑色短发，深色简洁西装，无领带，沉稳冷峻，现代酒店肖像. Show one adult character only, head fully visible, waist-up portrait, expressive eyes, three-quarter pose, detailed face and appropriate costume. Premium cinematic illustrated game art, natural textures and attractive sophisticated lighting, atmospheric setting softly behind. No other people, no text, logos, watermark, UI or gore. Preserve the specified historical era and clothes. If a fanfiction figure, use its recognizable illustrated design, not the likeness of a live action actor."
+  },
+  {
+    "id": "banquet-creditor-yi",
+    "worldId": "banquet-creditor",
+    "roleId": "yi",
+    "kind": "portrait",
+    "prompt": "Use case: illustration-story. Asset type: single vertical 2:3 character portrait for an interactive fiction gallery. Character 沈知意 in the fictional story \"岳父寿宴把我赶到门外，债主却喊了我一声老板\". Exact appearance: 29岁中国女性，黑色长发，墨绿色晚礼服，现代酒店，坚定又焦躁的目光. Show one adult character only, head fully visible, waist-up portrait, expressive eyes, three-quarter pose, detailed face and appropriate costume. Premium cinematic illustrated game art, natural textures and attractive sophisticated lighting, atmospheric setting softly behind. No other people, no text, logos, watermark, UI or gore. Preserve the specified historical era and clothes. If a fanfiction figure, use its recognizable illustrated design, not the likeness of a live action actor."
+  },
+  {
+    "id": "banquet-creditor-ting",
+    "worldId": "banquet-creditor",
+    "roleId": "ting",
+    "kind": "portrait",
+    "prompt": "Use case: illustration-story. Asset type: single vertical 2:3 character portrait for an interactive fiction gallery. Character 许廷 in the fictional story \"岳父寿宴把我赶到门外，债主却喊了我一声老板\". Exact appearance: 33岁中国男性，米色西装，精致发型，昂贵腕表，现代宴会厅半身肖像. Show one adult character only, head fully visible, waist-up portrait, expressive eyes, three-quarter pose, detailed face and appropriate costume. Premium cinematic illustrated game art, natural textures and attractive sophisticated lighting, atmospheric setting softly behind. No other people, no text, logos, watermark, UI or gore. Preserve the specified historical era and clothes. If a fanfiction figure, use its recognizable illustrated design, not the likeness of a live action actor."
+  },
+  {
+    "id": "boardroom-reckoning-cover",
+    "worldId": "boardroom-reckoning",
+    "kind": "cover",
+    "prompt": "Use case: illustration-story. Asset type: landscape 3:2 cinematic story cover, a single polished image, not a collage or interface. Fictional interactive story \"让我背锅的副总，明天要向我汇报工作\". Setting and situation: “昨天让你签，你不签。今天带张纸回来，就能坐我的位置？”罗正把调查委托翻过来，纸角擦过贺川面前的杯子。\n\n投影幕上列着项目损失，最下面一行已经填好了责任人：贺川。那笔采购原本需要三个人审批，现在会议材料里只剩他的名字。昨天，罗正说签字只是走流程，签完补偿照发；今天，人事却通知他门禁已经停用。\n\n贺川胸前挂的是临时访客证，手里拿的却是大股东签发的专项调查委托。权限仅限这一项目，不能随意开除谁，也不能让一句旧话当场变成证据。罗正身后的座机响了，他没有接，先朝秘书办公室的方向看了一眼。温岚还没进来。会议将在材料送齐后开始，那份认责说明仍有机会被当成唯一版本递上去。 Location: 投影上放着尚未签字的认责书，桌上两份权限文件等待核实。. Depict the opening moment only, with dramatic body language, environment dominant, narrative tension and a strong focal point. Style: premium cinematic illustrated key art, natural textures and richly controlled light, coherent faces, atmospheric depth. All characters adults. No text, subtitles, logos, watermarks, UI, or gore. No unrelated modern suits in historical/fantasy settings. For fanfiction use illustrated fictional character designs rather than live-action actors."
+  },
+  {
+    "id": "boardroom-reckoning-chuan",
+    "worldId": "boardroom-reckoning",
+    "roleId": "chuan",
+    "kind": "portrait",
+    "prompt": "Use case: illustration-story. Asset type: single vertical 2:3 character portrait for an interactive fiction gallery. Character 贺川 in the fictional story \"让我背锅的副总，明天要向我汇报工作\". Exact appearance: 34岁中国男性，深灰西装，黑色短发，疲惫锐利，现代办公室肖像. Show one adult character only, head fully visible, waist-up portrait, expressive eyes, three-quarter pose, detailed face and appropriate costume. Premium cinematic illustrated game art, natural textures and attractive sophisticated lighting, atmospheric setting softly behind. No other people, no text, logos, watermark, UI or gore. Preserve the specified historical era and clothes. If a fanfiction figure, use its recognizable illustrated design, not the likeness of a live action actor."
+  },
+  {
+    "id": "boardroom-reckoning-zheng",
+    "worldId": "boardroom-reckoning",
+    "roleId": "zheng",
+    "kind": "portrait",
+    "prompt": "Use case: illustration-story. Asset type: single vertical 2:3 character portrait for an interactive fiction gallery. Character 罗正 in the fictional story \"让我背锅的副总，明天要向我汇报工作\". Exact appearance: 46岁中国男性，深灰西装酒红领带，额角紧绷，现代会议室肖像. Show one adult character only, head fully visible, waist-up portrait, expressive eyes, three-quarter pose, detailed face and appropriate costume. Premium cinematic illustrated game art, natural textures and attractive sophisticated lighting, atmospheric setting softly behind. No other people, no text, logos, watermark, UI or gore. Preserve the specified historical era and clothes. If a fanfiction figure, use its recognizable illustrated design, not the likeness of a live action actor."
+  },
+  {
+    "id": "boardroom-reckoning-lan",
+    "worldId": "boardroom-reckoning",
+    "roleId": "lan",
+    "kind": "portrait",
+    "prompt": "Use case: illustration-story. Asset type: single vertical 2:3 character portrait for an interactive fiction gallery. Character 温岚 in the fictional story \"让我背锅的副总，明天要向我汇报工作\". Exact appearance: 30岁中国女性，低马尾，浅灰针织衫蓝色工牌，办公室半身肖像. Show one adult character only, head fully visible, waist-up portrait, expressive eyes, three-quarter pose, detailed face and appropriate costume. Premium cinematic illustrated game art, natural textures and attractive sophisticated lighting, atmospheric setting softly behind. No other people, no text, logos, watermark, UI or gore. Preserve the specified historical era and clothes. If a fanfiction figure, use its recognizable illustrated design, not the likeness of a live action actor."
+  },
+  {
+    "id": "heir-substitute-cover",
+    "worldId": "heir-substitute",
+    "kind": "cover",
+    "prompt": "Use case: illustration-story. Asset type: landscape 3:2 cinematic story cover, a single polished image, not a collage or interface. Fictional interactive story \"真少爷回家那天，全家让我给假少爷道歉\". Setting and situation: 饭还没上，顾聿就把一张纸推给了顾野。“爸妈的意思，先把外面那些话压下去。”说明里写着，顾野回家前参与过一笔投资，损失由他自行承担。可那笔投资发生的时候，他还不知道顾家就是自己的家。\n\n客厅的认亲花牌写得很大，餐桌上却没人问他这些年怎么过。顾聿仍坐着从小坐到大的位置，旁边是一份海外进修计划。佣人叫了声小少爷，两个人同时抬头，佣人却只把热茶放到顾聿手边。\n\n“你吃过苦，知道怎么熬。他受不了这种事。”这是顾野进门时听到的第一句劝告。顾昭还在书房准备晚宴发言，父母的宾客已经到了门厅。纸上的空白签名栏离顾野很近。只要签下去，今晚的团圆照就能照常拍，至于谁承担那笔亏空，仿佛已经有人替他选好了。 Location: 认亲宴的花牌已经摆好，一份拟议说明压在餐盘下，没有签字。. Depict the opening moment only, with dramatic body language, environment dominant, narrative tension and a strong focal point. Style: premium cinematic illustrated key art, natural textures and richly controlled light, coherent faces, atmospheric depth. All characters adults. No text, subtitles, logos, watermarks, UI, or gore. No unrelated modern suits in historical/fantasy settings. For fanfiction use illustrated fictional character designs rather than live-action actors."
+  },
+  {
+    "id": "heir-substitute-ye",
+    "worldId": "heir-substitute",
+    "roleId": "ye",
+    "kind": "portrait",
+    "prompt": "Use case: illustration-story. Asset type: single vertical 2:3 character portrait for an interactive fiction gallery. Character 顾野 in the fictional story \"真少爷回家那天，全家让我给假少爷道歉\". Exact appearance: 25岁中国男性，短黑发，普通深色衬衫，年轻倔强，现代家宴肖像. Show one adult character only, head fully visible, waist-up portrait, expressive eyes, three-quarter pose, detailed face and appropriate costume. Premium cinematic illustrated game art, natural textures and attractive sophisticated lighting, atmospheric setting softly behind. No other people, no text, logos, watermark, UI or gore. Preserve the specified historical era and clothes. If a fanfiction figure, use its recognizable illustrated design, not the likeness of a live action actor."
+  },
+  {
+    "id": "heir-substitute-yu",
+    "worldId": "heir-substitute",
+    "roleId": "yu",
+    "kind": "portrait",
+    "prompt": "Use case: illustration-story. Asset type: single vertical 2:3 character portrait for an interactive fiction gallery. Character 顾聿 in the fictional story \"真少爷回家那天，全家让我给假少爷道歉\". Exact appearance: 25岁中国男性，精心打理的短发，浅色西装，现代豪宅肖像. Show one adult character only, head fully visible, waist-up portrait, expressive eyes, three-quarter pose, detailed face and appropriate costume. Premium cinematic illustrated game art, natural textures and attractive sophisticated lighting, atmospheric setting softly behind. No other people, no text, logos, watermark, UI or gore. Preserve the specified historical era and clothes. If a fanfiction figure, use its recognizable illustrated design, not the likeness of a live action actor."
+  },
+  {
+    "id": "heir-substitute-zhao",
+    "worldId": "heir-substitute",
+    "roleId": "zhao",
+    "kind": "portrait",
+    "prompt": "Use case: illustration-story. Asset type: single vertical 2:3 character portrait for an interactive fiction gallery. Character 顾昭 in the fictional story \"真少爷回家那天，全家让我给假少爷道歉\". Exact appearance: 32岁中国女性，利落短发，深色西装，家族书房肖像. Show one adult character only, head fully visible, waist-up portrait, expressive eyes, three-quarter pose, detailed face and appropriate costume. Premium cinematic illustrated game art, natural textures and attractive sophisticated lighting, atmospheric setting softly behind. No other people, no text, logos, watermark, UI or gore. Preserve the specified historical era and clothes. If a fanfiction figure, use its recognizable illustrated design, not the likeness of a live action actor."
+  },
+  {
+    "id": "palace-witness-cover",
+    "worldId": "palace-witness",
+    "kind": "cover",
+    "prompt": "Use case: illustration-story. Asset type: landscape 3:2 cinematic story cover, a single polished image, not a collage or interface. Fictional interactive story \"他们让我替贵妃认罪，我却成了皇帝唯一的证人\". Setting and situation: 贵妃没有抬高声音，只把笔推得更近了一点。“按上面的写。你母亲的药，以后宫里出。”\n\n认罪书上已经写好了经过：宫女叶蓁收人银钱，偷走密诏，再将它交给宫外接应的人。叶蓁看着那一串数目，足够一家人过十年，然而她连其中一文都没见过。偏殿的门半掩着，两个侍卫在外面交谈，偶尔看向桌上的纸。\n\n姜贵妃摘下一枚戒指，压住纸角。她的袖口有一处重新缝过的针脚，灯光照过去时，金线颜色与原来的并不一样。这只是眼前能看见的细节，还不能证明昨夜发生过什么。\n\n听雨廊忽然传来通报：萧珩请求暂缓移交，说有事要亲自问证人。贵妃这才抬眼，手指仍按在认罪书上。今晚谁先把这张纸送出去，谁就可能先定义叶蓁究竟是贼，还是证人。 Location: 烛台下摆着认罪书，殿门由侍卫值守；可申请由人陪同进入相连房间，不可凭空越过宫墙。. Depict the opening moment only, with dramatic body language, environment dominant, narrative tension and a strong focal point. Style: premium cinematic illustrated key art, natural textures and richly controlled light, coherent faces, atmospheric depth. All characters adults. No text, subtitles, logos, watermarks, UI, or gore. No unrelated modern suits in historical/fantasy settings. For fanfiction use illustrated fictional character designs rather than live-action actors."
+  },
+  {
+    "id": "palace-witness-zhen",
+    "worldId": "palace-witness",
+    "roleId": "zhen",
+    "kind": "portrait",
+    "prompt": "Use case: illustration-story. Asset type: single vertical 2:3 character portrait for an interactive fiction gallery. Character 叶蓁 in the fictional story \"他们让我替贵妃认罪，我却成了皇帝唯一的证人\". Exact appearance: 23岁成年中国女性，古代素色宫装，低髻，无现代饰物，烛光肖像. Show one adult character only, head fully visible, waist-up portrait, expressive eyes, three-quarter pose, detailed face and appropriate costume. Premium cinematic illustrated game art, natural textures and attractive sophisticated lighting, atmospheric setting softly behind. No other people, no text, logos, watermark, UI or gore. Preserve the specified historical era and clothes. If a fanfiction figure, use its recognizable illustrated design, not the likeness of a live action actor."
+  },
+  {
+    "id": "palace-witness-jiang",
+    "worldId": "palace-witness",
+    "roleId": "jiang",
+    "kind": "portrait",
+    "prompt": "Use case: illustration-story. Asset type: single vertical 2:3 character portrait for an interactive fiction gallery. Character 姜贵妃 in the fictional story \"他们让我替贵妃认罪，我却成了皇帝唯一的证人\". Exact appearance: 35岁成年中国女性，深红宫装，金簪高髻，威严克制，无现代服饰. Show one adult character only, head fully visible, waist-up portrait, expressive eyes, three-quarter pose, detailed face and appropriate costume. Premium cinematic illustrated game art, natural textures and attractive sophisticated lighting, atmospheric setting softly behind. No other people, no text, logos, watermark, UI or gore. Preserve the specified historical era and clothes. If a fanfiction figure, use its recognizable illustrated design, not the likeness of a live action actor."
+  },
+  {
+    "id": "palace-witness-heng",
+    "worldId": "palace-witness",
+    "roleId": "heng",
+    "kind": "portrait",
+    "prompt": "Use case: illustration-story. Asset type: single vertical 2:3 character portrait for an interactive fiction gallery. Character 萧珩 in the fictional story \"他们让我替贵妃认罪，我却成了皇帝唯一的证人\". Exact appearance: 27岁成年中国男性，古代深青皇子常服，束发玉冠，无眼镜，夜廊肖像. Show one adult character only, head fully visible, waist-up portrait, expressive eyes, three-quarter pose, detailed face and appropriate costume. Premium cinematic illustrated game art, natural textures and attractive sophisticated lighting, atmospheric setting softly behind. No other people, no text, logos, watermark, UI or gore. Preserve the specified historical era and clothes. If a fanfiction figure, use its recognizable illustrated design, not the likeness of a live action actor."
+  },
+  {
+    "id": "blood-seal-cover",
+    "worldId": "blood-seal",
+    "kind": "cover",
+    "prompt": "Use case: illustration-story. Asset type: landscape 3:2 cinematic story cover, a single polished image, not a collage or interface. Fictional interactive story \"师尊把我的功劳给了师弟，秘境却只认我的血\". Setting and situation: 宁殊身上的新法袍还没换下，庆功册上“独自寻回坐标”六个字已经盖了印。陆离的旧剑却被执事放到阶下，旁边是一纸逐出山门的处分。\n\n“师尊说，你年长，别和师弟争一时虚名。”宁殊站在高一级的台阶上，语气很轻，周围人却都听得见。陆离为了送回那份坐标在荒谷熬过整夜，回来后先等来的是养伤，随后是闭门，最后连庆功宴上的名字也被换掉。\n\n传承石忽然亮了一线。不是轰然认主，也没有谁当场获得修为；石面只有一圈暗红纹路朝陆离所在的方向浮起。执事翻看旧册，没再催他下山。宁殊低头看了眼自己腰间的庆功玉牌，手指收紧了。\n\n观礼亭里，外宗使者闻照正等着宗门宣布开启安排。究竟谁有资格站到那扇门前，还没有经过核验。只是方才被要求立刻滚下山的人，现在成了所有人都不愿先放走的那个。 Location: 山门前石碑微亮，庆功册放在执事案上；尚无人进入秘境。. Depict the opening moment only, with dramatic body language, environment dominant, narrative tension and a strong focal point. Style: premium cinematic illustrated key art, natural textures and richly controlled light, coherent faces, atmospheric depth. All characters adults. No text, subtitles, logos, watermarks, UI, or gore. No unrelated modern suits in historical/fantasy settings. For fanfiction use illustrated fictional character designs rather than live-action actors."
+  },
+  {
+    "id": "blood-seal-li",
+    "worldId": "blood-seal",
+    "roleId": "li",
+    "kind": "portrait",
+    "prompt": "Use case: illustration-story. Asset type: single vertical 2:3 character portrait for an interactive fiction gallery. Character 陆离 in the fictional story \"师尊把我的功劳给了师弟，秘境却只认我的血\". Exact appearance: 24岁成年中国男性，古代灰衣剑修，长黑发束起，旧剑，山门冷光，无现代西装. Show one adult character only, head fully visible, waist-up portrait, expressive eyes, three-quarter pose, detailed face and appropriate costume. Premium cinematic illustrated game art, natural textures and attractive sophisticated lighting, atmospheric setting softly behind. No other people, no text, logos, watermark, UI or gore. Preserve the specified historical era and clothes. If a fanfiction figure, use its recognizable illustrated design, not the likeness of a live action actor."
+  },
+  {
+    "id": "blood-seal-shu",
+    "worldId": "blood-seal",
+    "roleId": "shu",
+    "kind": "portrait",
+    "prompt": "Use case: illustration-story. Asset type: single vertical 2:3 character portrait for an interactive fiction gallery. Character 宁殊 in the fictional story \"师尊把我的功劳给了师弟，秘境却只认我的血\". Exact appearance: 22岁成年中国男性，白色古代法袍，束发，精致玉牌，克制嫉妒，无现代服装. Show one adult character only, head fully visible, waist-up portrait, expressive eyes, three-quarter pose, detailed face and appropriate costume. Premium cinematic illustrated game art, natural textures and attractive sophisticated lighting, atmospheric setting softly behind. No other people, no text, logos, watermark, UI or gore. Preserve the specified historical era and clothes. If a fanfiction figure, use its recognizable illustrated design, not the likeness of a live action actor."
+  },
+  {
+    "id": "blood-seal-zhao",
+    "worldId": "blood-seal",
+    "roleId": "zhao",
+    "kind": "portrait",
+    "prompt": "Use case: illustration-story. Asset type: single vertical 2:3 character portrait for an interactive fiction gallery. Character 闻照 in the fictional story \"师尊把我的功劳给了师弟，秘境却只认我的血\". Exact appearance: 29岁成年中国男性，青色古代剑修长袍，长发束冠，无眼镜，山亭肖像. Show one adult character only, head fully visible, waist-up portrait, expressive eyes, three-quarter pose, detailed face and appropriate costume. Premium cinematic illustrated game art, natural textures and attractive sophisticated lighting, atmospheric setting softly behind. No other people, no text, logos, watermark, UI or gore. Preserve the specified historical era and clothes. If a fanfiction figure, use its recognizable illustrated design, not the likeness of a live action actor."
+  },
+  {
+    "id": "winter-gate-cover",
+    "worldId": "winter-gate",
+    "kind": "cover",
+    "prompt": "Use case: illustration-story. Asset type: landscape 3:2 cinematic story cover, a single polished image, not a collage or interface. Fictional interactive story \"把我踢出避难所的人，现在排队求我开门\". Setting and situation: 监控屏上的韩骁把围巾拉了下来，正是三天前把工具箱扔到程烬脚边的人。他说过，避难所不养闲人，会修机器也得听安排。如今他身后停着两辆装满物资的拖车，车轮冻在雪里，队员一个接一个敲着手套取暖。\n\n“先开门，有什么进去说。”韩骁按住对讲键，仍用原来分配任务的口气。程烬身后的锅炉在响，墙上的压力表停在黄色刻度内。这里能供暖，不代表燃料永远够用；门外有人手和物资，也不代表他们有权接管。\n\n韩骁抬起一张折过的纸，让摄像头看见。上面写着拟议入住名单，管理人一栏已经填了他的名字。检修间的灯还亮着，苏棠正在核对今晚的耗油量。内门尚未打开，所有人都在等里面按下一个按钮。 Location: 程烬隔着玻璃能看见门外的人，可通过对讲机交流；内外门权限不同，不能直接穿门。. Depict the opening moment only, with dramatic body language, environment dominant, narrative tension and a strong focal point. Style: premium cinematic illustrated key art, natural textures and richly controlled light, coherent faces, atmospheric depth. All characters adults. No text, subtitles, logos, watermarks, UI, or gore. No unrelated modern suits in historical/fantasy settings. For fanfiction use illustrated fictional character designs rather than live-action actors."
+  },
+  {
+    "id": "winter-gate-jin",
+    "worldId": "winter-gate",
+    "roleId": "jin",
+    "kind": "portrait",
+    "prompt": "Use case: illustration-story. Asset type: single vertical 2:3 character portrait for an interactive fiction gallery. Character 程烬 in the fictional story \"把我踢出避难所的人，现在排队求我开门\". Exact appearance: 32岁成年中国男性，深色冬季工装，手套，寒潮供暖站，坚毅疲惫肖像. Show one adult character only, head fully visible, waist-up portrait, expressive eyes, three-quarter pose, detailed face and appropriate costume. Premium cinematic illustrated game art, natural textures and attractive sophisticated lighting, atmospheric setting softly behind. No other people, no text, logos, watermark, UI or gore. Preserve the specified historical era and clothes. If a fanfiction figure, use its recognizable illustrated design, not the likeness of a live action actor."
+  },
+  {
+    "id": "winter-gate-xiao",
+    "worldId": "winter-gate",
+    "roleId": "xiao",
+    "kind": "portrait",
+    "prompt": "Use case: illustration-story. Asset type: single vertical 2:3 character portrait for an interactive fiction gallery. Character 韩骁 in the fictional story \"把我踢出避难所的人，现在排队求我开门\". Exact appearance: 39岁成年中国男性，厚重冬季夹克，胡茬，雪夜门岗，硬朗肖像. Show one adult character only, head fully visible, waist-up portrait, expressive eyes, three-quarter pose, detailed face and appropriate costume. Premium cinematic illustrated game art, natural textures and attractive sophisticated lighting, atmospheric setting softly behind. No other people, no text, logos, watermark, UI or gore. Preserve the specified historical era and clothes. If a fanfiction figure, use its recognizable illustrated design, not the likeness of a live action actor."
+  },
+  {
+    "id": "winter-gate-tang",
+    "worldId": "winter-gate",
+    "roleId": "tang",
+    "kind": "portrait",
+    "prompt": "Use case: illustration-story. Asset type: single vertical 2:3 character portrait for an interactive fiction gallery. Character 苏棠 in the fictional story \"把我踢出避难所的人，现在排队求我开门\". Exact appearance: 28岁成年中国女性，冬季灰色工装，低马尾，锅炉检修间，机敏肖像. Show one adult character only, head fully visible, waist-up portrait, expressive eyes, three-quarter pose, detailed face and appropriate costume. Premium cinematic illustrated game art, natural textures and attractive sophisticated lighting, atmospheric setting softly behind. No other people, no text, logos, watermark, UI or gore. Preserve the specified historical era and clothes. If a fanfiction figure, use its recognizable illustrated design, not the likeness of a live action actor."
+  },
+  {
+    "id": "live-apology-cover",
+    "worldId": "live-apology",
+    "kind": "cover",
+    "prompt": "Use case: illustration-story. Asset type: landscape 3:2 cinematic story cover, a single polished image, not a collage or interface. Fictional interactive story \"全网骂我抢角色，直播时影帝却不敢让我开口\". Setting and situation: 道歉稿放在宋遥膝上，第一句是“我承认，是我抢走了属于别人的机会”。裴骁从旁边抽了一张纸巾，替镜头擦去一点灰，动作从容得像今晚只是来接受一份迟到的歉意。\n\n过去一个月，宋遥的工作接连取消，试镜片段被剪成十几秒在网上流传。原本属于完整表演的一次走位，被说成她故意靠近制片人；她提出看原片，经纪人只说别把事情闹大。今晚安排的是联合澄清，流程里却没有她出示材料的位置。\n\n“念完就好，别再给大家添麻烦。”裴骁笑着把麦克风推近。正式直播灯还没亮，导播间的何茵正在核对清单。宋遥手中的存储卡能不能播、能证明什么，都还需要核验。倒计时已经出现，谁先开口，不等于谁就一定能讲完。 Location: 摄像机尚未切到正式画面，桌上有道歉稿和节目流程；现场说话不等于已经全网播出。. Depict the opening moment only, with dramatic body language, environment dominant, narrative tension and a strong focal point. Style: premium cinematic illustrated key art, natural textures and richly controlled light, coherent faces, atmospheric depth. All characters adults. No text, subtitles, logos, watermarks, UI, or gore. No unrelated modern suits in historical/fantasy settings. For fanfiction use illustrated fictional character designs rather than live-action actors."
+  },
+  {
+    "id": "live-apology-yao",
+    "worldId": "live-apology",
+    "roleId": "yao",
+    "kind": "portrait",
+    "prompt": "Use case: illustration-story. Asset type: single vertical 2:3 character portrait for an interactive fiction gallery. Character 宋遥 in the fictional story \"全网骂我抢角色，直播时影帝却不敢让我开口\". Exact appearance: 27岁成年中国女性，白衬衫，及肩黑发，直播候场，坚定目光. Show one adult character only, head fully visible, waist-up portrait, expressive eyes, three-quarter pose, detailed face and appropriate costume. Premium cinematic illustrated game art, natural textures and attractive sophisticated lighting, atmospheric setting softly behind. No other people, no text, logos, watermark, UI or gore. Preserve the specified historical era and clothes. If a fanfiction figure, use its recognizable illustrated design, not the likeness of a live action actor."
+  },
+  {
+    "id": "live-apology-xiao",
+    "worldId": "live-apology",
+    "roleId": "xiao",
+    "kind": "portrait",
+    "prompt": "Use case: illustration-story. Asset type: single vertical 2:3 character portrait for an interactive fiction gallery. Character 裴骁 in the fictional story \"全网骂我抢角色，直播时影帝却不敢让我开口\". Exact appearance: 36岁成年中国男性，黑色正式西装，精致发型，候场灯光，克制肖像. Show one adult character only, head fully visible, waist-up portrait, expressive eyes, three-quarter pose, detailed face and appropriate costume. Premium cinematic illustrated game art, natural textures and attractive sophisticated lighting, atmospheric setting softly behind. No other people, no text, logos, watermark, UI or gore. Preserve the specified historical era and clothes. If a fanfiction figure, use its recognizable illustrated design, not the likeness of a live action actor."
+  },
+  {
+    "id": "live-apology-yin",
+    "worldId": "live-apology",
+    "roleId": "yin",
+    "kind": "portrait",
+    "prompt": "Use case: illustration-story. Asset type: single vertical 2:3 character portrait for an interactive fiction gallery. Character 何茵 in the fictional story \"全网骂我抢角色，直播时影帝却不敢让我开口\". Exact appearance: 40岁成年中国女性，深色职业装，低髻，导播间半身肖像. Show one adult character only, head fully visible, waist-up portrait, expressive eyes, three-quarter pose, detailed face and appropriate costume. Premium cinematic illustrated game art, natural textures and attractive sophisticated lighting, atmospheric setting softly behind. No other people, no text, logos, watermark, UI or gore. Preserve the specified historical era and clothes. If a fanfiction figure, use its recognizable illustrated design, not the likeness of a live action actor."
+  },
+  {
+    "id": "rival-invitation-cover",
+    "worldId": "rival-invitation",
+    "kind": "cover",
+    "prompt": "Use case: illustration-story. Asset type: landscape 3:2 cinematic story cover, a single polished image, not a collage or interface. Fictional interactive story \"我不再围着他转后，他和他的死对头都来找我\". Setting and situation: 门铃响的时候，温乔正在给最后一箱样稿封口。陆峥站在门外，西装领口有些乱，手里拿着一个她从没见过的戒指盒。过去三年，她提过几次未来，他说等项目稳定再谈；现在项目刚要签约，先不稳定的却是他们之间的关系。\n\n“你真要带团队走？”他看见墙上换下来的旧品牌标识，先问的是这个。随后才把盒子放到桌上，说自己这次是认真的。\n\n温乔的手机亮起，楼下季衡发来一条消息：方案带来了，控制权那一页可以当面谈。陆峥看见名字，脸色变了。他们争过客户、争过项目，如今都站在温乔要作决定的这个晚上。\n\n旧项目的原创稿、团队归属和资金安排还没清点完。戒指不是股权，投资也不等于自由。谁的条件值得听、谁该离开这间工作室，没有人能替温乔按下确认。 Location: 打包箱与品牌样稿堆在窗边，门没有锁，陈述与签约均需当事人自行决定。. Depict the opening moment only, with dramatic body language, environment dominant, narrative tension and a strong focal point. Style: premium cinematic illustrated key art, natural textures and richly controlled light, coherent faces, atmospheric depth. All characters adults. No text, subtitles, logos, watermarks, UI, or gore. No unrelated modern suits in historical/fantasy settings. For fanfiction use illustrated fictional character designs rather than live-action actors."
+  },
+  {
+    "id": "rival-invitation-qiao",
+    "worldId": "rival-invitation",
+    "roleId": "qiao",
+    "kind": "portrait",
+    "prompt": "Use case: illustration-story. Asset type: single vertical 2:3 character portrait for an interactive fiction gallery. Character 温乔 in the fictional story \"我不再围着他转后，他和他的死对头都来找我\". Exact appearance: 28岁成年中国女性，白衬衫，及肩黑发，设计工作室暖光肖像. Show one adult character only, head fully visible, waist-up portrait, expressive eyes, three-quarter pose, detailed face and appropriate costume. Premium cinematic illustrated game art, natural textures and attractive sophisticated lighting, atmospheric setting softly behind. No other people, no text, logos, watermark, UI or gore. Preserve the specified historical era and clothes. If a fanfiction figure, use its recognizable illustrated design, not the likeness of a live action actor."
+  },
+  {
+    "id": "rival-invitation-zheng",
+    "worldId": "rival-invitation",
+    "roleId": "zheng",
+    "kind": "portrait",
+    "prompt": "Use case: illustration-story. Asset type: single vertical 2:3 character portrait for an interactive fiction gallery. Character 陆峥 in the fictional story \"我不再围着他转后，他和他的死对头都来找我\". Exact appearance: 33岁成年中国男性，深炭灰西装，凌乱领口，工作室门口肖像. Show one adult character only, head fully visible, waist-up portrait, expressive eyes, three-quarter pose, detailed face and appropriate costume. Premium cinematic illustrated game art, natural textures and attractive sophisticated lighting, atmospheric setting softly behind. No other people, no text, logos, watermark, UI or gore. Preserve the specified historical era and clothes. If a fanfiction figure, use its recognizable illustrated design, not the likeness of a live action actor."
+  },
+  {
+    "id": "rival-invitation-heng",
+    "worldId": "rival-invitation",
+    "roleId": "heng",
+    "kind": "portrait",
+    "prompt": "Use case: illustration-story. Asset type: single vertical 2:3 character portrait for an interactive fiction gallery. Character 季衡 in the fictional story \"我不再围着他转后，他和他的死对头都来找我\". Exact appearance: 31岁成年中国男性，棕色西装，细框眼镜，现代咖啡厅肖像. Show one adult character only, head fully visible, waist-up portrait, expressive eyes, three-quarter pose, detailed face and appropriate costume. Premium cinematic illustrated game art, natural textures and attractive sophisticated lighting, atmospheric setting softly behind. No other people, no text, logos, watermark, UI or gore. Preserve the specified historical era and clothes. If a fanfiction figure, use its recognizable illustrated design, not the likeness of a live action actor."
+  },
+  {
+    "id": "peach-garden-delivery-cover",
+    "worldId": "peach-garden-delivery",
+    "kind": "cover",
+    "prompt": "Use case: illustration-story. Asset type: wide landscape cover illustration for a fictional interactive story, no interface. Cinematic richly detailed Chinese historical fantasy illustration. An adult Chinese food-delivery rider aged 26 in a yellow jacket and helmet has just driven his electric delivery scooter into an ancient peach blossom orchard. Liu Bei in simple blue-green Han dynasty robes and straw sandals, Guan Yu with long black beard and green robes holding a guandao, and burly bearded Zhang Fei in ancient armor stare at him with astonished delight around a rustic sworn-brotherhood wine table. Absurd time-travel comedy, vivid peach pink blossoms, warm dawn gold, atmospheric mist, high-end painterly game key art, expressive faces, clear silhouettes, depth and motion. Four adult men total. No modern suits, no railway train, no text, no logo, no watermark. Landscape 3:2 composition."
+  },
+  {
+    "id": "peach-garden-delivery-man",
+    "worldId": "peach-garden-delivery",
+    "roleId": "man",
+    "kind": "portrait",
+    "prompt": "Use case: illustration-story. Asset type: single vertical 2:3 character portrait for an interactive fiction gallery. Character 陈满 in the fictional story \"送个外卖穿进三国，刘关张非认我当四弟\". Exact appearance: 成年中国外卖骑手，黄色配送外套和头盔，古代桃园，电动自行车. Show one adult character only, head fully visible, waist-up portrait, expressive eyes, three-quarter pose, detailed face and appropriate costume. Premium cinematic illustrated game art, natural textures and attractive sophisticated lighting, atmospheric setting softly behind. No other people, no text, logos, watermark, UI or gore. Preserve the specified historical era and clothes. If a fanfiction figure, use its recognizable illustrated design, not the likeness of a live action actor."
+  },
+  {
+    "id": "peach-garden-delivery-bei",
+    "worldId": "peach-garden-delivery",
+    "roleId": "bei",
+    "kind": "portrait",
+    "prompt": "Use case: illustration-story. Asset type: single vertical 2:3 character portrait for an interactive fiction gallery. Character 刘备 in the fictional story \"送个外卖穿进三国，刘关张非认我当四弟\". Exact appearance: 成年刘备，古代青色布袍，草鞋，桃园，温和而有野心. Show one adult character only, head fully visible, waist-up portrait, expressive eyes, three-quarter pose, detailed face and appropriate costume. Premium cinematic illustrated game art, natural textures and attractive sophisticated lighting, atmospheric setting softly behind. No other people, no text, logos, watermark, UI or gore. Preserve the specified historical era and clothes. If a fanfiction figure, use its recognizable illustrated design, not the likeness of a live action actor."
+  },
+  {
+    "id": "peach-garden-delivery-guan",
+    "worldId": "peach-garden-delivery",
+    "roleId": "guan",
+    "kind": "portrait",
+    "prompt": "Use case: illustration-story. Asset type: single vertical 2:3 character portrait for an interactive fiction gallery. Character 关羽 in the fictional story \"送个外卖穿进三国，刘关张非认我当四弟\". Exact appearance: 成年关羽，长髯绿袍，青龙偃月刀，古代桃园. Show one adult character only, head fully visible, waist-up portrait, expressive eyes, three-quarter pose, detailed face and appropriate costume. Premium cinematic illustrated game art, natural textures and attractive sophisticated lighting, atmospheric setting softly behind. No other people, no text, logos, watermark, UI or gore. Preserve the specified historical era and clothes. If a fanfiction figure, use its recognizable illustrated design, not the likeness of a live action actor."
+  },
+  {
+    "id": "peach-garden-delivery-zhang",
+    "worldId": "peach-garden-delivery",
+    "roleId": "zhang",
+    "kind": "portrait",
+    "prompt": "Use case: illustration-story. Asset type: single vertical 2:3 character portrait for an interactive fiction gallery. Character 张飞 in the fictional story \"送个外卖穿进三国，刘关张非认我当四弟\". Exact appearance: 成年张飞，黑须猛将，古代甲胄，粗犷喜感，桃园. Show one adult character only, head fully visible, waist-up portrait, expressive eyes, three-quarter pose, detailed face and appropriate costume. Premium cinematic illustrated game art, natural textures and attractive sophisticated lighting, atmospheric setting softly behind. No other people, no text, logos, watermark, UI or gore. Preserve the specified historical era and clothes. If a fanfiction figure, use its recognizable illustrated design, not the likeness of a live action actor."
+  },
+  {
+    "id": "monkey-pirate-avengers-cover",
+    "worldId": "monkey-pirate-avengers",
+    "kind": "cover",
+    "prompt": "Use case: illustration-story. Asset type: landscape 3:2 cinematic story cover, a single polished image, not a collage or interface. Fictional interactive story \"路飞和悟空掉进复联，灭霸的手套被当成烤肉夹\". Setting and situation: 托尼刚落在天桥上，头盔就报了三个警：外星入侵、空间结构异常，还有一个穿拖鞋的人正在吃自己的应急口粮。\n\n“你们的队长是谁？”他打开面罩。草帽少年抬起头：“这块肉还有吗？”\n\n一道金光从天而降，金箍棒卡进桥底，替快坠落的巴士撑住最后一口气。孙悟空踩在栏杆上，看着天空中那艘船：“你们这里的天兵，怎么住铁锅里？”巴士里有人尖叫，车轮还在一点点滑动。\n\n裂隙另一边，紫色巨人伸出戴满宝石的手。路飞盯住那只大手，伸长胳膊想看看它到底抓着什么，却被巨人收了回去。几个人尚未动手决定下一步，城市先自己变了一块：斑马线变成通往南天门的石阶，街边热狗摊升起一面海贼旗。\n\n三人各自眼前出现不同颜色的面板：【跨界组队失败。原因：三名队长。】下面只有一个共同任务：先把巴士里的人接下来，再决定谁说了算。悟空笑了一声，托尼的肩炮升起，路飞把最后一口面包塞进嘴里。 Location: 半截巴士悬在桥外，另一半桥面变成了海贼船甲板。. Depict the opening moment only, with dramatic body language, environment dominant, narrative tension and a strong focal point. Style: premium cinematic illustrated key art, natural textures and richly controlled light, coherent faces, atmospheric depth. All characters adults. No text, subtitles, logos, watermarks, UI, or gore. No unrelated modern suits in historical/fantasy settings. For fanfiction use illustrated fictional character designs rather than live-action actors."
+  },
+  {
+    "id": "monkey-pirate-avengers-luffy",
+    "worldId": "monkey-pirate-avengers",
+    "roleId": "luffy",
+    "kind": "portrait",
+    "prompt": "Use case: illustration-story. Asset type: single vertical 2:3 character portrait for an interactive fiction gallery. Character 路飞 in the fictional story \"路飞和悟空掉进复联，灭霸的手套被当成烤肉夹\". Exact appearance: 成年草帽海贼船长，红色马甲，黑发，纽约天桥，非官方同人插画. Show one adult character only, head fully visible, waist-up portrait, expressive eyes, three-quarter pose, detailed face and appropriate costume. Premium cinematic illustrated game art, natural textures and attractive sophisticated lighting, atmospheric setting softly behind. No other people, no text, logos, watermark, UI or gore. Preserve the specified historical era and clothes. If a fanfiction figure, use its recognizable illustrated design, not the likeness of a live action actor."
+  },
+  {
+    "id": "monkey-pirate-avengers-wukong",
+    "worldId": "monkey-pirate-avengers",
+    "roleId": "wukong",
+    "kind": "portrait",
+    "prompt": "Use case: illustration-story. Asset type: single vertical 2:3 character portrait for an interactive fiction gallery. Character 孙悟空 in the fictional story \"路飞和悟空掉进复联，灭霸的手套被当成烤肉夹\". Exact appearance: 成年孙悟空，金甲猴王，金箍棒，筋斗云，纽约夜空，非官方同人插画. Show one adult character only, head fully visible, waist-up portrait, expressive eyes, three-quarter pose, detailed face and appropriate costume. Premium cinematic illustrated game art, natural textures and attractive sophisticated lighting, atmospheric setting softly behind. No other people, no text, logos, watermark, UI or gore. Preserve the specified historical era and clothes. If a fanfiction figure, use its recognizable illustrated design, not the likeness of a live action actor."
+  },
+  {
+    "id": "monkey-pirate-avengers-tony",
+    "worldId": "monkey-pirate-avengers",
+    "roleId": "tony",
+    "kind": "portrait",
+    "prompt": "Use case: illustration-story. Asset type: single vertical 2:3 character portrait for an interactive fiction gallery. Character 钢铁侠 in the fictional story \"路飞和悟空掉进复联，灭霸的手套被当成烤肉夹\". Exact appearance: 成年钢铁侠，红金装甲，面罩打开，纽约断桥，非官方同人插画. Show one adult character only, head fully visible, waist-up portrait, expressive eyes, three-quarter pose, detailed face and appropriate costume. Premium cinematic illustrated game art, natural textures and attractive sophisticated lighting, atmospheric setting softly behind. No other people, no text, logos, watermark, UI or gore. Preserve the specified historical era and clothes. If a fanfiction figure, use its recognizable illustrated design, not the likeness of a live action actor."
+  },
+  {
+    "id": "three-husbands-system-cover",
+    "worldId": "three-husbands-system",
+    "kind": "cover",
+    "prompt": "Use case: illustration-story. Asset type: landscape 3:2 cinematic story cover, a single polished image, not a collage or interface. Fictional interactive story \"退婚现场，前夫、他哥和魔尊同时喊我夫人\". Setting and situation: 姜照雪刚说完“不嫁了”，棺材盖就翻了。\n\n陆玄的兄长本该躺在里头接受最后一炷香。此刻他撑着棺沿坐起来，没看亲弟弟，只盯着她手里的半张婚书：“夫人，谁准你改嫁？”\n\n满堂宾客的吸气声还没落下，喜门被一道黑焰踹开。夜无咎拎着一盏婴儿拳头大的命灯，脸色比门框还黑：“你在人间成亲，连我们的孩子都不打算认了？”灯里传来一个成年男子的声音：“爹，我三百岁了，你别每次都拿我当婴儿抱。”\n\n陆玄拔剑，棺中人也伸了手。姜照雪眼前却多了一个别人看不见的选择框：【上一世死因：代劫。当前漏洞：三份婚契共用你的命格。新手道具：断缘剪，已解锁。】\n\n她袖中确实多了一把剪刀。红线从陆玄腕间、棺沿与命灯绕过来，正往她脖子上收紧。没有人替她剪，也没有人替她选。殿外的钟忽然倒着响了一声，宾客里有人喊：新娘不能走，天劫要跟着她跑！ Location: 三套喜服一口棺材，宾客刚听见退婚；姻缘红线缠住殿门。. Depict the opening moment only, with dramatic body language, environment dominant, narrative tension and a strong focal point. Style: premium cinematic illustrated key art, natural textures and richly controlled light, coherent faces, atmospheric depth. All characters adults. No text, subtitles, logos, watermarks, UI, or gore. No unrelated modern suits in historical/fantasy settings. For fanfiction use illustrated fictional character designs rather than live-action actors."
+  },
+  {
+    "id": "three-husbands-system-snow",
+    "worldId": "three-husbands-system",
+    "roleId": "snow",
+    "kind": "portrait",
+    "prompt": "Use case: illustration-story. Asset type: single vertical 2:3 character portrait for an interactive fiction gallery. Character 姜照雪 in the fictional story \"退婚现场，前夫、他哥和魔尊同时喊我夫人\". Exact appearance: 成年仙侠新娘，红嫁衣，手持银剪，张扬目光，东方幻想喜堂. Show one adult character only, head fully visible, waist-up portrait, expressive eyes, three-quarter pose, detailed face and appropriate costume. Premium cinematic illustrated game art, natural textures and attractive sophisticated lighting, atmospheric setting softly behind. No other people, no text, logos, watermark, UI or gore. Preserve the specified historical era and clothes. If a fanfiction figure, use its recognizable illustrated design, not the likeness of a live action actor."
+  },
+  {
+    "id": "three-husbands-system-xuan",
+    "worldId": "three-husbands-system",
+    "roleId": "xuan",
+    "kind": "portrait",
+    "prompt": "Use case: illustration-story. Asset type: single vertical 2:3 character portrait for an interactive fiction gallery. Character 陆玄 in the fictional story \"退婚现场，前夫、他哥和魔尊同时喊我夫人\". Exact appearance: 成年仙门少主，红黑婚服，佩剑，喜堂，愤怒又失措. Show one adult character only, head fully visible, waist-up portrait, expressive eyes, three-quarter pose, detailed face and appropriate costume. Premium cinematic illustrated game art, natural textures and attractive sophisticated lighting, atmospheric setting softly behind. No other people, no text, logos, watermark, UI or gore. Preserve the specified historical era and clothes. If a fanfiction figure, use its recognizable illustrated design, not the likeness of a live action actor."
+  },
+  {
+    "id": "three-husbands-system-night",
+    "worldId": "three-husbands-system",
+    "roleId": "night",
+    "kind": "portrait",
+    "prompt": "Use case: illustration-story. Asset type: single vertical 2:3 character portrait for an interactive fiction gallery. Character 夜无咎 in the fictional story \"退婚现场，前夫、他哥和魔尊同时喊我夫人\". Exact appearance: 成年魔尊，黑金长袍，手提蓝色命灯，银发，幻想婚宴. Show one adult character only, head fully visible, waist-up portrait, expressive eyes, three-quarter pose, detailed face and appropriate costume. Premium cinematic illustrated game art, natural textures and attractive sophisticated lighting, atmospheric setting softly behind. No other people, no text, logos, watermark, UI or gore. Preserve the specified historical era and clothes. If a fanfiction figure, use its recognizable illustrated design, not the likeness of a live action actor."
+  },
+  {
+    "id": "villain-mother-system-cover",
+    "worldId": "villain-mother-system",
+    "kind": "cover",
+    "prompt": "Use case: illustration-story. Asset type: landscape 3:2 cinematic story cover, a single polished image, not a collage or interface. Fictional interactive story \"穿成最终反派，来杀我的勇者却跪下喊妈\". Setting and situation: 王座很高，许岁的鞋却够不着地。她低头看了眼自己身上的魔王长裙，脑内还停留在刚才下班回家煮面的那一刻。系统已经替她选好了下一步：【请冷笑。请宣称毁灭世界。请被勇者斩杀。】\n\n“我能不能先吃口饭？”\n\n大门轰地飞了。金发勇者举剑站在门外，圣女紧随其后，台词似乎都练好了。勇者看清王座上的脸，剑先掉在地上，人也跪下去了：“妈？你不是说今晚煮面吗？”\n\n许岁看着那张和儿子一模一样的脸。二十二岁，还穿着她骂过好几次的同款破袜子。系统窗口疯狂闪烁：【检测到勇者亲属关系。最终击杀奖励冻结。】\n\n伊芙刚要念圣光咒，自己面前也亮出一行字：【结缘目标：魔王许岁。原任务说明存在误译。】她抬头看看勇者，再看看王座，手里的祝福花束突然变得烫手。\n\n大厅的墙开始向内合拢。那个被迫扮演最终反派的女人，终于发现身后有一道能通向影子的门。三个人都还活着，剧本却已经等不及要他们演下去了。 Location: 王座上方写着最终章，勇者扔下的剑在台阶前。. Depict the opening moment only, with dramatic body language, environment dominant, narrative tension and a strong focal point. Style: premium cinematic illustrated key art, natural textures and richly controlled light, coherent faces, atmospheric depth. All characters adults. No text, subtitles, logos, watermarks, UI, or gore. No unrelated modern suits in historical/fantasy settings. For fanfiction use illustrated fictional character designs rather than live-action actors."
+  },
+  {
+    "id": "villain-mother-system-sui",
+    "worldId": "villain-mother-system",
+    "roleId": "sui",
+    "kind": "portrait",
+    "prompt": "Use case: illustration-story. Asset type: single vertical 2:3 character portrait for an interactive fiction gallery. Character 许岁 in the fictional story \"穿成最终反派，来杀我的勇者却跪下喊妈\". Exact appearance: 45岁成年女性魔王，黑红礼裙，王冠，疲惫但凌厉，幻想城堡. Show one adult character only, head fully visible, waist-up portrait, expressive eyes, three-quarter pose, detailed face and appropriate costume. Premium cinematic illustrated game art, natural textures and attractive sophisticated lighting, atmospheric setting softly behind. No other people, no text, logos, watermark, UI or gore. Preserve the specified historical era and clothes. If a fanfiction figure, use its recognizable illustrated design, not the likeness of a live action actor."
+  },
+  {
+    "id": "villain-mother-system-ran",
+    "worldId": "villain-mother-system",
+    "roleId": "ran",
+    "kind": "portrait",
+    "prompt": "Use case: illustration-story. Asset type: single vertical 2:3 character portrait for an interactive fiction gallery. Character 许燃 in the fictional story \"穿成最终反派，来杀我的勇者却跪下喊妈\". Exact appearance: 22岁成年勇者，轻甲与圣剑，惊愕表情，魔法城堡. Show one adult character only, head fully visible, waist-up portrait, expressive eyes, three-quarter pose, detailed face and appropriate costume. Premium cinematic illustrated game art, natural textures and attractive sophisticated lighting, atmospheric setting softly behind. No other people, no text, logos, watermark, UI or gore. Preserve the specified historical era and clothes. If a fanfiction figure, use its recognizable illustrated design, not the likeness of a live action actor."
+  },
+  {
+    "id": "villain-mother-system-eve",
+    "worldId": "villain-mother-system",
+    "roleId": "eve",
+    "kind": "portrait",
+    "prompt": "Use case: illustration-story. Asset type: single vertical 2:3 character portrait for an interactive fiction gallery. Character 伊芙 in the fictional story \"穿成最终反派，来杀我的勇者却跪下喊妈\". Exact appearance: 27岁成年圣女，白金法袍，持发光权杖与花束，魔法城堡. Show one adult character only, head fully visible, waist-up portrait, expressive eyes, three-quarter pose, detailed face and appropriate costume. Premium cinematic illustrated game art, natural textures and attractive sophisticated lighting, atmospheric setting softly behind. No other people, no text, logos, watermark, UI or gore. Preserve the specified historical era and clothes. If a fanfiction figure, use its recognizable illustrated design, not the likeness of a live action actor."
+  }
+]

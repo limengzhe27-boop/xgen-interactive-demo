@@ -7,7 +7,7 @@ import { MessageTextarea } from '@/components/message-textarea';
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { GalleryAtmosphere, GalleryMasonry, GalleryReveal } from '@/components/gallery-motion';
 
-export type StudioSection = 'home' | 'library' | 'characters' | 'personal';
+export type StudioSection = 'home' | 'library' | 'characters' | 'personal' | 'profile';
 export type WorldCard = { id: string; title: string; genre: string; premise: string; cover: string; roleCount: number; artNote?: string; featured?: boolean };
 export type CharacterCard = { id: string; worldId: string; worldTitle: string; name: string; identity: string; persona: string; image: string };
 export type RecentCard = { id: string; title: string; subtitle: string; label: string; cover: string };
@@ -25,7 +25,7 @@ export function StudioNav({ section, onNavigate, onCreate }: { section: string; 
   return <nav ref={nav} className="studio-nav" aria-label="主导航">
     <span className="studio-nav-brand" aria-hidden="true"><Sparkles /></span>
     <button className="studio-nav-button studio-new" onClick={() => onCreate()} type="button"><Plus /><span>新建</span></button>
-    {([{ id: 'home', label: '首页', icon: House }, { id: 'library', label: '我的世界', icon: Compass }, { id: 'characters', label: '角色库', icon: UsersRound }, { id: 'personal', label: '个人 Agent', icon: UserRound }] as const).map(({ id, label, icon: Icon }) =>
+    {([{ id: 'home', label: '首页', icon: House }, { id: 'library', label: '我的世界', icon: Compass }, { id: 'characters', label: '角色库', icon: UsersRound }, { id: 'personal', label: '个人 Agent', icon: MessageCircleMore }, { id: 'profile', label: '我的', icon: UserRound }] as const).map(({ id, label, icon: Icon }) =>
       <button key={id} className="studio-nav-button" aria-current={section === id ? 'page' : undefined} onClick={() => onNavigate(id)} type="button"><Icon /><span>{label}</span></button>)}
     <span className="studio-nav-foot" aria-hidden="true">XGEN</span>
   </nav>;

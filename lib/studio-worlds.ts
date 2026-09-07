@@ -2,6 +2,7 @@ import type { WorldDefinition } from './ai-contracts';
 import publicImages from './public-image-manifest.json' with { type: 'json' };
 import { serialWorlds } from './serial-worlds.ts';
 import { wildWorlds } from './wild-worlds.ts';
+import { libraryArt } from './library-art.ts';
 
 export type StudioWorld = {
   id: string;
@@ -321,10 +322,14 @@ const publicImage = (path: string) => {
   const id = (publicImages as Record<string, string>)[path];
   return id ? `https://rrgyjvkkgcurtatidyuc.supabase.co/storage/v1/object/public/world-public/${id}.webp` : path;
 };
-export const studioWorlds: StudioWorld[] = [contractWorld, workplaceWorld, inheritanceWorld, ...serialWorlds, ...wildWorlds].map((entry) => ({
-  ...entry, cover: publicImage(entry.cover),
-  portraits: Object.fromEntries(Object.entries(entry.portraits).map(([id, path]) => [id, publicImage(path)])),
-}));
+export const studioWorlds: StudioWorld[] = [contractWorld, workplaceWorld, inheritanceWorld, ...serialWorlds, ...wildWorlds].map((entry) => {
+  const art = libraryArt[entry.id];
+  return {
+    ...entry, cover: art?.cover ?? publicImage(entry.cover),
+    portraits: { ...Object.fromEntries(Object.entries(entry.portraits).map(([id, path]) => [id, publicImage(path)])), ...art?.portraits },
+    artNote: art ? (entry.id === 'monkey-pirate-avengers' ? '非官方同人演绎；封面与托尼暂用参考图，其余已更新。人物与世界观归各自权利人所有。' : undefined) : entry.artNote,
+  };
+});
 
 export function getRoleOpening(entry: StudioWorld, roleId: string): string {
   const role = entry.world.characters.find((item) => item.id === roleId);

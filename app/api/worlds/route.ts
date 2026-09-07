@@ -2,6 +2,7 @@ import { authConfigured, authContext, sameOrigin } from '@/lib/server-auth';
 import { claimImage, findImage, imageId, imageOwner, saveImage, storageFetch } from '@/lib/server-image-store';
 import { publicationWorld } from '@/lib/publication';
 import publicImages from '@/lib/public-image-manifest.json';
+import { libraryArtPaths } from '@/lib/library-art';
 
 export const maxDuration = 120;
 const noStore = { 'Cache-Control': 'no-store' };
@@ -9,6 +10,7 @@ const publicPrefix = () => `${process.env.SUPABASE_URL}/storage/v1/object/public
 async function publishImage(path: unknown, request: Request, userId: string): Promise<string> {
   if (typeof path !== 'string' || !path) return '/assets/storm-manor-cover.png';
   if (path === '/assets/storm-manor-cover.png' || path === '/assets/storm-manor-cast.png') return path;
+  if (libraryArtPaths.has(path)) return path;
   if (Object.hasOwn(publicImages, path)) return `${publicPrefix()}${(publicImages as Record<string, string>)[path]}.webp`;
   const id = /^\/api\/image\/asset\/([a-f0-9]{64})$/.exec(path)?.[1];
   const sharedId = path.startsWith(publicPrefix()) ? /^([a-f0-9]{64})\.webp$/.exec(path.slice(publicPrefix().length))?.[1] : null;

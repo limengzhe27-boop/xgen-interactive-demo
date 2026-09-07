@@ -35,6 +35,7 @@ import { CloudWorkspace } from '@/components/cloud-workspace';
 import { applyPendingWorkspace, restoredImage, workspaceKeys } from '@/lib/cloud-workspace';
 import { accountStorageKey } from '@/lib/account-scope';
 import { PersonalAgent } from '@/components/personal-agent';
+import { ProfilePage } from '@/components/profile-page';
 import { CompanionHandoff, CompanionContextPanel } from '@/components/companion-handoff';
 import { makeCompanionInput, restoreCompanionContext, type CompanionContext } from '@/lib/companion-context';
 import { PersonaControl, PersonaAdmission, EntryPolicyEditor } from '@/components/player-persona';
@@ -89,7 +90,7 @@ import type {
 import type { ImageTask } from '@/lib/image-task';
 import type { ActionValidation, EventRecord, WorldIncident, WorldState } from '@/lib/world-state';
 
-type View = 'home' | 'library' | 'characters' | 'personal' | 'chat' | 'roles' | 'play' | 'create' | 'ending';
+type View = 'home' | 'library' | 'characters' | 'personal' | 'profile' | 'chat' | 'roles' | 'play' | 'create' | 'ending';
 type WorldKind = 'storm' | 'suggestion' | 'draft';
 type ModelMode = 'checking' | 'real' | 'mock' | 'fallback';
 type ImageModelMode = 'checking' | 'real' | 'off' | 'fallback';
@@ -2198,6 +2199,10 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
   }} />;
 
   function renderScreen() {
+    if (view === 'profile') return <ProfilePage persona={playerPersona} identityControl={identityControl} memories={memories} pending={pendingPersonalMemories} busy={agentThinking} onBack={() => navigate('home')} onChat={() => navigate('personal')} onRemove={memory => setMemories(current => current.filter(item => item !== memory))} onDismiss={memory => setPendingPersonalMemories(current => current.filter(item => item !== memory))} onConfirm={memory => {
+      if (memories.length >= 24) { setStorageError('记忆已满（24 条），请先删除不再需要的内容。'); return; }
+      setMemories(current => [...new Set([...current, memory])]); setPendingPersonalMemories(current => current.filter(item => item !== memory));
+    }} />;
     if (view === 'chat' && activeChat) return <CharacterChat key={`${accountScope}:${activeChat.id}`} accountScope={accountScope} initial={activeChat} onSave={saveChat} onBack={() => navigate('home')} />;
     if (view === 'home' || view === 'library' || view === 'characters') return <StudioHome key={`${accountScope}:${view}`}
       section={view} worlds={[
@@ -2311,7 +2316,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     return (
       <PersonalAgent
         onBack={() => navigate('home')}
-        identityPanel={identityControl}
+        identityPanel={<button className="persona-shortcut" type="button" onClick={() => navigate('profile')}><UserRound /><span><small>我的个人中心</small><strong>查看形象、性格与 Agent 记忆</strong></span><ArrowRight /></button>}
         worlds={[
           ...availableStudioWorlds.map((entry) => ({ ...entry, roleCount: entry.world.characters.length })),
           ...worldCatalog.map((world) => ({ ...world, roleCount: world.id === 'storm-manor' ? roles.length : presetWorlds.find((preset) => preset.id === world.id)?.roles.length ?? 0, cover: world.id === 'storm-manor' ? '/assets/storm-manor-cover.png' : world.id === 'sea-train' ? '/assets/sea-train-cover.jpg' : '/assets/roommate-cover.jpg' })),
@@ -2347,7 +2352,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
   return (
     <main className="studio-frame" data-focused-flow={view === 'roles' || view === 'play' || view === 'personal' || view === 'create' || view === 'chat'}>
       <StudioNav section={view} onNavigate={navigate} onCreate={newCreator} />
-      <AccountBar workspaceControls={['home', 'library', 'personal', 'characters'].includes(view) && <CloudWorkspace accountScope={accountScope} disabled={!storageReady || storageReadFailed.current || agentThinking || creatorAgentThinking || worldGenerating} />} />
+      <AccountBar onProfile={['home', 'library', 'characters', 'personal'].includes(view) ? () => navigate('profile') : undefined} workspaceControls={['home', 'library', 'personal', 'profile', 'characters'].includes(view) && <CloudWorkspace accountScope={accountScope} disabled={!storageReady || storageReadFailed.current || agentThinking || creatorAgentThinking || worldGenerating} />} />
       {companionHandoff && <CompanionHandoff seed={companionHandoff.seed} conversation={agentConversation} memoryCount={memories.length} onClose={() => setCompanionHandoff(null)} onConfirm={(seed, context) => {
         if (worldGenerating || creatorAgentThinking) { setStorageError('请等当前创作回应结束后再新建。'); return; }
         creatorKickoff.current = seed || '接着我们的讨论，一起想一个小世界的角色、关系和目标。';

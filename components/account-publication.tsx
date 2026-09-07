@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/compone
 import type { StudioWorld } from '@/lib/studio-worlds';
 
 type Account = { configured: boolean; canPublish?: boolean; provider?: string; user: { id: string; name: string } | null };
-export function AccountBar({ workspaceControls }: { workspaceControls?: ReactNode }) {
+export function AccountBar({ workspaceControls, onProfile }: { workspaceControls?: ReactNode; onProfile?: () => void }) {
   const [account, setAccount] = useState<Account | null>(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -34,6 +34,7 @@ export function AccountBar({ workspaceControls }: { workspaceControls?: ReactNod
   }
   return <aside className="account-bar" aria-label="账号">
     <span>{account?.user ? `${account.user.name} · 本机优先，云存档需手动保存` : '游客体验 · 草稿与聊天仅在本机'}</span>
+    {onProfile && <Button variant="outline" onClick={onProfile}>我的形象与资料</Button>}
     {account?.user && workspaceControls}
     {account?.user ? <Button variant="outline" disabled={busy} onClick={signOut}><LogOut />退出账号</Button>
       : account?.configured ? <a className="studio-button" href="/auth/login"><LogIn />使用 {account.provider === 'google' ? 'Google' : 'GitHub'} 登录</a>

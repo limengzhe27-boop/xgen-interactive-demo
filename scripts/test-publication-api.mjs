@@ -11,6 +11,7 @@ test('publication authenticates, requires consent, excludes private context and 
   source = source.replace("@/lib/server-auth", moduleURL(`export const sameOrigin=r=>r.headers.get('origin')==='https://demo.test'; export const authConfigured=()=>true; export const authContext=()=>({client:{auth:{getUser:async()=>{if(globalThis.__publicationTest.throwAuth)throw Error('offline'); return {data:{user:globalThis.__publicationTest.user}}}}},finish:r=>r});`));
   source = source.replace("@/lib/server-image-store", moduleURL(`export const imageId=()=> 'a'.repeat(64); export const imageOwner=()=>null; export const findImage=async()=>({owner_id:'someone-else',bucket:'world-private',status:'ready'}); export const claimImage=()=>{throw Error('unexpected copy')}; export const saveImage=claimImage; export const storageFetch=async(path,init)=>{globalThis.__publicationTest.calls.push({path,init});return Response.json([])};`));
   source = source.replace('@/lib/publication', new URL('../lib/publication.ts', import.meta.url).href);
+  source = source.replace('@/lib/library-art', new URL('../lib/library-art.ts', import.meta.url).href);
   source = source.replace("import publicImages from '@/lib/public-image-manifest.json';", 'const publicImages = {};');
   const route = await import(moduleURL(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } }).outputText));
   const state = globalThis.__publicationTest = { calls: [], user: null, throwAuth: false };

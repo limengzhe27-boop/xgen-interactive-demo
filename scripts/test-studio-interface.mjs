@@ -30,6 +30,7 @@ registerHooks({
 });
 const { StudioHome } = await import('../components/studio-home.tsx');
 const { PersonalAgent } = await import('../components/personal-agent.tsx');
+const { ProfilePage } = await import('../components/profile-page.tsx');
 const { knownRecommendations, recommendationReply } = await import('../lib/personal-recommendations.ts');
 const { studioWorlds } = await import('../lib/studio-worlds.ts');
 const { POST } = await import('../app/api/ai/route.ts');
@@ -41,6 +42,22 @@ const worlds = studioWorlds.map((entry) => ({ ...entry, roleCount: entry.world.c
 const noop = () => {};
 const personalProps = { message: '', conversation: [], busy: false, error: '', recommendations: [], worlds,
   memories: [], onMessage: noop, onSubmit: noop, onRemoveMemory: noop, onOpenWorld: noop, onCreate: noop };
+
+test('account profile separates fictional persona from confirmed and pending real memories', () => {
+  const html = renderToStaticMarkup(React.createElement(ProfilePage, {
+    persona: { name: '测试侠客', identity: '虚构剑客', personality: '勇敢但怕高', appearance: '银发', abilities: '御剑' },
+    identityControl: React.createElement('button', null, '编辑我的形象'), memories: ['现实中喜欢安静'], pending: ['可能喜欢登山'],
+    busy: false, onBack: noop, onChat: noop, onRemove: noop, onConfirm: noop, onDismiss: noop,
+  }));
+  assert.match(html, /故事里的我/);
+  assert.match(html, /人设性格/);
+  assert.match(html, /勇敢但怕高/);
+  assert.match(html, /Agent 了解的我/);
+  assert.match(html, /现实中喜欢安静/);
+  assert.match(html, /确认记住/);
+  assert.match(html, /虚构身份，不代表现实中的你/);
+  assert.match(html, /不会自动同步或公开/);
+});
 
 test('world request validates persona admission before invoking a model', () => {
   const base = studioWorlds[0];
