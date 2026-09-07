@@ -24,7 +24,7 @@ registerHooks({
 });
 const { StudioHome } = await import('../components/studio-home.tsx');
 const { PersonalAgent } = await import('../components/personal-agent.tsx');
-const { knownRecommendations } = await import('../lib/personal-recommendations.ts');
+const { knownRecommendations, recommendationReply } = await import('../lib/personal-recommendations.ts');
 const { studioWorlds } = await import('../lib/studio-worlds.ts');
 const { POST } = await import('../app/api/ai/route.ts');
 const { pendingMemories, restorePersonalConversation } = await import('../lib/personal-memory.ts');
@@ -52,24 +52,26 @@ test('world request validates persona admission before invoking a model', () => 
 test('personal Agent starts without a fabricated recommendation or fixed old-world promotion', () => {
   const html = renderToStaticMarkup(React.createElement(PersonalAgent, personalProps));
   assert.ok(html.includes('不必先有一个问题'));
-  assert.ok(html.includes('帮我理清思路'));
+  assert.ok(html.includes('先陪我聊一会儿') && html.includes('一起构思一个世界'));
+  assert.ok(!html.includes('personal-sidebar'));
   assert.ok(!html.includes('aria-label="推荐结果"'));
   assert.ok(!html.includes('暴雨山庄'));
   assert.ok(!html.includes('在线'));
   assert.ok(!html.includes('personal-match-copy'));
 });
-test('personal Agent renders only actual matches, their reason, conversation and removable preferences', () => {
+test('personal Agent renders actual matches inline while keeping saved memories out of the main view', () => {
   const html = renderToStaticMarkup(React.createElement(PersonalAgent, { ...personalProps,
-    conversation: [{ role: 'user', content: '我想当众打脸' }, { role: 'assistant', content: '你可以从抢功旧账入手。' }],
+    conversation: [{ role: 'user', content: '我想当众打脸' }, { role: 'assistant', content: recommendationReply('你可以从抢功旧账入手。', [{ worldId: worlds[1].id, reason: '抢功与甲乙方身份反转符合你的要求', matchedMemoryIds: [] }], worlds) }],
     memories: ['不想复杂解谜'], recommendations: [{ worldId: worlds[1].id, reason: '抢功与甲乙方身份反转符合你的要求', matchedMemoryIds: [] }] }));
   assert.ok(html.includes(worlds[1].title)); assert.ok(!html.includes(worlds[0].title));
   assert.ok(html.includes('抢功与甲乙方身份反转符合你的要求'));
-  assert.ok(html.includes('删除记忆：不想复杂解谜'));
+  assert.ok(html.includes('关于我') && !html.includes('删除记忆：不想复杂解谜'));
+  assert.ok(html.indexOf('companion-matches') > html.indexOf('personal-turn'));
   assert.ok(html.includes('我想当众打脸') && html.includes('抢功旧账'));
 });
-test('failed Agent request keeps the entered text visible and marks old matches as old', () => {
+test('failed Agent request preserves input and does not attach unanchored old matches to a new reply', () => {
   const html = renderToStaticMarkup(React.createElement(PersonalAgent, { ...personalProps, message: '改成遗产争夺', error: '本次请求失败', recommendations: [{ worldId: worlds[1].id, reason: '之前的匹配', matchedMemoryIds: [] }] }));
-  assert.ok(html.includes('改成遗产争夺')); assert.ok(html.includes('上次匹配的世界')); assert.ok(html.includes('本次请求失败'));
+  assert.ok(html.includes('改成遗产争夺')); assert.ok(!html.includes('companion-match')); assert.ok(html.includes('本次请求失败'));
 });
 test('recommendations exclude unknown IDs, empty reasons and duplicates, and cap at two', () => {
   const row = (worldId, reason = '符合本次偏好') => ({ worldId, reason, matchedMemoryIds: [] });
@@ -102,8 +104,11 @@ test('mixed gallery preserves both entries and character-only view excludes worl
 test('personal message creation actions and privacy explanation remain available on demand', () => {
   const html = renderToStaticMarkup(React.createElement(PersonalAgent, { ...personalProps, conversation: [{ role: 'user', content: '合成测试消息' }], identityPanel: React.createElement('div', null, '独立虚构身份') }));
   assert.ok(html.includes('<details class="personal-message-actions">') && html.includes('用这条消息开始创作'));
-  assert.ok(html.includes('关于记忆与隐私') && html.includes('不跨设备同步'));
-  assert.ok(html.indexOf('独立虚构身份') > html.indexOf('personal-sidebar'));
+  assert.ok(html.includes('关于我') && !html.includes('独立虚构身份'));
+  const source = readFileSync(new URL('../components/personal-agent.tsx', import.meta.url), 'utf8');
+  assert.ok(source.includes('记忆与隐私') && source.includes('手动保存、恢复私人云存档'));
+  assert.ok(source.indexOf('{identityPanel}') > source.indexOf('<SheetContent'));
+  assert.ok(source.indexOf('{identityPanel}') < source.indexOf('</SheetContent>'));
 });
 test('melodramatic revision changes rules, openings and tasks while preserving independent role goals', () => {
   for (const entry of studioWorlds) {
@@ -238,7 +243,8 @@ test('personal instructions support everyday conversation; creation discussion i
   assert.ok(system.includes('个人 AI 助理'));
   assert.ok(!system.includes('而不是泛用助手'));
   const page = readFileSync(new URL('../app/page.tsx', import.meta.url), 'utf8');
-  assert.ok(page.includes('<aside className="creator-discussion-column">{discussionPanel}</aside>'));
+  assert.ok(!page.includes('<aside className="creator-discussion-column">'));
+  assert.ok(page.indexOf('{discussionPanel}') < page.indexOf('<SheetContent className="flow-drawer creator-settings-drawer"'));
   assert.equal(page.split('{discussionPanel}').length - 1, 1, 'one persistent composer across every step');
   assert.ok(page.includes('setCreatorMessage(seed)'));
 });

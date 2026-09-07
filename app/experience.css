@@ -1,4 +1,4 @@
-/* Approved secondary-page L1 flow. Keep gallery and creation styles untouched. */
+/* Approved secondary-page L1 flow. Gallery styling remains independent. */
 .flow-page { max-width: 1120px; margin: 0 auto; padding: 24px 32px 48px; color: var(--color-text); font: 1rem/1.8 var(--font-ui); letter-spacing: .02em; animation: flow-enter .18s ease-out both; overflow-wrap: anywhere; }
 .flow-page *, .flow-drawer * { box-sizing: border-box; }
 .flow-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 32px; }
@@ -109,6 +109,108 @@
   .flow-composer textarea { flex-basis: 100%; }
   .flow-composer > button { margin-left: auto; }
   [data-slot=sheet-content].flow-drawer { width: 100vw; max-width: none; padding: 16px 16px max(16px, env(safe-area-inset-bottom)); }
+}
+/* One companion, two contexts. Settings only appear on demand. */
+.companion-page, .creation-flow { max-width: 1040px; }
+.companion-page .flow-toolbar, .creation-flow .flow-toolbar { margin-bottom: 16px; }
+.flow-toolbar > h1 { margin: 0; font: 500 1rem/1.8 var(--font-ui); }
+.companion-conversation, .creation-flow > [data-slot=sheet], .creation-flow .creator-agent-panel, .creation-next { width: min(100%, 760px); margin-inline: auto; }
+.companion-conversation { display: flex; flex-direction: column; min-height: min(700px, calc(100dvh - 172px)); }
+.companion-log { flex: 1; max-height: calc(100dvh - 320px); min-height: 240px; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; padding: 8px; }
+.companion-welcome { padding: 56px 16px 48px; text-align: center; }
+.companion-welcome > svg { width: 32px; height: 32px; color: var(--color-primary); margin: 0 auto 20px; }
+.companion-welcome h1 { margin: 0 0 12px; font: 500 2rem/1.7 var(--font-story); }
+.companion-welcome > p { margin: 0 0 28px; color: var(--color-text-secondary); }
+.companion-welcome .personal-starters { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; }
+.companion-welcome .personal-starters > button { min-height: 44px; padding: 10px 14px; border-radius: 24px; background: transparent; }
+.companion-page .personal-turn { margin-bottom: 20px; padding: 16px 12px; border: 0; background: transparent; }
+.companion-page .personal-turn[data-role=user] { width: fit-content; max-width: 88%; margin-left: auto; background: var(--color-surface-hover); border-radius: 18px 18px 4px 18px; }
+.companion-page .personal-turn > p { font-size: 1rem; line-height: 1.9; white-space: pre-wrap; }
+.companion-page .personal-message-actions > summary { display: inline-flex; align-items: center; justify-content: center; width: 44px; min-height: 44px; padding: 0; border-radius: 10px; list-style: none; }
+.companion-page .personal-message-actions > summary:hover { background: var(--color-surface-hover); }
+.companion-page .personal-message-actions > summary::-webkit-details-marker { display: none; }
+.companion-page .personal-composer { margin-top: 16px; flex-shrink: 0; }
+.companion-page .personal-composer textarea { min-height: 88px; max-height: 180px; }
+.companion-resume { display: flex; align-items: center; gap: 8px; width: fit-content; max-width: 100%; min-height: 44px; margin-top: 8px; padding: 8px 12px; background: transparent; border: 0; border-radius: 12px; color: var(--color-text-secondary); font-size: .875rem; cursor: pointer; text-align: left; }
+.companion-resume:hover { background: var(--color-surface-hover); color: var(--color-primary); }
+.companion-resume svg { width: 16px; flex-shrink: 0; }
+.companion-matches { display: grid; gap: 12px; margin: 16px 0 8px; }
+.companion-match { display: grid; grid-template-columns: 100px minmax(0, 1fr); gap: 16px; padding: 14px; background: var(--color-bg-elevated); border: 1px solid var(--color-border); border-radius: 16px; }
+.companion-match > img { width: 100%; height: 136px; object-fit: cover; border-radius: 10px; }
+.companion-match small { color: var(--color-text-muted); font-size: .8125rem; }
+.companion-match h3 { margin: 4px 0; font: 600 1.0625rem/1.7 var(--font-ui); }
+.companion-match p { margin: 0 0 8px; font-size: .875rem; color: var(--color-text-secondary); }
+.companion-match .flow-control { color: var(--color-primary); background: var(--color-agent-soft); }
+.companion-about section { border-bottom: 1px solid var(--color-border); padding-bottom: 20px; }
+.companion-about h2, .companion-page .personal-pending h2 { font: 600 1rem/1.8 var(--font-ui); }
+.companion-page .personal-pending { margin: 20px 0; padding: 12px 16px; background: var(--color-agent-soft); border-radius: 16px; }
+.companion-page .personal-pending article > div { display: flex; gap: 8px; }
+.creation-flow .creator-agent-panel { display: block; padding: 20px 0 0; background: transparent; border: 0; box-shadow: none; }
+.creation-flow .creator-agent-heading { margin-bottom: 20px; }
+.creation-flow .creator-agent-heading strong { font: 500 1.5rem/1.7 var(--font-story); }
+.creation-flow .creator-conversation { min-height: 160px; max-height: 42dvh; margin: 0; padding: 8px 0; overflow-y: auto; }
+.creation-flow .creator-conversation > p { padding: 12px 16px; border: 0; background: transparent; }
+.creation-flow .creator-conversation > p[data-role=user] { margin-left: 12%; background: var(--color-surface-hover); border-radius: 18px 18px 4px 18px; }
+.creation-flow .creator-question-chips { margin: 8px 0; }
+.creation-flow .creator-composer { position: static; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; padding: 16px; margin-top: 16px; border: 1px solid var(--color-border); border-radius: 20px; background: var(--color-bg-elevated); box-shadow: 0 4px 24px rgba(var(--color-ink-rgb), .04); }
+.creation-flow .creator-composer:focus-within { border-color: var(--color-primary); }
+.creation-flow .creator-composer > label { grid-column: 1 / -1; font-size: .8125rem; color: var(--color-text-muted); }
+.creation-flow .creator-composer textarea { grid-column: 1 / -1; width: 100%; min-height: 96px; max-height: 200px; margin: 0; padding: 8px 0; border: 0; background: transparent; box-shadow: none; font: 1rem/1.8 var(--font-ui); }
+.creation-flow .creator-composer > button { grid-column: 2; width: auto; min-height: 44px; margin: 0; }
+.creation-next { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 16px; padding: 0 8px; }
+.creation-next p { margin: 0; font-size: .8125rem; color: var(--color-text-secondary); }
+.creation-next p span { display: block; color: var(--color-text-muted); }
+.creation-next > button { color: var(--color-primary); }
+.creation-proposals > .creator-review { max-height: 40dvh; overflow-y: auto; }
+[data-slot=sheet-content].creator-settings-drawer { width: min(760px, 100vw); max-width: 760px; }
+.creator-settings-drawer .creator-chapters { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 16px; border: 0; }
+.creator-settings-drawer .creator-chapters button { flex: 1 1 140px; min-height: 44px; padding: 8px; white-space: normal; }
+.creator-settings-drawer .creator-editor { display: block; min-width: 0; }
+.creator-settings-drawer :is(.create-card, .creator-framework-panel, .preview-details) { padding: 0; border: 0; background: transparent; box-shadow: none; }
+.creator-settings-drawer .create-card-title { align-items: flex-start; gap: 12px; margin-bottom: 16px; }
+.creator-settings-drawer .create-card-title h2 { font: 600 1.125rem/1.8 var(--font-ui); }
+.creator-settings-drawer .create-card-title p { margin-top: 4px; font-size: .875rem; }
+.creator-settings-drawer .creator-workbench { display: block; }
+.creator-settings-drawer .creation-role { border-bottom: 1px solid var(--color-border); }
+.creation-role > summary { min-height: 52px; padding: 14px 4px; cursor: pointer; font-weight: 600; }
+.creation-role > summary small { margin-left: 12px; color: var(--color-text-secondary); font-weight: 400; }
+.creator-settings-drawer .draft-role { display: grid; grid-template-columns: 100px minmax(0, 1fr); gap: 16px; padding: 16px 0; border: 0; }
+.creator-settings-drawer .draft-role-index { display: none; }
+.creator-settings-drawer .draft-role-image { width: 100%; min-width: 0; }
+.creator-settings-drawer .draft-fields { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+.creator-settings-drawer .full-field { grid-column: auto; }
+.creator-settings-drawer .remove-role { position: static; grid-column: 2; margin-left: auto; min-height: 44px; min-width: 44px; }
+.creator-settings-drawer .create-actions { flex-wrap: wrap; gap: 12px; margin-top: 20px; padding-top: 16px; }
+.creator-settings-drawer .creation-paths { grid-template-columns: minmax(0, 1fr); }
+.creator-settings-drawer .surprise-options { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.creation-preview h2 { font: 600 1.5rem/1.7 var(--font-story); margin: 0 0 12px; }
+.creation-preview > p { margin: 0 0 24px; white-space: pre-wrap; }
+.creation-preview .preview-details h3 { font-size: 1rem; }
+.creation-role-goals { padding: 0; list-style: none; margin: 16px 0 24px; }
+.creation-role-goals li { display: grid; gap: 4px; padding: 12px 0; border-bottom: 1px solid var(--color-border); }
+.creation-role-goals span { color: var(--color-text-secondary); }
+.creation-preview .preview-buttons { display: flex; flex-direction: column; gap: 12px; }
+.creation-preview .preview-buttons small { color: var(--color-text-muted); }
+@media (max-width: 600px) {
+  .companion-page, .creation-flow { padding: 12px 16px 24px; }
+  .companion-page .flow-toolbar, .creation-flow .flow-toolbar { gap: 4px; }
+  .companion-conversation { min-height: 0; }
+  .companion-log { max-height: calc(100dvh - 310px); min-height: 160px; padding: 4px; }
+  .companion-welcome { padding: 36px 4px 24px; }
+  .companion-welcome h1 { font-size: 1.5rem; }
+  .companion-match { grid-template-columns: 64px minmax(0, 1fr); gap: 12px; padding: 12px; }
+  .companion-match > img { height: 96px; }
+  .companion-page .personal-composer-footer { gap: 8px; }
+  .companion-page .personal-composer-footer small { font-size: .7rem; }
+  .creation-flow .creator-agent-heading strong { font-size: 1.25rem; }
+  .creation-flow .creator-conversation { max-height: 34dvh; }
+  .creation-flow .creator-composer { padding: 12px; }
+  .creation-next { flex-wrap: wrap; }
+  .creator-settings-drawer .draft-role { grid-template-columns: minmax(0, 1fr); }
+  .creator-settings-drawer .draft-role-image { max-width: 128px; }
+  .creator-settings-drawer .remove-role { grid-column: 1; }
+  .creator-settings-drawer .condition-grid { grid-template-columns: minmax(0, 1fr); }
+  .creator-settings-drawer .create-card-title { flex-direction: column; }
 }
 @media (prefers-reduced-motion: reduce) {
   .flow-page, .flow-page *, .flow-drawer, .flow-drawer * { animation: none !important; transition: none !important; scroll-behavior: auto !important; }

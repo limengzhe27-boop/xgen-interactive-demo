@@ -42,6 +42,15 @@ export function recommendationReply(reply: string, recommendations: PersonalAgen
   return `${reply}\n\n本次可选世界（按以下编号选择）：\n${recommendations.map((item, index) => `${index + 1}.《${worlds.find((world) => world.id === item.worldId)?.title ?? '暂不可用'}》：${item.reason}`).join('\n')}\n\n可以直接说“第一个”，或点击对应卡片，打开身份选择。`;
 }
 
+// Anchor cards to the canonical persisted recommendation reply, not later chat.
+const recommendationMarker = '\n\n本次可选世界（按以下编号选择）：\n';
+export function recommendationTurnIndex(conversation: { role: string; content: string }[]) {
+  return conversation.findLastIndex((turn) => turn.role === 'assistant' && turn.content.includes(recommendationMarker));
+}
+export function recommendationIntro(content: string) {
+  return content.split(recommendationMarker)[0];
+}
+
 export const personalActionInstructions = `在原有JSON中增加action字段，默认{"type":"none"}。你现在可以申请一个真实的站内操作：{"type":"open-world","worldId":"availableWorldIds中的ID"}，它只打开身份选择，不会开始游戏。用户明确选择或要求进入一本已有世界时才申请；不要在个人聊天里演绎开场、替用户选择角色或声称游戏已经开始。只有查资料、比较、询问、否定或想先聊天时action必须为none。recommendationContext是界面仍展示的最近推荐列表，序号严格按该数组，不可重新排序来解释“第一个”。指代不清时追问，不猜测。推荐时reply简短解释匹配思路，不另列一套编号或书名顺序；界面会根据recommendations显示权威编号。没有合适世界时诚实说明，不虚构可玩世界。申请open-world时recommendations=[]，reply不能声称操作已经完成；客户端在执行成功后会展示结果。`;
 
 export function guardPersonalAction(output: PersonalAgentResponse, userMessage: string, worldIds: string[]): PersonalAgentResponse {
