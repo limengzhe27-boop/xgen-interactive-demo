@@ -139,6 +139,25 @@ async function mockedPersonal(recommendedId, action, userMessage = '换一个') 
     if (previousKey === undefined) delete process.env.DEEPSEEK_API_KEY; else process.env.DEEPSEEK_API_KEY = previousKey;
   }
 }
+test('persona design endpoint strips private extras before model input and rejects malformed requests without a call', async () => {
+  const previousFetch = globalThis.fetch;
+  const previousKey = process.env.DEEPSEEK_API_KEY;
+  process.env.DEEPSEEK_API_KEY = 'synthetic-test-only';
+  const draft = { name: '游侠', identity: '虚构成年人', personality: '好奇', appearance: '黑发', abilities: '解读机关' };
+  let sent; let calls = 0;
+  globalThis.fetch = async (_url, init) => { calls++; sent = JSON.parse(init.body); return Response.json({ choices: [{ message: { content: JSON.stringify({ reply: '待你确认', proposal: { ...draft, ownerId: 'forged', portraitUrl: 'https://invalid.example' } }) } }] }); };
+  try {
+    const request = input => new Request('http://localhost/api/ai', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ operation: 'design-persona', input }) });
+    const input = { contractVersion: '2026-09-04.v2', message: '构思虚构游侠', draft, conversation: [], currentMemories: ['PRIVATE_SENTINEL'], ownerId: 'forged' };
+    const response = await POST(request(input));
+    assert.equal(response.status, 200);
+    assert.equal(calls, 1);
+    assert.ok(!JSON.stringify(sent).includes('PRIVATE_SENTINEL'));
+    assert.deepEqual(await response.json(), { reply: '待你确认', proposal: draft });
+    const invalid = await POST(request({ ...input, draft: {} }));
+    assert.equal(invalid.status, 400); assert.equal(calls, 1);
+  } finally { globalThis.fetch = previousFetch; if (previousKey === undefined) delete process.env.DEEPSEEK_API_KEY; else process.env.DEEPSEEK_API_KEY = previousKey; }
+});
 test('personal endpoint forwards recent context to the model without a real network call', async () => {
   const result = await mockedPersonal('fixture');
   assert.equal(result.response.status, 200); assert.equal(result.calls, 1);

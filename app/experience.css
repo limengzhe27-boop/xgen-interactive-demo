@@ -212,6 +212,54 @@
   .creator-settings-drawer .condition-grid { grid-template-columns: minmax(0, 1fr); }
   .creator-settings-drawer .create-card-title { flex-direction: column; }
 }
+.persona-designer { padding: 16px 0; }
+.persona-designer h3 { display: flex; align-items: center; gap: 8px; font: 600 1rem/1.8 var(--font-ui); }
+.persona-designer h3 svg { width: 20px; color: var(--color-primary); }
+.persona-designer :is(p, dd, textarea) { font-size: 1rem; line-height: 1.8; }
+.persona-designer > p, .persona-designer small { color: var(--color-text-secondary); }
+.persona-designer form { display: grid; gap: 12px; }
+.persona-designer textarea { width: 100%; min-height: 100px; padding: 12px; border: 1px solid var(--color-border); border-radius: 12px; background: var(--color-bg-elevated); }
+.persona-designer form > div { display: flex; gap: 8px; }
+.persona-designer button[type=submit], .persona-suggestion > button { background: var(--color-agent-soft); color: var(--color-primary); }
+.persona-designer [role=alert] { color: var(--color-danger); }
+.persona-design-log { max-height: 280px; overflow-y: auto; }
+.persona-design-log p { white-space: pre-wrap; padding: 8px; margin: 8px 0; }
+.persona-design-log p[data-role=user] { background: var(--color-surface-hover); border-radius: 12px; }
+.persona-design-log small { display: block; font-size: .8125rem; }
+.persona-suggestion { margin: 12px 0 20px; padding: 12px; border-left: 2px solid var(--color-primary); }
+.persona-suggestion summary, .persona-manual > summary { cursor: pointer; min-height: 44px; padding-block: 10px; }
+.persona-suggestion dl { margin: 12px 0; }
+.persona-suggestion dt { font-size: .8125rem; color: var(--color-text-muted); }
+.persona-suggestion dd { margin: 0 0 12px; white-space: pre-wrap; }
+.persona-suggestion > p { font-size: .875rem; }
+.persona-manual .persona-fields { grid-template-columns: minmax(0, 1fr); }
+.persona-manual .persona-actions { flex-wrap: wrap; }
+.meeting-entry { letter-spacing: .02em; }
+.meeting-entry .studio-target { gap: 16px; }
+.meeting-entry .studio-target img { width: 72px; height: 88px; border-radius: 14px; object-fit: cover; }
+.meeting-entry .studio-target p { margin: 4px 0; font-size: .9375rem; }
+.meeting-identities { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; border: 0; }
+.meeting-identities legend { margin-bottom: 12px; }
+.meeting-context p { margin: 4px 0 12px; }
+.meeting-context small { color: var(--color-text-muted); }
+.meeting-start { min-height: 48px; width: 100%; white-space: normal; }
+.meeting-chat .studio-chat-heading { gap: 12px; margin-bottom: 24px; }
+.meeting-chat .studio-chat-heading > img { width: 48px; height: 56px; border-radius: 10px; }
+.meeting-chat .studio-chat-heading h1 { font-size: 1.25rem; }
+.meeting-chat .studio-chat-heading p { font-size: .875rem; }
+.meeting-chat .studio-chat-prologue { padding: 12px 0 24px; border: 0; border-bottom: 1px solid var(--color-border); border-radius: 0; background: transparent; font: 1.0625rem/1.9 var(--font-story); }
+.meeting-chat .studio-chat-composer { padding: 16px; border: 1px solid var(--color-border); background: var(--color-bg-elevated); border-radius: 18px; }
+.meeting-chat .studio-chat-composer label { font-size: .8125rem; color: var(--color-text-secondary); }
+.meeting-chat .studio-chat-composer textarea { border: 0; min-height: 88px; padding: 8px 0; background: transparent; box-shadow: none; }
+.meeting-chat .studio-chat-composer button { align-self: flex-end; min-height: 44px; }
+.meeting-scene { width: 100%; max-height: 280px; object-fit: cover; border-radius: 16px; }
+@media (max-width: 600px) {
+  [data-slot=dialog-content].meeting-entry { width: calc(100vw - 24px); padding: 16px; gap: 12px; }
+  .meeting-entry .studio-target p:last-child { display: none; }
+  .meeting-entry .studio-target img { width: 60px; height: 72px; }
+  .meeting-entry .meeting-context p { font-size: .9375rem; }
+  .meeting-chat { padding: 12px 16px 32px; }
+}
 @media (prefers-reduced-motion: reduce) {
   .flow-page, .flow-page *, .flow-drawer, .flow-drawer * { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
 }

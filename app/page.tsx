@@ -2343,7 +2343,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
   const screen = renderScreen();
 
   return (
-    <main className="studio-frame" data-focused-flow={view === 'roles' || view === 'play' || view === 'personal' || view === 'create'}>
+    <main className="studio-frame" data-focused-flow={view === 'roles' || view === 'play' || view === 'personal' || view === 'create' || view === 'chat'}>
       <StudioNav section={view} onNavigate={navigate} onCreate={newCreator} />
       <AccountBar workspaceControls={['home', 'library', 'personal', 'characters'].includes(view) && <CloudWorkspace accountScope={accountScope} disabled={!storageReady || storageReadFailed.current || agentThinking || creatorAgentThinking || worldGenerating} />} />
       {companionHandoff && <CompanionHandoff seed={companionHandoff.seed} conversation={agentConversation} memoryCount={memories.length} onClose={() => setCompanionHandoff(null)} onConfirm={(seed, context) => {

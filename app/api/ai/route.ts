@@ -13,11 +13,13 @@ import { enforceWorldTurnGuardrails, makeRejectedWorldTurn } from '@/lib/world-a
 import { validateAction } from '@/lib/world-state';
 import { visibleSystem } from '@/lib/world-system';
 import { personaAdaptationInstructions, readPersonaAdaptationRequest, readPersonaAdaptationSuggestion } from '@/lib/persona-adaptation';
+import { personaDesignInstructions, readPersonaDesignInput, readPersonaDesignReply } from '@/lib/persona-design';
 
-type Operation = 'personal-agent' | 'co-create-world' | 'generate-world' | 'advance-world' | 'adapt-persona';
+type Operation = 'personal-agent' | 'co-create-world' | 'generate-world' | 'advance-world' | 'adapt-persona' | 'design-persona';
 type DeepSeekProvider = { apiKey: string; endpoint: string; model: string };
 
 const operationInstructions: Record<Operation, string> = {
+  'design-persona': personaDesignInstructions,
   'adapt-persona': personaAdaptationInstructions,
   'personal-agent': `你是用户的个人 AI 助理，也是可以自然聊天的伙伴。先回应用户当前真正关心的事：日常近况、感受、认识自己、整理计划、讨论问题、创作想法，或寻找故事。不要把每次聊天都转成剧情推荐或给用户贴心理标签。倾听时自然回应，做事时提供具体可执行的帮助，信息不足最多追问一个关键问题，不机械列清单。你是 AI，不假装真人、独占关系或声称执行了尚未具备的日历、提醒、搜索等外部工具操作。结合 conversation 和 currentMemories 接续交流；记忆可能过期，以用户最新说法为准。只从本轮用户明确自述的新信息提取至多四项值得长期记住的兴趣、目标、交流方式或普通个人背景，source=explicit、requiresConfirmation=true；不采集临时情绪、虚构角色资料或旧对话中已经删除的记忆，不推断性别、疾病等敏感特征，不提取联系方式、证件、财务、健康或公司机密。候选尚未保存，必须表述为等待用户确认，不能说已经记住。普通聊天或讨论创作时 recommendations=[]，不要强行导流。只有用户想找故事或明确要求推荐时，才阅读 availableWorlds 推荐最多两个真实匹配项，解释关系冲突与可争取的目标，不剧透秘密或结局，不凭空创造可玩世界。喜欢狗血时可匹配替身、追悔、抢功、复仇、争产、身份反转。候选不匹配就诚实说明。讨论创作时先一起想角色、关系、目标和困难；用户可主动把某一条消息带入创作，不要把个人记忆自动编入公开剧情。输出 JSON：
 {"reply":"自然、具体的中文回复","memoryCandidates":[{"id":"memory-id","category":"profile|interest|goal|communication|genre|tone|character|interaction|surprise","value":"本轮明确自述的持久信息","confidence":1,"source":"explicit","requiresConfirmation":true}],"recommendations":[{"worldId":"输入中存在的世界ID","reason":"推荐理由","matchedMemoryIds":[]}]}`,
@@ -49,10 +51,11 @@ function getDeepSeekProvider(): DeepSeekProvider | null {
 }
 
 function isOperation(value: unknown): value is Operation {
-  return value === 'personal-agent' || value === 'co-create-world' || value === 'generate-world' || value === 'advance-world' || value === 'adapt-persona';
+  return value === 'personal-agent' || value === 'co-create-world' || value === 'generate-world' || value === 'advance-world' || value === 'adapt-persona' || value === 'design-persona';
 }
 
 function isValidOutput(operation: Operation, value: unknown) {
+  if (operation === 'design-persona') return !!readPersonaDesignReply(value);
   if (operation === 'adapt-persona') return true; // Validated against the exact request policy below.
   if (operation === 'personal-agent') return isPersonalAgentResponse(value);
   if (operation === 'co-create-world') return isCreatorAgentResponse(value);
@@ -142,6 +145,11 @@ async function handlePost(request: Request) {
   }
 
   const adaptationInput = body.operation === 'adapt-persona' ? readPersonaAdaptationRequest(body.input) : null;
+  if (body.operation === 'design-persona') {
+    const designInput = readPersonaDesignInput(body.input);
+    if (!designInput) return Response.json({ error: 'invalid_persona_design_request' }, { status: 400 });
+    body.input = designInput;
+  }
   if (body.operation === 'adapt-persona') {
     if (!adaptationInput) return Response.json({ error: 'invalid_adaptation_request' }, { status: 400 });
     body.input = adaptationInput;
@@ -161,11 +169,11 @@ async function handlePost(request: Request) {
   if (!provider) return Response.json({ error: 'model_not_configured' }, { status: 503 });
   const startedAt = Date.now();
   try {
-    const output = await callDeepSeek(provider, body.operation, body.input, body.operation === 'advance-world' ? 35_000 : body.operation === 'adapt-persona' ? 25_000 : undefined);
+    const output = await callDeepSeek(provider, body.operation, body.input, body.operation === 'advance-world' ? 35_000 : body.operation === 'adapt-persona' || body.operation === 'design-persona' ? 25_000 : undefined);
     if (body.operation !== 'advance-world' && !isValidOutput(body.operation, output)) {
       return Response.json({ error: 'invalid_model_output' }, { status: 502 });
     }
-    let guardedOutput = output;
+    let guardedOutput = body.operation === 'design-persona' ? readPersonaDesignReply(output) : output;
     if (adaptationInput) {
       const suggestion = readPersonaAdaptationSuggestion(output, adaptationInput);
       if (!suggestion) return Response.json({ error: 'invalid_adaptation_suggestion' }, { status: 502 });

@@ -1,10 +1,11 @@
 'use client';
 /* oxlint-disable next/no-img-element -- generated portrait and scene assets */
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, LoaderCircle, RefreshCw, Send } from 'lucide-react';
+import { ArrowLeft, LoaderCircle, RefreshCw, Send, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { MessageTextarea } from '@/components/message-textarea';
-import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogTitle, DialogDescription, DialogClose } from '@/components/ui/dialog';
+import { Sheet, SheetTrigger, SheetContent, SheetTitle, SheetDescription, SheetClose } from '@/components/ui/sheet';
 import { createRemoteAIAdapter } from '@/lib/remote-ai-adapter';
 import { generateSceneImage } from '@/lib/remote-image-service';
 import { shouldGenerateImage } from '@/lib/image-policy';
@@ -32,15 +33,14 @@ export function CharacterEntry({ entry, targetId, persona = null, onClose, onSta
         openingLocationId: target.startLocationId, characterLocations: Object.fromEntries(meeting.world.characters.map((role) => [role.id, role.startLocationId])) });
     onStart({ id, entry: meeting, playerRoleId: playerId, targetCharacterId: targetId, state, narrative: meeting.world.openingScene.narrative, turns: [], savedAt });
   }
-  return <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}><DialogContent className="studio-identity-dialog">
-    <DialogTitle>和 {target.name} 聊聊</DialogTitle>
-    <DialogDescription>{entry.title} · 先确认你们的身份。这段会面独立保存，不改变已有探索。</DialogDescription>
-    {entry.artNote && <small>{entry.artNote}</small>}
+  return <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}><DialogContent className="studio-identity-dialog meeting-entry" showCloseButton={false}>
+    <div className="flow-drawer-heading"><DialogTitle>和 {target.name} 聊聊</DialogTitle><DialogClose className="flow-control" aria-label="关闭身份确认"><X /></DialogClose></div>
+    <DialogDescription>{entry.title}</DialogDescription>
     <div className="studio-target"><img src={entry.portraits[targetId] || entry.cover} alt={target.name} /><div><strong>{target.name}</strong><p>{target.identity}</p><p>{target.persona}</p></div></div>
-    <fieldset className="studio-identity-options"><legend>你以谁的身份与 TA 对话？</legend>{others.map((role) => <label key={role.id} htmlFor={`identity-${role.id}`}><input id={`identity-${role.id}`} aria-label={`以${role.name}的身份对话`} type="radio" name="chat-identity" value={role.id} checked={playerId === role.id} onChange={() => setPlayerId(role.id)} /><span><strong>{role.name}</strong><small>{role.identity}</small></span></label>)}</fieldset>
-    <p className="studio-identity-summary">你是 {player?.name} · 对方是 {target.name}<br />你们的关系：{relationship?.publicLabel ?? '同一世界中的人物'}</p>
-    <Button className="studio-button" disabled={!player} onClick={() => start(Date.now(), crypto.randomUUID())}>以 {player?.name} 的身份开始对话<Send /></Button>
-    <PersonaAdmission key={playerId} entry={entry} roleId={playerId} persona={persona} onEnter={adapted => start(Date.now(), crypto.randomUUID(), adapted)} />
+    <fieldset className="meeting-identities"><legend>这次，你是谁？</legend>{others.map((role) => <button className="flow-control flow-role-option" type="button" key={role.id} aria-pressed={playerId === role.id} onClick={() => setPlayerId(role.id)}>{role.name}</button>)}</fieldset>
+    <div className="meeting-context"><strong>你是 {player?.name} · {player?.identity}</strong><p>{relationship?.publicLabel ?? '同一世界中的人物'}</p><small>你的目标</small><p>{player?.goal || selectRoleGoal(entry.world, playerId)?.title || '从这次会面开始，决定你的下一步。'}</p></div>
+    <Button className="primary-action meeting-start" disabled={!player} onClick={() => start(Date.now(), crypto.randomUUID())}>以 {player?.name} 的身份开始对话<Send /></Button>
+    <details className="flow-disclosure"><summary>自带身份与会面说明</summary><p>{target.name} · {target.persona}</p><p>这段会面独立保存，不改变已有探索。</p>{entry.artNote && <p>{entry.artNote}</p>}<PersonaAdmission key={playerId} entry={entry} roleId={playerId} persona={persona} onEnter={adapted => start(Date.now(), crypto.randomUUID(), adapted)} /></details>
   </DialogContent></Dialog>;
 }
 
@@ -115,11 +115,12 @@ export function CharacterChat({ initial, accountScope, onSave, onBack }: { initi
     finally { if (!aborter.signal.aborted) { setBusy(false); controller.current = null; } }
   }
 
-  return <div className="studio-chat">
-    <button className="studio-text-button" onClick={onBack} type="button"><ArrowLeft />返回世界工作台</button>
+  return <div className="flow-page meeting-chat"><Sheet>
+    <header className="flow-toolbar"><button className="flow-control" onClick={onBack} type="button"><ArrowLeft />返回</button><span>独立会面</span><SheetTrigger className="flow-control">会面资料</SheetTrigger></header>
+    <SheetContent className="flow-drawer" showCloseButton={false}><div className="flow-drawer-heading"><SheetTitle>会面资料</SheetTitle><SheetClose className="flow-control" aria-label="关闭会面资料"><X /></SheetClose></div><SheetDescription>{session.entry.title} · 这份会面不改变已有探索。</SheetDescription><p>你是 {player.name} · {player.identity}</p><p>目标：{selectRoleGoal(session.entry.world, player.id)?.title || player.goal}</p>{session.entry.world.entryAdmission && <p>额外能力：{session.entry.world.entryAdmission.grantedAbilities.join('；') || '仅剧情身份原有能力'}</p>}<img className="meeting-scene" src={image} alt="当前会面参考插图" /><p>{session.state.location}</p><small>{imageState || session.entry.artNote || '普通对话复用画面，关键变化时更新。'}</small><button className="flow-control" type="button" onClick={() => void makeImage(`${session.entry.world.title}。${session.narrative}。${target.imagePrompt}。电影感场景，无文字，无水印。`, session)} disabled={busy || imageState.startsWith('正在')}><RefreshCw />{imageState.includes('失败') ? '重试场景图' : '生成场景图（可选）'}</button><p>手动生成会调用生图服务并产生费用，打开资料不会生成图片。</p></SheetContent>
+    <div className="flow-reading">
     <header className="studio-chat-heading"><img src={session.entry.portraits[target.id] || session.entry.cover} alt={target.name} /><div><small>{session.entry.title}</small><h1>与 {target.name} 的对话</h1><p>你是 {player.name} · {player.identity}</p></div></header>
-    {session.entry.world.entryAdmission && <p className="persona-runtime">自带身份独立会面 · 额外能力：{session.entry.world.entryAdmission.grantedAbilities.join('；') || '无，仅剧情身份原有能力'}</p>}
-    <div className="studio-chat-layout"><section className="studio-chat-reading" aria-label="对话记录">
+    <section className="studio-chat-reading" aria-label="对话记录">
       <p className="studio-chat-prologue">{session.entry.world.openingScene.narrative}</p>
       {session.turns.map((turn, index) => <article className="studio-chat-turn" key={index}>
         <div className="studio-chat-user"><small>{player.name} · 你</small><p>{turn.action}</p></div>
@@ -134,7 +135,7 @@ export function CharacterChat({ initial, accountScope, onSave, onBack }: { initi
         {error && <p role="alert">{error}</p>}
         <Button className="studio-button" type="submit" disabled={busy || !input.trim()}>{busy ? <><LoaderCircle className="spin" />正在回应</> : <><Send />发送</>}</Button>
       </form>
-      <div className="studio-chat-suggestions">{session.turns.at(-1)?.response.nextChoices.map((choice) => <button className="studio-filter" key={choice.id} type="button" disabled={busy} onClick={() => setInput(choice.label)}>{choice.label}</button>)}</div>
-    </section><aside className="studio-chat-scene"><img src={image} alt="当前故事插图" /><p>{session.state.location}</p><small>{imageState || '节省生图 · 普通对话复用画面，关键变化时更新（至少间隔 3 轮）'}</small><button className="studio-button" type="button" onClick={() => void makeImage(`${session.entry.world.title}。${session.narrative}。${target.imagePrompt}。电影感场景，无文字，无水印。`, session)} disabled={busy || imageState.startsWith('正在')}><RefreshCw />{imageState.includes('失败') ? '重试场景图' : '按需生成场景图'}</button></aside></div>
+      {!!session.turns.at(-1)?.response.nextChoices.length && <details className="flow-disclosure"><summary>给我一点对话灵感</summary><div className="studio-chat-suggestions">{session.turns.at(-1)?.response.nextChoices.map((choice) => <button className="studio-filter" key={choice.id} type="button" disabled={busy} onClick={() => { setInput(choice.label); document.getElementById('chat-input')?.focus(); }}>{choice.label}</button>)}</div></details>}
+    </section></div></Sheet>
   </div>;
 }
