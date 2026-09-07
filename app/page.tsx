@@ -28,6 +28,8 @@ import { Button } from '@/components/ui/button';
 import { StudioHome, StudioNav } from '@/components/studio-home';
 import { AccountBar, PublishWorldDialog } from '@/components/account-publication';
 import { AccountBoundary } from '@/components/account-boundary';
+import { CloudWorkspace } from '@/components/cloud-workspace';
+import { applyPendingWorkspace, restoredImage, workspaceKeys } from '@/lib/cloud-workspace';
 import { accountStorageKey } from '@/lib/account-scope';
 import { PersonalAgent } from '@/components/personal-agent';
 import { CompanionHandoff, CompanionContextPanel } from '@/components/companion-handoff';
@@ -911,8 +913,13 @@ export default function Home() {
 function WorldStudio({ accountScope }: { accountScope: string }) {
   const demoStorageKey = accountScope === 'pending' ? '' : accountStorageKey('xgen-small-world-demo-v1', accountScope);
   const studioStorageKey = accountScope === 'pending' ? '' : accountStorageKey('xgen-worldstudio-v1', accountScope);
-  const getCachedSceneImage = (key: string) => readImage(key, accountScope);
-  const cacheSceneImage = (key: string, url: string) => cacheImage(key, url, accountScope);
+  const getCachedSceneImage = (key: string) => Promise.resolve(restoredImage(window.localStorage, accountScope, key)).then(url => url || readImage(key, accountScope));
+  const cacheSceneImage = (key: string, url: string) => {
+    if (accountScope !== 'guest' && accountScope !== 'pending') {
+      try { const storageKey = workspaceKeys(accountScope).images; const refs = JSON.parse(localStorage.getItem(storageKey) || '{}'); if (/^\/api\/image\/asset\/[a-f0-9]{64}$/.test(url)) refs[key] = url; else delete refs[key]; localStorage.setItem(storageKey, JSON.stringify(refs)); } catch { /* IndexedDB remains the primary cache. */ }
+    }
+    return cacheImage(key, url, accountScope);
+  };
   const remoteAIAdapter = createRemoteAIAdapter(accountScope);
   const [view, setView] = useState<View>('home');
   const [playerPersona, setPlayerPersona] = useState<PlayerPersona | null>(null);
@@ -1112,6 +1119,8 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
   useEffect(() => {
     const timer = window.setTimeout(() => {
       if (accountScope === 'pending') return;
+      try { applyPendingWorkspace(window.localStorage, accountScope); }
+      catch { storageReadFailed.current = true; setStorageError('云存档恢复未完成，恢复前备份与原始数据已保留；请勿清除浏览器数据。'); setStorageReady(true); return; }
       try {
         const raw = window.localStorage.getItem(demoStorageKey);
         if (raw) {
@@ -2330,7 +2339,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
   return (
     <main className="studio-frame">
       <StudioNav section={view} onNavigate={navigate} onCreate={newCreator} />
-      <AccountBar />
+      <AccountBar workspaceControls={['home', 'library', 'personal', 'characters'].includes(view) && <CloudWorkspace accountScope={accountScope} disabled={!storageReady || storageReadFailed.current || agentThinking || creatorAgentThinking || worldGenerating} />} />
       {companionHandoff && <CompanionHandoff seed={companionHandoff.seed} conversation={agentConversation} memoryCount={memories.length} onClose={() => setCompanionHandoff(null)} onConfirm={(seed, context) => {
         if (worldGenerating || creatorAgentThinking) { setStorageError('请等当前创作回应结束后再新建。'); return; }
         creatorKickoff.current = seed || '接着我们的讨论，一起想一个小世界的角色、关系和目标。';

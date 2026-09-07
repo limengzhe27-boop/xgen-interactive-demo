@@ -90,3 +90,12 @@ export async function getCachedSceneImage(key: string, scope = 'guest'): Promise
     database.close();
   }
 }
+
+export async function exportCloudImageReferences(scope: string): Promise<Record<string, string>> {
+  const database = await openDatabase(scope);
+  try {
+    const request = database.transaction(STORE_NAME, 'readonly').objectStore(STORE_NAME).getAll();
+    const entries = await new Promise<CachedSceneImage[]>((resolve, reject) => { request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error); });
+    return Object.fromEntries(entries.filter(row => /^\/api\/image\/asset\/[a-f0-9]{64}$/.test(row.assetUrl)).map(row => [row.key, row.assetUrl]));
+  } finally { database.close(); }
+}

@@ -1,13 +1,13 @@
 'use client';
 /* eslint-disable next/no-html-link-for-pages -- OAuth route must use a full navigation, never client prefetch. */
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { LogIn, LogOut, Upload, LoaderCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import type { StudioWorld } from '@/lib/studio-worlds';
 
 type Account = { configured: boolean; canPublish?: boolean; provider?: string; user: { id: string; name: string } | null };
-export function AccountBar() {
+export function AccountBar({ workspaceControls }: { workspaceControls?: ReactNode }) {
   const [account, setAccount] = useState<Account | null>(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -33,7 +33,8 @@ export function AccountBar() {
     } catch { setError('退出未完成，请重试。'); } finally { setBusy(false); }
   }
   return <aside className="account-bar" aria-label="账号">
-    <span>{account?.user ? `${account.user.name} · 独立本机空间，尚未云同步` : '游客体验 · 草稿与聊天仅在本机'}</span>
+    <span>{account?.user ? `${account.user.name} · 本机优先，云存档需手动保存` : '游客体验 · 草稿与聊天仅在本机'}</span>
+    {account?.user && workspaceControls}
     {account?.user ? <Button variant="outline" disabled={busy} onClick={signOut}><LogOut />退出账号</Button>
       : account?.configured ? <a className="studio-button" href="/auth/login"><LogIn />使用 {account.provider === 'google' ? 'Google' : 'GitHub'} 登录</a>
         : <span className="account-hint">{account ? '账号登录尚未开放' : '正在检查账号'}</span>}
