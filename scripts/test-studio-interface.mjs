@@ -10,6 +10,12 @@ import { renderToStaticMarkup } from 'react-dom/server';
 const root = fileURLToPath(new URL('../', import.meta.url));
 registerHooks({
   resolve(specifier, context, next) {
+    if (specifier.startsWith('.') && context.parentURL?.startsWith('file:')) {
+      for (const suffix of ['.tsx', '.ts']) {
+        const url = new URL(specifier + suffix, context.parentURL);
+        if (existsSync(url)) return next(url.href, context);
+      }
+    }
     if (specifier.startsWith('@/')) {
       const path = root + specifier.slice(2);
       for (const suffix of ['.tsx', '.ts']) if (existsSync(path + suffix)) return next(pathToFileURL(path + suffix).href, context);
@@ -101,14 +107,22 @@ test('mixed gallery preserves both entries and character-only view excludes worl
   assert.ok(roleOnly.includes('和苏晚聊聊') && !roleOnly.includes('data-kind="world"'));
   assert.ok(!roleOnly.includes('gallery-composer-anchor'));
 });
-test('personal message creation actions and privacy explanation remain available on demand', () => {
+test('identity is visible above conversation while memory and message actions stay on demand', () => {
   const html = renderToStaticMarkup(React.createElement(PersonalAgent, { ...personalProps, conversation: [{ role: 'user', content: '合成测试消息' }], identityPanel: React.createElement('div', null, '独立虚构身份') }));
   assert.ok(html.includes('<details class="personal-message-actions">') && html.includes('用这条消息开始创作'));
-  assert.ok(html.includes('关于我') && !html.includes('独立虚构身份'));
+  assert.ok(html.includes('关于我') && html.includes('独立虚构身份'));
+  assert.ok(html.indexOf('独立虚构身份') < html.indexOf('companion-conversation'));
   const source = readFileSync(new URL('../components/personal-agent.tsx', import.meta.url), 'utf8');
   assert.ok(source.includes('记忆与隐私') && source.includes('手动保存、恢复私人云存档'));
-  assert.ok(source.indexOf('{identityPanel}') > source.indexOf('<SheetContent'));
-  assert.ok(source.indexOf('{identityPanel}') < source.indexOf('</SheetContent>'));
+  assert.ok(source.indexOf('{identityPanel}') > source.indexOf('</SheetContent>'));
+});
+test('identity shortcut exposes create or edit directly without requesting an image', async () => {
+  const { PersonaControl } = await import('../components/player-persona.tsx');
+  const base = { accountScope: 'guest', onSave: () => false };
+  const empty = renderToStaticMarkup(React.createElement(PersonaControl, { ...base, value: null }));
+  assert.ok(empty.includes('创建我的形象') && !empty.includes('<img'));
+  const saved = renderToStaticMarkup(React.createElement(PersonaControl, { ...base, value: { name: '合成角色', portraitUrl: '/test-portrait.webp' } }));
+  assert.ok(saved.includes('编辑我的形象：合成角色') && saved.includes('/test-portrait.webp'));
 });
 test('melodramatic revision changes rules, openings and tasks while preserving independent role goals', () => {
   for (const entry of studioWorlds) {

@@ -115,7 +115,21 @@
 .companion-page .flow-toolbar, .creation-flow .flow-toolbar { margin-bottom: 16px; }
 .flow-toolbar > h1 { margin: 0; font: 500 1rem/1.8 var(--font-ui); }
 .companion-conversation, .creation-flow > [data-slot=sheet], .creation-flow .creator-agent-panel, .creation-next { width: min(100%, 760px); margin-inline: auto; }
-.companion-conversation { display: flex; flex-direction: column; min-height: min(700px, calc(100dvh - 172px)); }
+.companion-conversation { display: flex; flex-direction: column; min-height: min(620px, calc(100dvh - 252px)); }
+.companion-identity { width: min(100%, 760px); margin: 0 auto 16px; }
+.persona-shortcut { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 64px; padding: 10px 16px; border: 1px solid var(--color-border); border-radius: 14px; background: var(--color-surface); color: var(--color-text); text-align: left; cursor: pointer; transition: background-color .16s, border-color .16s; }
+.persona-shortcut:hover { background: var(--color-surface-hover); border-color: var(--color-text-secondary); }
+.persona-shortcut:active { background: var(--color-agent-soft); }
+.persona-shortcut:focus-visible { outline: 2px solid var(--color-agent); outline-offset: 3px; }
+.persona-shortcut > img { width: 40px; height: 44px; object-fit: cover; border-radius: 8px; }
+.persona-shortcut > svg { width: 24px; height: 24px; flex-shrink: 0; color: var(--color-agent); }
+.persona-shortcut > svg:last-child { margin-left: auto; width: 18px; }
+.persona-shortcut > span { display: grid; min-width: 0; }
+.persona-shortcut small { font-size: .8125rem; color: var(--color-text-secondary); }
+.persona-shortcut strong { font-size: 1rem; overflow-wrap: anywhere; }
+.persona-drawer.flow-drawer { max-width: 620px !important; }
+.persona-drawer .persona-editor > summary[hidden] { display: none; }
+.persona-drawer .persona-editor { border: 0; padding: 0; }
 .companion-log { flex: 1; max-height: calc(100dvh - 320px); min-height: 240px; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; padding: 8px; }
 .companion-welcome { padding: 56px 16px 48px; text-align: center; }
 .companion-welcome > svg { width: 32px; height: 32px; color: var(--color-primary); margin: 0 auto 20px; }

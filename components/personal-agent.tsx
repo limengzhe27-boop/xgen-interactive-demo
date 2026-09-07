@@ -35,11 +35,11 @@ export function PersonalAgent({ identityPanel, message, conversation, busy, erro
         <div className="flow-drawer-heading"><SheetTitle>关于我</SheetTitle><SheetClose className="flow-control" aria-label="关闭关于我"><X /></SheetClose></div>
         <SheetDescription>你决定让我记住什么，也可以随时删除。</SheetDescription>
         <section className="personal-memories"><h2>已经认识的你</h2><div className="personal-memory-list">{memories.map((memory) => <button type="button" className="studio-button" key={memory} disabled={busy} onClick={() => onRemoveMemory(memory)} aria-label={'删除记忆：' + memory}>{memory}<X /></button>)}</div>{!memories.length && <p className="personal-empty">还没有确认的记忆。聊到值得记住的事时，我会先问你。</p>}</section>
-        {identityPanel}
         {recommendations.length > 0 && <details className="flow-disclosure"><summary>上次推荐的世界</summary>{matches}</details>}
         <details className="personal-privacy"><summary>记忆与隐私</summary><p>点击已保存的记忆可删除。记忆和最近 40 条对话默认只存在此浏览器；登录后可在账号栏手动保存、恢复私人云存档。每次回复会将已确认记忆、最近 8 条私聊及当前作品摘要和最近 4 条创作讨论发给 DeepSeek。请勿输入机密资料。</p><p>进入创作前可选择带入的消息，以及是否参考已确认记忆。私有上下文不直接写入公开作品；模型建议仍需你审阅。选择世界后先确认身份，不自动开始游戏。</p></details>
       </SheetContent>
     </Sheet>
+    <div className="companion-identity">{identityPanel}</div>
     <section className="companion-conversation" aria-label="与个人 Agent 对话">
       <div className="companion-log" ref={log} role="log" aria-live="polite" aria-busy={busy} onScroll={(event) => { const el = event.currentTarget; nearBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 100; }}>
         {!conversation.length && <div className="companion-welcome"><Sparkles /><h1>不必先有一个问题。</h1><p>聊聊今天，理一理想法。<br />也可以一起，创造另一种人生。</p><div className="personal-starters">{[

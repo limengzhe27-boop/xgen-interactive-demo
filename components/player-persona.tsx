@@ -1,7 +1,8 @@
 'use client';
 /* oxlint-disable next/no-img-element -- account-owned generated portrait */
 import { useEffect, useRef, useState } from 'react';
-import { ChevronDown, UserRound, Sparkles, LoaderCircle } from 'lucide-react';
+import { ChevronDown, UserRound, Sparkles, LoaderCircle, ArrowRight, X } from 'lucide-react';
+import { Sheet, SheetTrigger, SheetContent, SheetTitle, SheetDescription, SheetClose } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -13,11 +14,23 @@ import { admitPersona, personaEntryProblem, restoreEntryPolicy, type PlayerPerso
 import type { StudioWorld } from '@/lib/studio-worlds';
 import { PersonaDesigner } from '@/components/persona-designer';
 
-export function PersonaEditor({ value, accountScope, onSave }: { value: PlayerPersona | null; accountScope: string; onSave: (value: PlayerPersona) => boolean }) {
+type PersonaEditorProps = { value: PlayerPersona | null; accountScope: string; onSave: (value: PlayerPersona) => boolean };
+export function PersonaControl(props: PersonaEditorProps) {
+  return <Sheet><SheetTrigger className="persona-shortcut" aria-label={props.value ? `编辑我的形象：${props.value.name}` : '创建我的形象'}>
+    {props.value?.portraitUrl ? <img src={props.value.portraitUrl} alt="" /> : <UserRound aria-hidden="true" />}
+    <span><small>我的形象</small><strong>{props.value?.name || '创建我的形象'}</strong></span><ArrowRight aria-hidden="true" />
+  </SheetTrigger><SheetContent className="flow-drawer persona-drawer" showCloseButton={false}>
+    <div className="flow-drawer-heading"><SheetTitle>我的形象</SheetTitle><SheetClose className="flow-control" aria-label="关闭我的形象"><X /></SheetClose></div>
+    <SheetDescription>设定故事里的名字、外观和性格。保存后关闭，即可回到刚才的页面。</SheetDescription>
+    <PersonaEditor {...props} expanded />
+  </SheetContent></Sheet>;
+}
+
+export function PersonaEditor({ value, accountScope, onSave, expanded = false }: PersonaEditorProps & { expanded?: boolean }) {
   const [draft, setDraft] = useState({ name: value?.name || '', identity: value?.identity || '', personality: value?.personality || '', appearance: value?.appearance || '', abilities: value?.abilities || '', portraitUrl: value?.portraitUrl });
   const [busy, setBusy] = useState(false); const [notice, setNotice] = useState('');
   const [designBusy, setDesignBusy] = useState(false);
-  const [editing, setEditing] = useState(false);
+  const [editing, setEditing] = useState(!!value);
   const controller = useRef<AbortController | null>(null);
   useEffect(() => () => controller.current?.abort(), []);
   const loggedIn = !['guest', 'pending'].includes(accountScope);
@@ -31,8 +44,8 @@ export function PersonaEditor({ value, accountScope, onSave }: { value: PlayerPe
     } catch { if (!aborter.signal.aborted) setNotice('形象生成失败，保留原图。可先保存文字身份，不必生图。'); }
     finally { if (!aborter.signal.aborted) setBusy(false); controller.current = null; }
   }
-  return <details className="persona-editor">
-    <summary><UserRound />我的虚构身份 <small>{value ? value.name : '点击设定'}</small><ChevronDown /></summary>
+  return <details className="persona-editor" open={expanded || undefined}>
+    <summary hidden={expanded}><UserRound />我的虚构身份 <small>{value ? value.name : '点击设定'}</small><ChevronDown /></summary>
     <p>这是故事里的你，不是对真实你的记忆。身份按账号保存在本机；可在账号栏手动保存至私人云存档，进入世界前还需确认适配。</p>
     {!loggedIn && <output>请先通过页面上方登录账号，再保存身份。游客仍可使用原剧情角色试玩。</output>}
     <PersonaDesigner draft={draft} accountScope={accountScope} disabled={!loggedIn || busy} onBusy={setDesignBusy} onApply={proposal => { setDraft(current => ({ ...proposal, portraitUrl: proposal.appearance === current.appearance ? current.portraitUrl : undefined })); setEditing(true); setNotice('草案已填入，尚未保存。'); }} />

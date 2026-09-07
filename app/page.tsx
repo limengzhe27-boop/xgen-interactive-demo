@@ -37,7 +37,7 @@ import { accountStorageKey } from '@/lib/account-scope';
 import { PersonalAgent } from '@/components/personal-agent';
 import { CompanionHandoff, CompanionContextPanel } from '@/components/companion-handoff';
 import { makeCompanionInput, restoreCompanionContext, type CompanionContext } from '@/lib/companion-context';
-import { PersonaEditor, PersonaAdmission, EntryPolicyEditor } from '@/components/player-persona';
+import { PersonaControl, PersonaAdmission, EntryPolicyEditor } from '@/components/player-persona';
 import { closedEntryPolicy, restoreEntryPolicy, restorePlayerPersona, type PlayerPersona, type EntryPolicy } from '@/lib/player-persona';
 import { pendingMemories, restorePersonalConversation } from '@/lib/personal-memory';
 import { knownRecommendations, restoreRecommendations, resolveWorldSelection, recommendationReply } from '@/lib/personal-recommendations';
@@ -2190,6 +2190,13 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     if (chat) { setActiveChat(chat); navigate('chat'); }
   }
 
+  const identityControl = <PersonaControl value={playerPersona} accountScope={accountScope} onSave={(value) => {
+    const valid = restorePlayerPersona(value, accountScope);
+    if (!valid || !storageReady || storageReadFailed.current) return false;
+    try { const saved = JSON.parse(window.localStorage.getItem(demoStorageKey) || '{}'); window.localStorage.setItem(demoStorageKey, JSON.stringify({ ...saved, playerPersona: valid })); setPlayerPersona(valid); return true; }
+    catch { return false; }
+  }} />;
+
   function renderScreen() {
     if (view === 'chat' && activeChat) return <CharacterChat key={`${accountScope}:${activeChat.id}`} accountScope={accountScope} initial={activeChat} onSave={saveChat} onBack={() => navigate('home')} />;
     if (view === 'home' || view === 'library' || view === 'characters') return <StudioHome key={`${accountScope}:${view}`}
@@ -2204,7 +2211,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       ].sort((a, b) => b.savedAt - a.savedAt)}
       onCreate={newCreator} onOpenWorld={openCatalogWorld} onChat={(worldId, targetId) => { const entry = availableStudioWorlds.find((item) => item.id === worldId); if (entry) setChatEntry({ entry, targetId }); }} onPersonal={() => navigate('personal')} onLibrary={() => navigate('library')} onOpenRecord={openRecord}
     />;
-    if (view === 'roles') return <RoleSelection worldTitle={activeWorldTitle} artNote={activeLibrary?.artNote} availableRoles={currentRoles} selected={selectedRole} onSelect={setSelectedRole} onBack={() => navigate('home')} onStart={() => beginWorld()} personaEntry={activeLibrary && restoreEntryPolicy(activeLibrary.world.entryPolicy).allowPersona && restoreEntryPolicy(activeLibrary.world.entryPolicy).allowedRoleIds.includes(selectedRole.id) ? <PersonaAdmission key={`${activeLibrary.id}:${selectedRole.id}`} entry={activeLibrary} roleId={selectedRole.id} persona={playerPersona} onEdit={() => navigate('personal')} onEnter={beginWorld} /> : undefined} />;
+    if (view === 'roles') return <RoleSelection identityControl={identityControl} worldTitle={activeWorldTitle} artNote={activeLibrary?.artNote} availableRoles={currentRoles} selected={selectedRole} onSelect={setSelectedRole} onBack={() => navigate('home')} onStart={() => beginWorld()} personaEntry={activeLibrary && restoreEntryPolicy(activeLibrary.world.entryPolicy).allowPersona && restoreEntryPolicy(activeLibrary.world.entryPolicy).allowedRoleIds.includes(selectedRole.id) ? <PersonaAdmission key={`${activeLibrary.id}:${selectedRole.id}`} entry={activeLibrary} roleId={selectedRole.id} persona={playerPersona} onEnter={beginWorld} /> : undefined} />;
     if (view === 'play') {
       return (
         <PlayWorld
@@ -2304,12 +2311,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     return (
       <PersonalAgent
         onBack={() => navigate('home')}
-        identityPanel={<PersonaEditor value={playerPersona} accountScope={accountScope} onSave={(value) => {
-          const valid = restorePlayerPersona(value, accountScope);
-          if (!valid || !storageReady || storageReadFailed.current) return false;
-          try { const saved = JSON.parse(window.localStorage.getItem(demoStorageKey) || '{}'); window.localStorage.setItem(demoStorageKey, JSON.stringify({ ...saved, playerPersona: valid })); setPlayerPersona(valid); return true; }
-          catch { return false; }
-        }} />}
+        identityPanel={identityControl}
         worlds={[
           ...availableStudioWorlds.map((entry) => ({ ...entry, roleCount: entry.world.characters.length })),
           ...worldCatalog.map((world) => ({ ...world, roleCount: world.id === 'storm-manor' ? roles.length : presetWorlds.find((preset) => preset.id === world.id)?.roles.length ?? 0, cover: world.id === 'storm-manor' ? '/assets/storm-manor-cover.png' : world.id === 'sea-train' ? '/assets/sea-train-cover.jpg' : '/assets/roommate-cover.jpg' })),
@@ -2356,7 +2358,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       {screen}
       {publicationNotice && <p className="account-bar" role="status">{publicationNotice}</p>}
       {publicationEntry && <PublishWorldDialog accountScope={accountScope} entry={publicationEntry} onClose={() => setPublicationEntry(null)} onPublished={(entry) => { setCommunityWorlds(current => upsertById(current, entry)); setPublicationEntry(null); setPublicationNotice('世界已公开发布，其他访客现在可以在世界探索中找到它。'); navigate('home'); }} />}
-      {chatEntry && <CharacterEntry key={`${chatEntry.entry.id}:${chatEntry.targetId}`} entry={chatEntry.entry} targetId={chatEntry.targetId} persona={playerPersona} onClose={() => setChatEntry(null)} onStart={(session) => { saveChat(session); setActiveChat(session); setChatEntry(null); navigate('chat'); }} />}
+      {chatEntry && <CharacterEntry key={`${chatEntry.entry.id}:${chatEntry.targetId}`} entry={chatEntry.entry} identityControl={identityControl} targetId={chatEntry.targetId} persona={playerPersona} onClose={() => setChatEntry(null)} onStart={(session) => { saveChat(session); setActiveChat(session); setChatEntry(null); navigate('chat'); }} />}
     </main>
   );
 }
@@ -2370,7 +2372,7 @@ function RolePortrait({ role, className = '' }: { role: Role; className?: string
   );
 }
 
-function RoleSelection({ worldTitle, artNote, availableRoles, selected, onSelect, onBack, onStart, personaEntry }: { worldTitle: string; artNote?: string; availableRoles: Role[]; selected: Role; onSelect: (role: Role) => void; onBack: () => void; onStart: () => void; personaEntry?: import('react').ReactNode }) {
+function RoleSelection({ worldTitle, artNote, availableRoles, selected, onSelect, onBack, onStart, personaEntry, identityControl }: { worldTitle: string; artNote?: string; availableRoles: Role[]; selected: Role; onSelect: (role: Role) => void; onBack: () => void; onStart: () => void; identityControl: import('react').ReactNode; personaEntry?: import('react').ReactNode }) {
   return (
     <div className="flow-page flow-selection-page">
       <header className="flow-toolbar"><button className="back-link" type="button" onClick={onBack}><ArrowLeft />返回世界</button><p>{worldTitle}</p></header>
@@ -2384,7 +2386,8 @@ function RoleSelection({ worldTitle, artNote, availableRoles, selected, onSelect
           <p className="flow-role-goal"><Target /><span><small>你的目标</small>{selected.goal}</span></p>
           <Button className="primary-action flow-start" size="lg" onClick={onStart}>以 {selected.name} 的身份开始<ArrowRight /></Button>
           <details className="flow-disclosure" key={`background-${selected.id}`}><summary>查看角色背景</summary><p>{selected.publicStory}</p><p>{selected.personality}</p><p><Eye />只有你知道：{selected.secret}</p></details>
-          {personaEntry && <details className="flow-disclosure" key={`persona-${selected.id}`}><summary>使用我的形象</summary>{personaEntry}</details>}
+          {identityControl}
+          {personaEntry ? <details className="flow-disclosure" key={`persona-${selected.id}`}><summary>使用我的形象</summary>{personaEntry}</details> : <p className="flow-identity">当前剧情位置仅开放原角色；你仍可编辑自己的形象，留待其他世界使用。</p>}
         </section>
       </div>
     </div>

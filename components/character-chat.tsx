@@ -17,7 +17,7 @@ import type { StudioWorld } from '@/lib/studio-worlds';
 import type { PlayerPersona } from '@/lib/player-persona';
 import { PersonaAdmission } from '@/components/player-persona';
 
-export function CharacterEntry({ entry, targetId, persona = null, onClose, onStart }: { entry: StudioWorld; targetId: string; persona?: PlayerPersona | null; onClose: () => void; onStart: (session: ChatSession) => void }) {
+export function CharacterEntry({ entry, targetId, persona = null, onClose, onStart, identityControl }: { identityControl?: import('react').ReactNode; entry: StudioWorld; targetId: string; persona?: PlayerPersona | null; onClose: () => void; onStart: (session: ChatSession) => void }) {
   const target = entry.world.characters.find((role) => role.id === targetId)!;
   const others = entry.world.characters.filter((role) => role.id !== targetId);
   const [playerId, setPlayerId] = useState(others[0]?.id ?? '');
@@ -40,6 +40,7 @@ export function CharacterEntry({ entry, targetId, persona = null, onClose, onSta
     <fieldset className="meeting-identities"><legend>这次，你是谁？</legend>{others.map((role) => <button className="flow-control flow-role-option" type="button" key={role.id} aria-pressed={playerId === role.id} onClick={() => setPlayerId(role.id)}>{role.name}</button>)}</fieldset>
     <div className="meeting-context"><strong>你是 {player?.name} · {player?.identity}</strong><p>{relationship?.publicLabel ?? '同一世界中的人物'}</p><small>你的目标</small><p>{player?.goal || selectRoleGoal(entry.world, playerId)?.title || '从这次会面开始，决定你的下一步。'}</p></div>
     <Button className="primary-action meeting-start" disabled={!player} onClick={() => start(Date.now(), crypto.randomUUID())}>以 {player?.name} 的身份开始对话<Send /></Button>
+    {identityControl}
     <details className="flow-disclosure"><summary>自带身份与会面说明</summary><p>{target.name} · {target.persona}</p><p>这段会面独立保存，不改变已有探索。</p>{entry.artNote && <p>{entry.artNote}</p>}<PersonaAdmission key={playerId} entry={entry} roleId={playerId} persona={persona} onEnter={adapted => start(Date.now(), crypto.randomUUID(), adapted)} /></details>
   </DialogContent></Dialog>;
 }
