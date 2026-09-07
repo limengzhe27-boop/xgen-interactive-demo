@@ -1,8 +1,11 @@
 'use client';
 /* oxlint-disable next/no-img-element -- local prototype assets avoid vinext/next-image runtime duplication */
 
-import { SyntheticEvent, type ReactNode, useEffect, useEffectEvent, useRef, useState } from 'react';
+import { SyntheticEvent, useEffect, useEffectEvent, useRef, useState } from 'react';
 import { WorldSystemPanel } from '@/components/world-system-panel';
+import { visibleSystem } from '@/lib/world-system';
+import { currentPlayableTask, taskDisplayStatus } from '@/lib/experience-flow';
+import { Sheet, SheetTrigger, SheetContent, SheetTitle, SheetDescription, SheetClose } from '@/components/ui/sheet';
 import {
   ArrowLeft,
   ArrowRight,
@@ -20,7 +23,6 @@ import {
   Target,
   Trash2,
   UserRound,
-  UsersRound,
   WandSparkles,
   X,
 } from 'lucide-react';
@@ -2203,12 +2205,12 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       ].sort((a, b) => b.savedAt - a.savedAt)}
       onCreate={newCreator} onOpenWorld={openCatalogWorld} onChat={(worldId, targetId) => { const entry = availableStudioWorlds.find((item) => item.id === worldId); if (entry) setChatEntry({ entry, targetId }); }} onPersonal={() => navigate('personal')} onLibrary={() => navigate('library')} onOpenRecord={openRecord}
     />;
-    if (view === 'roles') return <RoleSelection worldTitle={activeWorldTitle} artNote={activeLibrary?.artNote} availableRoles={currentRoles} selected={selectedRole} onSelect={setSelectedRole} onBack={() => navigate('home')} onStart={() => beginWorld()} personaEntry={activeLibrary ? <PersonaAdmission key={`${activeLibrary.id}:${selectedRole.id}`} entry={activeLibrary} roleId={selectedRole.id} persona={playerPersona} onEdit={() => navigate('personal')} onEnter={beginWorld} /> : undefined} />;
+    if (view === 'roles') return <RoleSelection worldTitle={activeWorldTitle} artNote={activeLibrary?.artNote} availableRoles={currentRoles} selected={selectedRole} onSelect={setSelectedRole} onBack={() => navigate('home')} onStart={() => beginWorld()} personaEntry={activeLibrary && restoreEntryPolicy(activeLibrary.world.entryPolicy).allowPersona && restoreEntryPolicy(activeLibrary.world.entryPolicy).allowedRoleIds.includes(selectedRole.id) ? <PersonaAdmission key={`${activeLibrary.id}:${selectedRole.id}`} entry={activeLibrary} roleId={selectedRole.id} persona={playerPersona} onEdit={() => navigate('personal')} onEnter={beginWorld} /> : undefined} />;
     if (view === 'play') {
       return (
         <PlayWorld
           artNote={activeLibrary?.artNote}
-          systemPanel={<WorldSystemPanel world={activeWorldDefinition} roleId={selectedRole.id} completedTaskIds={worldState.completedTaskIds ?? []} disabled={isThinking} onPrepare={setFreeAction} />}
+          world={activeWorldDefinition}
           role={selectedRole}
           worldTitle={activeWorldTitle}
           availableRoles={currentRoles}
@@ -2225,6 +2227,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
           goal={selectRoleGoal(activeWorldDefinition, selectedRole.id)}
           tasks={activeWorldDefinition.tasks.filter((task) => task.assignedRoleIds.length === 0 || task.assignedRoleIds.includes(selectedRole.id))}
           completedTaskIds={worldState.completedTaskIds ?? []}
+          failedTaskIds={worldState.failedTaskIds ?? []}
           eventLedger={worldState.eventLedger}
           relation={worldState.relationshipTrust}
           clock={worldState.clock}
@@ -2340,7 +2343,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
   const screen = renderScreen();
 
   return (
-    <main className="studio-frame">
+    <main className="studio-frame" data-focused-flow={view === 'roles' || view === 'play'}>
       <StudioNav section={view} onNavigate={navigate} onCreate={newCreator} />
       <AccountBar workspaceControls={['home', 'library', 'personal', 'characters'].includes(view) && <CloudWorkspace accountScope={accountScope} disabled={!storageReady || storageReadFailed.current || agentThinking || creatorAgentThinking || worldGenerating} />} />
       {companionHandoff && <CompanionHandoff seed={companionHandoff.seed} conversation={agentConversation} memoryCount={memories.length} onClose={() => setCompanionHandoff(null)} onConfirm={(seed, context) => {
@@ -2369,37 +2372,28 @@ function RolePortrait({ role, className = '' }: { role: Role; className?: string
 
 function RoleSelection({ worldTitle, artNote, availableRoles, selected, onSelect, onBack, onStart, personaEntry }: { worldTitle: string; artNote?: string; availableRoles: Role[]; selected: Role; onSelect: (role: Role) => void; onBack: () => void; onStart: () => void; personaEntry?: import('react').ReactNode }) {
   return (
-    <div className="subpage-shell role-page">
-      <button className="back-link" type="button" onClick={onBack}><ArrowLeft />返回推荐</button>
-      <div className="role-page-heading title-reveal">
-        <div><p className="eyebrow">{worldTitle} · 角色入口</p><h1>你将以谁的身份进入？</h1></div>
-        <p>同一个世界，每个人知道的真相都不同。选择一个角色，你会继承他的身份、信息和目标。</p>
+    <div className="flow-page flow-selection-page">
+      <header className="flow-toolbar"><button className="back-link" type="button" onClick={onBack}><ArrowLeft />返回世界</button><p>{worldTitle}</p></header>
+      <div className="flow-selection">
+        <div className="flow-role-art"><RolePortrait role={selected} />{artNote && <small>{artNote}</small>}</div>
+        <section className="flow-role-intro">
+          <p className="flow-kicker">选择你的身份</p>
+          <h1>{selected.name}</h1><p className="flow-identity">{selected.identity}</p>
+          <fieldset className="flow-role-switcher" aria-label="选择角色">{availableRoles.map(role => <button key={role.id} className="flow-control flow-role-option" type="button" aria-pressed={selected.id === role.id} onClick={() => onSelect(role)}>{selected.id === role.id && <Check aria-hidden="true" />}{role.name}</button>)}</fieldset>
+          <p className="flow-role-premise">{selected.publicStory.split(/(?<=[。！？])/u)[0] || selected.personality}</p>
+          <p className="flow-role-goal"><Target /><span><small>你的目标</small>{selected.goal}</span></p>
+          <Button className="primary-action flow-start" size="lg" onClick={onStart}>以 {selected.name} 的身份开始<ArrowRight /></Button>
+          <details className="flow-disclosure" key={`background-${selected.id}`}><summary>查看角色背景</summary><p>{selected.publicStory}</p><p>{selected.personality}</p><p><Eye />只有你知道：{selected.secret}</p></details>
+          {personaEntry && <details className="flow-disclosure" key={`persona-${selected.id}`}><summary>使用我的形象</summary>{personaEntry}</details>}
+        </section>
       </div>
-      {artNote && <p className="muted">{artNote}</p>}
-      <div className="role-grid" aria-label="选择角色">
-        {availableRoles.map((role) => (
-          <button key={role.id} className="character-card reveal-in" data-selected={selected.id === role.id} type="button" onClick={() => onSelect(role)}>
-            <RolePortrait role={role} />
-            <span className="character-info"><span className="character-check">{selected.id === role.id ? <Check /> : null}</span><small>{role.identity}</small><strong>{role.name}</strong><span>{role.personality}</span></span>
-          </button>
-        ))}
-      </div>
-      <section className="selected-role-panel reveal-in" aria-live="polite">
-        <div><p className="eyebrow">你的入场信息</p><h2>{selected.name} · {selected.identity}</h2></div>
-        <div className="role-facts">
-          <p><Eye /> <span><small>只有你知道</small>{selected.secret}</span></p>
-          <p><Target /> <span><small>你的目标</small>{selected.goal}</span></p>
-        </div>
-        <Button className="primary-action" size="lg" onClick={onStart}>以 {selected.name} 的身份进入<ArrowRight /></Button>
-      </section>
-      {personaEntry}
     </div>
   );
 }
 
 function PlayWorld({
   artNote,
-  systemPanel,
+  world,
   role,
   worldTitle,
   availableRoles,
@@ -2413,6 +2407,7 @@ function PlayWorld({
   goal,
   tasks,
   completedTaskIds,
+  failedTaskIds,
   eventLedger,
   relation,
   clock,
@@ -2430,7 +2425,7 @@ function PlayWorld({
   onBack,
 }: {
   artNote?: string;
-  systemPanel?: ReactNode;
+  world: WorldDefinition;
   role: Role;
   worldTitle: string;
   availableRoles: Role[];
@@ -2444,6 +2439,7 @@ function PlayWorld({
   goal: WorldDefinition['goals'][number] | undefined;
   tasks: WorldTask[];
   completedTaskIds: string[];
+  failedTaskIds: string[];
   eventLedger: EventRecord[];
   relation: number;
   clock: string;
@@ -2463,79 +2459,62 @@ function PlayWorld({
   const speakingRole = availableRoles.find((item) => item.name === beat.speaker && presentRoleIds.includes(item.id));
   const mainTasks = tasks.filter((task) => task.kind === 'main');
   const completedMainTasks = mainTasks.filter((task) => completedTaskIds.includes(task.id));
-  const progress = mainTasks.length > 0 ? Math.round((completedMainTasks.length / mainTasks.length) * 100) : 0;
+  const currentTask = currentPlayableTask(tasks, completedTaskIds, failedTaskIds);
+  const system = visibleSystem(world, role.id, completedTaskIds);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [category, setCategory] = useState('tasks');
+  const composerRef = useRef<HTMLTextAreaElement>(null);
+  const preparedAction = useRef(false);
+  const categories = [{ id: 'tasks', label: '目标' }, { id: 'people', label: '人物' }, { id: 'items', label: '物品与线索' }, { id: 'history', label: '经历' }, ...(system ? [{ id: 'system', label: '系统' }] : []), { id: 'settings', label: '设置' }];
   return (
-    <div className="play-shell">
-      <div className="play-toolbar">
+    <div className="flow-page flow-play-page">
+      <Sheet open={detailsOpen} onOpenChange={setDetailsOpen}>
+      <header className="flow-toolbar">
         <button className="back-link" type="button" onClick={onBack}><ArrowLeft />重新选角</button>
-        <div className="play-progress"><span style={{ width: `${progress}%` }} /><small>目标进度 {completedMainTasks.length} / {mainTasks.length} · 第 {turn + 1} 轮</small></div>
-        <div className="play-modes">
-          <span className="surprise-level">意外 · {surpriseLabels[surpriseLevel - 1]}</span>
-          <div className="live-toggle"><span><strong>随时行动</strong><small>实验</small></span><Switch aria-label="开启随时行动实验模式" checked={liveMode} onCheckedChange={onLiveMode} /></div>
-        </div>
-      </div>
-      <div className="explore-layout">
-        <section className="story-stage" aria-labelledby="scene-title">
-          <img className="scene-background" src={imageTask.assetUrl} alt="当前互动世界的场景画面" />
-          <div className="scene-scrim" aria-hidden="true" />
-          <div className="stage-topline">
-            <span><MapPin />{location}</span>
-            <span className="scene-image-status" data-status={imageTask.status} aria-live="polite">
-              {imageTask.status === 'generating' ? <LoaderCircle className="is-spinning" /> : <ImageIcon />}
-              {imageTask.message}
-            </span>
-            <span>{clock}</span>
-          </div>
-          <div className="story-content">
-            {artNote && imageTask.assetUrl.startsWith('/assets/') && <p className="scene-kicker">{artNote}</p>}
-            <div className="player-role"><RolePortrait role={role} /><span><small>你是</small><strong>{role.name}</strong></span></div>
-            <p className="scene-kicker">{lastAction ? `你的行动：${lastAction}` : `${worldTitle} · 开场`}</p>
-            <h1 id="scene-title">{beat.title}</h1>
-            <p className="narrative-text">{isThinking && !narrative ? '世界正在回应你的行动……' : narrative}{isThinking && liveMode ? <span className="streaming-cursor" aria-label="正在生成" /> : null}</p>
-            {incident ? <div className="incident-banner" data-impact={incident.impact}><Sparkles /><span><small>意外程度 {surpriseLevel} · {incident.impact === 'minor' ? '轻微插曲' : incident.impact === 'moderate' ? '中等影响' : '重大变数'}</small><strong>{incident.title}</strong></span></div> : null}
-            {!isThinking && beat.dialogue && <blockquote><strong>{beat.speaker}</strong><span>“{beat.dialogue}”</span></blockquote>}
-          </div>
+        <p className="flow-player-label">你是 {role.name}</p>
+        <SheetTrigger className="flow-control" onClick={() => setCategory('tasks')}>故事资料</SheetTrigger>
+      </header>
+      <SheetContent className="flow-drawer" showCloseButton={false} finalFocus={() => {
+        if (preparedAction.current) { preparedAction.current = false; return composerRef.current; }
+        return true;
+      }}>
+        <div className="flow-drawer-heading"><SheetTitle>故事资料</SheetTitle><SheetClose className="flow-control" aria-label="关闭故事资料"><X /></SheetClose></div>
+        <SheetDescription>{worldTitle} · 你是 {role.name}</SheetDescription>
+        <fieldset className="flow-detail-categories" aria-label="资料分类">{categories.map(item => <button className="flow-control" type="button" key={item.id} aria-pressed={category === item.id} onClick={() => setCategory(item.id)}>{item.label}</button>)}</fieldset>
+        <section className="flow-detail-body" aria-label={categories.find(item => item.id === category)?.label}>
+          {category === 'tasks' && <><h2>{goal?.title || role.goal}</h2><p>{goal?.description || role.goal}</p><small>主线 {completedMainTasks.length} / {mainTasks.length} 已完成</small><ol className="flow-task-list">{tasks.map(task => <li key={task.id}><div><strong>{task.title}</strong><small>{task.kind === 'side' ? '支线 · ' : ''}{taskDisplayStatus(task, completedTaskIds, failedTaskIds)}</small></div><p>{task.description}</p>{task.difficulty && <small>阻力：{task.difficulty}</small>}</li>)}</ol></>}
+          {category === 'people' && <><h2>当前在场</h2><div className="flow-people">{availableRoles.filter(item => item.id === role.id || presentRoleIds.includes(item.id)).map(item => <article key={item.id}><RolePortrait role={item} /><div><strong>{item.name}{item.id === role.id ? ' · 你' : ''}</strong><p>{item.identity}</p></div></article>)}</div><p>他人对你的信任：{relation} / 100</p><details className="flow-disclosure"><summary>我的入场信息</summary><p>{role.secret}</p></details></>}
+          {category === 'items' && <><h2>持有物</h2>{inventory.length ? <ul>{inventory.map(item => <li key={item}>{item}</li>)}</ul> : <p>暂时没有持有物。</p>}<h2>已知线索</h2>{clues.length ? <ul>{clues.map(clue => <li key={clue}>{clue}</li>)}</ul> : <p>还没有发现新的线索。</p>}</>}
+          {category === 'history' && <><h2>第 {turn + 1} 轮 · {location}</h2><p>{clock}</p>{!eventLedger.length && <p>你的故事刚刚开始。</p>}<ol className="flow-history">{eventLedger.map(event => <li key={event.id}><small>{event.location} · {event.status === 'committed' ? '已发生' : event.status === 'interrupted' ? '已中断' : '已拒绝'}</small><h3>{event.action}</h3><p>{event.result}</p></li>)}</ol></>}
+          {category === 'system' && system && <WorldSystemPanel world={world} roleId={role.id} completedTaskIds={completedTaskIds} disabled={isThinking && !liveMode} onPrepare={action => { onFreeAction(action); preparedAction.current = true; setDetailsOpen(false); }} />}
+          {category === 'settings' && <><h2>体验设置</h2><p>意外程度：{surpriseLabels[surpriseLevel - 1]}</p><div className="flow-setting"><label htmlFor="flow-live">随时行动 · 实验</label><Switch id="flow-live" aria-label="开启随时行动实验模式" checked={liveMode} onCheckedChange={onLiveMode} /></div><p>开启后可以在生成中介入。关闭时，等待本轮回应完成再行动。</p><h2>场景图片</h2><p role="status">{imageTask.message}</p>{artNote && imageTask.assetUrl.startsWith('/assets/') && <p>{artNote}</p>}</>}
         </section>
-
-        <aside className="story-control-panel">
-          <div className="control-heading"><p className="eyebrow">当前目标</p><h2>{goal?.title || role.goal}</h2><small>{goal?.description || '你可以用自己的方式推进这个目标。'}</small></div>
-          <div className="story-participants" aria-label="当前在场的其他角色">
-            <small>当前在场</small>
-            <div>{availableRoles.filter((item) => item.id !== role.id && presentRoleIds.includes(item.id)).map((item) => (
-              <span className="participant-chip" data-speaking={item.id === speakingRole?.id} key={item.id}>
-                <RolePortrait role={item} />
-                <span><strong>{item.name}</strong><small>{item.id === speakingRole?.id ? '正在与你交谈' : item.identity}</small></span>
-              </span>
-            ))}{!presentRoleIds.some((id) => id !== role.id) && <small>这里暂时没有其他角色</small>}</div>
+      </SheetContent>
+      <div className="flow-reading">
+        <section className="flow-story" aria-labelledby="scene-title">
+          <div className="flow-scene-meta"><span><MapPin />{location}</span><small>{clock} · 第 {turn + 1} 轮</small></div>
+          <img className="flow-scene-image" src={imageTask.assetUrl} alt={`${location}的场景画面`} />
+          {artNote && imageTask.assetUrl.startsWith('/assets/') && <small className="flow-art-note">{artNote}</small>}
+          {imageTask.status !== 'ready' && <output className="flow-image-status">{imageTask.status === 'generating' && <LoaderCircle className="is-spinning" />}{imageTask.message}</output>}
+          <p className="flow-kicker">{lastAction ? `你的行动：${lastAction}` : `${worldTitle} · 开场`}</p>
+          <h1 id="scene-title">{beat.title}</h1>
+          <p className="flow-narrative">{isThinking && !narrative ? '世界正在回应你的行动……' : narrative}{isThinking && liveMode ? <span className="streaming-cursor" aria-label="正在生成" /> : null}</p>
+          {incident && <p className="flow-incident"><Sparkles />{incident.title}</p>}
+          {!isThinking && beat.dialogue && <blockquote>{speakingRole && <RolePortrait role={speakingRole} />}<div><strong>{beat.speaker}</strong><p>“{beat.dialogue}”</p></div></blockquote>}
+        </section>
+        <section className="flow-action-area" aria-label="你的行动">
+          <div className="flow-current-goal"><Target /><p>当前目标：{currentTask?.title || goal?.title || role.goal}</p>{system && <SheetTrigger className="flow-control flow-system-entry" onClick={() => setCategory('system')}><Sparkles />{system.name}</SheetTrigger>}</div>
+          {actionFeedback && <output className="action-feedback"><strong>行动尚未推进</strong><span>{actionFeedback.reason}</span>{actionFeedback.suggestion && <small>{actionFeedback.suggestion}</small>}</output>}
+          <div className="flow-composer">
+            <label className="sr-only" htmlFor="free-action">你想怎么做？</label>
+            <MessageTextarea ref={composerRef} id="free-action" value={freeAction} onChange={event => onFreeAction(event.target.value)} onSend={() => onAction(freeAction)} placeholder={`以${role.name}的身份，说说你准备怎么做……`} disabled={isThinking && !liveMode} />
+            <Button className="primary-action" disabled={!freeAction.trim() || (isThinking && !liveMode)} onClick={() => onAction(freeAction)}>{isThinking && !liveMode ? <LoaderCircle className="is-spinning" /> : <Send />}{isThinking ? liveMode ? '介入' : '回应中' : '发送'}</Button>
           </div>
-          <div className="free-action-block is-primary-input">
-            {systemPanel}
-            <label htmlFor="free-action">{isThinking ? (liveMode ? '世界正在展开，你可随时介入' : '等待世界回应') : '你想怎么做？'}</label>
-            {actionFeedback ? <output className="action-feedback"><strong>这个行动无法直接发生</strong><span>{actionFeedback.reason}</span>{actionFeedback.suggestion ? <small>{actionFeedback.suggestion}</small> : null}</output> : null}
-            <MessageTextarea id="free-action" value={freeAction} onChange={(event) => onFreeAction(event.target.value)} onSend={() => onAction(freeAction)} placeholder="说出你的行动、使用已拥有的能力，或试一个出人意料的办法……（Enter 发送，Shift + Enter 换行）" disabled={isThinking && !liveMode} />
-            <Button className="primary-action free-action-button" disabled={!freeAction.trim() || (isThinking && !liveMode)} onClick={() => onAction(freeAction)}><Send />{isThinking && liveMode ? '介入当前生成' : '让世界回应'}</Button>
-          </div>
-          <div className="choice-suggestions-heading"><span>不知道怎么做？</span><small>以下只是行动灵感</small></div>
-          <div className="choice-group" aria-live="polite">
-            {beat.choices.map((choice, index) => (
-              <button className="story-choice" key={`${turn}-${choice.label}`} type="button" disabled={isThinking && !liveMode} onClick={() => onAction(choice.label)}>
-                <span>{String(index + 1).padStart(2, '0')}</span><strong>{choice.label}</strong><ArrowRight />
-              </button>
-            ))}
-          </div>
-          <div className="world-state-card">
-            <div className="task-progress-card">
-              <div><Target /><span><small>主线条件</small><strong>{completedMainTasks.length} / {mainTasks.length} 已完成</strong></span></div>
-              <ol>{mainTasks.map((task) => <li key={task.id} data-complete={completedTaskIds.includes(task.id)}><span>{completedTaskIds.includes(task.id) ? <Check /> : null}</span><p><strong>{task.title}</strong><small>{task.difficulty}</small></p></li>)}</ol>
-            </div>
-            <div className="state-title"><span>世界状态</span><small>{clues.length} 条线索</small></div>
-            <ul>{clues.slice(-3).map((clue) => <li key={clue}><span />{clue}</li>)}</ul>
-            <div className="inventory-row"><strong>持有物</strong><div>{inventory.map((item) => <span key={item}>{item}</span>)}</div></div>
-            <div className="relation-meter"><span><UsersRound />他人对你的信任</span><div><i style={{ width: `${relation}%` }} /></div></div>
-            <details className="event-ledger"><summary>查看事件账本 · {eventLedger.length}</summary><ol>{eventLedger.slice(-4).map((event) => <li key={event.id} data-status={event.status}><small>{event.location} · {event.status === 'committed' ? '已发生' : event.status === 'interrupted' ? '已中断' : '已拒绝'}</small><strong>{event.action}</strong><span>{event.result}</span></li>)}</ol></details>
-          </div>
-        </aside>
+          <div className="flow-action-meta"><output>{isThinking ? liveMode ? '世界正在展开，可以介入后续' : '世界正在回应，请稍候…' : 'Enter 发送 · Shift + Enter 换行'}</output></div>
+          <details className="flow-disclosure flow-inspiration" key={`choices-${turn}`}><summary>不知道怎么做？看行动灵感</summary><p>点击后直接执行，也可以在上方输入自己的行动。</p><div className="flow-choice-list">{beat.choices.map((choice, index) => <button className="flow-control" key={`${turn}-${choice.label}`} type="button" disabled={isThinking && !liveMode} onClick={() => onAction(choice.label)}><span>{String(index + 1).padStart(2, '0')}</span>{choice.label}<ArrowRight /></button>)}</div></details>
+        </section>
       </div>
+      </Sheet>
     </div>
   );
 }

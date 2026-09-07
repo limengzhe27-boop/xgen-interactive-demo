@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import './globals.css';
 import './studio.css';
 import './gallery.css';
+import './experience.css';
 
 export const metadata: Metadata = {
   title: '小世界｜图文互动体验',
