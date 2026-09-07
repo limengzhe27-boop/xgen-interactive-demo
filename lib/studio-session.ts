@@ -18,6 +18,25 @@ export type ChatSession = {
   imageCacheKey?: string;
 };
 
+// A neutral participant is transport state, not an imposed role or an account profile.
+export function directConversationEntry(entry: StudioWorld, targetId: string): StudioWorld {
+  const target = entry.world.characters.find(role => role.id === targetId);
+  if (!target) throw new Error('invalid_conversation_target');
+  let id = 'chat-visitor';
+  while (entry.world.characters.some(role => role.id === id)) id += '-new';
+  const visitor = { ...target, id, name: '你', identity: '自由对话的用户，未设定剧情身份',
+    persona: '由用户在交流中自行表达，不预设性格、关系或能力。',
+    publicBackground: '首次与对方交谈，不继承任何已有角色的经历。',
+    privateKnowledge: [], secrets: [], goal: '自由交流，不要求完成世界主线。', imagePrompt: '' };
+  const meeting = conversationEntry({ ...entry, world: { ...entry.world,
+    characters: [...entry.world.characters, visitor], entryAdmission: undefined,
+  } }, id, targetId);
+  return { ...meeting, world: { ...meeting.world,
+    openingScene: { ...meeting.world.openingScene,
+      narrative: `你打开了与${target.name}的对话。可以直接打个招呼，或聊聊你感兴趣的事情。` },
+  } };
+}
+
 // A conversation starts a separate encounter; it never moves an existing exploration run.
 export function conversationEntry(entry: StudioWorld, playerId: string, targetId: string): StudioWorld {
   const player = entry.world.characters.find((role) => role.id === playerId);

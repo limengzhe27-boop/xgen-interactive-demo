@@ -30,7 +30,7 @@ export function PersonaEditor({ value, accountScope, onSave, expanded = false }:
   const [draft, setDraft] = useState({ name: value?.name || '', identity: value?.identity || '', personality: value?.personality || '', appearance: value?.appearance || '', abilities: value?.abilities || '', portraitUrl: value?.portraitUrl });
   const [busy, setBusy] = useState(false); const [notice, setNotice] = useState('');
   const [designBusy, setDesignBusy] = useState(false);
-  const [editing, setEditing] = useState(!!value);
+  const [editing, setEditing] = useState(true);
   const controller = useRef<AbortController | null>(null);
   useEffect(() => () => controller.current?.abort(), []);
   const loggedIn = !['guest', 'pending'].includes(accountScope);
@@ -49,7 +49,7 @@ export function PersonaEditor({ value, accountScope, onSave, expanded = false }:
     <p>这是故事里的你，不是对真实你的记忆。身份按账号保存在本机；可在账号栏手动保存至私人云存档，进入世界前还需确认适配。</p>
     {!loggedIn && <output>请先通过页面上方登录账号，再保存身份。游客仍可使用原剧情角色试玩。</output>}
     <PersonaDesigner draft={draft} accountScope={accountScope} disabled={!loggedIn || busy} onBusy={setDesignBusy} onApply={proposal => { setDraft(current => ({ ...proposal, portraitUrl: proposal.appearance === current.appearance ? current.portraitUrl : undefined })); setEditing(true); setNotice('草案已填入，尚未保存。'); }} />
-    <details className="persona-manual" open={editing} onToggle={event => setEditing(event.currentTarget.open)}><summary>手动编辑与保存身份</summary>
+    <details className="persona-manual" open={editing} onToggle={event => setEditing(event.currentTarget.open)}><summary>编辑虚拟角色（仅用于世界探索）</summary>
     <form onSubmit={event => { event.preventDefault(); if (!loggedIn || busy || designBusy || !draft.name.trim()) return; if (onSave({ ...draft, name: draft.name.trim(), version: 1, ownerId: accountScope, updatedAt: Date.now() })) setNotice('身份已保存在本机；已有探索和角色对话不会随之改变。'); else setNotice('身份保存失败，请保留页面并重试。'); }}>
       <fieldset disabled={!loggedIn || busy || designBusy} className="persona-fields">
         {([['name', '身份名称'], ['identity', '你设想的身份背景'], ['personality', '性格与相处方式'], ['appearance', '固定外观'], ['abilities', '希望拥有的能力（入场时不自动生效）']] as const).map(([key, label]) => <label key={key} className={key === 'abilities' ? 'persona-full' : ''} htmlFor={`persona-${key}`}>{label}{key === 'name' ? <Input id={`persona-${key}`} maxLength={40} required value={draft[key]} onChange={e => setDraft({ ...draft, [key]: e.target.value })} /> : <Textarea id={`persona-${key}`} maxLength={1000} value={draft[key]} onChange={e => setDraft({ ...draft, [key]: e.target.value, ...(key === 'appearance' ? { portraitUrl: undefined } : {}) })} />}</label>)}

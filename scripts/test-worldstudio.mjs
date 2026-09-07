@@ -1,9 +1,22 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { contractWorld, studioWorlds, getRoleOpening } from '../lib/studio-worlds.ts';
-import { upsertById, conversationEntry, chatRequest } from '../lib/studio-session.ts';
+import { upsertById, conversationEntry, directConversationEntry, chatRequest } from '../lib/studio-session.ts';
 import { createInitialWorldState } from '../lib/world-state.ts';
 import { enforceWorldTurnGuardrails } from '../lib/world-agent-guardrails.ts';
+
+test('direct chat creates a neutral participant without changing the world or inheriting secrets', () => {
+  const before = JSON.stringify(contractWorld);
+  const chat = directConversationEntry(contractWorld, 'gu');
+  const visitor = chat.world.characters.at(-1);
+  assert.equal(visitor.name, '你');
+  assert.deepEqual(visitor.secrets, []);
+  assert.deepEqual(visitor.privateKnowledge, []);
+  assert.equal(chat.world.relationships.some(r => r.fromCharacterId === visitor.id || r.toCharacterId === visitor.id), false);
+  assert.deepEqual(chat.world.openingScene.presentCharacterIds, [visitor.id, 'gu']);
+  assert.equal(JSON.stringify(contractWorld), before);
+  assert.throws(() => directConversationEntry(contractWorld, 'missing'));
+});
 
 test('conversation and exploration definitions are isolated; player and target cannot coincide', () => {
   const before = JSON.stringify(contractWorld);
