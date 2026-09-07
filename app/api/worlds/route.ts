@@ -94,13 +94,25 @@ export async function POST(request: Request) {
     const body = JSON.parse(text);
     if (body.consent !== 'publish-world-and-selected-images-v1' || typeof body.sourceId !== 'string' || !body.sourceId || body.sourceId.length > 120) return reply({ error: 'publication_consent_required' }, 400);
     const world = publicationWorld(body.world);
-    const id = imageId(['publication', user.id, body.sourceId]);
+    const restoredId = /^community-([a-f0-9]{64})$/.exec(body.sourceId)?.[1];
+    const id = restoredId || imageId(['publication', user.id, body.sourceId]);
+    const existingResponse = await storageFetch(`/rest/v1/demo_world_publications?id=eq.${id}&owner_id=eq.${encodeURIComponent(user.id)}&select=id,updated_at`);
+    const existing = (await existingResponse.json() as { id: string; updated_at: string }[])[0];
+    if (restoredId && !existing) return reply({ error: 'publication_not_owned' }, 403);
+    if ((existing && body.expectedUpdatedAt !== existing.updated_at) || (!existing && body.expectedUpdatedAt != null)) return reply({ error: 'publication_changed', message: '线上作品已变化，请关闭发布窗口，核对最新版本后重试。你的草稿未被覆盖。' }, 409);
     const portraits: Record<string, string> = {};
     // Images may become public only after the caller explicitly acknowledges the scope.
     for (const role of world.characters) portraits[role.id] = await publishImage(body.portraits?.[role.id], request, user.id);
     const cover = await publishImage(body.cover, request, user.id);
     const document = { id: `community-${id}`, sourceId: body.sourceId, title: world.title, premise: world.premise, genre: '社区创作', cover, portraits, world: { ...world, id: `community-${id}` } };
-    await storageFetch('/rest/v1/rpc/demo_publish_world', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ p_id: id, p_owner: user.id, p_document: document }) });
+    if (existing) {
+      const updated = await storageFetch(`/rest/v1/demo_world_publications?id=eq.${id}&owner_id=eq.${encodeURIComponent(user.id)}&updated_at=eq.${encodeURIComponent(existing.updated_at)}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json', Prefer: 'return=representation' }, body: JSON.stringify({ document, published: true, updated_at: new Date().toISOString() }),
+      });
+      if (!(await updated.json() as unknown[]).length) return reply({ error: 'publication_changed', message: '发布期间作品已变化，本次没有覆盖。请重新核对版本。' }, 409);
+    } else {
+      await storageFetch('/rest/v1/rpc/demo_publish_world', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ p_id: id, p_owner: user.id, p_document: document }) });
+    }
     return reply({ published: true, world: document });
   } catch { return reply({ error: 'publication_failed', message: '发布未完成。请检查角色、地点、任务及图片是否有效；原草稿不会被删除。' }, 400); }
 }

@@ -42,7 +42,8 @@ test('author publication lifecycle isolates accounts, detects stale changes and 
     assert.equal((await route.PATCH(req('PATCH',{...latest,updatedAt:'2000-01-01T00:00:00Z'}))).status,409);
     assert.equal((await route.PATCH(req('PATCH',latest))).status,200);
     assert.equal((await (await route.GET(req('GET'))).json()).worlds.length,1);
-    assert.equal((await route.POST(req('POST',{...body,world:{...body.world,title:'更新后的合成作品'}}))).status,200);
+    assert.equal((await route.POST(req('POST',{...body,world:{...body.world,title:'不应覆盖'}}))).status,409);
+    assert.equal((await route.POST(req('POST',{...body,expectedUpdatedAt:state.rows[0].updated_at,world:{...body.world,title:'更新后的合成作品'}}))).status,200);
     assert.equal(state.rows.length,1);
     assert.equal(state.rows[0].document.title,'更新后的合成作品');
     state.user=null;

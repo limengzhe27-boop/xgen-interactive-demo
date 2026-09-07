@@ -47,21 +47,31 @@ export function PublishWorldDialog({ entry, accountScope, onClose, onPublished }
   const [account, setAccount] = useState<Account | null>(null);
   const [consent, setConsent] = useState(false);
   const [includeImages, setIncludeImages] = useState(false);
+  const [versionReady, setVersionReady] = useState(false);
+  const [expectedUpdatedAt, setExpectedUpdatedAt] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   useEffect(() => {
     let live = true;
     void fetch('/api/account', { cache: 'no-store' }).then(async r => {
-      if (!r.ok) throw new Error(); const data = await r.json() as Account; if (live) setAccount(data);
+      if (!r.ok) throw new Error(); const data = await r.json() as Account;
+      if (live) setAccount(data);
+      if (data.user) {
+        const response = await fetch('/api/worlds?mine=true', { cache: 'no-store', headers: { 'x-xgen-account': accountScope } });
+        if (!response.ok) throw new Error();
+        const result = await response.json() as { publications: { document: { id: string; sourceId?: string }; updated_at: string }[] };
+        const current = result.publications.find(row => row.document.sourceId === entry.id || row.document.id === entry.id);
+        if (live) { setExpectedUpdatedAt(current?.updated_at ?? null); setVersionReady(true); }
+      }
     }).catch(() => { if (live) setError('暂时无法检查账号，请稍后重试。'); });
     return () => { live = false; };
-  }, []);
+  }, [accountScope, entry.id]);
   async function publish() {
-    if (!consent || !account?.user || !account.canPublish || busy) return;
+    if (!consent || !account?.user || !account.canPublish || !versionReady || busy) return;
     setBusy(true); setError('');
     try {
       const response = await fetch('/api/worlds', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-xgen-account': accountScope }, body: JSON.stringify({
-        consent: 'publish-world-and-selected-images-v1', sourceId: entry.id, world: entry.world,
+        consent: 'publish-world-and-selected-images-v1', sourceId: entry.id, world: entry.world, expectedUpdatedAt,
         cover: includeImages ? entry.cover : undefined, portraits: includeImages ? entry.portraits : {},
       }) });
       const data = await response.json() as { world?: StudioWorld; message?: string };
@@ -80,7 +90,7 @@ export function PublishWorldDialog({ entry, accountScope, onClose, onPublished }
     {account?.user && !account.canPublish && <p>账号已登录；公开发布仍在验收中，现在可以保存并试玩。</p>}
     {error && <p className="publication-error" role="alert">{error}</p>}
     <div className="publication-actions"><Button variant="outline" disabled={busy} onClick={onClose}>返回创作</Button>
-      {!account?.user && account?.configured ? <a className="studio-button" href="/auth/login"><LogIn />登录账号</a> : <Button className="primary-action" disabled={!consent || !account?.user || !account.canPublish || busy} onClick={publish}>{busy ? <LoaderCircle className="is-spinning" /> : <Upload />}{busy ? '正在发布' : '确认公开发布'}</Button>}
+      {!account?.user && account?.configured ? <a className="studio-button" href="/auth/login"><LogIn />登录账号</a> : <Button className="primary-action" disabled={!consent || !account?.user || !account.canPublish || !versionReady || busy} onClick={publish}>{busy ? <LoaderCircle className="is-spinning" /> : <Upload />}{busy ? '正在发布' : expectedUpdatedAt ? '确认更新公开版本' : '确认公开发布'}</Button>}
     </div>
   </DialogContent></Dialog>;
 }
