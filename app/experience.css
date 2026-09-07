@@ -146,7 +146,14 @@
 .local-speech label { display: inline-flex; flex-wrap: wrap; gap: 8px; margin: 8px; }
 .local-speech select { min-height: 44px; max-width: 100%; background: var(--color-bg-elevated); color: var(--color-text); border: 1px solid var(--color-border); border-radius: 8px; }
 .profile-memories { padding: 0; margin: 16px 0; list-style: none; }
-.profile-memories li { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--color-border); }
+.profile-memories > li { display: flex; align-items: flex-start; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--color-border); }
+.memory-copy { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.memory-history { font-size: .9375rem; color: var(--color-text-secondary); }
+.memory-history summary { min-height: 44px; padding-block: 10px; cursor: pointer; }
+.memory-history summary:hover { color: var(--color-primary); }
+.memory-history p { margin-block: 6px; }
+.memory-history ol { padding-left: 22px; }
+.memory-history li { margin-block: 12px; }
 .profile-memories li > span { flex: 1; overflow-wrap: anywhere; }
 .profile-memories button { flex-shrink: 0; }
 .profile-pending { margin-top: 20px; padding: 16px; border-radius: 12px; background: var(--color-agent-soft); }

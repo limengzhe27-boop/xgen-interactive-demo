@@ -13,6 +13,7 @@ import { generateSceneImage } from '@/lib/remote-image-service';
 import { admitPersona, personaEntryProblem, restoreEntryPolicy, type PlayerPersona, type EntryPolicy } from '@/lib/player-persona';
 import type { StudioWorld } from '@/lib/studio-worlds';
 import { PersonaDesigner } from '@/components/persona-designer';
+import { localPortrait, readPersonaUpload } from '@/lib/persona-upload';
 
 type PersonaEditorProps = { value: PlayerPersona | null; accountScope: string; onSave: (value: PlayerPersona) => boolean };
 export function PersonaControl(props: PersonaEditorProps) {
@@ -32,8 +33,21 @@ export function PersonaEditor({ value, accountScope, onSave, expanded = false }:
   const [designBusy, setDesignBusy] = useState(false);
   const [editing, setEditing] = useState(true);
   const controller = useRef<AbortController | null>(null);
-  useEffect(() => () => controller.current?.abort(), []);
+  const uploadSequence = useRef(0);
+  const fileInput = useRef<HTMLInputElement>(null);
+  useEffect(() => () => { controller.current?.abort(); uploadSequence.current++; }, []);
   const loggedIn = !['guest', 'pending'].includes(accountScope);
+  async function upload(file?: File) {
+    if (!file || busy || designBusy || !loggedIn) return;
+    const sequence = ++uploadSequence.current;
+    setBusy(true); setNotice('正在本机处理图片…');
+    try {
+      const portraitUrl = await readPersonaUpload(file);
+      if (sequence === uploadSequence.current) { setDraft(current => ({ ...current, portraitUrl })); setNotice('图片已就绪，点击保存身份后保留。尚未上传云端，也未发给模型。'); }
+    } catch (error) {
+      if (sequence === uploadSequence.current) setNotice(error instanceof Error ? error.message : '无法读取图片，原图已保留。');
+    } finally { if (sequence === uploadSequence.current) setBusy(false); }
+  }
   async function portrait() {
     if (controller.current || !loggedIn || !draft.appearance.trim()) return;
     const aborter = new AbortController(); controller.current = aborter; setBusy(true); setNotice('');
@@ -50,13 +64,15 @@ export function PersonaEditor({ value, accountScope, onSave, expanded = false }:
     {!loggedIn && <output>请先通过页面上方登录账号，再保存身份。游客仍可使用原剧情角色试玩。</output>}
     <details className="persona-manual" open={editing} onToggle={event => setEditing(event.currentTarget.open)}><summary>编辑虚拟角色（仅用于世界探索）</summary>
     <form onSubmit={event => { event.preventDefault(); if (!loggedIn || busy || designBusy || !draft.name.trim()) return; if (onSave({ ...draft, name: draft.name.trim(), version: 1, ownerId: accountScope, updatedAt: Date.now() })) setNotice('身份已保存在本机；已有探索和角色对话不会随之改变。'); else setNotice('身份保存失败，请保留页面并重试。'); }}>
+      <div className="persona-actions"><input ref={fileInput} type="file" accept="image/jpeg,image/png,image/webp" aria-label="选择形象图片" hidden onChange={e => { void upload(e.target.files?.[0]); e.target.value = ''; }} /><Button type="button" variant="outline" disabled={!loggedIn || busy || designBusy} onClick={() => fileInput.current?.click()}>{draft.portraitUrl ? '上传 / 更换图片' : '上传形象图片'}</Button>{draft.portraitUrl && <Button type="button" variant="outline" disabled={!loggedIn || busy || designBusy} onClick={() => { setDraft(current => ({ ...current, portraitUrl: undefined })); setNotice('已移除预览图片，保存身份后生效。'); }}>移除图片</Button>}</div>
+      <p>支持 JPG、PNG、WebP，最大 8 MB。图片在本机压缩，不发送给模型；保存后可随私人云存档手动备份。仅上传你有权使用的图片。</p>
       <fieldset disabled={!loggedIn || busy || designBusy} className="persona-fields">
-        {([['name', '身份名称'], ['identity', '你设想的身份背景'], ['personality', '性格与相处方式'], ['appearance', '固定外观'], ['abilities', '希望拥有的能力（入场时不自动生效）']] as const).map(([key, label]) => <label key={key} className={key === 'abilities' ? 'persona-full' : ''} htmlFor={`persona-${key}`}>{label}{key === 'name' ? <Input id={`persona-${key}`} maxLength={40} required value={draft[key]} onChange={e => setDraft({ ...draft, [key]: e.target.value })} /> : <Textarea id={`persona-${key}`} maxLength={1000} value={draft[key]} onChange={e => setDraft({ ...draft, [key]: e.target.value, ...(key === 'appearance' ? { portraitUrl: undefined } : {}) })} />}</label>)}
+        {([['name', '身份名称'], ['identity', '你设想的身份背景'], ['personality', '性格与相处方式'], ['appearance', '固定外观'], ['abilities', '希望拥有的能力（入场时不自动生效）']] as const).map(([key, label]) => <label key={key} className={key === 'abilities' ? 'persona-full' : ''} htmlFor={`persona-${key}`}>{label}{key === 'name' ? <Input id={`persona-${key}`} maxLength={40} required value={draft[key]} onChange={e => setDraft({ ...draft, [key]: e.target.value })} /> : <Textarea id={`persona-${key}`} maxLength={1000} value={draft[key]} onChange={e => setDraft({ ...draft, [key]: e.target.value, ...(key === 'appearance' && !localPortrait(draft.portraitUrl) ? { portraitUrl: undefined } : {}) })} />}</label>)}
       </fieldset>
       <div className="persona-actions">{draft.portraitUrl && <img src={draft.portraitUrl} alt={`${draft.name || '我的身份'}的形象`} />}<Button type="button" variant="outline" disabled={!loggedIn || busy || designBusy || !draft.appearance.trim()} onClick={portrait}>{busy ? '正在生成形象…' : draft.portraitUrl ? '重新生成形象' : '生成形象（可选）'}</Button><Button type="submit" disabled={!loggedIn || busy || designBusy || !draft.name.trim()}>保存身份</Button></div>
       <p>仅生成形象时调用生图；使用现有经济模型与缓存，不随打开页面重复生成。</p>{notice && <output>{notice}</output>}
     </form></details>
-    <details className="flow-disclosure"><summary>让 Agent 帮我设计角色</summary><PersonaDesigner draft={draft} accountScope={accountScope} disabled={!loggedIn || busy} onBusy={setDesignBusy} onApply={proposal => { setDraft(current => ({ ...proposal, portraitUrl: proposal.appearance === current.appearance ? current.portraitUrl : undefined })); setEditing(true); setNotice('草案已填入，尚未保存。'); }} /></details>
+    <details className="flow-disclosure"><summary>让 Agent 帮我设计角色</summary><PersonaDesigner draft={draft} accountScope={accountScope} disabled={!loggedIn || busy} onBusy={setDesignBusy} onApply={proposal => { setDraft(current => ({ ...proposal, portraitUrl: localPortrait(current.portraitUrl) || proposal.appearance === current.appearance ? current.portraitUrl : undefined })); setEditing(true); setNotice('草案已填入，尚未保存。'); }} /></details>
   </details>;
 }
 

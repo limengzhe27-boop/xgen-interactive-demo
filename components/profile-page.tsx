@@ -3,11 +3,12 @@ import { useState, type ReactNode } from 'react';
 import { ArrowLeft, MessageCircleMore } from 'lucide-react';
 import type { PlayerPersona } from '@/lib/player-persona';
 import type { UserProfile } from '@/lib/user-profile';
+import type { MemoryDetail, MemoryDetails } from '@/lib/memory-history';
 
-export function ProfilePage({ persona, identityControl, profile, onProfile, memories, pending, busy, onBack, onChat, onRemove, onEdit, onConfirm, onDismiss }: {
+export function ProfilePage({ persona, identityControl, profile, onProfile, memories, memoryDetails = {}, pending, busy, onBack, onChat, onRemove, onEdit, onConfirm, onDismiss }: {
   persona: PlayerPersona | null; identityControl: ReactNode; profile: UserProfile; onProfile: (value: UserProfile) => void;
-  memories: string[]; pending: string[]; busy: boolean;
-  onBack: () => void; onChat: () => void; onRemove: (memory: string) => void; onEdit: (old: string, value: string) => void;
+  memories: string[]; memoryDetails?: MemoryDetails; pending: string[]; busy: boolean;
+  onBack: () => void; onChat: () => void; onRemove: (memory: string) => void; onEdit: (old: string, value: string) => boolean | void;
   onConfirm: (memory: string) => void; onDismiss: (memory: string) => void;
 }) {
   const [section, setSection] = useState<'profile' | 'persona'>('profile');
@@ -26,7 +27,7 @@ export function ProfilePage({ persona, identityControl, profile, onProfile, memo
       </form> : <dl className="profile-persona">{Object.entries(fields).map(([key, label]) => <div key={key}><dt>{label}</dt><dd>{profile[key as keyof UserProfile] || '尚未填写'}</dd></div>)}</dl>}
       {notice && <output>{notice}</output>}</section>
       <section className="profile-section"><h2>聊天记忆</h2><p className="profile-note">与你手动填写的资料分开管理。历史条目未记录来源，不推断它们由谁填写。</p>
-        <ul className="profile-memories">{memories.map(memory => <MemoryRow key={memory} memory={memory} busy={busy} onEdit={value => onEdit(memory, value)} onRemove={() => onRemove(memory)} />)}</ul>
+        <ul className="profile-memories">{memories.map(memory => <MemoryRow key={memory} memory={memory} detail={memoryDetails[memory]} busy={busy} onEdit={value => onEdit(memory, value)} onRemove={() => onRemove(memory)} />)}</ul>
         {!memories.length && <p className="profile-note">还没有记忆；你可以先填写资料，也可以和 Agent 聊聊。</p>}
         {!!pending.length && <details className="profile-pending"><summary>待你确认的了解 · {pending.length} 条</summary>{pending.map(memory => <article key={memory}><p>{memory}</p><button className="flow-control" disabled={busy} onClick={() => onConfirm(memory)}>确认记住</button><button className="flow-control" disabled={busy} onClick={() => onDismiss(memory)}>不保存</button></article>)}</details>}
       </section>
@@ -35,8 +36,10 @@ export function ProfilePage({ persona, identityControl, profile, onProfile, memo
   </div>;
 }
 
-function MemoryRow({ memory, busy, onEdit, onRemove }: { memory: string; busy: boolean; onEdit: (value: string) => void; onRemove: () => void }) {
+function MemoryRow({ memory, detail, busy, onEdit, onRemove }: { memory: string; detail?: MemoryDetail; busy: boolean; onEdit: (value: string) => boolean | void; onRemove: () => void }) {
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(memory);
-  return <li>{editing ? <form className="profile-edit" onSubmit={e => { e.preventDefault(); if (value.trim()) { onEdit(value.trim()); setEditing(false); } }}><label>修改这条记忆<textarea value={value} maxLength={300} onChange={e => setValue(e.target.value)} /></label><div><button className="flow-control" disabled={busy || !value.trim()}>保存修改</button><button className="flow-control" type="button" onClick={() => setEditing(false)}>取消</button><button className="flow-control" type="button" disabled={busy} onClick={() => { if (window.confirm('删除这条记忆？旧聊天和云快照不会一起删除。')) onRemove(); }}>删除</button></div></form> : <><span>{memory}</span><button className="flow-control" disabled={busy} onClick={() => { setValue(memory); setEditing(true); }}>编辑</button></>}</li>;
+  const [error, setError] = useState('');
+  const date = (at: number) => new Date(at).toLocaleString('zh-CN');
+  return <li>{editing ? <form className="profile-edit" onSubmit={e => { e.preventDefault(); if (busy || !value.trim()) return; if (onEdit(value.trim()) === false) setError('已有相同记忆，请修改内容或取消。'); else setEditing(false); }}><label>修改这条记忆<textarea value={value} maxLength={300} onChange={e => setValue(e.target.value)} /></label>{error && <p role="alert">{error}</p>}<div><button className="flow-control" disabled={busy || !value.trim()}>保存修改</button><button className="flow-control" type="button" onClick={() => setEditing(false)}>取消</button><button className="flow-control" type="button" disabled={busy} onClick={() => { if (window.confirm('删除这条记忆及其本机修改记录？旧聊天和云快照不会一起删除。')) onRemove(); }}>删除</button></div></form> : <><div className="memory-copy"><span>{memory}</span><details className="memory-history"><summary>来源与修改记录</summary><p>{detail?.source === 'confirmed-suggestion' ? 'Agent 提议 · 你确认记住' : '历史条目 · 来源与确认时间未知'}</p>{detail?.confirmedAt && <p>确认时间：{date(detail.confirmedAt)}</p>}{detail?.editedAt && <p>最近手动修改：{date(detail.editedAt)}</p>}{detail?.revisions.length ? <><p>最近 {detail.revisions.length} 次修改前的内容（最多保留 5 次）</p><ol>{[...detail.revisions].reverse().map((r,i)=><li key={i}><time>{date(r.changedAt)}</time><p>{r.previous}</p></li>)}</ol></> : <p>暂无已记录的修改。</p>}<p>旧内容仅供你查看，不额外发送给 Agent。</p></details></div><button className="flow-control" disabled={busy} onClick={() => { setValue(memory); setError(''); setEditing(true); }}>编辑</button></>}</li>;
 }

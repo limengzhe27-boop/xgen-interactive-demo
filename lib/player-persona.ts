@@ -1,5 +1,6 @@
 import type { WorldDefinition } from './ai-contracts';
 import type { StudioWorld } from './studio-worlds';
+import { localPortrait } from './persona-upload.ts';
 
 export type PlayerPersona = {
   version: 1; ownerId: string; name: string; identity: string; personality: string;
@@ -22,10 +23,10 @@ export function restorePlayerPersona(value: unknown, ownerId: string): PlayerPer
   if (ownerId === 'guest' || ownerId === 'pending' || !record(value) || value.version !== 1 || value.ownerId !== ownerId) return null;
   if (!['name', 'identity', 'personality', 'appearance', 'abilities'].every(key => typeof value[key] === 'string' && (value[key] as string).length <= (key === 'name' ? 40 : 1000))
     || !(value.name as string).trim() || typeof value.updatedAt !== 'number' || !Number.isFinite(value.updatedAt)) return null;
-  // Persist only owned server assets, never arbitrary image tracking URLs or extra profile metadata.
+  // Allow bounded, raster-only local uploads and owned server assets, never tracking URLs.
   return { version: 1, ownerId, name: (value.name as string).trim(), identity: value.identity as string, personality: value.personality as string,
     appearance: value.appearance as string, abilities: value.abilities as string, updatedAt: value.updatedAt,
-    portraitUrl: typeof value.portraitUrl === 'string' && /^\/api\/image\/asset\/[a-f0-9]{64}$/.test(value.portraitUrl) ? value.portraitUrl : undefined };
+    portraitUrl: typeof value.portraitUrl === 'string' && (localPortrait(value.portraitUrl) || /^\/api\/image\/asset\/[a-f0-9]{64}$/.test(value.portraitUrl)) ? value.portraitUrl : undefined };
 }
 export function personaEntryProblem(world: WorldDefinition, roleId: string, persona: PlayerPersona | null): string {
   if (world.entryAdmission) return '此会话已适配身份。请从世界库重新打开原世界，再选择新的入场身份。';

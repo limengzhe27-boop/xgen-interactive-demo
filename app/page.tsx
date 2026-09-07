@@ -44,6 +44,8 @@ import { makeCompanionInput, restoreCompanionContext, type CompanionContext } fr
 import { PersonaControl, PersonaAdmission, EntryPolicyEditor } from '@/components/player-persona';
 import { closedEntryPolicy, restoreEntryPolicy, restorePlayerPersona, type PlayerPersona, type EntryPolicy } from '@/lib/player-persona';
 import { pendingMemories, restorePersonalConversation } from '@/lib/personal-memory';
+import { visibleDialogue, dialogueContext, type StoryDialogue } from '@/lib/story-dialogue';
+import { restoreMemoryDetails, confirmMemoryDetail, editMemoryDetail, removeMemoryDetail, type MemoryDetails } from '@/lib/memory-history';
 import { knownRecommendations, restoreRecommendations, resolveWorldSelection, recommendationReply } from '@/lib/personal-recommendations';
 import type { PersonalAgentRequest, PersonalAgentResponse } from '@/lib/ai-contracts';
 import { CharacterChat, CharacterEntry } from '@/components/character-chat';
@@ -125,6 +127,7 @@ type StoryBeat = {
   text: string;
   speaker: string;
   dialogue: string;
+  dialogues?: StoryDialogue[];
   choices: StoryChoice[];
 };
 
@@ -176,6 +179,7 @@ type PersistedDemoState = {
   playerPersona?: PlayerPersona;
   entryPolicy?: EntryPolicy;
   memories: string[];
+  memoryDetails?: MemoryDetails;
   agentConversation?: NonNullable<PersonalAgentRequest['conversation']>;
   personalRecommendations?: PersonalAgentResponse['recommendations'];
   liveMode: boolean;
@@ -608,9 +612,9 @@ function enforceBeatPerspective(beat: StoryBeat, selectedRole: Role, availableRo
 }
 
 function responseToStoryBeat(response: WorldTurnResponse, fallback: StoryBeat, availableRoles: Role[], selectedRole: Role, world?: WorldDefinition): StoryBeat {
-  const firstDialogue = response.dialogue[0];
-  const speaker = availableRoles.find((role) => role.id === firstDialogue?.characterId)?.name ?? fallback.speaker;
-  const dialogue = response.dialogue.filter((item) => item.visibleToRoleIds.includes(selectedRole.id)).map((item) => item.text).join('\n');
+  const dialogues = visibleDialogue(response, selectedRole.id, availableRoles.map(role => role.id));
+  const speaker = dialogues.length === 1 ? availableRoles.find(role => role.id === dialogues[0].characterId)?.name ?? '' : '';
+  const dialogue = dialogueContext(dialogues, availableRoles);
   const choices = response.nextChoices.length > 0
     ? response.nextChoices.map((choice) => enforceRolePerspective({
       label: choice.label,
@@ -627,6 +631,7 @@ function responseToStoryBeat(response: WorldTurnResponse, fallback: StoryBeat, a
     text: response.narrative,
     speaker,
     dialogue,
+    dialogues,
     choices,
   };
 }
@@ -906,8 +911,8 @@ function toSceneContext(beat: StoryBeat, sceneIndex: number, availableRoles: Rol
     id: `scene-${sceneIndex + 1}`,
     title: beat.title,
     narrative: beat.text,
-    speakerCharacterId: availableRoles.find((role) => role.name === beat.speaker)?.id,
-    dialogue: beat.dialogue,
+    speakerCharacterId: beat.dialogues ? (beat.dialogues.length === 1 ? beat.dialogues[0].characterId : undefined) : availableRoles.find((role) => role.name === beat.speaker)?.id,
+    dialogue: beat.dialogues ? dialogueContext(beat.dialogues, availableRoles) : beat.dialogue,
     choices: beat.choices.map((choice, index) => ({
       id: `scene-${sceneIndex + 1}-choice-${index + 1}`,
       label: choice.label,
@@ -951,6 +956,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
   const lastImageAttemptTurnRef = useRef(0);
   const [agentThinking, setAgentThinking] = useState(false);
   const [memories, setMemories] = useState<string[]>([]);
+  const [memoryDetails, setMemoryDetails] = useState<MemoryDetails>({});
   const [userProfile, setUserProfile] = useState<UserProfile>(emptyProfile);
   const [pendingPersonalMemories, setPendingPersonalMemories] = useState<string[]>([]);
   const [selectedRole, setSelectedRole] = useState<Role>(roles[0]);
@@ -1145,7 +1151,11 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
           setCreatorAssets(saved.creatorAssets);
           setPlayerPersona(restorePlayerPersona(saved.playerPersona, accountScope));
           setEntryPolicy(restoreEntryPolicy(saved.entryPolicy ?? saved.generatedWorld?.entryPolicy));
-          if (Array.isArray(saved.memories)) setMemories(saved.memories.filter((item) => typeof item === 'string').slice(0, 24));
+          if (Array.isArray(saved.memories)) {
+            const restored = saved.memories.filter((item) => typeof item === 'string').slice(0, 24);
+            setMemories(restored);
+            setMemoryDetails(restoreMemoryDetails(saved.memoryDetails, restored));
+          }
           setUserProfile(restoreUserProfile(saved.userProfile));
           setAgentConversation(restorePersonalConversation(saved.agentConversation));
           setPersonalRecommendations(restoreRecommendations(saved.personalRecommendations));
@@ -1223,6 +1233,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       playerPersona: playerPersona ?? undefined,
       entryPolicy,
       memories,
+      memoryDetails: restoreMemoryDetails(memoryDetails, memories),
       agentConversation: agentConversation.slice(-40),
       personalRecommendations,
       liveMode,
@@ -1242,7 +1253,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     };
     try { window.localStorage.setItem(demoStorageKey, JSON.stringify(snapshot)); }
     catch { window.setTimeout(() => setStorageError('浏览器空间不足，最新修改还没有保存。请保持页面打开，勿刷新。'), 0); }
-  }, [creatorAssets, userProfile, companionContext, playerPersona, entryPolicy, agentConversation, personalRecommendations, creatorBrief, creatorDetailBaseline, creatorMessages, draftRoles, generated, generatedStoryOutline, generatedWorld, liveMode, memories, publishedWorld, savedRun, storageReady, surprise, worldSeed, worldTitle]);
+  }, [memoryDetails, creatorAssets, userProfile, companionContext, playerPersona, entryPolicy, agentConversation, personalRecommendations, creatorBrief, creatorDetailBaseline, creatorMessages, draftRoles, generated, generatedStoryOutline, generatedWorld, liveMode, memories, publishedWorld, savedRun, storageReady, surprise, worldSeed, worldTitle]);
 
   const hasCreation = Boolean(worldTitle.trim() || worldSeed.trim() || generatedWorld || creatorMessages.some(turn => turn.role === 'creator') || companionContext.conversation.length);
   const creatorDocumentJSON = JSON.stringify({ creatorAssets, companionContext, entryPolicy, worldTitle, worldSeed, surprise, draftRoles, generated, generatedWorld: generatedWorld ?? undefined,
@@ -2217,9 +2228,14 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
   }} />;
 
   function renderScreen() {
-    if (view === 'profile') return <ProfilePage profile={userProfile} onProfile={setUserProfile} onEdit={(old, value) => setMemories(current => [...new Set(current.map(item => item === old ? value : item))])} persona={playerPersona} identityControl={identityControl} memories={memories} pending={pendingPersonalMemories} busy={agentThinking} onBack={() => navigate('home')} onChat={() => navigate('personal')} onRemove={memory => setMemories(current => current.filter(item => item !== memory))} onDismiss={memory => setPendingPersonalMemories(current => current.filter(item => item !== memory))} onConfirm={memory => {
+    if (view === 'profile') return <ProfilePage profile={userProfile} onProfile={setUserProfile} memoryDetails={memoryDetails} onEdit={(old, value) => {
+      if (old !== value && memories.includes(value)) return false;
+      setMemories(current => current.map(item => item === old ? value : item));
+      setMemoryDetails(current => editMemoryDetail(current, old, value));
+      return true;
+    }} persona={playerPersona} identityControl={identityControl} memories={memories} pending={pendingPersonalMemories} busy={agentThinking} onBack={() => navigate('home')} onChat={() => navigate('personal')} onRemove={memory => { setMemories(current => current.filter(item => item !== memory)); setMemoryDetails(current => removeMemoryDetail(current, memory)); }} onDismiss={memory => setPendingPersonalMemories(current => current.filter(item => item !== memory))} onConfirm={memory => {
       if (memories.length >= 24) { setStorageError('记忆已满（24 条），请先删除不再需要的内容。'); return; }
-      setMemories(current => [...new Set([...current, memory])]); setPendingPersonalMemories(current => current.filter(item => item !== memory));
+      setMemories(current => [...new Set([...current, memory])]); setMemoryDetails(current => confirmMemoryDetail(current, memory)); setPendingPersonalMemories(current => current.filter(item => item !== memory));
     }} />;
     if (view === 'chat' && activeChat) return <CharacterChat key={`${accountScope}:${activeChat.id}`} accountScope={accountScope} initial={activeChat} onSave={saveChat} onBack={() => navigate('home')} />;
     if (view === 'home' || view === 'library' || view === 'characters') return <StudioHome key={`${accountScope}:${view}`}
@@ -2348,10 +2364,11 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
         pending={pendingPersonalMemories}
         onMessage={setMessage}
         onSubmit={submitMessage}
-        onRemoveMemory={(memory) => setMemories((current) => current.filter((item) => item !== memory))}
+        onRemoveMemory={(memory) => { setMemories(current => current.filter(item => item !== memory)); setMemoryDetails(current => removeMemoryDetail(current, memory)); }}
         onConfirmMemory={(memory) => {
           if (memories.length >= 24) { setAgentError('记忆已满（24 条），请先删除一条不再需要的内容。'); return; }
           setMemories((current) => [...new Set([...current, memory])]);
+          setMemoryDetails(current => confirmMemoryDetail(current, memory));
           setPendingPersonalMemories((current) => current.filter((item) => item !== memory));
         }}
         onDismissMemory={(memory) => setPendingPersonalMemories((current) => current.filter((item) => item !== memory))}
@@ -2527,7 +2544,10 @@ function PlayWorld({
           <h1 id="scene-title">{beat.title}</h1>
           <p className="flow-narrative">{isThinking && !narrative ? '世界正在回应你的行动……' : narrative}{isThinking && liveMode ? <span className="streaming-cursor" aria-label="正在生成" /> : null}</p>
           {incident && <p className="flow-incident"><Sparkles />{incident.title}</p>}
-          {!isThinking && beat.dialogue && <blockquote>{speakingRole && <RolePortrait role={speakingRole} />}<div><strong>{beat.speaker}</strong><p>“{beat.dialogue}”</p></div></blockquote>}
+          {!isThinking && (beat.dialogues ? beat.dialogues.map((line, index) => {
+            const speaker = availableRoles.find(item => item.id === line.characterId);
+            return speaker ? <blockquote key={`${line.characterId}-${index}`}><RolePortrait role={speaker} /><div><strong>{speaker.name}</strong><p>“{line.text}”</p></div></blockquote> : null;
+          }) : beat.dialogue && <blockquote>{!beat.dialogue.includes('\n') && speakingRole && <RolePortrait role={speakingRole} />}<div><strong>{beat.dialogue.includes('\n') ? '历史对白 · 旧存档未保留逐句人物' : beat.speaker}</strong><p>“{beat.dialogue}”</p></div></blockquote>)}
         </section>
         <section className="flow-action-area" aria-label="你的行动">
           <div className="flow-current-goal"><Target /><p>当前目标：{currentTask?.title || goal?.title || role.goal}</p>{system && <SheetTrigger className="flow-control flow-system-entry" onClick={() => setCategory('system')}><Sparkles />{system.name}</SheetTrigger>}</div>
