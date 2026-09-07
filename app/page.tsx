@@ -1,7 +1,8 @@
 'use client';
 /* oxlint-disable next/no-img-element -- local prototype assets avoid vinext/next-image runtime duplication */
 
-import { SyntheticEvent, useEffect, useEffectEvent, useRef, useState } from 'react';
+import { SyntheticEvent, type ReactNode, useEffect, useEffectEvent, useRef, useState } from 'react';
+import { WorldSystemPanel } from '@/components/world-system-panel';
 import {
   ArrowLeft,
   ArrowRight,
@@ -1652,7 +1653,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
   function takeAction(action: string) {
     const nextAction = action.trim();
     if (!nextAction || (isThinking && !liveMode)) return;
-    const validation = validateAction(nextAction, worldState, currentBeat.choices.map((choice) => choice.label));
+    const validation = validateAction(nextAction, worldState, currentBeat.choices.map((choice) => choice.label), activeWorldDefinition);
     if (!validation.allowed) {
       setActionFeedback(validation);
       setWorldState((current) => recordRejectedEvent(current, nextAction, validation.reason ?? '行动未通过世界规则检查。'));
@@ -2206,6 +2207,8 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     if (view === 'play') {
       return (
         <PlayWorld
+          artNote={activeLibrary?.artNote}
+          systemPanel={<WorldSystemPanel world={activeWorldDefinition} roleId={selectedRole.id} completedTaskIds={worldState.completedTaskIds ?? []} disabled={isThinking} onPrepare={setFreeAction} />}
           role={selectedRole}
           worldTitle={activeWorldTitle}
           availableRoles={currentRoles}
@@ -2395,6 +2398,8 @@ function RoleSelection({ worldTitle, artNote, availableRoles, selected, onSelect
 }
 
 function PlayWorld({
+  artNote,
+  systemPanel,
   role,
   worldTitle,
   availableRoles,
@@ -2424,6 +2429,8 @@ function PlayWorld({
   onAction,
   onBack,
 }: {
+  artNote?: string;
+  systemPanel?: ReactNode;
   role: Role;
   worldTitle: string;
   availableRoles: Role[];
@@ -2480,6 +2487,7 @@ function PlayWorld({
             <span>{clock}</span>
           </div>
           <div className="story-content">
+            {artNote && imageTask.assetUrl.startsWith('/assets/') && <p className="scene-kicker">{artNote}</p>}
             <div className="player-role"><RolePortrait role={role} /><span><small>你是</small><strong>{role.name}</strong></span></div>
             <p className="scene-kicker">{lastAction ? `你的行动：${lastAction}` : `${worldTitle} · 开场`}</p>
             <h1 id="scene-title">{beat.title}</h1>
@@ -2501,9 +2509,10 @@ function PlayWorld({
             ))}{!presentRoleIds.some((id) => id !== role.id) && <small>这里暂时没有其他角色</small>}</div>
           </div>
           <div className="free-action-block is-primary-input">
+            {systemPanel}
             <label htmlFor="free-action">{isThinking ? (liveMode ? '世界正在展开，你可随时介入' : '等待世界回应') : '你想怎么做？'}</label>
             {actionFeedback ? <output className="action-feedback"><strong>这个行动无法直接发生</strong><span>{actionFeedback.reason}</span>{actionFeedback.suggestion ? <small>{actionFeedback.suggestion}</small> : null}</output> : null}
-            <MessageTextarea id="free-action" value={freeAction} onChange={(event) => onFreeAction(event.target.value)} onSend={() => onAction(freeAction)} placeholder="例如：我关掉手电，观察谁最先说话……（Enter 发送，Shift + Enter 换行）" disabled={isThinking && !liveMode} />
+            <MessageTextarea id="free-action" value={freeAction} onChange={(event) => onFreeAction(event.target.value)} onSend={() => onAction(freeAction)} placeholder="说出你的行动、使用已拥有的能力，或试一个出人意料的办法……（Enter 发送，Shift + Enter 换行）" disabled={isThinking && !liveMode} />
             <Button className="primary-action free-action-button" disabled={!freeAction.trim() || (isThinking && !liveMode)} onClick={() => onAction(freeAction)}><Send />{isThinking && liveMode ? '介入当前生成' : '让世界回应'}</Button>
           </div>
           <div className="choice-suggestions-heading"><span>不知道怎么做？</span><small>以下只是行动灵感</small></div>

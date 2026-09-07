@@ -1,6 +1,7 @@
 import type { WorldDefinition } from './ai-contracts';
 import publicImages from './public-image-manifest.json' with { type: 'json' };
 import { serialWorlds } from './serial-worlds.ts';
+import { wildWorlds } from './wild-worlds.ts';
 
 export type StudioWorld = {
   id: string;
@@ -9,6 +10,7 @@ export type StudioWorld = {
   premise: string;
   cover: string;
   artNote?: string;
+  featured?: boolean;
   world: WorldDefinition;
   portraits: Record<string, string>;
   portraitCacheKeys?: Record<string, string>;
@@ -319,7 +321,7 @@ const publicImage = (path: string) => {
   const id = (publicImages as Record<string, string>)[path];
   return id ? `https://rrgyjvkkgcurtatidyuc.supabase.co/storage/v1/object/public/world-public/${id}.webp` : path;
 };
-export const studioWorlds: StudioWorld[] = [contractWorld, workplaceWorld, inheritanceWorld, ...serialWorlds].map((entry) => ({
+export const studioWorlds: StudioWorld[] = [contractWorld, workplaceWorld, inheritanceWorld, ...serialWorlds, ...wildWorlds].map((entry) => ({
   ...entry, cover: publicImage(entry.cover),
   portraits: Object.fromEntries(Object.entries(entry.portraits).map(([id, path]) => [id, publicImage(path)])),
 }));

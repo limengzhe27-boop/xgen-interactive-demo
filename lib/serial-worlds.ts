@@ -4,13 +4,13 @@ import type { StudioWorld } from './studio-worlds';
 type Step = [title: string, condition: string, resistance: string];
 type Cast = {
   id: string; name: string; identity: string; persona: string; background: string;
-  knowledge: string; secret: string; goal: string; start: 'stage' | 'back' | 'side';
+  knowledge: string; secret: string; goal: string; start: string;
   portrait: string; appearance: string; entry: string; choices: [string, string, string];
-  arc: [Step, Step]; sideQuest: Step;
+  arc: Step[]; sideQuest: Step;
 };
-type Serial = {
+export type Serial = {
   id: string; title: string; genre: string; hook: string; time: string; event: string;
-  cover: string; physics?: string; roles: [Cast, Cast, Cast];
+  cover: string; physics?: string; roles: Cast[];
   places: [name: string, description: string][];
   links: [from: number, to: number, label: string, trust: number][];
   opening: string;
@@ -19,8 +19,8 @@ type Serial = {
 
 // Original, authored starting situations. Tasks describe evidence of progress,
 // never a pre-generated sequence of player decisions or a mandatory moral lesson.
-function createSerial(s: Serial): StudioWorld {
-  const placeIds = ['stage', 'back', 'side'];
+export function createSerial(s: Serial): StudioWorld {
+  const placeIds = s.places.map((_, i) => ['stage', 'back', 'side'][i] ?? `place-${i}`);
   const characters: WorldDefinition['characters'] = s.roles.map(r => ({
     id: r.id, name: r.name, identity: r.identity, persona: r.persona,
     publicBackground: r.background, privateKnowledge: [r.knowledge], secrets: [r.secret],
@@ -36,7 +36,7 @@ function createSerial(s: Serial): StudioWorld {
   ]);
   const goals: WorldDefinition['goals'] = characters.map(r => ({
     id: `${r.id}-goal`, scope: 'role', roleId: r.id, title: r.goal, description: r.goal,
-    requiredTaskIds: [`${r.id}-main-1`, `${r.id}-main-2`],
+    requiredTaskIds: tasks.filter(t => t.kind === 'main' && t.assignedRoleIds.includes(r.id)).map(t => t.id),
   }));
   return {
     id: s.id, title: s.title, genre: s.genre, premise: s.hook, cover: s.cover,
@@ -57,11 +57,11 @@ function createSerial(s: Serial): StudioWorld {
         { id: 'consequences', kind: 'story', immutable: true, description: '已经发生的背叛、出示的材料、付出的资源和公开承诺持续有效。事件只能在触发条件满足时发生，不能按轮次强推原定结局；成功由所选角色目标决定，拒绝亲密、暂缓决定或选择替代路线不自动失败。' },
       ],
       tasks, goals,
-      difficultyConstraints: s.roles.map(r => ({ id: `${r.id}-resistance`, blocksTaskId: `${r.id}-main-2`, description: r.arc[1][2], bypassCondition: r.arc[1][1], consequence: '未获得实际条件就宣布胜利不改变任务状态；对手按已有利益作出反应，不凭空制造惩罚。' })),
+      difficultyConstraints: s.roles.map(r => ({ id: `${r.id}-resistance`, blocksTaskId: `${r.id}-main-${r.arc.length}`, description: r.arc[r.arc.length - 1][2], bypassCondition: r.arc[r.arc.length - 1][1], consequence: '未获得实际条件就宣布胜利不改变任务状态；对手按已有利益作出反应，不凭空制造惩罚。' })),
       scheduledEvents: s.twists.map(([title, trigger, effect], i) => ({ id: `${s.id}-event-${i + 1}`, title, trigger, earliestTurn: i + 2, effect })),
       endingConditions: goals.flatMap(g => [
         { id: `${g.roleId}-won`, outcome: 'success' as const, applicableRoleIds: [g.roleId!], description: g.description, requiredTaskIds: g.requiredTaskIds, requiredFacts: [] },
-        { id: `${g.roleId}-walked-away`, outcome: 'failure' as const, applicableRoleIds: [g.roleId!], description: '玩家明确放弃当前角色核心争夺，按实际状态收束；并非道德评判。', requiredTaskIds: [], requiredFailedTaskIds: [g.requiredTaskIds[1]], requiredFacts: [`${characters.find(r => r.id === g.roleId)!.name}明确放弃核心目标`] },
+        { id: `${g.roleId}-walked-away`, outcome: 'failure' as const, applicableRoleIds: [g.roleId!], description: '玩家明确放弃当前角色核心争夺，按实际状态收束；并非道德评判。', requiredTaskIds: [], requiredFailedTaskIds: [g.requiredTaskIds[g.requiredTaskIds.length - 1]], requiredFacts: [`${characters.find(r => r.id === g.roleId)!.name}明确放弃核心目标`] },
       ]),
       openingScene: { locationId: 'stage', presentCharacterIds: characters.filter(r => r.startLocationId === 'stage').map(r => r.id), narrative: s.opening, choices: [] },
     },

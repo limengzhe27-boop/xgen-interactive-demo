@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/compone
 import { GalleryAtmosphere, GalleryMasonry, GalleryReveal } from '@/components/gallery-motion';
 
 export type StudioSection = 'home' | 'library' | 'characters' | 'personal';
-export type WorldCard = { id: string; title: string; genre: string; premise: string; cover: string; roleCount: number; artNote?: string };
+export type WorldCard = { id: string; title: string; genre: string; premise: string; cover: string; roleCount: number; artNote?: string; featured?: boolean };
 export type CharacterCard = { id: string; worldId: string; worldTitle: string; name: string; identity: string; persona: string; image: string };
 export type RecentCard = { id: string; title: string; subtitle: string; label: string; cover: string };
 type GalleryItem = { kind: 'world'; value: WorldCard } | { kind: 'character'; value: CharacterCard };
@@ -60,10 +60,11 @@ export function StudioHome({ section, worlds, characters, recent, onCreate, onOp
     observer.observe(anchor.current);
     return () => observer.disconnect();
   }, [isHome]);
-  const genres = ['全部', ...new Set(worlds.map(world => world.genre))];
+  const orderedWorlds = [...worlds].sort((a, b) => Number(!!b.featured) - Number(!!a.featured));
+  const genres = ['全部', ...new Set(orderedWorlds.map(world => world.genre))];
   const matches = (text: string) => text.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase());
   const items: GalleryItem[] = [];
-  worlds.filter(world => genre === '全部' || world.genre === genre).forEach(world => {
+  orderedWorlds.filter(world => genre === '全部' || world.genre === genre).forEach(world => {
     if (kind !== 'character' && matches(world.title + ' ' + world.genre + ' ' + world.premise)) items.push({ kind: 'world', value: world });
     if (kind !== 'world') characters.filter(character => character.worldId === world.id && matches(character.name + ' ' + character.identity + ' ' + character.worldTitle + ' ' + character.persona)).forEach(character => items.push({ kind: 'character', value: character }));
   });

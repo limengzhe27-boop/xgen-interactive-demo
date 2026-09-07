@@ -129,13 +129,15 @@ export function createInitialWorldState(
   };
 }
 
-export function validateAction(action: string, state: WorldState, listedChoices: string[]): ActionValidation {
+export function validateAction(action: string, state: WorldState, listedChoices: string[], world?: Pick<WorldDefinition, 'rules'>): ActionValidation {
   const normalized = action.trim();
-  if (listedChoices.includes(normalized)) return { allowed: true };
   if (normalized.length < 2) return { allowed: false, reason: '行动太模糊，世界无法判定你想做什么。', suggestion: '说明你想观察、询问或操作什么。' };
 
   const impossiblePattern = /(瞬移|穿墙|凭空变出|时间倒流|召唤飞船|飞到楼顶)/;
-  if (impossiblePattern.test(normalized)) {
+  // A fictional premise delegates capability/range/cost adjudication to the world Agent.
+  // It is not automatic action success, and does not bypass secrets or task guards.
+  const fictionalPhysics = Array.isArray(world?.rules) && world.rules.some(r => r?.id === 'fantasy-physics' && r.kind === 'physical' && r.immutable === true);
+  if (impossiblePattern.test(normalized) && !fictionalPhysics) {
     return { allowed: false, reason: '这个行动违反了当前世界的物理规则。', suggestion: '可以尝试寻找通道、工具或请求其他角色帮助。' };
   }
 
@@ -148,6 +150,7 @@ export function validateAction(action: string, state: WorldState, listedChoices:
   if (shortcutPattern.test(normalized)) {
     return { allowed: false, reason: '你描述的是尚未发生的结果，不能用宣告跳过任务条件。', suggestion: '说明你准备采取的具体行动，世界会根据证据、关系和前置条件判断结果。' };
   }
+  if (listedChoices.includes(normalized)) return { allowed: true };
 
   const requiredItems = [
     { pattern: /(用|拿出).{0,4}铜钥匙/, item: '铜钥匙' },

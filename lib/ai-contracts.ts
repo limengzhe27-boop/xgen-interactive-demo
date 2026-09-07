@@ -126,6 +126,7 @@ export type ScheduledWorldEvent = {
 };
 
 export type WorldDefinition = {
+  system?: import('./world-system').WorldSystem;
   entryPolicy?: import('./player-persona').EntryPolicy;
   /** Private runtime adaptation; never publish a player's session as the original world. */
   entryAdmission?: { roleId: string; originalName: string; name: string; grantedAbilities: string[] };

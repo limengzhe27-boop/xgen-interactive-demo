@@ -1,10 +1,12 @@
 import type { WorldDefinition } from './ai-contracts';
 import { validEntryPolicy } from './player-persona.ts';
+import { validWorldSystem } from './world-system.ts';
 
 type Shape = 'string' | 'number' | 'boolean' | { [key: string]: Shape } | [Shape];
 const texts: Shape = ['string'];
 const schema: Shape = {
   id: 'string', title: 'string', premise: 'string', timeSetting: 'string', coreEvent: 'string', surpriseLevel: 'number',
+  'system?': { name: 'string', premise: 'string', entries: [{ id: 'string', title: 'string', description: 'string', roleIds: texts, requiredTaskIds: texts, action: 'string' }] },
   'entryPolicy?': { allowPersona: 'boolean', allowedRoleIds: texts, abilityMode: 'string', abilities: texts },
   locations: [{ id: 'string', name: 'string', description: 'string', connectedLocationIds: texts }],
   characters: [{ id: 'string', name: 'string', identity: 'string', persona: 'string', publicBackground: 'string', privateKnowledge: texts, secrets: texts, goal: 'string', startLocationId: 'string', imagePrompt: 'string' }],
@@ -45,6 +47,7 @@ export function publicationWorld(value: unknown): WorldDefinition {
     return result;
   };
   const roles = ids(world.characters), places = ids(world.locations), tasks = ids(world.tasks);
+  if (world.system && !validWorldSystem(world.system, [...roles], [...tasks])) throw new Error('invalid_world_system');
   if (world.entryPolicy && (!validEntryPolicy(world.entryPolicy) || world.entryPolicy.allowedRoleIds.some(id => !roles.has(id)))) throw new Error('invalid_entry_policy');
   ids(world.goals); ids(world.rules); ids(world.scheduledEvents); ids(world.endingConditions);
   const all = (values: string[], set: Set<string>) => values.every(id => set.has(id));

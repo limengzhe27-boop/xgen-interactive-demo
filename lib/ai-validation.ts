@@ -5,9 +5,18 @@ import {
   type WorldGenerationResponse,
   type WorldTurnRequest,
   type WorldTurnResponse,
-} from '@/lib/ai-contracts';
+} from './ai-contracts.ts';
 
 import { validEntryPolicy, validPersonaAdmission } from './player-persona.ts';
+import { validWorldSystem } from './world-system.ts';
+
+function validOptionalSystem(world: Record<string, unknown>) {
+  if (world.system === undefined) return true;
+  if (!Array.isArray(world.characters) || !Array.isArray(world.tasks)) return false;
+  if (!world.characters.every(r => isRecord(r) && typeof r.id === 'string')
+    || !world.tasks.every(t => isRecord(t) && typeof t.id === 'string' && isStringArray(t.assignedRoleIds))) return false;
+  return validWorldSystem(world.system, world.characters.map(r => r.id), world.tasks.map(t => t.id));
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -95,7 +104,7 @@ export function isWorldGenerationResponse(value: unknown): value is WorldGenerat
     || !isStringArray(value.generationNotes)
     || !isStringArray(value.unresolvedQuestions)) return false;
   const world = value.world;
-  return typeof world.id === 'string'
+  return validOptionalSystem(world) && typeof world.id === 'string'
     && typeof world.title === 'string'
     && typeof world.premise === 'string'
     && typeof world.timeSetting === 'string'
@@ -198,6 +207,7 @@ export function isWorldTurnRequest(value: unknown): value is WorldTurnRequest {
     || !Array.isArray(value.currentScene.choices)) return false;
 
   if (!value.world.characters.some((character) => isRecord(character) && character.id === value.selectedRoleId)) return false;
+  if (!validOptionalSystem(value.world)) return false;
   if (!validPersonaAdmission(value.world as WorldTurnRequest['world'], value.selectedRoleId)) return false;
   if (value.interaction !== undefined) {
     if (!isRecord(value.interaction) || value.interaction.mode !== 'character-chat'
