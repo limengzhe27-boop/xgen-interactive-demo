@@ -45,6 +45,7 @@ import { knownRecommendations, restoreRecommendations, resolveWorldSelection, re
 import type { PersonalAgentRequest, PersonalAgentResponse } from '@/lib/ai-contracts';
 import { CharacterChat, CharacterEntry } from '@/components/character-chat';
 import { studioWorlds, getRoleOpening } from '@/lib/studio-worlds';
+import { legacyArt } from '@/lib/legacy-art';
 import type { StudioWorld } from '@/lib/studio-worlds';
 import { upsertById } from '@/lib/studio-session';
 import type { ChatSession } from '@/lib/studio-session';
@@ -314,6 +315,7 @@ function isSavedRun(value: unknown): value is SavedRun {
 const roles: Role[] = [
   {
     id: 'lin-xia',
+    imageUrl: legacyArt['storm-manor'].portraits['lin-xia'],
     name: '林夏',
     identity: '失踪者的姐姐',
     personality: '敏锐、克制、不轻易相信别人',
@@ -325,6 +327,7 @@ const roles: Role[] = [
   },
   {
     id: 'gu-huai',
+    imageUrl: legacyArt['storm-manor'].portraits['gu-huai'],
     name: '顾淮',
     identity: '家族律师',
     personality: '冷静、谨慎、擅长隐藏情绪',
@@ -336,6 +339,7 @@ const roles: Role[] = [
   },
   {
     id: 'zhou-bo',
+    imageUrl: legacyArt['storm-manor'].portraits['zhou-bo'],
     name: '周伯',
     identity: '山庄管家',
     personality: '沉默、守序、对旧主人极度忠诚',
@@ -952,7 +956,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
   const [worldState, setWorldState] = useState(() => createInitialWorldState('storm', roles[0].id, roles[0].secret, roleStoryBeats[roles[0].id][0].location));
   const [actionFeedback, setActionFeedback] = useState<ActionValidation | null>(null);
   const [lastIncident, setLastIncident] = useState<WorldIncident | null>(null);
-  const [imageTask, setImageTask] = useState<ImageTask>(() => createInitialImageTask('/assets/storm-manor-cover.png'));
+  const [imageTask, setImageTask] = useState<ImageTask>(() => createInitialImageTask(legacyArt['storm-manor'].cover));
   const [isThinking, setIsThinking] = useState(false);
   const [liveMode, setLiveMode] = useState(false);
   const [createStep, setCreateStep] = useState(1);
@@ -1024,7 +1028,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       imageUrl: roleImages[role.id],
     };
   });
-  const suggestedRoles = suggestedPreset ? makePlayableDraftRoles(suggestedPreset.roles) : [];
+  const suggestedRoles = suggestedPreset ? makePlayableDraftRoles(suggestedPreset.roles).map(role => ({ ...role, imageUrl: legacyArt[suggestedPreset.id]?.portraits[role.id] })) : [];
   const suggestedWorldDefinition = suggestedPreset
     ? buildCreatorWorld(
       suggestedPreset.title,
@@ -1038,7 +1042,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
   const suggestedStories: Record<string, StoryBeat[]> = suggestedPreset && suggestedWorldDefinition
     ? makeGeneratedDraftStory(suggestedRoles, suggestedWorldDefinition, suggestedPreset.outline)
     : {};
-  const currentRoles = activeLibrary ? entryRoles(activeLibrary).map((role) => ({ ...role, imageUrl: role.imageUrl || (!role.ownPersona ? libraryRoleImages[`${activeLibrary.id}:${role.id}`] : undefined) })) : activeWorld === 'draft' ? playableDraftRoles : activeWorld === 'suggestion' ? suggestedRoles : roles;
+  const currentRoles = activeLibrary ? entryRoles(activeLibrary).map((role) => ({ ...role, imageUrl: role.imageUrl || (!role.ownPersona ? libraryRoleImages[`${activeLibrary.id}:${role.id}`] : undefined) })) : activeWorld === 'draft' ? playableDraftRoles : activeWorld === 'suggestion' ? suggestedRoles : roles.map(role => ({ ...role, imageUrl: legacyArt['storm-manor'].portraits[role.id] }));
   const draftStories = generatedWorld && generatedStoryOutline.length > 0
     ? makeGeneratedDraftStory(playableDraftRoles, generatedWorld, generatedStoryOutline)
     : makeDraftStory(playableDraftRoles, worldSeed);
@@ -1073,7 +1077,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       ? suggestedWorldDefinition
       : buildWorldDefinition('storm', activeWorldTitle, currentStory[0].text, currentRoles, currentStory, activeSurprise);
   const userWorlds: StudioWorld[] = creatorDocuments.filter((doc) => doc.data.publishedWorld && doc.data.generatedWorld).map((doc) => ({
-    id: doc.id, title: doc.data.worldTitle, genre: '我的创作', premise: doc.data.worldSeed, cover: '/assets/storm-manor-cover.png', portraits: {},
+    id: doc.id, title: doc.data.worldTitle, genre: '我的创作', premise: doc.data.worldSeed, cover: legacyArt['storm-manor'].cover, portraits: {},
     world: { ...doc.data.generatedWorld!, id: doc.id, title: doc.data.worldTitle },
     portraitCacheKeys: Object.fromEntries(doc.data.draftRoles.map((role, index) => [doc.data.generatedWorld!.characters[index]?.id ?? `draft-role-${index}`, portraitCacheKey(role)])),
   }));
@@ -1166,7 +1170,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
             const legacy = saved.savedRun;
             const frozenWorld = legacy.worldSnapshot ?? (legacy.worldKind === 'draft' && saved.generatedWorld ? {
               id: saved.generatedWorld.id, title: legacy.worldTitle, genre: '我的创作', premise: saved.generatedWorld.premise,
-              cover: '/assets/storm-manor-cover.png', portraits: {}, world: saved.generatedWorld,
+              cover: legacyArt['storm-manor'].cover, portraits: {}, world: saved.generatedWorld,
             } : undefined);
             setSavedRun({ ...legacy, worldSnapshot: frozenWorld });
           }
@@ -1280,7 +1284,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     worldTitle: activeWorldTitle, surpriseLevel: activeSurprise, roleId: selectedRole.id, turn, narrative, lastAction, lastIncident,
     endingDecision, worldState, status: view === 'ending' ? 'ending' : 'playing', imageCacheKey: imageTask.cacheKey, currentBeat,
     worldSnapshot: activeLibrary ?? { id: activeWorldDefinition.id, title: activeWorldTitle, genre: '小世界', premise: activeWorldDefinition.premise,
-      world: activeWorldDefinition, cover: activeWorld === 'suggestion' ? (suggestedPreset?.id === 'sea-train' ? '/assets/sea-train-cover.jpg' : '/assets/roommate-cover.jpg') : '/assets/storm-manor-cover.png',
+      world: activeWorldDefinition, cover: activeWorld === 'suggestion' ? (suggestedPreset?.id === 'sea-train' ? legacyArt['sea-train'].cover : legacyArt['sixth-roommate'].cover) : legacyArt['storm-manor'].cover,
       portraits: Object.fromEntries(currentRoles.filter((role) => role.imageUrl && !role.imageUrl.startsWith('data:')).map((role) => [role.id, role.imageUrl!])) },
   });
   useEffect(() => {
@@ -1468,7 +1472,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     }
     const preset = presetWorlds.find((world) => world.id === worldId);
     if (!preset) return false;
-    const nextRoles = makePlayableDraftRoles(preset.roles);
+    const nextRoles = makePlayableDraftRoles(preset.roles).map(role => ({ ...role, imageUrl: legacyArt[preset.id]?.portraits[role.id] }));
     setActiveLibrary(null);
     setSuggestedPreset(preset);
     setActiveWorld('suggestion');
@@ -1487,7 +1491,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     const savedRoles = savedRun.worldSnapshot ? entryRoles(savedRun.worldSnapshot) : savedRun.worldKind === 'draft'
       ? playableDraftRoles
       : savedRun.worldKind === 'suggestion' && savedPreset
-        ? makePlayableDraftRoles(savedPreset.roles)
+        ? makePlayableDraftRoles(savedPreset.roles).map(role => ({ ...role, imageUrl: legacyArt[savedPreset.id]?.portraits[role.id] }))
         : roles;
     const savedRole = savedRoles.find((role) => role.id === savedRun.roleId);
     if (!savedRole || (savedRun.worldKind === 'suggestion' && !savedPreset)) {
@@ -1513,7 +1517,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     const restoredSceneId = `scene-${savedRun.turn + 1}`;
     const restoreRequestId = imageRequestRef.current;
     setImageTask({
-      ...createInitialImageTask(savedRun.worldSnapshot?.cover || '/assets/storm-manor-cover.png'),
+      ...createInitialImageTask(savedRun.worldSnapshot?.cover || legacyArt['storm-manor'].cover),
       requestId: restoreRequestId,
       sceneId: restoredSceneId,
       status: savedRun.imageCacheKey && savedRun.status === 'playing' ? 'generating' : 'reused',
@@ -1624,7 +1628,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     ));
     setActionFeedback(null);
     setLastIncident(null);
-    setImageTask(createInitialImageTask(activeLibrary?.cover || (activeWorld === 'suggestion' ? (suggestedPreset?.id === 'sea-train' ? '/assets/sea-train-cover.jpg' : '/assets/roommate-cover.jpg') : '/assets/storm-manor-cover.png')));
+    setImageTask(createInitialImageTask(activeLibrary?.cover || (activeWorld === 'suggestion' ? (suggestedPreset?.id === 'sea-train' ? legacyArt['sea-train'].cover : legacyArt['sixth-roommate'].cover) : legacyArt['storm-manor'].cover)));
     // Persona entry reuses existing scene artwork; later turns use the adapted world.
     // Do not dispatch a request with the previous render's identity or world snapshot.
     if (!adapted) applyImageDirective({
@@ -2136,7 +2140,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     const published = { ...world, id: draftId };
     setGeneratedWorld(published);
     setPublishedWorld(true);
-    const entry: StudioWorld = { id: draftId, title: published.title, genre: '我的创作', premise: published.premise, cover: '/assets/storm-manor-cover.png', portraits: {}, world: published,
+    const entry: StudioWorld = { id: draftId, title: published.title, genre: '我的创作', premise: published.premise, cover: legacyArt['storm-manor'].cover, portraits: {}, world: published,
       portraitCacheKeys: Object.fromEntries(draftRoles.map((role, index) => [published.characters[index]?.id ?? `draft-role-${index}`, portraitCacheKey(role)])) };
     setActiveLibrary(entry); setActiveWorld('draft'); setSelectedRole(entryRoles(entry)[0]); setRuntimeBeat(null); navigate('roles');
   }
@@ -2145,7 +2149,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     const world = materializeCreatorWorld();
     const portraits = Object.fromEntries(world.characters.map((role, index) => [role.id, roleImages[`draft-role-${index}`] || '']));
     setPublicationEntry({ id: draftId, title: world.title, genre: '社区创作', premise: world.premise,
-      cover: roleImages['draft-role-0'] || '/assets/storm-manor-cover.png', portraits, world });
+      cover: roleImages['draft-role-0'] || legacyArt['storm-manor'].cover, portraits, world });
   }
 
   function newCreator(seed = '', context?: CompanionContext) {
@@ -2207,11 +2211,11 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     if (view === 'home' || view === 'library' || view === 'characters') return <StudioHome key={`${accountScope}:${view}`}
       section={view} worlds={[
         ...availableStudioWorlds.map((entry) => ({ ...entry, roleCount: entry.world.characters.length })),
-        ...worldCatalog.map((world) => ({ ...world, roleCount: world.id === 'storm-manor' ? roles.length : presetWorlds.find((preset) => preset.id === world.id)?.roles.length ?? 0, cover: world.id === 'storm-manor' ? '/assets/storm-manor-cover.png' : world.id === 'sea-train' ? '/assets/sea-train-cover.jpg' : '/assets/roommate-cover.jpg' }))]}
+        ...worldCatalog.map((world) => ({ ...world, roleCount: world.id === 'storm-manor' ? roles.length : presetWorlds.find((preset) => preset.id === world.id)?.roles.length ?? 0, cover: world.id === 'storm-manor' ? legacyArt['storm-manor'].cover : world.id === 'sea-train' ? legacyArt['sea-train'].cover : legacyArt['sixth-roommate'].cover }))]}
       characters={availableStudioWorlds.flatMap((entry) => entry.world.characters.map((role) => ({ id: role.id, worldId: entry.id, worldTitle: entry.title, name: role.name, identity: role.identity, persona: role.persona, image: entry.portraits[role.id] || entry.cover })))}
       recent={[
-        ...creatorDocuments.map((doc) => ({ id: `doc-${doc.id}`, savedAt: doc.savedAt, title: doc.data.worldTitle || '未命名世界', subtitle: '继续编辑角色与故事框架', label: doc.data.publishedWorld ? '可试玩 · 本机作品' : '创作草稿', cover: '/assets/storm-manor-cover.png' })),
-        ...savedRuns.map((run) => ({ id: `run-${run.id}`, savedAt: run.savedAt, title: run.worldTitle, subtitle: `${run.worldSnapshot?.world.characters.find((role) => role.id === run.roleId)?.name ?? run.roleId} · ${run.worldState.location}`, label: run.status === 'ending' ? '阶段结局' : '探索记录', cover: run.worldSnapshot?.cover || '/assets/storm-manor-cover.png' })),
+        ...creatorDocuments.map((doc) => ({ id: `doc-${doc.id}`, savedAt: doc.savedAt, title: doc.data.worldTitle || '未命名世界', subtitle: '继续编辑角色与故事框架', label: doc.data.publishedWorld ? '可试玩 · 本机作品' : '创作草稿', cover: legacyArt['storm-manor'].cover })),
+        ...savedRuns.map((run) => ({ id: `run-${run.id}`, savedAt: run.savedAt, title: run.worldTitle, subtitle: `${run.worldSnapshot?.world.characters.find((role) => role.id === run.roleId)?.name ?? run.roleId} · ${run.worldState.location}`, label: run.status === 'ending' ? '阶段结局' : '探索记录', cover: run.worldSnapshot?.cover || legacyArt['storm-manor'].cover })),
         ...chatSessions.map((chat) => ({ id: `chat-${chat.id}`, savedAt: chat.savedAt, title: `与 ${chat.entry.world.characters.find((role) => role.id === chat.targetCharacterId)?.name} 的对话`, subtitle: `你是 ${chat.entry.world.characters.find((role) => role.id === chat.playerRoleId)?.name} · ${chat.entry.title}`, label: '角色对话', cover: chat.entry.portraits[chat.targetCharacterId] || chat.entry.cover })),
       ].sort((a, b) => b.savedAt - a.savedAt)}
       onCreate={newCreator} onOpenWorld={openCatalogWorld} onChat={(worldId, targetId) => { const entry = availableStudioWorlds.find((item) => item.id === worldId); if (entry) setChatEntry({ entry, targetId }); }} onPersonal={() => navigate('personal')} onLibrary={() => navigate('library')} onOpenRecord={openRecord}
@@ -2319,7 +2323,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
         identityPanel={<button className="persona-shortcut" type="button" onClick={() => navigate('profile')}><UserRound /><span><small>我的个人中心</small><strong>查看形象、性格与 Agent 记忆</strong></span><ArrowRight /></button>}
         worlds={[
           ...availableStudioWorlds.map((entry) => ({ ...entry, roleCount: entry.world.characters.length })),
-          ...worldCatalog.map((world) => ({ ...world, roleCount: world.id === 'storm-manor' ? roles.length : presetWorlds.find((preset) => preset.id === world.id)?.roles.length ?? 0, cover: world.id === 'storm-manor' ? '/assets/storm-manor-cover.png' : world.id === 'sea-train' ? '/assets/sea-train-cover.jpg' : '/assets/roommate-cover.jpg' })),
+          ...worldCatalog.map((world) => ({ ...world, roleCount: world.id === 'storm-manor' ? roles.length : presetWorlds.find((preset) => preset.id === world.id)?.roles.length ?? 0, cover: world.id === 'storm-manor' ? legacyArt['storm-manor'].cover : world.id === 'sea-train' ? legacyArt['sea-train'].cover : legacyArt['sixth-roommate'].cover })),
         ]}
         message={message}
         conversation={agentConversation}
@@ -2372,7 +2376,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
 function RolePortrait({ role, className = '' }: { role: Role; className?: string }) {
   return (
     <div className={`role-portrait role-${role.crop} ${className}`}>
-      {role.ownPersona && !role.imageUrl ? <span className="persona-no-image"><UserRound />{role.name} · 尚未生成形象</span> : <img className={role.imageUrl ? 'role-generated-image' : undefined} src={role.imageUrl || '/assets/storm-manor-cast.png'} alt={`${role.name}，${role.identity}`} />}
+      {!role.imageUrl ? <span className="persona-no-image"><UserRound />{role.name} · 尚未生成形象</span> : <img className="role-generated-image" src={role.imageUrl} alt={`${role.name}，${role.identity}`} />}
     </div>
   );
 }

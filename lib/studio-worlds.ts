@@ -3,6 +3,7 @@ import publicImages from './public-image-manifest.json' with { type: 'json' };
 import { serialWorlds } from './serial-worlds.ts';
 import { wildWorlds } from './wild-worlds.ts';
 import { libraryArt } from './library-art.ts';
+import { legacyArt } from './legacy-art.ts';
 
 export type StudioWorld = {
   id: string;
@@ -323,7 +324,7 @@ const publicImage = (path: string) => {
   return id ? `https://rrgyjvkkgcurtatidyuc.supabase.co/storage/v1/object/public/world-public/${id}.webp` : path;
 };
 export const studioWorlds: StudioWorld[] = [contractWorld, workplaceWorld, inheritanceWorld, ...serialWorlds, ...wildWorlds].map((entry) => {
-  const art = libraryArt[entry.id];
+  const art = libraryArt[entry.id] ?? legacyArt[entry.id];
   return {
     ...entry, cover: art?.cover ?? publicImage(entry.cover),
     portraits: { ...Object.fromEntries(Object.entries(entry.portraits).map(([id, path]) => [id, publicImage(path)])), ...art?.portraits },

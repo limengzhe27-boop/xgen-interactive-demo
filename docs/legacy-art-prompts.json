@@ -1,0 +1,164 @@
+[
+  {
+    "id": "contract-expiry-cover",
+    "worldId": "contract-expiry",
+    "kind": "cover",
+    "prompt": "Use case: illustration-story. Asset: landscape 3:2 cover for fictional interactive story \"离婚当天，前夫的死对头来接我\". Scene: 做了一年替身，你终于签下离婚协议。他冷笑着说你无处可去，门外却传来他死对头的声音：“苏晚，我来接你。” Characters that may appear: 苏晚 28岁中国女性，及肩黑色直发，象牙白衬衫，深灰长裙，银色耳钉，清醒坚定的目光，都市电影半身人像; 顾言舟 32岁中国男性，黑色短发，深炭灰西装，解开一颗领扣，银色腕表，克制疲惫的眼神，都市电影半身人像; 沈知衡 30岁中国男性，整洁黑发，细框眼镜，棕色西装，沉静温和，都市电影半身人像. Create one coherent cinematic narrative key art image, refined painterly realism, expressive adult faces, rich atmospheric light and depth, strong story tension. No text, letters, logos, watermark, interface, collage or gore."
+  },
+  {
+    "id": "contract-expiry-su",
+    "worldId": "contract-expiry",
+    "roleId": "su",
+    "kind": "portrait",
+    "prompt": "Use case: illustration-story. Asset: vertical 2:3 single character portrait for fictional interactive story \"离婚当天，前夫的死对头来接我\". Character 苏晚, exact appearance: 28岁中国女性，及肩黑色直发，象牙白衬衫，深灰长裙，银色耳钉，清醒坚定的目光，都市电影半身人像. One adult only, head fully visible, waist-up, expressive eyes, three-quarter pose, refined cinematic painterly realism. Story atmosphere: 做了一年替身，你终于签下离婚协议。他冷笑着说你无处可去，门外却传来他死对头的声音：“苏晚，我来接你。”. Appropriate setting softly behind, consistent era and clothes, attractive rich cinematic lighting, detailed natural textures. No other people, no text, logos, watermark, UI, collage or gore."
+  },
+  {
+    "id": "contract-expiry-gu",
+    "worldId": "contract-expiry",
+    "roleId": "gu",
+    "kind": "portrait",
+    "prompt": "Use case: illustration-story. Asset: vertical 2:3 single character portrait for fictional interactive story \"离婚当天，前夫的死对头来接我\". Character 顾言舟, exact appearance: 32岁中国男性，黑色短发，深炭灰西装，解开一颗领扣，银色腕表，克制疲惫的眼神，都市电影半身人像. One adult only, head fully visible, waist-up, expressive eyes, three-quarter pose, refined cinematic painterly realism. Story atmosphere: 做了一年替身，你终于签下离婚协议。他冷笑着说你无处可去，门外却传来他死对头的声音：“苏晚，我来接你。”. Appropriate setting softly behind, consistent era and clothes, attractive rich cinematic lighting, detailed natural textures. No other people, no text, logos, watermark, UI, collage or gore."
+  },
+  {
+    "id": "contract-expiry-shen",
+    "worldId": "contract-expiry",
+    "roleId": "shen",
+    "kind": "portrait",
+    "prompt": "Use case: illustration-story. Asset: vertical 2:3 single character portrait for fictional interactive story \"离婚当天，前夫的死对头来接我\". Character 沈知衡, exact appearance: 30岁中国男性，整洁黑发，细框眼镜，棕色西装，沉静温和，都市电影半身人像. One adult only, head fully visible, waist-up, expressive eyes, three-quarter pose, refined cinematic painterly realism. Story atmosphere: 做了一年替身，你终于签下离婚协议。他冷笑着说你无处可去，门外却传来他死对头的声音：“苏晚，我来接你。”. Appropriate setting softly behind, consistent era and clothes, attractive rich cinematic lighting, detailed natural textures. No other people, no text, logos, watermark, UI, collage or gore."
+  },
+  {
+    "id": "client-comeback-cover",
+    "worldId": "client-comeback",
+    "kind": "cover",
+    "prompt": "Use case: illustration-story. Asset: landscape 3:2 cover for fictional interactive story \"裁掉我后，前老板跪求续约\". Scene: 前老板刚把抢功的同事捧成明星，你就带着甲方授权推门进场。他递来的庆功酒，你没接：“先说说，这份作品是谁做的？” Characters that may appear: 林照 29岁中国女性，利落黑色短发，深蓝西装，白衬衫，细银色手表，沉着锐利的眼神，写实电影半身肖像; 周启明 41岁中国男性，整齐后梳黑发，深灰西装，酒红领带，面带克制疲惫，现代会议室，写实电影半身肖像; 唐宁 27岁中国女性，黑色低马尾，浅灰针织衫，蓝色工牌，清醒略显疲惫，办公区柔和灯光，写实电影半身肖像. Create one coherent cinematic narrative key art image, refined painterly realism, expressive adult faces, rich atmospheric light and depth, strong story tension. No text, letters, logos, watermark, interface, collage or gore."
+  },
+  {
+    "id": "client-comeback-lin",
+    "worldId": "client-comeback",
+    "roleId": "lin",
+    "kind": "portrait",
+    "prompt": "Use case: illustration-story. Asset: vertical 2:3 single character portrait for fictional interactive story \"裁掉我后，前老板跪求续约\". Character 林照, exact appearance: 29岁中国女性，利落黑色短发，深蓝西装，白衬衫，细银色手表，沉着锐利的眼神，写实电影半身肖像. One adult only, head fully visible, waist-up, expressive eyes, three-quarter pose, refined cinematic painterly realism. Story atmosphere: 前老板刚把抢功的同事捧成明星，你就带着甲方授权推门进场。他递来的庆功酒，你没接：“先说说，这份作品是谁做的？”. Appropriate setting softly behind, consistent era and clothes, attractive rich cinematic lighting, detailed natural textures. No other people, no text, logos, watermark, UI, collage or gore."
+  },
+  {
+    "id": "client-comeback-zhou",
+    "worldId": "client-comeback",
+    "roleId": "zhou",
+    "kind": "portrait",
+    "prompt": "Use case: illustration-story. Asset: vertical 2:3 single character portrait for fictional interactive story \"裁掉我后，前老板跪求续约\". Character 周启明, exact appearance: 41岁中国男性，整齐后梳黑发，深灰西装，酒红领带，面带克制疲惫，现代会议室，写实电影半身肖像. One adult only, head fully visible, waist-up, expressive eyes, three-quarter pose, refined cinematic painterly realism. Story atmosphere: 前老板刚把抢功的同事捧成明星，你就带着甲方授权推门进场。他递来的庆功酒，你没接：“先说说，这份作品是谁做的？”. Appropriate setting softly behind, consistent era and clothes, attractive rich cinematic lighting, detailed natural textures. No other people, no text, logos, watermark, UI, collage or gore."
+  },
+  {
+    "id": "client-comeback-tang",
+    "worldId": "client-comeback",
+    "roleId": "tang",
+    "kind": "portrait",
+    "prompt": "Use case: illustration-story. Asset: vertical 2:3 single character portrait for fictional interactive story \"裁掉我后，前老板跪求续约\". Character 唐宁, exact appearance: 27岁中国女性，黑色低马尾，浅灰针织衫，蓝色工牌，清醒略显疲惫，办公区柔和灯光，写实电影半身肖像. One adult only, head fully visible, waist-up, expressive eyes, three-quarter pose, refined cinematic painterly realism. Story atmosphere: 前老板刚把抢功的同事捧成明星，你就带着甲方授权推门进场。他递来的庆功酒，你没接：“先说说，这份作品是谁做的？”. Appropriate setting softly behind, consistent era and clothes, attractive rich cinematic lighting, detailed natural textures. No other people, no text, logos, watermark, UI, collage or gore."
+  },
+  {
+    "id": "inheritance-night-cover",
+    "worldId": "inheritance-night",
+    "kind": "cover",
+    "prompt": "Use case: illustration-story. Asset: landscape 3:2 cover for fictional interactive story \"遗嘱一开，全家求我回去\". Scene: 他们说你没资格分家产，把放弃继承的纸推到你面前。执行人却先按住了笔：“她不点头，你们谁也坐不稳那个位置。” Characters that may appear: 许愿 26岁中国女性，长黑发，墨绿衬衫，简洁金色耳钉，眼神倔强警觉，老宅暖光，写实电影半身肖像; 何承远 35岁中国男性，黑色短发，米色西装，深棕领带，金属腕表，自信戒备，老宅会客厅，写实电影半身肖像; 陆清禾 38岁中国女性，盘起的黑发，细框眼镜，藏蓝套装，平静坚定，老宅资料室，写实电影半身肖像. Create one coherent cinematic narrative key art image, refined painterly realism, expressive adult faces, rich atmospheric light and depth, strong story tension. No text, letters, logos, watermark, interface, collage or gore."
+  },
+  {
+    "id": "inheritance-night-xu",
+    "worldId": "inheritance-night",
+    "roleId": "xu",
+    "kind": "portrait",
+    "prompt": "Use case: illustration-story. Asset: vertical 2:3 single character portrait for fictional interactive story \"遗嘱一开，全家求我回去\". Character 许愿, exact appearance: 26岁中国女性，长黑发，墨绿衬衫，简洁金色耳钉，眼神倔强警觉，老宅暖光，写实电影半身肖像. One adult only, head fully visible, waist-up, expressive eyes, three-quarter pose, refined cinematic painterly realism. Story atmosphere: 他们说你没资格分家产，把放弃继承的纸推到你面前。执行人却先按住了笔：“她不点头，你们谁也坐不稳那个位置。”. Appropriate setting softly behind, consistent era and clothes, attractive rich cinematic lighting, detailed natural textures. No other people, no text, logos, watermark, UI, collage or gore."
+  },
+  {
+    "id": "inheritance-night-he",
+    "worldId": "inheritance-night",
+    "roleId": "he",
+    "kind": "portrait",
+    "prompt": "Use case: illustration-story. Asset: vertical 2:3 single character portrait for fictional interactive story \"遗嘱一开，全家求我回去\". Character 何承远, exact appearance: 35岁中国男性，黑色短发，米色西装，深棕领带，金属腕表，自信戒备，老宅会客厅，写实电影半身肖像. One adult only, head fully visible, waist-up, expressive eyes, three-quarter pose, refined cinematic painterly realism. Story atmosphere: 他们说你没资格分家产，把放弃继承的纸推到你面前。执行人却先按住了笔：“她不点头，你们谁也坐不稳那个位置。”. Appropriate setting softly behind, consistent era and clothes, attractive rich cinematic lighting, detailed natural textures. No other people, no text, logos, watermark, UI, collage or gore."
+  },
+  {
+    "id": "inheritance-night-lu",
+    "worldId": "inheritance-night",
+    "roleId": "lu",
+    "kind": "portrait",
+    "prompt": "Use case: illustration-story. Asset: vertical 2:3 single character portrait for fictional interactive story \"遗嘱一开，全家求我回去\". Character 陆清禾, exact appearance: 38岁中国女性，盘起的黑发，细框眼镜，藏蓝套装，平静坚定，老宅资料室，写实电影半身肖像. One adult only, head fully visible, waist-up, expressive eyes, three-quarter pose, refined cinematic painterly realism. Story atmosphere: 他们说你没资格分家产，把放弃继承的纸推到你面前。执行人却先按住了笔：“她不点头，你们谁也坐不稳那个位置。”. Appropriate setting softly behind, consistent era and clothes, attractive rich cinematic lighting, detailed natural textures. No other people, no text, logos, watermark, UI, collage or gore."
+  },
+  {
+    "id": "sea-train-cover",
+    "worldId": "sea-train",
+    "kind": "cover",
+    "prompt": "Use case: illustration-story. Asset: landscape 3:2 cover for fictional interactive story \"最后一班海上列车\". Scene: 一列只在退潮后出现的列车正穿过海床。终点站关闭前，乘客必须找回被调换的通行证；一旦涨潮，所有人都只能留在下一座无人岛。 Characters that may appear: 沈遥 二十七岁东亚女性，短黑发，深蓝列车员制服，胸前别旧铜哨; 顾川 三十岁东亚男性，微卷黑发，灰绿防水夹克，斜挎旧相机; 莫叔 五十八岁东亚男性，灰白寸发，黑色检票制服，左手拿老式打孔钳. Create one coherent cinematic narrative key art image, refined painterly realism, expressive adult faces, rich atmospheric light and depth, strong story tension. No text, letters, logos, watermark, interface, collage or gore."
+  },
+  {
+    "id": "sea-train-draft-role-0",
+    "worldId": "sea-train",
+    "roleId": "draft-role-0",
+    "kind": "portrait",
+    "prompt": "Use case: illustration-story. Asset: vertical 2:3 single character portrait for fictional interactive story \"最后一班海上列车\". Character 沈遥, exact appearance: 二十七岁东亚女性，短黑发，深蓝列车员制服，胸前别旧铜哨. One adult only, head fully visible, waist-up, expressive eyes, three-quarter pose, refined cinematic painterly realism. Story atmosphere: 一列只在退潮后出现的列车正穿过海床。终点站关闭前，乘客必须找回被调换的通行证；一旦涨潮，所有人都只能留在下一座无人岛。. Appropriate setting softly behind, consistent era and clothes, attractive rich cinematic lighting, detailed natural textures. No other people, no text, logos, watermark, UI, collage or gore."
+  },
+  {
+    "id": "sea-train-draft-role-1",
+    "worldId": "sea-train",
+    "roleId": "draft-role-1",
+    "kind": "portrait",
+    "prompt": "Use case: illustration-story. Asset: vertical 2:3 single character portrait for fictional interactive story \"最后一班海上列车\". Character 顾川, exact appearance: 三十岁东亚男性，微卷黑发，灰绿防水夹克，斜挎旧相机. One adult only, head fully visible, waist-up, expressive eyes, three-quarter pose, refined cinematic painterly realism. Story atmosphere: 一列只在退潮后出现的列车正穿过海床。终点站关闭前，乘客必须找回被调换的通行证；一旦涨潮，所有人都只能留在下一座无人岛。. Appropriate setting softly behind, consistent era and clothes, attractive rich cinematic lighting, detailed natural textures. No other people, no text, logos, watermark, UI, collage or gore."
+  },
+  {
+    "id": "sea-train-draft-role-2",
+    "worldId": "sea-train",
+    "roleId": "draft-role-2",
+    "kind": "portrait",
+    "prompt": "Use case: illustration-story. Asset: vertical 2:3 single character portrait for fictional interactive story \"最后一班海上列车\". Character 莫叔, exact appearance: 五十八岁东亚男性，灰白寸发，黑色检票制服，左手拿老式打孔钳. One adult only, head fully visible, waist-up, expressive eyes, three-quarter pose, refined cinematic painterly realism. Story atmosphere: 一列只在退潮后出现的列车正穿过海床。终点站关闭前，乘客必须找回被调换的通行证；一旦涨潮，所有人都只能留在下一座无人岛。. Appropriate setting softly behind, consistent era and clothes, attractive rich cinematic lighting, detailed natural textures. No other people, no text, logos, watermark, UI, collage or gore."
+  },
+  {
+    "id": "sixth-roommate-cover",
+    "worldId": "sixth-roommate",
+    "kind": "cover",
+    "prompt": "Use case: illustration-story. Asset: landscape 3:2 cover for fictional interactive story \"合租屋的第六位房客\". Scene: 五个人合租的房子里突然多出一套有人生活过的痕迹。房东坚持合同上一直有第六个人，而每位住客都收到了一段只可能由熟人录下的语音。 Characters that may appear: 唐禾 二十五岁东亚女性，黑色低马尾，米白针织衫，手腕系绿色发圈; 程野 二十六岁东亚男性，蓬松短发，深灰连帽衫，肩背相机包; 乔岚 二十九岁东亚女性，齐耳短发，墨绿色夹克，胸袋放蓝色签字笔. Create one coherent cinematic narrative key art image, refined painterly realism, expressive adult faces, rich atmospheric light and depth, strong story tension. No text, letters, logos, watermark, interface, collage or gore."
+  },
+  {
+    "id": "sixth-roommate-draft-role-0",
+    "worldId": "sixth-roommate",
+    "roleId": "draft-role-0",
+    "kind": "portrait",
+    "prompt": "Use case: illustration-story. Asset: vertical 2:3 single character portrait for fictional interactive story \"合租屋的第六位房客\". Character 唐禾, exact appearance: 二十五岁东亚女性，黑色低马尾，米白针织衫，手腕系绿色发圈. One adult only, head fully visible, waist-up, expressive eyes, three-quarter pose, refined cinematic painterly realism. Story atmosphere: 五个人合租的房子里突然多出一套有人生活过的痕迹。房东坚持合同上一直有第六个人，而每位住客都收到了一段只可能由熟人录下的语音。. Appropriate setting softly behind, consistent era and clothes, attractive rich cinematic lighting, detailed natural textures. No other people, no text, logos, watermark, UI, collage or gore."
+  },
+  {
+    "id": "sixth-roommate-draft-role-1",
+    "worldId": "sixth-roommate",
+    "roleId": "draft-role-1",
+    "kind": "portrait",
+    "prompt": "Use case: illustration-story. Asset: vertical 2:3 single character portrait for fictional interactive story \"合租屋的第六位房客\". Character 程野, exact appearance: 二十六岁东亚男性，蓬松短发，深灰连帽衫，肩背相机包. One adult only, head fully visible, waist-up, expressive eyes, three-quarter pose, refined cinematic painterly realism. Story atmosphere: 五个人合租的房子里突然多出一套有人生活过的痕迹。房东坚持合同上一直有第六个人，而每位住客都收到了一段只可能由熟人录下的语音。. Appropriate setting softly behind, consistent era and clothes, attractive rich cinematic lighting, detailed natural textures. No other people, no text, logos, watermark, UI, collage or gore."
+  },
+  {
+    "id": "sixth-roommate-draft-role-2",
+    "worldId": "sixth-roommate",
+    "roleId": "draft-role-2",
+    "kind": "portrait",
+    "prompt": "Use case: illustration-story. Asset: vertical 2:3 single character portrait for fictional interactive story \"合租屋的第六位房客\". Character 乔岚, exact appearance: 二十九岁东亚女性，齐耳短发，墨绿色夹克，胸袋放蓝色签字笔. One adult only, head fully visible, waist-up, expressive eyes, three-quarter pose, refined cinematic painterly realism. Story atmosphere: 五个人合租的房子里突然多出一套有人生活过的痕迹。房东坚持合同上一直有第六个人，而每位住客都收到了一段只可能由熟人录下的语音。. Appropriate setting softly behind, consistent era and clothes, attractive rich cinematic lighting, detailed natural textures. No other people, no text, logos, watermark, UI, collage or gore."
+  },
+  {
+    "id": "storm-manor-cover",
+    "worldId": "storm-manor",
+    "kind": "cover",
+    "prompt": "Use case: illustration-story. Asset: landscape 3:2 cover for fictional interactive story \"暴雨山庄：缺席的继承人\". Scene: 暴雨夜封闭的山庄，失踪继承人的遗嘱公布仪式即将开始，律师、管家和失踪者姐姐各怀秘密。建筑为旧山庄，窗外雷雨，室内壁炉与遗嘱文件，悬疑电影氛围。 Characters that may appear: 林夏 二十八岁东亚女性，齐肩黑发，酒红色防雨风衣，银色细链，目光锐利; 顾淮 三十二岁东亚男性，黑色短发，深灰三件套西装，窄框眼镜，随身携带黑色公文包; 周伯 六十岁东亚男性，灰白短发与修整胡须，深棕管家制服，右手戴旧皮手套. Create one coherent cinematic narrative key art image, refined painterly realism, expressive adult faces, rich atmospheric light and depth, strong story tension. No text, letters, logos, watermark, interface, collage or gore."
+  },
+  {
+    "id": "storm-manor-lin-xia",
+    "worldId": "storm-manor",
+    "roleId": "lin-xia",
+    "kind": "portrait",
+    "prompt": "Use case: illustration-story. Asset: vertical 2:3 single character portrait for fictional interactive story \"暴雨山庄：缺席的继承人\". Character 林夏, exact appearance: 二十八岁东亚女性，齐肩黑发，酒红色防雨风衣，银色细链，目光锐利. One adult only, head fully visible, waist-up, expressive eyes, three-quarter pose, refined cinematic painterly realism. Story atmosphere: 暴雨夜封闭的山庄，失踪继承人的遗嘱公布仪式即将开始，律师、管家和失踪者姐姐各怀秘密。建筑为旧山庄，窗外雷雨，室内壁炉与遗嘱文件，悬疑电影氛围。. Appropriate setting softly behind, consistent era and clothes, attractive rich cinematic lighting, detailed natural textures. No other people, no text, logos, watermark, UI, collage or gore."
+  },
+  {
+    "id": "storm-manor-gu-huai",
+    "worldId": "storm-manor",
+    "roleId": "gu-huai",
+    "kind": "portrait",
+    "prompt": "Use case: illustration-story. Asset: vertical 2:3 single character portrait for fictional interactive story \"暴雨山庄：缺席的继承人\". Character 顾淮, exact appearance: 三十二岁东亚男性，黑色短发，深灰三件套西装，窄框眼镜，随身携带黑色公文包. One adult only, head fully visible, waist-up, expressive eyes, three-quarter pose, refined cinematic painterly realism. Story atmosphere: 暴雨夜封闭的山庄，失踪继承人的遗嘱公布仪式即将开始，律师、管家和失踪者姐姐各怀秘密。建筑为旧山庄，窗外雷雨，室内壁炉与遗嘱文件，悬疑电影氛围。. Appropriate setting softly behind, consistent era and clothes, attractive rich cinematic lighting, detailed natural textures. No other people, no text, logos, watermark, UI, collage or gore."
+  },
+  {
+    "id": "storm-manor-zhou-bo",
+    "worldId": "storm-manor",
+    "roleId": "zhou-bo",
+    "kind": "portrait",
+    "prompt": "Use case: illustration-story. Asset: vertical 2:3 single character portrait for fictional interactive story \"暴雨山庄：缺席的继承人\". Character 周伯, exact appearance: 六十岁东亚男性，灰白短发与修整胡须，深棕管家制服，右手戴旧皮手套. One adult only, head fully visible, waist-up, expressive eyes, three-quarter pose, refined cinematic painterly realism. Story atmosphere: 暴雨夜封闭的山庄，失踪继承人的遗嘱公布仪式即将开始，律师、管家和失踪者姐姐各怀秘密。建筑为旧山庄，窗外雷雨，室内壁炉与遗嘱文件，悬疑电影氛围。. Appropriate setting softly behind, consistent era and clothes, attractive rich cinematic lighting, detailed natural textures. No other people, no text, logos, watermark, UI, collage or gore."
+  }
+]

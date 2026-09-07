@@ -4,7 +4,7 @@ import ts from 'typescript';
 import { readFile } from 'node:fs/promises';
 import { studioWorlds } from '../lib/studio-worlds.ts';
 
-test('publication authenticates, requires consent, excludes private context and never generates images', async () => {
+void test('publication authenticates, requires consent, excludes private context and never generates images', async () => {
   process.env.WORLD_PUBLICATION_ENABLED = 'true';
   let source = await readFile(new URL('../app/api/worlds/route.ts', import.meta.url), 'utf8');
   const moduleURL = code => `data:text/javascript;base64,${Buffer.from(code).toString('base64')}`;
@@ -12,6 +12,7 @@ test('publication authenticates, requires consent, excludes private context and 
   source = source.replace("@/lib/server-image-store", moduleURL(`export const imageId=()=> 'a'.repeat(64); export const imageOwner=()=>null; export const findImage=async()=>({owner_id:'someone-else',bucket:'world-private',status:'ready'}); export const claimImage=()=>{throw Error('unexpected copy')}; export const saveImage=claimImage; export const storageFetch=async(path,init)=>{globalThis.__publicationTest.calls.push({path,init});return Response.json([])};`));
   source = source.replace('@/lib/publication', new URL('../lib/publication.ts', import.meta.url).href);
   source = source.replace('@/lib/library-art', new URL('../lib/library-art.ts', import.meta.url).href);
+  source = source.replace('@/lib/legacy-art', new URL('../lib/legacy-art.ts', import.meta.url).href);
   source = source.replace("import publicImages from '@/lib/public-image-manifest.json';", 'const publicImages = {};');
   const route = await import(moduleURL(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } }).outputText));
   const state = globalThis.__publicationTest = { calls: [], user: null, throwAuth: false };
@@ -32,8 +33,13 @@ test('publication authenticates, requires consent, excludes private context and 
     assert.equal(state.calls[0].path, '/rest/v1/rpc/demo_publish_world');
     assert.ok(!state.calls[0].init.body.includes('must never upload'));
     assert.equal((await result.json()).world.world.characters.length, body.world.characters.length);
+    assert.equal((await route.POST(request({ ...body, cover: '/assets/library-v2/unlisted.webp' }))).status, 400);
+    assert.equal(state.calls.length, 1);
+    const staticArt = await route.POST(request({ ...body, cover: '/assets/library-v2/contract-expiry-cover.webp', portraits: { su: '/assets/library-v2/contract-expiry-su.webp' } }));
+    assert.equal(staticArt.status, 200);
+    assert.equal((await staticArt.json()).world.cover, '/assets/library-v2/contract-expiry-cover.webp');
     state.throwAuth = true;
     assert.equal((await route.POST(request())).status, 400);
-    assert.equal(state.calls.length, 1);
+    assert.equal(state.calls.length, 2);
   } finally { delete globalThis.__publicationTest; }
 });
