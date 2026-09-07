@@ -6,6 +6,7 @@ import { ArrowLeft, ArrowRight, Check, LoaderCircle, MessageCircleMore, MoreHori
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetTrigger, SheetContent, SheetTitle, SheetDescription, SheetClose } from '@/components/ui/sheet';
 import { MessageTextarea } from '@/components/message-textarea';
+import { LocalSpeech } from '@/components/local-speech';
 import { recommendationIntro, recommendationTurnIndex } from '@/lib/personal-recommendations';
 import type { WorldCard } from '@/components/studio-home';
 import type { PersonalAgentResponse, PersonalAgentRequest } from '@/lib/ai-contracts';
@@ -48,6 +49,7 @@ export function PersonalAgent({ identityPanel, message, conversation, busy, erro
         ].map(({ label, prompt, icon: Icon }) => <button type="button" key={label} disabled={busy} onClick={() => { onMessage(prompt); document.getElementById('personal-message')?.focus(); }}><Icon />{label}</button>)}</div></div>}
         {conversation.map((turn, index) => <article className="personal-turn" data-role={turn.role} key={index}><small>{turn.role === 'user' ? '你' : '个人 Agent'}</small><p>{index === recommendationIndex && recommendations.length ? recommendationIntro(turn.content) : turn.content}</p>
           {index === recommendationIndex && recommendations.length > 0 && matches}
+          {turn.role === 'assistant' && <LocalSpeech text={turn.content} speaker="personal-agent" />}
           <details className="personal-message-actions"><summary aria-label={'第 ' + (index + 1) + ' 条消息的操作'}><MoreHorizontal /><span className="sr-only">消息操作</span></summary><button type="button" className="personal-to-creation" disabled={busy} onClick={() => onCreate(turn.content)}>用这条消息开始创作<ArrowRight /></button></details>
         </article>)}
         {busy && <output className="personal-empty">正在读你的话，想一想怎么回应…</output>}

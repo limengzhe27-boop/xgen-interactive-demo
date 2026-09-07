@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, LoaderCircle, RefreshCw, Send, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { MessageTextarea } from '@/components/message-textarea';
+import { LocalSpeech } from '@/components/local-speech';
 import { Sheet, SheetTrigger, SheetContent, SheetTitle, SheetDescription, SheetClose } from '@/components/ui/sheet';
 import { createRemoteAIAdapter } from '@/lib/remote-ai-adapter';
 import { generateSceneImage } from '@/lib/remote-image-service';
@@ -112,9 +113,11 @@ export function CharacterChat({ initial, accountScope, onSave, onBack }: { initi
     <header className="studio-chat-heading"><img src={session.entry.portraits[target.id] || session.entry.cover} alt={target.name} /><div><small>{session.entry.title}</small><h1>与 {target.name} 的对话</h1><p>{player.id.startsWith('chat-visitor') ? target.identity : `你是 ${player.name} · ${player.identity}`}</p></div></header>
     <section className="studio-chat-reading" aria-label="对话记录">
       <p className="studio-chat-prologue">{session.entry.world.openingScene.narrative}</p>
+      <LocalSpeech text={session.entry.world.openingScene.narrative} />
       {session.turns.map((turn, index) => <article className="studio-chat-turn" key={index}>
         <div className="studio-chat-user"><small>{player.name} · 你</small><p>{turn.action}</p></div>
         <div className="studio-chat-narrative"><small>世界回应 · 第 {index + 1} 轮</small><p>{turn.response.narrative}</p></div>
+        <LocalSpeech text={turn.response.dialogue.filter(line => line.characterId === target.id && line.visibleToRoleIds.includes(player.id)).map(line => line.text).join('\n')} speaker={`${session.entry.id}:${target.id}`} />
         {turn.response.dialogue.filter((line) => line.visibleToRoleIds.includes(player.id) && line.characterId !== player.id).map((line, i) => <div className="studio-chat-line" key={i}><strong>{session.entry.world.characters.find((role) => role.id === line.characterId)?.name}</strong><p>{line.text}</p></div>)}
         {turn.response.ending.reached && <p className="studio-chat-ending">已抵达阶段结局。可以返回结束，也可以继续聊，已有事实不会重置。</p>}
       </article>)}

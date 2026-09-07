@@ -48,7 +48,6 @@ export function PersonaEditor({ value, accountScope, onSave, expanded = false }:
     <summary hidden={expanded}><UserRound />我的虚构身份 <small>{value ? value.name : '点击设定'}</small><ChevronDown /></summary>
     <p>这是故事里的你，不是对真实你的记忆。身份按账号保存在本机；可在账号栏手动保存至私人云存档，进入世界前还需确认适配。</p>
     {!loggedIn && <output>请先通过页面上方登录账号，再保存身份。游客仍可使用原剧情角色试玩。</output>}
-    <PersonaDesigner draft={draft} accountScope={accountScope} disabled={!loggedIn || busy} onBusy={setDesignBusy} onApply={proposal => { setDraft(current => ({ ...proposal, portraitUrl: proposal.appearance === current.appearance ? current.portraitUrl : undefined })); setEditing(true); setNotice('草案已填入，尚未保存。'); }} />
     <details className="persona-manual" open={editing} onToggle={event => setEditing(event.currentTarget.open)}><summary>编辑虚拟角色（仅用于世界探索）</summary>
     <form onSubmit={event => { event.preventDefault(); if (!loggedIn || busy || designBusy || !draft.name.trim()) return; if (onSave({ ...draft, name: draft.name.trim(), version: 1, ownerId: accountScope, updatedAt: Date.now() })) setNotice('身份已保存在本机；已有探索和角色对话不会随之改变。'); else setNotice('身份保存失败，请保留页面并重试。'); }}>
       <fieldset disabled={!loggedIn || busy || designBusy} className="persona-fields">
@@ -57,6 +56,7 @@ export function PersonaEditor({ value, accountScope, onSave, expanded = false }:
       <div className="persona-actions">{draft.portraitUrl && <img src={draft.portraitUrl} alt={`${draft.name || '我的身份'}的形象`} />}<Button type="button" variant="outline" disabled={!loggedIn || busy || designBusy || !draft.appearance.trim()} onClick={portrait}>{busy ? '正在生成形象…' : draft.portraitUrl ? '重新生成形象' : '生成形象（可选）'}</Button><Button type="submit" disabled={!loggedIn || busy || designBusy || !draft.name.trim()}>保存身份</Button></div>
       <p>仅生成形象时调用生图；使用现有经济模型与缓存，不随打开页面重复生成。</p>{notice && <output>{notice}</output>}
     </form></details>
+    <details className="flow-disclosure"><summary>让 Agent 帮我设计角色</summary><PersonaDesigner draft={draft} accountScope={accountScope} disabled={!loggedIn || busy} onBusy={setDesignBusy} onApply={proposal => { setDraft(current => ({ ...proposal, portraitUrl: proposal.appearance === current.appearance ? current.portraitUrl : undefined })); setEditing(true); setNotice('草案已填入，尚未保存。'); }} /></details>
   </details>;
 }
 

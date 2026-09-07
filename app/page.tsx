@@ -36,6 +36,7 @@ import { applyPendingWorkspace, restoredImage, workspaceKeys } from '@/lib/cloud
 import { accountStorageKey } from '@/lib/account-scope';
 import { PersonalAgent } from '@/components/personal-agent';
 import { ProfilePage } from '@/components/profile-page';
+import { emptyProfile, restoreUserProfile, profileMemories, type UserProfile } from '@/lib/user-profile';
 import { CompanionHandoff, CompanionContextPanel } from '@/components/companion-handoff';
 import { makeCompanionInput, restoreCompanionContext, type CompanionContext } from '@/lib/companion-context';
 import { PersonaControl, PersonaAdmission, EntryPolicyEditor } from '@/components/player-persona';
@@ -168,6 +169,7 @@ type PresetWorld = {
 };
 
 type PersistedDemoState = {
+  userProfile?: UserProfile;
   companionContext?: CompanionContext;
   playerPersona?: PlayerPersona;
   entryPolicy?: EntryPolicy;
@@ -946,6 +948,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
   const lastImageAttemptTurnRef = useRef(0);
   const [agentThinking, setAgentThinking] = useState(false);
   const [memories, setMemories] = useState<string[]>([]);
+  const [userProfile, setUserProfile] = useState<UserProfile>(emptyProfile);
   const [pendingPersonalMemories, setPendingPersonalMemories] = useState<string[]>([]);
   const [selectedRole, setSelectedRole] = useState<Role>(roles[0]);
   const [turn, setTurn] = useState(0);
@@ -1137,6 +1140,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
           setPlayerPersona(restorePlayerPersona(saved.playerPersona, accountScope));
           setEntryPolicy(restoreEntryPolicy(saved.entryPolicy ?? saved.generatedWorld?.entryPolicy));
           if (Array.isArray(saved.memories)) setMemories(saved.memories.filter((item) => typeof item === 'string').slice(0, 24));
+          setUserProfile(restoreUserProfile(saved.userProfile));
           setAgentConversation(restorePersonalConversation(saved.agentConversation));
           setPersonalRecommendations(restoreRecommendations(saved.personalRecommendations));
           if (typeof saved.liveMode === 'boolean') setLiveMode(saved.liveMode);
@@ -1208,6 +1212,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
   useEffect(() => {
     if (!storageReady || storageReadFailed.current) return;
     const snapshot: PersistedDemoState = {
+      userProfile,
       companionContext,
       playerPersona: playerPersona ?? undefined,
       entryPolicy,
@@ -1230,7 +1235,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     };
     try { window.localStorage.setItem(demoStorageKey, JSON.stringify(snapshot)); }
     catch { window.setTimeout(() => setStorageError('浏览器空间不足，最新修改还没有保存。请保持页面打开，勿刷新。'), 0); }
-  }, [companionContext, playerPersona, entryPolicy, agentConversation, personalRecommendations, creatorBrief, creatorDetailBaseline, creatorMessages, draftRoles, generated, generatedStoryOutline, generatedWorld, liveMode, memories, publishedWorld, savedRun, storageReady, surprise, worldSeed, worldTitle]);
+  }, [userProfile, companionContext, playerPersona, entryPolicy, agentConversation, personalRecommendations, creatorBrief, creatorDetailBaseline, creatorMessages, draftRoles, generated, generatedStoryOutline, generatedWorld, liveMode, memories, publishedWorld, savedRun, storageReady, surprise, worldSeed, worldTitle]);
 
   const hasCreation = Boolean(worldTitle.trim() || worldSeed.trim() || generatedWorld || creatorMessages.some(turn => turn.role === 'creator') || companionContext.conversation.length);
   const creatorDocumentJSON = JSON.stringify({ companionContext, entryPolicy, worldTitle, worldSeed, surprise, draftRoles, generated, generatedWorld: generatedWorld ?? undefined,
@@ -1558,7 +1563,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
         userMessage: value,
         conversation: agentConversation.slice(-8),
         recommendationContext: personalRecommendations,
-        currentMemories: toAgentMemories(memories),
+        currentMemories: toAgentMemories([...profileMemories(userProfile), ...memories]),
         recentExperiences: [],
         availableWorldIds: personalCatalog.map((entry) => entry.id),
         availableWorlds: personalCatalog,
@@ -2203,7 +2208,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
   }} />;
 
   function renderScreen() {
-    if (view === 'profile') return <ProfilePage persona={playerPersona} identityControl={identityControl} memories={memories} pending={pendingPersonalMemories} busy={agentThinking} onBack={() => navigate('home')} onChat={() => navigate('personal')} onRemove={memory => setMemories(current => current.filter(item => item !== memory))} onDismiss={memory => setPendingPersonalMemories(current => current.filter(item => item !== memory))} onConfirm={memory => {
+    if (view === 'profile') return <ProfilePage profile={userProfile} onProfile={setUserProfile} onEdit={(old, value) => setMemories(current => [...new Set(current.map(item => item === old ? value : item))])} persona={playerPersona} identityControl={identityControl} memories={memories} pending={pendingPersonalMemories} busy={agentThinking} onBack={() => navigate('home')} onChat={() => navigate('personal')} onRemove={memory => setMemories(current => current.filter(item => item !== memory))} onDismiss={memory => setPendingPersonalMemories(current => current.filter(item => item !== memory))} onConfirm={memory => {
       if (memories.length >= 24) { setStorageError('记忆已满（24 条），请先删除不再需要的内容。'); return; }
       setMemories(current => [...new Set([...current, memory])]); setPendingPersonalMemories(current => current.filter(item => item !== memory));
     }} />;

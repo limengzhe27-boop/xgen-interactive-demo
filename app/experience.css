@@ -52,7 +52,7 @@
 .flow-current-goal > p { flex: 1; min-width: 180px; margin: 0; }
 .flow-current-goal > svg { color: var(--color-primary); }
 .flow-system-entry { color: var(--color-primary); padding-inline: 8px; }
-.flow-composer { display: flex; align-items: flex-end; gap: 12px; padding: 12px; background: var(--color-bg-elevated); border: 1px solid var(--color-border); border-radius: 18px; }
+.flow-composer { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; padding: 12px; background: var(--color-bg-elevated); border: 1px solid var(--color-border); border-radius: 18px; }
 .flow-composer:focus-within { border-color: var(--color-primary); }
 .flow-composer textarea { flex: 1; min-width: 0; min-height: 72px; max-height: 180px; resize: vertical; border: 0; background: transparent; box-shadow: none; border-radius: 8px; padding: 8px; font: 1rem/1.8 var(--font-ui); }
 .flow-composer textarea:hover { background: var(--color-bg); }
@@ -124,6 +124,20 @@
 .profile-note, .profile-persona dt { color: var(--color-text-secondary); font-size: .875rem; }
 .profile-persona { display: grid; gap: 16px; margin-top: 24px; }
 .profile-persona dd { margin: 4px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.profile-switch, .profile-heading { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+.profile-switch { justify-content: flex-start; border-bottom: 1px solid var(--color-border); padding-block: 8px; }
+.profile-switch [aria-current=page] { color: var(--color-primary); background: var(--color-agent-soft); }
+.profile-edit { display: grid; gap: 16px; width: 100%; }
+.profile-edit label { display: grid; gap: 8px; }
+.profile-edit textarea { width: 100%; min-height: 96px; border: 1px solid var(--color-border); border-radius: 12px; padding: 12px; background: var(--color-bg-elevated); color: var(--color-text); font: inherit; }
+.profile-edit > div { display: flex; flex-wrap: wrap; gap: 8px; }
+.local-speech { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; font-size: .9375rem; margin-block: 8px; }
+.local-speech details { max-width: 100%; }
+.local-speech summary, .dictation-help summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; color: var(--color-text-secondary); }
+.local-speech label { display: inline-flex; flex-wrap: wrap; gap: 8px; margin: 8px; }
+.local-speech select { min-height: 44px; max-width: 100%; background: var(--color-bg-elevated); color: var(--color-text); border: 1px solid var(--color-border); border-radius: 8px; }
+.dictation-help { flex-basis: 100%; grid-column: 1 / -1; font-size: .9375rem; }
+.dictation-help p { margin: 4px 0 12px; }
 .profile-memories { padding: 0; margin: 16px 0; list-style: none; }
 .profile-memories li { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--color-border); }
 .profile-memories li > span { flex: 1; overflow-wrap: anywhere; }
