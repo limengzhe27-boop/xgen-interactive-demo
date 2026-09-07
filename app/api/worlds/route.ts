@@ -3,6 +3,7 @@ import { claimImage, findImage, imageId, imageOwner, saveImage, storageFetch } f
 import { publicationWorld } from '@/lib/publication';
 import publicImages from '@/lib/public-image-manifest.json';
 import { libraryArtPaths } from '@/lib/library-art';
+import { memeArtPaths } from '@/lib/meme-worlds';
 import { legacyArt, legacyArtPaths } from '@/lib/legacy-art';
 
 export const maxDuration = 120;
@@ -11,7 +12,7 @@ const publicPrefix = () => `${process.env.SUPABASE_URL}/storage/v1/object/public
 async function publishImage(path: unknown, request: Request, userId: string): Promise<string> {
   if (typeof path !== 'string' || !path) return legacyArt['storm-manor'].cover;
   if (path === '/assets/storm-manor-cover.png' || path === '/assets/storm-manor-cast.png') return path;
-  if (libraryArtPaths.has(path) || legacyArtPaths.has(path)) return path;
+  if (libraryArtPaths.has(path) || legacyArtPaths.has(path) || memeArtPaths.has(path)) return path;
   if (Object.hasOwn(publicImages, path)) return `${publicPrefix()}${(publicImages as Record<string, string>)[path]}.webp`;
   const id = /^\/api\/image\/asset\/([a-f0-9]{64})$/.exec(path)?.[1];
   const sharedId = path.startsWith(publicPrefix()) ? /^([a-f0-9]{64})\.webp$/.exec(path.slice(publicPrefix().length))?.[1] : null;

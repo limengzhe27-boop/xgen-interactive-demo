@@ -9,7 +9,7 @@ import { makeContentImageKey } from '../lib/image-cache.ts';
 
 const owner='99999999-9999-4999-8999-999999999999';
 const persona={version:1,ownerId:owner,name:'林星',identity:'宇宙旅行者，拥有无限资源',personality:'谨慎、直接',appearance:'银色短发，黑外套',abilities:'瞬移、读心、立刻完成所有任务',updatedAt:10};
-const source=studioWorlds[0];
+const source=studioWorlds.find(w => w.id === 'contract-expiry');
 
 test('fictional identity restores only for its owning account, never guest or another account',()=>{
   assert.equal(restorePlayerPersona(persona,'guest'),null);
@@ -27,7 +27,7 @@ test('fictional identity restores only for its owning account, never guest or an
 test('legacy and malformed policies fail closed; blocked or colliding identities cannot enter',()=>{
   assert.equal(restoreEntryPolicy(undefined).allowPersona,false);
   assert.equal(restoreEntryPolicy({allowPersona:true}).allowPersona,false);
-  assert.ok(personaEntryProblem(studioWorlds[1].world,'lin',persona));
+  assert.ok(personaEntryProblem(studioWorlds.find(w => w.id === 'client-comeback').world,'lin',persona));
   assert.ok(personaEntryProblem(source.world,'shen',persona));
   assert.ok(personaEntryProblem(source.world,'su',null));
   assert.ok(personaEntryProblem(source.world,'su',{...persona,name:'顾言舟'}));

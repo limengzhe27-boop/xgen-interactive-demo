@@ -8,7 +8,7 @@ import { conversationEntry, chatRequest } from '../lib/studio-session.ts';
 import { createInitialWorldState } from '../lib/world-state.ts';
 
 const persona = {version:1,ownerId:'99999999-9999-4999-8999-999999999999',name:'林星',identity:'虚构星际旅人',personality:'谨慎、善于沟通',appearance:'银发黑外套',abilities:'读心、谈判',updatedAt:1};
-const source = structuredClone(studioWorlds[0]);
+const source = structuredClone(studioWorlds.find(w => w.id === 'contract-expiry'));
 source.world.entryPolicy = {allowPersona:true,allowedRoleIds:['su'],abilityMode:'agent-select',abilities:['善于谈判，但不能替他人同意','擅长观察，不可读心']};
 const request = () => makePersonaAdaptationRequest(source,'su',persona,'更擅长谈判');
 const suggestion = () => ({roleId:'su',summary:'以自己的性格争取尊重，仍需自己作出选择。',grantedAbilities:[source.world.entryPolicy.abilities[0]],limitations:'不获得读心能力，不跳过角色目标和任务条件。'});

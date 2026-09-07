@@ -2,6 +2,7 @@ import type { WorldDefinition } from './ai-contracts';
 import publicImages from './public-image-manifest.json' with { type: 'json' };
 import { serialWorlds } from './serial-worlds.ts';
 import { wildWorlds } from './wild-worlds.ts';
+import { memeWorlds } from './meme-worlds.ts';
 import { libraryArt } from './library-art.ts';
 import { legacyArt } from './legacy-art.ts';
 
@@ -323,7 +324,7 @@ const publicImage = (path: string) => {
   const id = (publicImages as Record<string, string>)[path];
   return id ? `https://rrgyjvkkgcurtatidyuc.supabase.co/storage/v1/object/public/world-public/${id}.webp` : path;
 };
-export const studioWorlds: StudioWorld[] = [contractWorld, workplaceWorld, inheritanceWorld, ...serialWorlds, ...wildWorlds].map((entry) => {
+export const studioWorlds: StudioWorld[] = [...memeWorlds, contractWorld, workplaceWorld, inheritanceWorld, ...serialWorlds, ...wildWorlds].map((entry) => {
   const art = libraryArt[entry.id] ?? legacyArt[entry.id];
   return {
     ...entry, cover: art?.cover ?? publicImage(entry.cover),

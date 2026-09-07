@@ -69,7 +69,7 @@ test('account profile separates fictional persona from confirmed and pending rea
 });
 
 test('world request validates persona admission before invoking a model', () => {
-  const base = studioWorlds[0];
+  const base = studioWorlds.find(w => w.id === 'contract-expiry');
   const persona = { version: 1, ownerId: 'test', name: '林星', identity: '', personality: '', appearance: '', abilities: '瞬移', updatedAt: 1 };
   const adapted = admitPersona(base, 'su', persona);
   const input = { ...makeEndingFixture(), world: adapted.world, selectedRoleId: 'su' };
@@ -156,9 +156,9 @@ test('melodramatic revision changes rules, openings and tasks while preserving i
     assert.equal(entry.world.title, entry.title);
     assert.ok(entry.world.characters.every((role) => entry.world.goals.some((goal) => goal.roleId === role.id)));
   }
-  assert.ok(studioWorlds[0].world.characters.some((role) => role.publicBackground.includes('死对头')));
-  assert.ok(studioWorlds[1].world.tasks.some((task) => task.successCondition.includes('纠正主创归属')));
-  assert.ok(studioWorlds[2].world.openingScene.narrative.includes('你又不姓何'));
+  assert.ok(studioWorlds.find(w => w.id === 'contract-expiry').world.characters.some((role) => role.publicBackground.includes('死对头')));
+  assert.ok(studioWorlds.find(w => w.id === 'client-comeback').world.tasks.some((task) => task.successCondition.includes('纠正主创归属')));
+  assert.ok(studioWorlds.find(w => w.id === 'inheritance-night').world.openingScene.narrative.includes('你又不姓何'));
 });
 
 async function mockedPersonal(recommendedId, action, userMessage = '换一个') {

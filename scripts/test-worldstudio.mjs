@@ -47,7 +47,8 @@ test('every playable role has scoped goals, prerequisites and reachable nonempty
 });
 
 test('new worlds expose both entries and have valid connected task graphs for every role', () => {
-  assert.equal(new Set(studioWorlds.map((world) => world.id)).size, 15);
+  assert.equal(new Set(studioWorlds.map((world) => world.id)).size, studioWorlds.length);
+  assert.ok(studioWorlds.length >= 17);
   for (const entry of studioWorlds) {
     const world = entry.world;
     const locations = new Set(world.locations.map((place) => place.id));

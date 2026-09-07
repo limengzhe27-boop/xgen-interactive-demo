@@ -1,0 +1,45 @@
+{
+  "mode": "built-in imagegen",
+  "assets": [
+    {
+      "id": "support-cover",
+      "path": "public/assets/library-v3/support-cover.webp",
+      "prompt": "Use case: illustration-story. Asset type: landscape game story cover. Original comedic fantasy MOBA match: three adult heroes, a huge friendly shield-bearing bearded tank in blue armor, a sly young adult male hooded healer in jade robes, a stern adult female armored captain with amber cape, simultaneously reaching for one tiny bewildered glowing jungle boar while their distant crystal base burns. Polished expressive 3D animated film art, absurd confident expressions, cinematic teal and warm orange, clear silhouette, landscape 3:2. No text, no logos, no watermark. Original characters, no existing franchise designs."
+    },
+    {
+      "id": "support-shield",
+      "path": "public/assets/library-v3/support-shield.webp",
+      "prompt": "Use case: stylized-concept. Asset type: individual character portrait, vertical 2:3. Original fantasy MOBA hero: 38-year-old adult man, huge broad build, bushy brown beard, short brown hair, blue and bronze heavy armor, enormous round shield resting by shoulder, comically confident eyebrow, kind but stubborn. Glowing fantasy arena behind him softly blurred. Polished expressive 3D animated movie art, teal and amber rim light. Chest-up centered, no text, no logos, no watermark."
+    },
+    {
+      "id": "support-healer",
+      "path": "public/assets/library-v3/support-healer.webp",
+      "prompt": "Use case: stylized-concept. Asset type: individual character portrait, vertical 2:3. Original fantasy MOBA hero: 26-year-old adult male healer, slim, mischievous smiling face, black hair, jade green hooded robes, small glowing healing orb hovering over open palm, secretly competitive look. Fantasy jungle behind him softly blurred. Polished expressive 3D animated movie art, teal and amber rim light. Chest-up centered, no text, no logos, no watermark."
+    },
+    {
+      "id": "support-captain",
+      "path": "public/assets/library-v3/support-captain.webp",
+      "prompt": "Use case: stylized-concept. Asset type: individual character portrait, vertical 2:3. Original fantasy MOBA hero: 32-year-old adult female captain, auburn short hair, silver armor and amber cape, stern exhausted expression as if surrounded by incompetent teammates, arms folded. Fantasy crystal base behind her softly blurred. Polished expressive 3D animated movie art, teal and amber rim light. Chest-up centered, no text, no logos, no watermark."
+    },
+    {
+      "id": "melon-cover",
+      "path": "public/assets/library-v3/melon-cover.webp",
+      "prompt": "Use case: illustration-story. Asset type: landscape interactive dark comedy story cover. An original Chinese supernatural night-market watermelon stall: adult streetwise man in a black leather jacket stands in disbelief, a dignified middle-aged underworld judge in dark red robes behind the stall holds a sliced watermelon that glows golden, adult female courier in yellow jacket looks alarmed holding a delivery bag. Misty neon market, ghostly old architecture, whimsical bureaucratic afterlife, floating blank jade panels over melons. Cinematic detailed painterly realism, dark jade and vermilion with gold light. Landscape 3:2, dramatic but funny, no violence, no blood, no knives visible, no text, no logos, no watermark, no resemblance to real actors."
+    },
+    {
+      "id": "melon-qiang",
+      "path": "public/assets/library-v3/melon-qiang.webp",
+      "prompt": "Use case: stylized-concept. Asset type: individual character portrait vertical 2:3. Original fictional Chinese man age 35, close-cropped hair, weathered face, black leather jacket over charcoal shirt, holds an intact small watermelon, suspicious raised eyebrow and streetwise confidence. Misty supernatural Chinese night market blurred behind. Cinematic painterly realism, dark jade and vermilion, golden rim light, chest-up. No real actor likeness, no text, no logo, no weapon."
+    },
+    {
+      "id": "melon-judge",
+      "path": "public/assets/library-v3/melon-judge.webp",
+      "prompt": "Use case: stylized-concept. Asset type: individual character portrait vertical 2:3. Original fictional Chinese underworld judge appearing age 55, narrow neatly trimmed beard, angular face, dignified dark red ceremonial robes and simple black official cap, holding a tiny abacus, embarrassed stern expression of a stall owner caught cheating. Supernatural night-market stall blurred behind, cinematic painterly realism, dark jade and vermilion gold lighting. Chest-up, no text, no logos, no blood."
+    },
+    {
+      "id": "melon-courier",
+      "path": "public/assets/library-v3/melon-courier.webp",
+      "prompt": "Use case: stylized-concept. Asset type: individual character portrait vertical 2:3. Original fictional adult Chinese woman age 28, short black bob, bright yellow courier jacket and helmet held under arm, alert intelligent expression, delivery bag strap over shoulder with small jade charm. Misty supernatural Chinese night market softly blurred. Cinematic painterly realism, dark jade and vermilion gold lighting. Chest-up centered, no text, no brand logo, no weapons."
+    }
+  ]
+}

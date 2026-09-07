@@ -13,6 +13,7 @@ void test('publication authenticates, requires consent, excludes private context
   source = source.replace('@/lib/publication', new URL('../lib/publication.ts', import.meta.url).href);
   source = source.replace('@/lib/library-art', new URL('../lib/library-art.ts', import.meta.url).href);
   source = source.replace('@/lib/legacy-art', new URL('../lib/legacy-art.ts', import.meta.url).href);
+  source = source.replace('@/lib/meme-worlds', new URL('../lib/meme-worlds.ts', import.meta.url).href);
   source = source.replace("import publicImages from '@/lib/public-image-manifest.json';", 'const publicImages = {};');
   const route = await import(moduleURL(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } }).outputText));
   const state = globalThis.__publicationTest = { calls: [], user: null, throwAuth: false };

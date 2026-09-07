@@ -6,11 +6,12 @@ import { fileURLToPath } from 'node:url';
 import sharp from 'sharp';
 import { libraryArtPaths } from '../lib/library-art.ts';
 import { legacyArtPaths } from '../lib/legacy-art.ts';
+import { memeArtPaths } from '../lib/meme-worlds.ts';
 
 const sources = JSON.parse(await readFile(process.argv[2], 'utf8'));
 const family = process.argv[3] ?? 'library-v1';
-if (!['library-v1', 'library-v2'].includes(family)) throw new Error('Unexpected asset family');
-const allowed = family === 'library-v2' ? legacyArtPaths : libraryArtPaths;
+if (!['library-v1', 'library-v2', 'library-v3'].includes(family)) throw new Error('Unexpected asset family');
+const allowed = family === 'library-v3' ? memeArtPaths : family === 'library-v2' ? legacyArtPaths : libraryArtPaths;
 const out = new URL(`../public/assets/${family}/`, import.meta.url);
 await mkdir(out, { recursive: true });
 let bytes = 0;
