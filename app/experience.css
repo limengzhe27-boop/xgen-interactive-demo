@@ -133,11 +133,9 @@
 .profile-edit > div { display: flex; flex-wrap: wrap; gap: 8px; }
 .local-speech { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; font-size: .9375rem; margin-block: 8px; }
 .local-speech details { max-width: 100%; }
-.local-speech summary, .dictation-help summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; color: var(--color-text-secondary); }
+.local-speech summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; color: var(--color-text-secondary); }
 .local-speech label { display: inline-flex; flex-wrap: wrap; gap: 8px; margin: 8px; }
 .local-speech select { min-height: 44px; max-width: 100%; background: var(--color-bg-elevated); color: var(--color-text); border: 1px solid var(--color-border); border-radius: 8px; }
-.dictation-help { flex-basis: 100%; grid-column: 1 / -1; font-size: .9375rem; }
-.dictation-help p { margin: 4px 0 12px; }
 .profile-memories { padding: 0; margin: 16px 0; list-style: none; }
 .profile-memories li { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--color-border); }
 .profile-memories li > span { flex: 1; overflow-wrap: anywhere; }

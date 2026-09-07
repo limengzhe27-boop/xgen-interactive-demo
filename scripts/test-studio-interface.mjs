@@ -8,6 +8,13 @@ import ts from 'typescript';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 const root = fileURLToPath(new URL('../', import.meta.url));
+test('message input renders only a textarea without dictation layout siblings', async () => {
+  const { MessageTextarea } = await import('../components/message-textarea.tsx');
+  const html = renderToStaticMarkup(React.createElement(MessageTextarea, { placeholder: '输入测试', onSend() {} }));
+  assert.match(html, /^<textarea\b/);
+  assert.match(html, /<\/textarea>$/);
+  assert.doesNotMatch(html, /<details|dictation-help|系统语音输入/);
+});
 registerHooks({
   resolve(specifier, context, next) {
     if (specifier.startsWith('.') && context.parentURL?.startsWith('file:')) {
