@@ -1,0 +1,23 @@
+.panel { color: var(--color-text); background: var(--color-surface); border: 1px solid var(--color-border-soft); border-radius: 16px; margin: 16px 0; overflow: hidden; font-size: 15px; line-height: 1.7; letter-spacing: .02em; }
+.panel summary { display: flex; align-items: center; gap: 10px; min-height: 64px; padding: 14px 16px; cursor: pointer; background: rgba(var(--color-primary-rgb), .06); transition: background .18s; }
+.panel summary:hover { background: rgba(var(--color-primary-rgb), .1); }
+.panel summary:active { background: rgba(var(--color-primary-rgb), .14); }
+.panel summary:focus-visible, .panel button:focus-visible { outline: 2px solid var(--color-primary); outline-offset: -3px; }
+.panel svg { width: 18px; height: 18px; flex-shrink: 0; color: var(--color-primary); }
+.panel summary span { min-width: 0; }
+.panel summary small, .panel summary strong { display: block; }
+.panel small, .content > p { color: var(--color-text-secondary); font-size: 13px; }
+.panel .count { margin-left: auto; white-space: nowrap; font-size: 12px; color: var(--color-primary); }
+.content { padding: 0 16px 16px; overflow-wrap: anywhere; }
+.content > p { margin: 12px 0; }
+.entries { display: grid; gap: 10px; }
+.entries article { padding: 12px; border-radius: 10px; background: var(--color-bg); }
+.entries article[data-locked=true] { border: 1px dashed var(--color-border-soft); background: transparent; }
+.entries h3 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 15px; }
+.entries h3 small { margin-left: auto; flex-shrink: 0; }
+.entries p { margin: 8px 0; font-size: 15px; }
+.entries button { display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; padding: 8px 12px; margin-top: 8px; width: 100%; border: 1px solid var(--color-border-soft); border-radius: 8px; background: var(--color-surface); color: var(--color-primary); cursor: pointer; font: inherit; transition: background .18s, transform .18s; }
+.entries button:hover { background: rgba(var(--color-primary-rgb), .07); }
+.entries button:active { transform: scale(.99); }
+.entries button:disabled { cursor: not-allowed; opacity: .45; transform: none; }
+@media (prefers-reduced-motion: reduce) { .panel summary, .entries button { transition: none; transform: none; } }

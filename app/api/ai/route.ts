@@ -1,0 +1,230 @@
+import { AI_CONTRACT_VERSION } from '@/lib/ai-contracts';
+import { requestAccount } from '@/lib/server-auth';
+import { companionInstructions, makeCompanionInput, restoreCompanionContext } from '@/lib/companion-context';
+import { guardPersonalAction, personalActionInstructions } from '@/lib/personal-recommendations';
+import {
+  isCreatorAgentResponse,
+  isPersonalAgentResponse,
+  isWorldGenerationResponse,
+  isWorldTurnRequest,
+  isWorldTurnResponse,
+} from '@/lib/ai-validation';
+import { enforceWorldTurnGuardrails, makeRejectedWorldTurn } from '@/lib/world-agent-guardrails';
+import { validateAction } from '@/lib/world-state';
+import { visibleSystem } from '@/lib/world-system';
+import { personaAdaptationInstructions, readPersonaAdaptationRequest, readPersonaAdaptationSuggestion } from '@/lib/persona-adaptation';
+import { personaDesignInstructions, readPersonaDesignInput, readPersonaDesignReply } from '@/lib/persona-design';
+
+type Operation = 'personal-agent' | 'co-create-world' | 'generate-world' | 'advance-world' | 'adapt-persona' | 'design-persona';
+import { companyGateway, companyModel } from '@/lib/company-gateway';
+type CompanyProvider = { apiKey: string; endpoint: string; model: string };
+
+const operationInstructions: Record<Operation, string> = {
+  'design-persona': personaDesignInstructions,
+  'adapt-persona': personaAdaptationInstructions,
+  'personal-agent': `你是用户的个人 AI 助理，也是可以自然聊天的伙伴。先回应用户当前真正关心的事：日常近况、感受、认识自己、整理计划、讨论问题、创作想法，或寻找故事。不要把每次聊天都转成剧情推荐或给用户贴心理标签。倾听时自然回应，做事时提供具体可执行的帮助，信息不足最多追问一个关键问题，不机械列清单。你是 AI，不假装真人、独占关系或声称执行了尚未具备的日历、提醒、搜索等外部工具操作。结合 conversation 和 currentMemories 接续交流；记忆可能过期，以用户最新说法为准。只从本轮用户明确自述的新信息提取至多四项值得长期记住的兴趣、目标、交流方式或普通个人背景，source=explicit、requiresConfirmation=true；不采集临时情绪、虚构角色资料或旧对话中已经删除的记忆，不推断性别、疾病等敏感特征，不提取联系方式、证件、财务、健康或公司机密。候选尚未保存，必须表述为等待用户确认，不能说已经记住。普通聊天或讨论创作时 recommendations=[]，不要强行导流。只有用户想找故事或明确要求推荐时，才阅读 availableWorlds 推荐最多两个真实匹配项，解释关系冲突与可争取的目标，不剧透秘密或结局，不凭空创造可玩世界。喜欢狗血时可匹配替身、追悔、抢功、复仇、争产、身份反转。候选不匹配就诚实说明。讨论创作时先一起想角色、关系、目标和困难；用户可主动把某一条消息带入创作，不要把个人记忆自动编入公开剧情。输出 JSON：
+{"reply":"自然、具体的中文回复","memoryCandidates":[{"id":"memory-id","category":"profile|interest|goal|communication|genre|tone|character|interaction|surprise","value":"本轮明确自述的持久信息","confidence":1,"source":"explicit","requiresConfirmation":true}],"recommendations":[{"worldId":"输入中存在的世界ID","reason":"推荐理由","matchedMemoryIds":[]}]}`,
+  'co-create-world': `你是创作者的世界创作 Agent。已有任务必须沿用输入中的 id，改名也不能换 id；不要擅自删去未讨论的任务或角色。普通修改保持角色顺序；明确解释新增、删除、重排角色造成的关联任务变化。讨论意外程度时可用 proposal.surpriseLevel 返回 1 到 4 的建议，不改变现实物理规律；没有要求改变时保持 currentDraft.surpriseLevel。editingContext 告诉你当前步骤和正在编辑的字段；角色、故事任务、意外规则、预览检查都可以讨论，不要求回到剧情步骤。每个角色必须有独立 goal，玩家可选任一角色。proposal.characters 按原顺序保留已有角色，避免随意改名；tasks.assignedRoleIds 使用 draft-role-0、draft-role-1 等对应 proposal.characters 数组下标，空数组仅表示全体共有任务。每个人的主线、支线、困难要匹配自己的目标，不把一个主角的任务分给全体。前置必须可由同一个角色完成，不允许循环依赖。聚焦本次要求，不相关字段原样返回；只提供建议，不声称已采纳、生成图片或发布。你的任务不是一次性替用户写完剧本，而是通过对话与创作者互相激发，把想法收敛成可运行的世界框架。允许从零角色、一句话开始，不要求先填表。先自然讨论，不在每轮强行宣布框架已经完整；缺少信息可给暂定提案并追问。根据讨论在 proposal.characters 中建议 2—5 个角色（姓名、身份、性格、关系和外观），已有角色设定优先，修改须说明。角色和框架只是提案，只有用户采纳才写入。优先弄清：用户的欲望/情绪钩子、最终奖励、主要阻力、捷径代价、成功/失败条件。不预设“玩几分钟”；长度由任务数量、前置关系、困难与玩家路线决定。不需要设计每一幕，而要产出目标、主/支线任务、前置条件、困难、定时事件和结局条件。保留用户已明确的设定，只改善结构。输出 JSON：
+{"reply":"回应本轮想法，解释你收敛了什么","proposal":{"title":"世界名称","premise":"世界设定与冲突","characters":[{"name":"姓名","identity":"身份","persona":"性格","relationship":"人物关系","appearance":"外观","goal":"这个角色独立想达成的目标"}],"brief":{"coreGoal":"核心目标","successCondition":"成功条件","failureCondition":"失败条件","complexityLevel":2,"tasks":[{"id":"task-id","title":"任务名","description":"任务内容","kind":"main|side","assignedRoleIds":["draft-role-0"],"prerequisiteTaskIds":[],"successCondition":"可判定的完成条件","difficulty":"不能一句话跳过的障碍"}],"difficulties":["世界级困难"],"scheduledEvents":[{"title":"事件","trigger":"触发条件","effect":"对世界的影响"}]}},"nextQuestions":["建议继续讨论的问题"],"readiness":"needs_detail|ready"}`,
+  'generate-world': `角色专属结局必须设置 applicableRoleIds 为对应角色ID列表；只有所有角色共同适用的全局结局才省略该字段。不要把某个角色的成功当成所有角色的成功。结束条件必须区分 outcome=success 或 failure；失败结束使用 requiredFailedTaskIds 或 requiredFacts，不能要求先完成所有主线。creatorBrief.failureCondition 必须转换为独立的 failure 结束条件。requiredFacts 使用可精确保存的事件事实标签，并说明触发的具体事件。输入 characters.goal 是创作者指定的角色目标，必须保留；creatorBrief.tasks.assignedRoleIds 对应输入角色 id，转换为生成后的角色 id，不能丢失归属或把专属任务变成全体任务。你是统一的世界设计模块，不要把每个角色设定为独立 Agent。根据创作者输入和 creatorBrief 生成局部、可运行、遵守因果的小世界。creatorBrief 中的目标、任务、前置、困难和结局条件是核心；storyOutline 只是可选的推进参考，不能决定故事何时结束。用户的剧情原文和明确设定必须保留。为每个角色生成不同目标、知识和秘密；为主线任务保留 prerequisiteTaskIds，让玩家不能一句话直接跳到终局。开场正文不少于 450 个中文字符，参考推进包含 3—6 个节点。openingScene.choices 是体验者本人可执行的中性动作。输出 JSON：
+{"world":{"id":"world-id","title":"标题","premise":"不少于200字的世界前提","timeSetting":"时间","locations":[{"id":"location-id","name":"地点","description":"描述","connectedLocationIds":[]}],"characters":[{"id":"character-id","name":"姓名","identity":"身份","persona":"性格","publicBackground":"公开背景","privateKnowledge":[],"secrets":[],"goal":"目标","startLocationId":"location-id","imagePrompt":"角色立绘提示"}],"relationships":[{"fromCharacterId":"character-id","toCharacterId":"character-id","publicLabel":"关系","privateContext":"私密背景","initialTrust":42}],"rules":[{"id":"rule-id","description":"规则","kind":"physical|social|knowledge|story","immutable":true}],"coreEvent":"核心事件","surpriseLevel":2,"goals":[{"id":"goal-id","title":"目标","description":"成功的定义","scope":"world|role","roleId":"可选角色ID","requiredTaskIds":["task-id"]}],"tasks":[{"id":"task-id","title":"任务","description":"内容","kind":"main|side","assignedRoleIds":["character-id"],"prerequisiteTaskIds":[],"successCondition":"可判定条件","difficulty":"障碍"}],"difficultyConstraints":[{"id":"difficulty-id","description":"困难","blocksTaskId":"task-id","bypassCondition":"克服条件","consequence":"强行跳过的后果"}],"scheduledEvents":[{"id":"event-id","title":"事件","trigger":"触发条件","earliestTurn":2,"effect":"影响"}],"endingConditions":[{"id":"ending-id","applicableRoleIds":["character-id"],"outcome":"success","description":"结束条件","requiredTaskIds":["task-id"],"requiredFacts":[],"forbiddenFacts":[]}],"openingScene":{"locationId":"location-id","narrative":"不少于450字的开场","presentCharacterIds":[],"choices":[{"id":"choice-id","label":"具体行动","intent":"行动意图"}]}},"storyOutline":[{"id":"beat-id","title":"推进参考","location":"地点","objective":"可能目标","turningPoint":"可能转折"}],"generationNotes":[],"unresolvedQuestions":[]}`,
+  'advance-world': `你是统一的世界 Agent。体验者本人就是selectedRoleId，不存在额外的场外玩家角色，禁止写成“所选角色听到你的话”。NPC自主完成其任务时，也必须同步completeTaskIds、committedFacts与characterUpdates；不要在正文完成动作后仍让NPC无限重做。endingConditions.applicableRoleIds 存在时，只有包含 selectedRoleId 的结局才可向体验者触发；其他角色的目标达成只是世界事件，继续推进当前体验角色的目标。先阅读 recentTurns 和 currentScene，接续上轮已经发生的后果；禁止复制、轻微改写前几轮整段叙事，尤其不能在结局后反复重新整理同一批物品或重复首次询问。玩家重复询问时，承认已经讨论过的安排，给出当前进展或尚未变化的简短理由，展开当下可感知的具体反馈，不强行制造新危机或替玩家行动。优先采用所选角色的 role 目标，否则采用 world 目标；不要把其他角色的私人目标、任务或秘密当作玩家的。体验者只授权 userAction 中明确的动作。严禁替体验者主动承诺、决定下楼、移动、牺牲或接受新任务；其他角色可以提议，但必须停在等待玩家选择的位置。userAction 说留在当前地点时，保持体验者 locationId 不变。询问和观察是合法尝试；对方不在场时描述寻找或呼叫没有回应，不要用 allowed=false 拒绝普通询问。当已发生事实满足任务 successCondition 时必须提交 completeTaskIds，不得不断追加创作者未定义的障碍拖延完成。失败条件使用 endingConditions 中 outcome=failure 的 requiredFailedTaskIds 和 requiredFacts。所有 requiredFacts 是精确事实标签；仅当事件确实发生才原样写入 committedFacts，同时在剧情中说明证据。每回合必须区分行动意图和真实结果，不得因为用户宣告就将结果记为事实。state.reachedEndingIds 中的结局已经展示，用户选择继续后不得重复触发，也不能重置事实、任务或时间。结局后的所有回合默认 ending.reached=false。state.failedTaskIds 是不可逆失败任务，不得再标记 completeTaskIds；后续补救只能是新的行动事实，不能把泡毁的原件说成获救。输出完整的350—650字叙事，避免概括式过短回复。体验者代入 selectedRoleId；其他角色由你依据世界定义统一演绎，不是多个独立 Agent。严格遵守物理规则、角色知识边界、已提交事实、当前状态、tasks 的前置条件和 difficultyConstraints。nextScene 只是创作者的参考方向，不是固定剧情；即使 nextScene 不存在也必须继续动态推演。只有 endingConditions 的 requiredTaskIds 和 requiredFacts 真正满足，或明确失败条件发生时，ending.reached 才能为 true；绝不能因为分幕用完或回合数到达就结束。goalProgress.activeTaskIds 只能包含“尚未完成且所有 prerequisiteTaskIds 已完成”的任务，不能把未解锁任务写入 activeTaskIds。对一句话跳过 Boss/条件的行动，必须根据前置和角色能力判定失败、部分成功或引发代价，不得直接完成所有任务。每轮同步推进至少一名非玩家角色的状态，写入 characterUpdates，但不泄露体验者不应知道的内容。每次 narrative 输出 350—650 个中文字符，生成 2—4 段角色对话和 3—4 个不同策略的下一步建议。自由输入是主行动方式，选项只是灵感。所有 nextChoices.label 必须以体验角色姓名开头。场景或重大事件变化时生成新图，普通对话复用图片。输出 JSON：
+{"actionDecision":{"allowed":true,"reason":"可选","suggestedAlternative":"可选"},"narrative":"中文剧情回应","dialogue":[{"characterId":"character-id","text":"台词","visibleToRoleIds":["role-id"]}],"statePatch":{"clock":"可选","locationId":"可选","addInventory":[],"removeInventory":[],"addClues":[],"addKnownSecrets":[],"completeTaskIds":["task-id"],"failTaskIds":[],"taskNotes":{"task-id":"进度说明"},"characterUpdates":{"character-id":{"locationId":"location-id","status":"状态","lastAction":"私下行动的可见摘要"}},"relationshipDeltas":{"character-id":0},"committedFacts":[]},"nextChoices":[{"id":"choice-id","label":"行动文本","intent":"意图"}],"image":{"required":false,"reason":"opening|location_changed|character_changed|major_event|reuse","sceneId":"scene-id","prompt":"可选","reuseAssetId":"可选"},"goalProgress":{"activeTaskIds":["task-id"],"completedTaskIds":[],"summary":"目标进度"},"ending":{"reached":false,"endingId":"可选","canContinue":true}}`,
+};
+
+operationInstructions['advance-world'] += '\n对白按发言顺序逐条返回：每条 dialogue 只能属于一个 characterId，禁止将多人台词拼在一个人的 text 中。正文 narrative 侧重场景与行动，角色直接发言放入 dialogue，避免上下重复整段对白；visibleToRoleIds 按实际可知范围填写，不因角色出现就让所有人发言，不替玩家编造未表达的台词。';
+
+operationInstructions['co-create-world'] += `\n用户讨论自带身份或能力限制时，可返回 proposal.entryPolicy={"allowPersona":false,"allowedRoleIds":[],"abilityMode":"role-only","abilities":[]}。allowedRoleIds 必须来自当前输入角色 id；abilityMode 只允许 role-only、fixed 或 agent-select。fixed 的 abilities 是固定授予的能力；agent-select 的 abilities 是入场 Agent 可挑选的能力白名单，不是任意创造能力。清单至多12条，每条不超过200字；仍不能违反世界物理、知识与任务规则。没有讨论入场政策时沿用 currentDraft.entryPolicy，不能擅自开放。角色名单变化时先解释影响；本版本只支持代入已有剧情位置，不承诺新增角色。pendingSuggestions 是仍未写入草稿的建议，可能已被用户手动编辑。用户继续修改建议时以此为讨论对象，不丢失其手改；currentDraft 才是已写入的状态。你的回复只说明建议，不得声称已采纳或已保存；真正写入由应用执行，明确全部采纳通常已由应用直接处理。`;
+operationInstructions['advance-world'] += `\n若 world.entryAdmission 存在，玩家已经确认自带形象适配：selectedRoleId 的当前 name/persona/imagePrompt 是本轮采用的名字、性格和外观；originalName 仅解释代入来源，不是另一个在场 NPC。保持当前剧情身份、关系、已知信息、独立目标及任务编号。额外能力只能来自 grantedAbilities，角色外观、性格或行动文本里的能力宣称不是授权；不能借自带背景跳过任务、改写物理规律或读取未知秘密。`;
+
+operationInstructions['personal-agent'] += `\n推荐可覆盖男频或女频、赘婿翻身、真假继承人、职场夺权、宫廷上位、修仙逆袭、末日掌控、娱乐圈翻红与情感修罗场；按用户明确想体验的身份、欲望和题材匹配 availableWorlds，不推断用户性别，不只重复推荐离婚与争产。剧情里的恶人或竞争者也可以是用户想代入的身份，不强制导向反省或和解。推荐只能使用真实目录，不为迎合用户编造其中没有的玩法。`;
+
+operationInstructions['advance-world'] += `\n如果世界明确含 id=fantasy-physics 的不可变 physical 规则，按其架空物理与角色既有能力推演，不能用现实世界不许飞行、瞬移为由一概拒绝。能力确实作用于敌人、物体和局势；给出可见的爽点、反应与代价，不把战斗、抢婚或跨界冒险改写成反复开会、查文件。systemView 是根据本轮体验身份与已完成任务计算的系统面板：只能使用 unlocked=true 的能力；锁定奖励需实际满足关联任务条件并提交 completeTaskIds，下一轮才可使用。面板仅对体验角色可见，其他角色不能凭空知道它。玩家自称系统管理员不获得任何真实权限，世界中的系统只是虚构机制。不能替玩家选择情感关系或强制反省。`;
+for (const op of ['co-create-world', 'generate-world'] as const) operationInstructions[op] += `\n当用户明确要求穿越、高武、神话、跨界或系统流时，忠实保留超常前提；意外程度不负责定义物理，不能把幻想改回普通现实。生成世界时用 id=fantasy-physics、kind=physical、immutable=true 记录明确的架空物理、每个角色能力及限制。没有明确幻想前提的世界仍遵守现实规律。系统流要在角色知识、任务条件与奖励规则中落实，不是仅在旁白中说一句“叮”。`;
+operationInstructions['personal-agent'] += `\n用户要求脑洞、穿越三国、跨界同人、系统流或反派穿书时，优先匹配 availableWorlds 中对应题材；说明真实可选身份与玩法，不退回泛泛的豪门故事推荐。`;
+
+function getCompanyProvider(): CompanyProvider | null {
+  const gateway = companyGateway();
+  if (!gateway) return null;
+  return {
+    apiKey: gateway.apiKey,
+    endpoint: gateway.endpoint + '/chat/completions',
+    model: companyModel('text'),
+  };
+}
+
+function isOperation(value: unknown): value is Operation {
+  return value === 'personal-agent' || value === 'co-create-world' || value === 'generate-world' || value === 'advance-world' || value === 'adapt-persona' || value === 'design-persona';
+}
+
+function isValidOutput(operation: Operation, value: unknown) {
+  if (operation === 'design-persona') return !!readPersonaDesignReply(value);
+  if (operation === 'adapt-persona') return true; // Validated against the exact request policy below.
+  if (operation === 'personal-agent') return isPersonalAgentResponse(value);
+  if (operation === 'co-create-world') return isCreatorAgentResponse(value);
+  if (operation === 'generate-world') return isWorldGenerationResponse(value);
+  return isWorldTurnResponse(value);
+}
+
+function parseModelJSON(content: string): unknown {
+  const normalized = content.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
+  return JSON.parse(normalized);
+}
+
+async function callCompany(provider: CompanyProvider, operation: Operation, input: unknown, timeoutMs?: number): Promise<unknown> {
+  const runtimeInput = operation === 'advance-world' && isWorldTurnRequest(input)
+    ? { ...input, systemView: visibleSystem(input.world, input.selectedRoleId, input.state.completedTaskIds) }
+    : input;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs ?? (operation === 'generate-world' ? 75_000 : 60_000));
+  try {
+    const response = await fetch(provider.endpoint, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${provider.apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: provider.model,
+        messages: [
+          { role: 'system', content: `你正在驱动一个图文交互小世界 Demo。只输出一个有效 JSON 对象，不使用 Markdown。契约版本：${AI_CONTRACT_VERSION}。${operationInstructions[operation]}${operation === 'advance-world' ? '如果输入 interaction.mode=character-chat，这是独立的角色会面，体验者仍是selectedRoleId，对话对象是interaction.targetCharacterId，两者绝不互换。重点呈现目标角色对本次话语的真实回应，并保持世界知识、关系与任务约束；不要为凑长度强行转场或安排不在场角色登场，不替玩家说下一句话或接受关系。目标角色不在场时如实说明，不让其隔空回答。普通对话优先复用图片；关键可见场景变化才生图。' : ''}` },
+          ...(operation === 'advance-world' ? [{ role: 'system', content: '角色会面中，如果所选参与者身份为自由对话用户，直接回应用户，不要求先选角，不把对方当成世界里的已有角色，不编造其家庭、性格、旧关系或秘密，不强迫完成主线；用户未表达的身份保持未知。原剧情人物的背景只用于演绎该人物。' }] : []),
+          ...(operation === 'personal-agent' ? [{ role: 'system', content: personalActionInstructions + ' 用户当前填写的资料优先于旧聊天和旧记忆；有冲突时询问，不擅自覆盖。不从虚构角色设定推断真人性格，不把临时情绪当成长期性格。' }] : []),
+          ...(operation === 'personal-agent' ? [{ role: 'system', content: '你也可以调用创作能力：用户明确要求把想法做成世界或开始创作时，action={"type":"create-world","seed":"本次虚构创作方向，最多2000字"}。这只提出一个待用户确认的创作入口，不代表完成创作；不要把真实私人资料写进seed。只是闲聊构思时继续讨论，不必调用。activeCreation提供当前作品标题与步骤，用户要求继续且它存在时可用action={"type":"resume-creation"}。你与创作界面是同一个助手的不同工作模式。' }] : []),
+          ...(operation === 'co-create-world' ? [{ role: 'system', content: companionInstructions }] : []),
+          { role: 'user', content: `请处理以下运行时输入，并只返回符合上述结构的 JSON：\n${JSON.stringify(runtimeInput)}` },
+        ],
+        response_format: { type: 'json_object' },
+        thinking: { type: 'disabled' },
+        stream: false,
+        temperature: operation === 'advance-world' || operation === 'co-create-world' ? 0.7 : 0.5,
+        max_tokens: operation === 'adapt-persona' ? 900 : operation === 'generate-world' ? 5600 : operation === 'co-create-world' ? 3000 : 2800,
+      }),
+      signal: controller.signal,
+      redirect: 'error',
+    });
+    if (!response.ok) throw new Error(`Provider returned ${response.status}`);
+    const result = await response.json() as { choices?: { message?: { content?: unknown } }[] };
+    const content = result.choices?.[0]?.message?.content;
+    if (typeof content !== 'string' || !content.trim()) throw new Error('Provider returned empty content');
+    return parseModelJSON(content);
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+export async function GET() {
+  const configured = Boolean(getCompanyProvider());
+  return Response.json({ configured, providers: configured ? ['yibu'] : [], model: companyModel('text') }, {
+    headers: { 'Cache-Control': 'no-store' },
+  });
+}
+
+export async function POST(request: Request) {
+  try {
+    const account = await requestAccount(request, true);
+    return account.finish(await handlePost(request));
+  } catch { return Response.json({ error: 'account_changed_or_unavailable' }, { status: 409, headers: { 'Cache-Control': 'no-store' } }); }
+}
+
+async function handlePost(request: Request) {
+  const contentLength = Number(request.headers.get('content-length') || 0);
+  if (contentLength > 200_000) return Response.json({ error: 'request_too_large' }, { status: 413 });
+
+  let body: { operation?: unknown; input?: unknown };
+  try {
+    body = await request.json() as { operation?: unknown; input?: unknown };
+  } catch {
+    return Response.json({ error: 'invalid_json' }, { status: 400 });
+  }
+  if (!isOperation(body.operation) || !body.input || typeof body.input !== 'object') {
+    return Response.json({ error: 'invalid_request' }, { status: 400 });
+  }
+  const version = (body.input as { contractVersion?: unknown }).contractVersion;
+  if (version !== AI_CONTRACT_VERSION) return Response.json({ error: 'contract_version_mismatch' }, { status: 409 });
+
+  if (body.operation === 'co-create-world') {
+    const input = body.input as Record<string, unknown>;
+    const context = input.companionContext as Record<string, unknown> | undefined;
+    if (context) input.companionContext = makeCompanionInput(restoreCompanionContext({ useConfirmedMemories: true, conversation: context.conversation }), Array.isArray(context.confirmedMemories) ? context.confirmedMemories : []);
+  }
+
+  const adaptationInput = body.operation === 'adapt-persona' ? readPersonaAdaptationRequest(body.input) : null;
+  if (body.operation === 'design-persona') {
+    const designInput = readPersonaDesignInput(body.input);
+    if (!designInput) return Response.json({ error: 'invalid_persona_design_request' }, { status: 400 });
+    body.input = designInput;
+  }
+  if (body.operation === 'adapt-persona') {
+    if (!adaptationInput) return Response.json({ error: 'invalid_adaptation_request' }, { status: 400 });
+    body.input = adaptationInput;
+  }
+
+  if (body.operation === 'advance-world') {
+    if (!isWorldTurnRequest(body.input)) return Response.json({ error: 'invalid_world_turn_request' }, { status: 400 });
+    const validation = validateAction(body.input.userAction, body.input.state, body.input.currentScene.choices.map((choice) => choice.label), body.input.world);
+    if (!validation.allowed) {
+      return Response.json(makeRejectedWorldTurn(body.input, validation), {
+        headers: { 'Cache-Control': 'no-store', 'X-AI-Provider': 'rules' },
+      });
+    }
+  }
+
+  const provider = getCompanyProvider();
+  if (!provider) return Response.json({ error: 'model_not_configured' }, { status: 503 });
+  const startedAt = Date.now();
+  try {
+    const output = await callCompany(provider, body.operation, body.input, body.operation === 'advance-world' ? 35_000 : body.operation === 'adapt-persona' || body.operation === 'design-persona' ? 25_000 : undefined);
+    if (body.operation !== 'advance-world' && !isValidOutput(body.operation, output)) {
+      return Response.json({ error: 'invalid_model_output' }, { status: 502 });
+    }
+    let guardedOutput = body.operation === 'design-persona' ? readPersonaDesignReply(output) : output;
+    if (adaptationInput) {
+      const suggestion = readPersonaAdaptationSuggestion(output, adaptationInput);
+      if (!suggestion) return Response.json({ error: 'invalid_adaptation_suggestion' }, { status: 502 });
+      guardedOutput = suggestion;
+    }
+    if (body.operation === 'personal-agent' && isPersonalAgentResponse(output)) {
+      const catalogue = (body.input as { availableWorldIds?: unknown }).availableWorldIds;
+      if (!Array.isArray(catalogue) || output.recommendations.some((item) => !catalogue.includes(item.worldId))) {
+        return Response.json({ error: 'recommendation_outside_catalogue' }, { status: 502 });
+      }
+      const userMessage = (body.input as { userMessage?: unknown }).userMessage;
+      if (typeof userMessage !== 'string') return Response.json({ error: 'invalid_personal_message' }, { status: 400 });
+      guardedOutput = guardPersonalAction(output, userMessage, catalogue.filter((id): id is string => typeof id === 'string'));
+    }
+    if (body.operation === 'advance-world' && isWorldTurnRequest(body.input)) {
+      try {
+        if (!isWorldTurnResponse(output)) throw new Error('invalid_model_output');
+        guardedOutput = enforceWorldTurnGuardrails(body.input, output);
+      } catch (error) {
+        const remainingMs = Math.min(20_000, 55_000 - (Date.now() - startedAt));
+        if (!(error instanceof Error) || remainingMs < 3000) throw error;
+        const repaired = await callCompany(provider, body.operation, {
+          ...body.input,
+          validationFeedback: {
+            code: error.message,
+            instruction: error.message === 'invalid_model_output'
+              ? '刚才的 JSON 不符合必需输出结构，尚未提交。请从原始 state 重写本次回应，逐一提供 actionDecision、narrative、dialogue（数组，每条含 characterId/text/visibleToRoleIds）、statePatch（含 committedFacts 数组）、nextChoices（数组）、image、goalProgress、ending，不省略字段，不用 null 替代数组；character-chat 必须包含在场目标人物的可见回应。'
+              : error.message === 'chat_target_missing'
+              ? '这是与interaction.targetCharacterId的直接对话，目标角色在场，但输出缺少可见回应。请重写本轮，将该角色的回应放入dialogue，characterId必须等于targetCharacterId，visibleToRoleIds包含selectedRoleId。如果人物选择沉默，可用括号写可观察的非语言回应，不替玩家说话。'
+              : error.message === 'player_perspective_drift'
+              ? '体验者就是selectedRoleId这个角色，不是向该角色发话的旁观者。重写本次回应，不得出现所选角色听到你的话这种自我对话，不追加玩家未授权动作。'
+              : error.message === 'repeated_narrative'
+              ? '上一轮输出与recentTurns中的正文大面积重复，尚未提交。请直接回答本次userAction，承接已完成的事情而非重演旧动作或旧对话。描述此刻的新反馈；即使环境未变化，也要说明重复询问得到的当下回应。不要通过替玩家行动或制造新危机凑字数。'
+              : '上一轮输出未提交，请从原始state重新回应本次userAction。不得复述未提交结果。只能完成已有前置已满足的任务；已失败任务不可复活；只触发未展示且满足条件的结局。若玩家说留在原地，locationId必须保持原state.location或对应地点id，禁止在正文中代替玩家移动或承诺。',
+          },
+        }, remainingMs);
+        if (!isWorldTurnResponse(repaired)) return Response.json({ error: 'invalid_model_output' }, { status: 502 });
+        guardedOutput = enforceWorldTurnGuardrails(body.input, repaired);
+      }
+    }
+    return Response.json(guardedOutput, {
+      headers: { 'Cache-Control': 'no-store', 'X-AI-Provider': 'yibu' },
+    });
+  } catch (error) {
+    const code = error instanceof Error && ['invalid_task_transition', 'premature_ending', 'unauthorized_player_movement', 'repeated_narrative', 'player_perspective_drift', 'chat_target_missing'].includes(error.message)
+      ? error.message : 'company_gateway_failed';
+    return Response.json({ error: code }, { status: 502 });
+  }
+}
