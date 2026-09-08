@@ -27,9 +27,9 @@ export function CompanionHandoff({ seed, conversation, memoryCount, onClose, onC
 export function CompanionContextPanel({ context, memoryCount, busy, onChange, onPersonal }: {
   context: CompanionContext; memoryCount: number; busy: boolean; onChange: (context: CompanionContext) => void; onPersonal: () => void;
 }) {
-  return <details className="companion-context"><summary>同一个 Agent · {context.useConfirmedMemories ? `${memoryCount} 条已确认记忆` : '本次仅参考创作讨论'} · {context.conversation.length} 条带入消息</summary>
+  return <section className="companion-context"><p> {context.useConfirmedMemories ? `${memoryCount} 条已确认记忆` : '本次仅参考创作讨论'} · {context.conversation.length} 条日常聊天带入</p>
     <label className="companion-check"><input type="checkbox" checked={context.useConfirmedMemories} disabled={busy} onChange={event => onChange({ ...context, useConfirmedMemories: event.target.checked })} /><span>创作时也参考我的已确认记忆<small>开启后，下次讨论会将这些记忆发给公司网关及其模型供应商；不自动写进剧本。关闭不撤回已经发送的请求。</small></span></label>
     {context.conversation.length > 0 && <><div className="companion-selection">{context.conversation.map((turn, index) => <p key={index}><small>{turn.role === 'user' ? '你' : '你的 Agent'}</small>{turn.content}</p>)}</div><button className="studio-text-button" type="button" disabled={busy} onClick={() => onChange({ ...context, conversation: [] })}>移除带入的聊天上下文</button></>}
     <button type="button" className="studio-text-button" disabled={busy} onClick={onPersonal}>回到日常聊天，保留当前创作</button>
-  </details>;
+  </section>;
 }
