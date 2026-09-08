@@ -47,7 +47,7 @@ export const ascensionPrologue: WorldPrologue = {
   handoff: '你还站在桥上，金链已缠住红绳。问清规矩、检查链扣，或用一次剑气斩断它。',
 };
 export function worldPrologue(worldId: string, publicPremise: string, cover: string): WorldPrologue {
-  return worldId === 'ascension-work-number' ? ascensionPrologue : worldId === 'yoga-lotus-boundary' ? yogaPrologue : {
+  return worldId === 'ascension-work-number' ? ascensionPrologue : worldId === 'yoga-lotus-boundary' ? yogaAudioPrologue : {
     shots: [{ caption: publicPremise, poster: cover, seconds: 0 }],
     handoff: '先了解这场故事，再选择你要成为的人。',
   };
