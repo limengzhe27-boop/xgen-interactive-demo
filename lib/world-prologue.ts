@@ -1,6 +1,6 @@
 export type PrologueShot = { caption: string; poster: string; seconds: number };
 export type WorldPrologue = {
-  shots: PrologueShot[]; handoff: string; video?: string; captionsEmbedded?: boolean;
+  shots: PrologueShot[]; handoff: string; video?: string; captionsEmbedded?: boolean; hasAudio?: boolean;
   message?: { at: number; until: number; sender: string; text: string };
 };
 export const yogaPrologue: WorldPrologue = {
@@ -23,6 +23,17 @@ export const yogaComparisonPrologue: WorldPrologue = {
     { caption: '丈夫：幼儿园快关门了，你到底几点去接孩子？她低头看着手机，陆晨就在面前。', poster: '/assets/prologues/yoga-v3/poster.webp', seconds: 4 },
   ],
   handoff: '是先安排接送，还是面对门外这段关系？停在这里，接下来交给你。',
+};
+export const yogaAudioPrologue: WorldPrologue = {
+  video: '/assets/prologues/yoga-v4/prologue.mp4', hasAudio: true, captionsEmbedded: true,
+  shots: [
+    { caption: '结婚九年，她等来的，只有丈夫低头看手机。', poster: '/assets/prologues/yoga-v4/poster.webp', seconds: 5 },
+    { caption: '瑜伽私教陆晨，却把关心送到了她手里。', poster: '/assets/yoga-v1/lu.webp', seconds: 5 },
+    { caption: '拉伸停了，她没有走。她要的，早已不只是私教课。', poster: '/assets/yoga-v1/lin.webp', seconds: 10 },
+    { caption: '直到丈夫的消息，追了过来。', poster: '/assets/yoga-v1/cover.webp', seconds: 5 },
+    { caption: '丈夫：幼儿园快关门了，你到底几点去接孩子？她尚未回复。', poster: '/assets/yoga-v1/lin.webp', seconds: 5 },
+  ],
+  handoff: '消息还没回复，孩子还在等她。接下来，由你决定。',
 };
 export const ascensionPrologue: WorldPrologue = {
   video: '/assets/prologues/ascension-v1/prologue.mp4',
