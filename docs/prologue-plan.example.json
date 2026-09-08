@@ -1,0 +1,24 @@
+{
+  "title": "瑜伽馆序章：关系证据与未回复的消息（分镜样例，未生成）",
+  "characters": [
+    { "id": "lin", "identity": "林栀，36岁，已婚的瑜伽学员", "appearance": "及肩黑发，绿色运动上衣、黑色运动裤，小莲花手链，全程同一张脸" },
+    { "id": "lu", "identity": "陆晨，27岁，男瑜伽私教", "appearance": "短黑发，深灰运动T恤、黑色运动裤，全程同一张脸" }
+  ],
+  "facts": [
+    { "id": "class", "description": "两人正在进行瑜伽私教课", "channel": "visual" },
+    { "id": "affair", "description": "女学员和教练已超出教学关系", "channel": "visual" },
+    { "id": "family", "description": "女主已婚，丈夫催她接孩子", "channel": "overlay" },
+    { "id": "pressure", "description": "她因消息慌乱退入隔间，还未回复", "channel": "visual" }
+  ],
+  "shots": [
+    { "id": "s1", "start": 0, "end": 10, "characterIds": ["lin", "lu"], "location": "傍晚暖光瑜伽教室，镜墙、垫子、瑜伽砖可辨认", "startState": "林栀在垫上做站姿伸展，陆晨站在侧后方指导", "action": "教练扶肩背与腰侧纠正姿势；她停下动作主动转身，手环住他的肩，两人短暂拥吻", "endState": "两人仍在同一垫子边拥抱，手机在女主裤兜内", "continuity": "首镜先保留场景和两人中景，再缓慢靠近", "evidence": [
+      { "factId": "class", "channel": "visual", "detail": "运动垫上的伸展动作与侧后方私教纠正姿势，不能只有两个人站着" },
+      { "factId": "affair", "channel": "visual", "detail": "她停止训练后主动环抱并亲吻教练，区别于辅助拉伸；成年人完整穿着" }
+    ] },
+    { "id": "s2", "start": 10, "end": 20, "characterIds": ["lin", "lu"], "location": "同一教室通向相邻更衣室隔间", "startState": "两人承接上镜仍在拥抱", "action": "手机震动，她从裤兜拿出手机看一眼，笑容消失，松开拥抱走入相邻隔间；教练留在教室。她关门靠门站住，手指停在回复键上", "endState": "她独自在隔间，门未打开，消息未回复", "continuity": "须用已验收上镜尾帧核对衣着、手链和站位；跟拍离开，同一时间线，不凭空换房", "evidence": [
+      { "factId": "family", "channel": "overlay", "detail": "后期叠加清晰消息：丈夫：幼儿园快关门了，你几点去接？不要让视频模型绘制手机文字" },
+      { "factId": "pressure", "channel": "visual", "detail": "看到消息才松开拥抱退入隔间；最后手指悬停未回复，保留选择" }
+    ] }
+  ],
+  "handoff": { "shotId": "s2", "unresolved": "消息尚未回复，隔间门尚未打开", "choices": ["回复催接消息", "隔着门询问教练"] }
+}
