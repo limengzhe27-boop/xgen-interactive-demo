@@ -51,7 +51,7 @@ export function publicationWorld(value: unknown): WorldDefinition {
   if (world.entryPolicy && (!validEntryPolicy(world.entryPolicy) || world.entryPolicy.allowedRoleIds.some(id => !roles.has(id)))) throw new Error('invalid_entry_policy');
   ids(world.goals); ids(world.rules); ids(world.scheduledEvents); ids(world.endingConditions);
   const all = (values: string[], set: Set<string>) => values.every(id => set.has(id));
-  if (!world.title.trim() || world.title.length > 120 || !world.premise.trim() || world.characters.length < 2 || world.characters.length > 8
+  if (!world.title.trim() || world.title.length > 120 || !world.premise.trim() || world.characters.length < 1 || world.characters.length > 8
     || !world.tasks.length || !world.goals.length || !world.endingConditions.length || ![1, 2, 3, 4].includes(world.surpriseLevel)
     || !places.has(world.openingScene.locationId) || !all(world.openingScene.presentCharacterIds, roles)
     || world.characters.some(role => !places.has(role.startLocationId) || !role.name.trim())

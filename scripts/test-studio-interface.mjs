@@ -150,9 +150,21 @@ test('identity shortcut exposes create or edit directly without requesting an im
   const saved = renderToStaticMarkup(React.createElement(PersonaControl, { ...base, value: { name: '合成角色', portraitUrl: '/test-portrait.webp' } }));
   assert.ok(saved.includes('编辑我的形象：合成角色') && saved.includes('/test-portrait.webp'));
 });
-test('melodramatic revision changes rules, openings and tasks while preserving independent role goals', () => {
+test('solo first-person prelude offers direct entry without asking the reader to choose a person', async () => {
+  const { WorldProloguePlayer } = await import('../components/world-prologue.tsx');
+  const { worldPrologue } = await import('../lib/world-prologue.ts');
+  const html = renderToStaticMarkup(React.createElement(WorldProloguePlayer, {
+    title: '蜘蛛', prologue: worldPrologue('spider-under-table', '桌腿上的逃生', '/assets/expansion/spider-under-table/cover.webp'),
+    fixedIdentity: '小蛛', onBack() {}, onContinue() {},
+  }));
+  assert.match(html, /以小蛛的视角继续/);
+  assert.match(html, /接下来的行动由你决定/);
+  assert.doesNotMatch(html, /再选择你要成为的人|选择入场身份/);
+});
+
+test('genre-specific drama and first-person rules preserve independent role goals', () => {
   for (const entry of studioWorlds) {
-    assert.ok(entry.world.rules.some((rule) => rule.id === (entry.fixedRoleId ? 'first-person' : 'melodrama')));
+    assert.ok(entry.world.rules.some((rule) => entry.fixedRoleId ? rule.id === 'first-person' : ['melodrama', 'dramatic-action'].includes(rule.id)));
     assert.equal(entry.world.title, entry.title);
     assert.ok(entry.world.characters.every((role) => entry.world.goals.some((goal) => goal.roleId === role.id)));
   }

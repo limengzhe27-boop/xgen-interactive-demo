@@ -36,8 +36,14 @@ export function AccountBoundary({ children }: { children: (scope: string) => Rea
     document.addEventListener('visibilitychange', visibility); window.addEventListener('storage', changed);
     return () => { live = false; revision++; window.removeEventListener('focus', check); window.removeEventListener('blur', hide); document.removeEventListener('visibilitychange', visibility); window.removeEventListener('storage', changed); };
   }, []);
+  function continueAsGuest() {
+    // Never unlock the last signed-in workspace on an account-check failure.
+    // Remount a separate guest scope only after the reader chooses it.
+    setScope('guest'); setChecking(false); setError(false);
+    delete document.documentElement.dataset.accountLocked;
+  }
   return <>
-    {checking && <output className="account-bar">{error ? '暂时无法确认账号，私人资料暂时隐藏。' : '正在确认你的个人空间…'}{error && <Button onClick={() => window.location.reload()}>重新检查</Button>}</output>}
+    {checking && <output className="account-bar">{error ? '暂时无法确认账号，私人资料暂时隐藏。' : '正在确认你的个人空间…'}{error && <><Button onClick={() => window.location.reload()}>重新检查</Button><Button onClick={continueAsGuest}>继续游客体验</Button></>}</output>}
     <div inert={checking} style={checking && scope !== 'pending' ? { visibility: 'hidden' } : undefined} key={scope}>{children(scope)}</div>
   </>;
 }

@@ -35,6 +35,7 @@ export function GalleryMasonry({ children, layoutKey }: { children: ReactNode; l
           if (item.style.gridRowEnd !== `span ${span}`) item.style.gridRowEnd = `span ${span}`;
         }
       });
+      grid.dispatchEvent(new Event('gallery:layout', { bubbles: true }));
     };
     const schedule = () => { if (!frame) frame = requestAnimationFrame(measure); };
     const observer = new ResizeObserver(schedule);

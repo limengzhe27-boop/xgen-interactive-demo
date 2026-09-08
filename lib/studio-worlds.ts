@@ -1,4 +1,5 @@
 import type { WorldDefinition } from './ai-contracts';
+import { expansionWorlds } from './expansion-worlds.ts';
 import publicImages from './public-image-manifest.json' with { type: 'json' };
 import { serialWorlds } from './serial-worlds.ts';
 import { wildWorlds } from './wild-worlds.ts';
@@ -330,7 +331,7 @@ const publicImage = (path: string) => {
   const id = (publicImages as Record<string, string>)[path];
   return id ? `https://rrgyjvkkgcurtatidyuc.supabase.co/storage/v1/object/public/world-public/${id}.webp` : path;
 };
-export const studioWorlds: StudioWorld[] = [firstPersonWorld, yogaWorld, conquestWorld, ...memeWorlds, contractWorld, workplaceWorld, inheritanceWorld, ...serialWorlds, ...wildWorlds].map((entry) => {
+export const studioWorlds: StudioWorld[] = [...expansionWorlds, firstPersonWorld, yogaWorld, conquestWorld, ...memeWorlds, contractWorld, workplaceWorld, inheritanceWorld, ...serialWorlds, ...wildWorlds].map((entry) => {
   const art = libraryArt[entry.id] ?? legacyArt[entry.id];
   return {
     ...entry, cover: art?.cover ?? publicImage(entry.cover),

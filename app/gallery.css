@@ -93,7 +93,8 @@
 .gallery-search button:hover { color: var(--color-primary); }
 .gallery-search button:active { opacity: .6; }
 .gallery-search button svg { width: 16px; }
-.gallery-filters { display: flex; flex-wrap: wrap; gap: 4px 10px; margin: 12px 0 20px; }
+.gallery-filters { display: flex; flex-wrap: nowrap; overflow-x: auto; gap: 4px 10px; margin: 12px 0 20px; scrollbar-width: thin; }
+.gallery-filters button { flex-shrink: 0; white-space: nowrap; }
 .gallery-filters button { border: 0; border-radius: 999px; padding: 8px 14px; min-height: 44px; background: transparent; color: var(--color-text-secondary); cursor: pointer; font-size: 13px; transition: background .18s, color .18s; }
 .gallery-filters button:hover { background: var(--color-surface); }
 .gallery-filters button[aria-pressed=true] { color: var(--color-primary); background: rgba(var(--color-primary-rgb), .08); }

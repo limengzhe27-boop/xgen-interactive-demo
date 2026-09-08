@@ -110,7 +110,7 @@ export function isWorldGenerationResponse(value: unknown): value is WorldGenerat
     && typeof world.timeSetting === 'string'
     && Array.isArray(world.locations)
     && Array.isArray(world.characters)
-    && world.characters.length >= 2
+    && world.characters.length >= 1
     && Array.isArray(world.relationships)
     && Array.isArray(world.rules)
     && typeof world.coreEvent === 'string'
