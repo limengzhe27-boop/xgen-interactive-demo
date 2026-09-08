@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { MessageTextarea } from '@/components/message-textarea';
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { GalleryAtmosphere, GalleryMasonry, GalleryReveal } from '@/components/gallery-motion';
+import { mixGallery } from '@/lib/gallery-order';
 
 export type StudioSection = 'home' | 'library' | 'characters' | 'personal' | 'profile';
 export type WorldCard = { id: string; title: string; genre: string; premise: string; cover: string; roleCount: number; artNote?: string; featured?: boolean };
@@ -63,11 +64,12 @@ export function StudioHome({ section, worlds, characters, recent, onCreate, onOp
   const orderedWorlds = [...worlds].sort((a, b) => Number(!!b.featured) - Number(!!a.featured));
   const genres = ['全部', ...new Set(orderedWorlds.map(world => world.genre))];
   const matches = (text: string) => text.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase());
-  const items: GalleryItem[] = [];
+  const grouped: GalleryItem[] = [];
   orderedWorlds.filter(world => genre === '全部' || world.genre === genre).forEach(world => {
-    if (kind !== 'character' && matches(world.title + ' ' + world.genre + ' ' + world.premise)) items.push({ kind: 'world', value: world });
-    if (kind !== 'world') characters.filter(character => character.worldId === world.id && matches(character.name + ' ' + character.identity + ' ' + character.worldTitle + ' ' + character.persona)).forEach(character => items.push({ kind: 'character', value: character }));
+    if (kind !== 'character' && matches(world.title + ' ' + world.genre + ' ' + world.premise)) grouped.push({ kind: 'world', value: world });
+    if (kind !== 'world') characters.filter(character => character.worldId === world.id && matches(character.name + ' ' + character.identity + ' ' + character.worldTitle + ' ' + character.persona)).forEach(character => grouped.push({ kind: 'character', value: character }));
   });
+  const items=mixGallery(grouped,item=>item.kind+':'+(item.kind==='world'?item.value.id:item.value.worldId+':'+item.value.id),item=>item.kind==='world'?item.value.id:item.value.worldId);
   const start = () => onCreate(seed);
 
   return <div className="studio-home">
