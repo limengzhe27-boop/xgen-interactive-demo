@@ -16,7 +16,8 @@ import { personaAdaptationInstructions, readPersonaAdaptationRequest, readPerson
 import { personaDesignInstructions, readPersonaDesignInput, readPersonaDesignReply } from '@/lib/persona-design';
 
 type Operation = 'personal-agent' | 'co-create-world' | 'generate-world' | 'advance-world' | 'adapt-persona' | 'design-persona';
-type DeepSeekProvider = { apiKey: string; endpoint: string; model: string };
+import { companyGateway, companyModel } from '@/lib/company-gateway';
+type CompanyProvider = { apiKey: string; endpoint: string; model: string };
 
 const operationInstructions: Record<Operation, string> = {
   'design-persona': personaDesignInstructions,
@@ -42,13 +43,13 @@ operationInstructions['advance-world'] += `\n如果世界明确含 id=fantasy-ph
 for (const op of ['co-create-world', 'generate-world'] as const) operationInstructions[op] += `\n当用户明确要求穿越、高武、神话、跨界或系统流时，忠实保留超常前提；意外程度不负责定义物理，不能把幻想改回普通现实。生成世界时用 id=fantasy-physics、kind=physical、immutable=true 记录明确的架空物理、每个角色能力及限制。没有明确幻想前提的世界仍遵守现实规律。系统流要在角色知识、任务条件与奖励规则中落实，不是仅在旁白中说一句“叮”。`;
 operationInstructions['personal-agent'] += `\n用户要求脑洞、穿越三国、跨界同人、系统流或反派穿书时，优先匹配 availableWorlds 中对应题材；说明真实可选身份与玩法，不退回泛泛的豪门故事推荐。`;
 
-function getDeepSeekProvider(): DeepSeekProvider | null {
-  const deepseekKey = process.env.DEEPSEEK_API_KEY?.trim();
-  if (!deepseekKey) return null;
+function getCompanyProvider(): CompanyProvider | null {
+  const gateway = companyGateway();
+  if (!gateway) return null;
   return {
-    apiKey: deepseekKey,
-    endpoint: 'https://api.deepseek.com/chat/completions',
-    model: process.env.DEEPSEEK_MODEL?.trim() || 'deepseek-v4-flash',
+    apiKey: gateway.apiKey,
+    endpoint: gateway.endpoint + '/chat/completions',
+    model: companyModel('text'),
   };
 }
 
@@ -70,7 +71,7 @@ function parseModelJSON(content: string): unknown {
   return JSON.parse(normalized);
 }
 
-async function callDeepSeek(provider: DeepSeekProvider, operation: Operation, input: unknown, timeoutMs?: number): Promise<unknown> {
+async function callCompany(provider: CompanyProvider, operation: Operation, input: unknown, timeoutMs?: number): Promise<unknown> {
   const runtimeInput = operation === 'advance-world' && isWorldTurnRequest(input)
     ? { ...input, systemView: visibleSystem(input.world, input.selectedRoleId, input.state.completedTaskIds) }
     : input;
@@ -100,6 +101,7 @@ async function callDeepSeek(provider: DeepSeekProvider, operation: Operation, in
         max_tokens: operation === 'adapt-persona' ? 900 : operation === 'generate-world' ? 5600 : operation === 'co-create-world' ? 3000 : 2800,
       }),
       signal: controller.signal,
+      redirect: 'error',
     });
     if (!response.ok) throw new Error(`Provider returned ${response.status}`);
     const result = await response.json() as { choices?: { message?: { content?: unknown } }[] };
@@ -112,8 +114,8 @@ async function callDeepSeek(provider: DeepSeekProvider, operation: Operation, in
 }
 
 export async function GET() {
-  const configured = Boolean(getDeepSeekProvider());
-  return Response.json({ configured, providers: configured ? ['deepseek'] : [] }, {
+  const configured = Boolean(getCompanyProvider());
+  return Response.json({ configured, providers: configured ? ['yibu'] : [], model: companyModel('text') }, {
     headers: { 'Cache-Control': 'no-store' },
   });
 }
@@ -168,11 +170,11 @@ async function handlePost(request: Request) {
     }
   }
 
-  const provider = getDeepSeekProvider();
+  const provider = getCompanyProvider();
   if (!provider) return Response.json({ error: 'model_not_configured' }, { status: 503 });
   const startedAt = Date.now();
   try {
-    const output = await callDeepSeek(provider, body.operation, body.input, body.operation === 'advance-world' ? 35_000 : body.operation === 'adapt-persona' || body.operation === 'design-persona' ? 25_000 : undefined);
+    const output = await callCompany(provider, body.operation, body.input, body.operation === 'advance-world' ? 35_000 : body.operation === 'adapt-persona' || body.operation === 'design-persona' ? 25_000 : undefined);
     if (body.operation !== 'advance-world' && !isValidOutput(body.operation, output)) {
       return Response.json({ error: 'invalid_model_output' }, { status: 502 });
     }
@@ -198,7 +200,7 @@ async function handlePost(request: Request) {
       } catch (error) {
         const remainingMs = Math.min(20_000, 55_000 - (Date.now() - startedAt));
         if (!(error instanceof Error) || remainingMs < 3000) throw error;
-        const repaired = await callDeepSeek(provider, body.operation, {
+        const repaired = await callCompany(provider, body.operation, {
           ...body.input,
           validationFeedback: {
             code: error.message,
@@ -218,11 +220,11 @@ async function handlePost(request: Request) {
       }
     }
     return Response.json(guardedOutput, {
-      headers: { 'Cache-Control': 'no-store', 'X-AI-Provider': 'deepseek' },
+      headers: { 'Cache-Control': 'no-store', 'X-AI-Provider': 'yibu' },
     });
   } catch (error) {
     const code = error instanceof Error && ['invalid_task_transition', 'premature_ending', 'unauthorized_player_movement', 'repeated_narrative', 'player_perspective_drift', 'chat_target_missing'].includes(error.message)
-      ? error.message : 'deepseek_failed';
+      ? error.message : 'company_gateway_failed';
     return Response.json({ error: code }, { status: 502 });
   }
 }

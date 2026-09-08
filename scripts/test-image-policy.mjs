@@ -21,13 +21,13 @@ test('important changes obey a three-turn interval, including after a failed att
     assert.equal(shouldGenerateImage(directive(reason, false), 6, 3), false);
   }
 });
-test('routine and portrait models default to Turbo, with isolated operator overrides', () => {
+test('company images use economy defaults and reject unapproved operator models', () => {
   assert.equal(imageModelFor('scene', {}), DEFAULT_IMAGE_MODEL);
   assert.equal(imageModelFor('portrait', {}), DEFAULT_IMAGE_MODEL);
-  const env = { SILICONFLOW_IMAGE_MODEL: 'legacy', SILICONFLOW_SCENE_MODEL: 'economy', SILICONFLOW_PORTRAIT_MODEL: 'portrait' };
-  assert.equal(imageModelFor('scene', env), 'economy');
-  assert.equal(imageModelFor('portrait', env), 'portrait');
-  assert.equal(imageModelFor('scene', { SILICONFLOW_PORTRAIT_MODEL: 'premium' }), DEFAULT_IMAGE_MODEL);
+  const env = { YIBU_PORTRAIT_MODEL: 'doubao-seedream-4-5-251128' };
+  assert.equal(imageModelFor('scene', env), DEFAULT_IMAGE_MODEL);
+  assert.equal(imageModelFor('portrait', env), env.YIBU_PORTRAIT_MODEL);
+  assert.throws(() => imageModelFor('scene', { YIBU_SCENE_MODEL:'unapproved' }));
 });
 test('art keys can reuse identical chat context without session or turn IDs while isolating identities', () => {
   const key = (...args) => makeContentImageKey('scene', ...args);

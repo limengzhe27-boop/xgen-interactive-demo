@@ -10,7 +10,7 @@ export type ImageGenerationResult = {
   requestId: number;
   sceneId: string;
   assetUrl: string;
-  provider: 'siliconflow';
+  provider: 'yibu';
   model: string;
   persistent: boolean;
   seed?: number;
@@ -35,7 +35,7 @@ export async function generateSceneImage(
     || body.sceneId !== input.sceneId
     || typeof body.assetUrl !== 'string'
     || !(body.assetUrl.startsWith('https://') || body.assetUrl.startsWith('data:image/') || /^\/api\/image\/asset\/[a-f0-9]{64}$/.test(body.assetUrl))
-    || body.provider !== 'siliconflow'
+    || body.provider !== 'yibu'
     || typeof body.model !== 'string'
     || typeof body.persistent !== 'boolean') {
     throw new Error('Image response did not match the request');

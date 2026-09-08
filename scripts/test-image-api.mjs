@@ -7,11 +7,11 @@ import { imageOwner } from '../lib/server-image-store.ts';
 
 async function loadRoute(path) {
   let source = await readFile(new URL(path, import.meta.url), 'utf8');
-  for (const name of ['image-policy', 'server-image-store', 'server-auth']) source = source.replaceAll(`@/lib/${name}`, new URL(`../lib/${name}.ts`, import.meta.url).href);
+  for (const name of ['image-policy', 'server-image-store', 'server-auth', 'company-gateway']) source = source.replaceAll(`@/lib/${name}`, new URL(`../lib/${name}.ts`, import.meta.url).href);
   return import(`data:text/javascript;base64,${Buffer.from(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } }).outputText).toString('base64')}`);
 }
 test('full generation saves once; retries reuse; pending and quotas never call a model', async () => {
-  Object.assign(process.env, { SUPABASE_URL: 'https://storage.example.test', SUPABASE_SECRET_KEY: 'test', IMAGE_SESSION_SECRET: 'synthetic', SILICONFLOW_API_KEY: 'test' });
+  Object.assign(process.env, { SUPABASE_URL: 'https://storage.example.test', SUPABASE_SECRET_KEY: 'test', IMAGE_SESSION_SECRET: 'synthetic', YIBU_API_KEY: 'test' });
   const route = await loadRoute('../app/api/image/route.ts');
   const assetRoute = await loadRoute('../app/api/image/asset/[id]/route.ts');
   const owner = imageOwner(new Request('https://demo.test/api/image'), true);
@@ -20,8 +20,8 @@ test('full generation saves once; retries reuse; pending and quotas never call a
   globalThis.fetch = async (url, init = {}) => {
     url = String(url);
     if (url.endsWith('/rpc/demo_claim_image')) { assetId = JSON.parse(init.body).p_id; return Response.json({ status }); }
-    if (url === 'https://api.siliconflow.cn/v1/images/generations') { modelCalls++; return Response.json({ images: [{ url: 'https://cdn.siliconflow.cn/test.png' }] }); }
-    if (url === 'https://cdn.siliconflow.cn/test.png') return new Response(png);
+    if (url === 'https://yibuapi.com/v1/images/generations') { modelCalls++; return Response.json({ data: [{ url: 'https://test.tos-cn-beijing.volces.com/test.png' }] }); }
+    if (url === 'https://test.tos-cn-beijing.volces.com/test.png') return new Response(png);
     if (url.includes('/storage/v1/object/')) {
       if (init.method === 'POST') { stored = init.body; return Response.json({ ok: true }); }
       return new Response(stored);

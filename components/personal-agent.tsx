@@ -11,7 +11,8 @@ import { recommendationIntro, recommendationTurnIndex } from '@/lib/personal-rec
 import type { WorldCard } from '@/components/studio-home';
 import type { PersonalAgentResponse, PersonalAgentRequest } from '@/lib/ai-contracts';
 
-export function PersonalAgent({ identityPanel, message, conversation, busy, error, recommendations, worlds, memories, pending = [], onMessage, onSubmit, onRemoveMemory, onConfirmMemory, onDismissMemory, onOpenWorld, onCreate, creationSuggestion, onDismissCreation, activeCreation, onResumeCreation, onBack }: {
+export function PersonalAgent({ accountScope, identityPanel, message, conversation, busy, error, recommendations, worlds, memories, pending = [], onMessage, onSubmit, onRemoveMemory, onConfirmMemory, onDismissMemory, onOpenWorld, onCreate, creationSuggestion, onDismissCreation, activeCreation, onResumeCreation, onBack }: {
+  accountScope: string;
   creationSuggestion?: string | null; onDismissCreation: () => void; activeCreation?: string; onResumeCreation: () => void; onBack: () => void;
   identityPanel?: ReactNode;
   message: string; conversation: NonNullable<PersonalAgentRequest['conversation']>; busy: boolean; error: string;
@@ -37,7 +38,7 @@ export function PersonalAgent({ identityPanel, message, conversation, busy, erro
         <SheetDescription>你决定让我记住什么，也可以随时删除。</SheetDescription>
         <section className="personal-memories"><h2>已经认识的你</h2><div className="personal-memory-list">{memories.map((memory) => <button type="button" className="studio-button" key={memory} disabled={busy} onClick={() => onRemoveMemory(memory)} aria-label={'删除记忆：' + memory}>{memory}<X /></button>)}</div>{!memories.length && <p className="personal-empty">还没有确认的记忆。聊到值得记住的事时，我会先问你。</p>}</section>
         {recommendations.length > 0 && <details className="flow-disclosure"><summary>上次推荐的世界</summary>{matches}</details>}
-        <details className="personal-privacy"><summary>记忆与隐私</summary><p>点击已保存的记忆可删除。记忆和最近 40 条对话默认只存在此浏览器；登录后可在账号栏手动保存、恢复私人云存档。每次回复会将已确认记忆、最近 8 条私聊及当前作品摘要和最近 4 条创作讨论发给 DeepSeek。请勿输入机密资料。</p><p>进入创作前可选择带入的消息，以及是否参考已确认记忆。私有上下文不直接写入公开作品；模型建议仍需你审阅。选择世界后先确认身份，不自动开始游戏。</p></details>
+        <details className="personal-privacy"><summary>记忆与隐私</summary><p>点击已保存的记忆可删除。记忆和最近 40 条对话默认只存在此浏览器；登录后可在账号栏手动保存、恢复私人云存档。每次回复会将已确认记忆、最近 8 条私聊及当前作品摘要和最近 4 条创作讨论发给公司网关及其模型供应商。请勿输入机密资料。</p><p>进入创作前可选择带入的消息，以及是否参考已确认记忆。私有上下文不直接写入公开作品；模型建议仍需你审阅。选择世界后先确认身份，不自动开始游戏。</p></details>
       </SheetContent>
     </Sheet>
     <div className="companion-identity">{identityPanel}</div>
@@ -49,7 +50,7 @@ export function PersonalAgent({ identityPanel, message, conversation, busy, erro
         ].map(({ label, prompt, icon: Icon }) => <button type="button" key={label} disabled={busy} onClick={() => { onMessage(prompt); document.getElementById('personal-message')?.focus(); }}><Icon />{label}</button>)}</div></div>}
         {conversation.map((turn, index) => <article className="personal-turn" data-role={turn.role} key={index}><small>{turn.role === 'user' ? '你' : '个人 Agent'}</small><p>{index === recommendationIndex && recommendations.length ? recommendationIntro(turn.content) : turn.content}</p>
           {index === recommendationIndex && recommendations.length > 0 && matches}
-          {turn.role === 'assistant' && <LocalSpeech text={turn.content} speaker="personal-agent" />}
+          {turn.role === 'assistant' && <LocalSpeech accountScope={accountScope} text={turn.content} speaker="personal-agent" />}
           <details className="personal-message-actions"><summary aria-label={'第 ' + (index + 1) + ' 条消息的操作'}><MoreHorizontal /><span className="sr-only">消息操作</span></summary><button type="button" className="personal-to-creation" disabled={busy} onClick={() => onCreate(turn.content)}>用这条消息开始创作<ArrowRight /></button></details>
         </article>)}
         {busy && <output className="personal-empty">正在读你的话，想一想怎么回应…</output>}

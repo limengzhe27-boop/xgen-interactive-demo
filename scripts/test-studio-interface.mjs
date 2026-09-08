@@ -163,8 +163,8 @@ test('melodramatic revision changes rules, openings and tasks while preserving i
 
 async function mockedPersonal(recommendedId, action, userMessage = '换一个') {
   const originalFetch = globalThis.fetch;
-  const previousKey = process.env.DEEPSEEK_API_KEY;
-  process.env.DEEPSEEK_API_KEY = 'synthetic-test-only';
+  const previousKey = process.env.YIBU_API_KEY;
+  process.env.YIBU_API_KEY = 'synthetic-test-only';
   let payload; let calls = 0;
   globalThis.fetch = async (_url, init) => {
     calls++; payload = JSON.parse(init.body);
@@ -176,13 +176,13 @@ async function mockedPersonal(recommendedId, action, userMessage = '换一个') 
     return { response, payload, calls };
   } finally {
     globalThis.fetch = originalFetch;
-    if (previousKey === undefined) delete process.env.DEEPSEEK_API_KEY; else process.env.DEEPSEEK_API_KEY = previousKey;
+    if (previousKey === undefined) delete process.env.YIBU_API_KEY; else process.env.YIBU_API_KEY = previousKey;
   }
 }
 test('persona design endpoint strips private extras before model input and rejects malformed requests without a call', async () => {
   const previousFetch = globalThis.fetch;
-  const previousKey = process.env.DEEPSEEK_API_KEY;
-  process.env.DEEPSEEK_API_KEY = 'synthetic-test-only';
+  const previousKey = process.env.YIBU_API_KEY;
+  process.env.YIBU_API_KEY = 'synthetic-test-only';
   const draft = { name: '游侠', identity: '虚构成年人', personality: '好奇', appearance: '黑发', abilities: '解读机关' };
   let sent; let calls = 0;
   globalThis.fetch = async (_url, init) => { calls++; sent = JSON.parse(init.body); return Response.json({ choices: [{ message: { content: JSON.stringify({ reply: '待你确认', proposal: { ...draft, ownerId: 'forged', portraitUrl: 'https://invalid.example' } }) } }] }); };
@@ -196,7 +196,7 @@ test('persona design endpoint strips private extras before model input and rejec
     assert.deepEqual(await response.json(), { reply: '待你确认', proposal: draft });
     const invalid = await POST(request({ ...input, draft: {} }));
     assert.equal(invalid.status, 400); assert.equal(calls, 1);
-  } finally { globalThis.fetch = previousFetch; if (previousKey === undefined) delete process.env.DEEPSEEK_API_KEY; else process.env.DEEPSEEK_API_KEY = previousKey; }
+  } finally { globalThis.fetch = previousFetch; if (previousKey === undefined) delete process.env.YIBU_API_KEY; else process.env.YIBU_API_KEY = previousKey; }
 });
 test('personal endpoint forwards recent context to the model without a real network call', async () => {
   const result = await mockedPersonal('fixture');
@@ -243,8 +243,8 @@ test('personal endpoint exposes creation tool suggestions as an unexecuted confi
 
 test('creator endpoint sends bounded consented companion context separately from the world draft', async () => {
   const originalFetch = globalThis.fetch;
-  const key = process.env.DEEPSEEK_API_KEY;
-  process.env.DEEPSEEK_API_KEY = 'synthetic-test-only';
+  const key = process.env.YIBU_API_KEY;
+  process.env.YIBU_API_KEY = 'synthetic-test-only';
   let payload;
   globalThis.fetch = async (_url, init) => {
     payload = JSON.parse(init.body);
@@ -261,7 +261,7 @@ test('creator endpoint sends bounded consented companion context separately from
     assert.ok(payload.messages.some(m => m.role === 'system' && m.content.includes('同一个用户的个人 Agent')));
   } finally {
     globalThis.fetch = originalFetch;
-    if (key === undefined) delete process.env.DEEPSEEK_API_KEY; else process.env.DEEPSEEK_API_KEY = key;
+    if (key === undefined) delete process.env.YIBU_API_KEY; else process.env.YIBU_API_KEY = key;
   }
 });
 

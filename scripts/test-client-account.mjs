@@ -14,7 +14,7 @@ void test('account-scoped text and image clients send immutable identity headers
     if (!init.body) return Response.json({ configured: true });
     calls.push({ url, scope: init.headers['x-xgen-account'], signal: init.signal });
     const input = JSON.parse(init.body);
-    return Response.json(url === '/api/image' ? { ...input, assetUrl: '/api/image/asset/' + 'a'.repeat(64), provider: 'siliconflow', model: 'synthetic', persistent: true } : {});
+    return Response.json(url === '/api/image' ? { ...input, assetUrl: '/api/image/asset/' + 'a'.repeat(64), provider: 'yibu', model: 'synthetic', persistent: true } : {});
   };
   try {
     const scopes = ['11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222', 'guest'];

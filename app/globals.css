@@ -1206,3 +1206,14 @@ button:focus-visible, a:focus-visible, input:focus-visible {
   .preview-cover > span, .preview-cover h2, .preview-cover p { margin-inline: 22px; }
   .ending-stats { grid-template-columns: 1fr; }
 }
+
+.company-media { margin-block: 12px; font-family: var(--font-sans), sans-serif; }
+.company-media > summary { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+.company-media > summary svg { width: 17px; height: 17px; }
+.company-media > p, .company-media > output { display: block; font-size: 13px; line-height: 1.7; margin-block: 10px; }
+.company-media > label { display: flex; gap: 10px; align-items: center; font-size: 13px; margin-block: 12px; }
+.company-media select { padding: 8px 12px; border: 1px solid #cad5ce; border-radius: 10px; background: transparent; }
+.company-media .company-media-consent { align-items: flex-start; }
+.company-media-consent input { flex: 0 0 16px; margin-top: 3px; }
+.company-media audio, .company-media video { width: 100%; max-width: 100%; margin-block: 12px; border-radius: 12px; }
+.company-media video { max-height: 480px; background: #111; }

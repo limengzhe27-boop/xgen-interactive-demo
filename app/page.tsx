@@ -37,6 +37,7 @@ import { CloudWorkspace } from '@/components/cloud-workspace';
 import { applyPendingWorkspace, restoredImage, workspaceKeys } from '@/lib/cloud-workspace';
 import { accountStorageKey } from '@/lib/account-scope';
 import { PersonalAgent } from '@/components/personal-agent';
+import { CompanyMedia } from '@/components/company-media';
 import { ProfilePage } from '@/components/profile-page';
 import { emptyProfile, restoreUserProfile, profileMemories, type UserProfile } from '@/lib/user-profile';
 import { CompanionHandoff, CompanionContextPanel } from '@/components/companion-handoff';
@@ -58,7 +59,7 @@ import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { MessageTextarea } from '@/components/message-textarea';
-import { AI_CONTRACT_VERSION, mockAIAdapter } from '@/lib/mock-ai-adapter';
+import { AI_CONTRACT_VERSION } from '@/lib/mock-ai-adapter';
 import { cacheSceneImage as cacheImage, getCachedSceneImage as readImage, makeContentImageKey } from '@/lib/image-cache';
 import { createInitialImageTask, finishImageTask, startImageTask } from '@/lib/image-task';
 import { getRemoteAIStatus, createRemoteAIAdapter } from '@/lib/remote-ai-adapter';
@@ -1439,25 +1440,20 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       if (imageRequestRef.current !== requestId) return;
       imageControllerRef.current = null;
       setImageTask((current) => finishImageTask(current, requestId, {
-        error: '硅基流动生图失败，已复用上一张场景图',
+        error: '公司网关生图失败，已复用上一张场景图',
       }));
     });
   }
 
-  async function runAI<T>(operation: (adapter: AIAdapter) => Promise<T>, allowFallback = true): Promise<T> {
-    if (modelMode === 'real' || modelMode === 'fallback') {
-      for (let attempt = 0; attempt < 2; attempt += 1) {
-        try {
-          const result = await operation(remoteAIAdapter);
-          setModelMode('real');
-          return result;
-        } catch {
-          if (attempt === 1) setModelMode('fallback');
-        }
-      }
+  async function runAI<T>(operation: (adapter: AIAdapter) => Promise<T>, _allowFallback = false): Promise<T> {
+    try {
+      const result = await operation(remoteAIAdapter);
+      setModelMode('real');
+      return result;
+    } catch {
+      setModelMode('fallback');
+      throw new Error('公司模型暂时不可用，内容与进度已保留，请稍后重试。');
     }
-    if (!allowFallback) throw new Error('真实模型暂时不可用，进度已保留，请重试这次行动。');
-    return operation(mockAIAdapter);
   }
 
   function openStormWorld() {
@@ -2254,6 +2250,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     if (view === 'play') {
       return (
         <PlayWorld
+          accountScope={accountScope}
           artNote={activeLibrary?.artNote}
           world={activeWorldDefinition}
           role={selectedRole}
@@ -2349,6 +2346,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     if (view === 'ending') return <Ending worldTitle={activeWorldTitle} role={selectedRole} decision={endingDecision} state={worldState} world={activeWorldDefinition} imageUrl={imageTask.assetUrl} onContinue={continueWorld} onReplay={() => { if (activeLibrary?.world.entryAdmission) { if (!openCatalogWorld(activeLibrary.id)) navigate('home'); } else navigate('roles'); }} onHome={() => navigate('home')} />;
     return (
       <PersonalAgent
+        accountScope={accountScope}
         onBack={() => navigate('home')}
         identityPanel={<button className="persona-shortcut" type="button" onClick={() => navigate('profile')}><UserRound /><span><small>我的个人中心</small><strong>查看形象、性格与 Agent 记忆</strong></span><ArrowRight /></button>}
         worlds={[
@@ -2436,6 +2434,7 @@ function RoleSelection({ worldTitle, artNote, availableRoles, selected, onSelect
 }
 
 function PlayWorld({
+  accountScope,
   artNote,
   world,
   role,
@@ -2470,6 +2469,7 @@ function PlayWorld({
 }: {
   artNote?: string;
   world: WorldDefinition;
+  accountScope: string;
   role: Role;
   worldTitle: string;
   availableRoles: Role[];
@@ -2538,12 +2538,14 @@ function PlayWorld({
         <section className="flow-story" aria-labelledby="scene-title">
           <div className="flow-scene-meta"><span><MapPin />{location}</span><small>{clock} · 第 {turn + 1} 轮</small></div>
           <img className="flow-scene-image" src={imageTask.assetUrl} alt={`${location}的场景画面`} />
+          {!isThinking && <CompanyMedia key={`video-${turn}`} kind="video" text={narrative} accountScope={accountScope} />}
           {artNote && imageTask.assetUrl.startsWith('/assets/') && <small className="flow-art-note">{artNote}</small>}
           {imageTask.status !== 'ready' && <output className="flow-image-status">{imageTask.status === 'generating' && <LoaderCircle className="is-spinning" />}{imageTask.message}</output>}
           <p className="flow-kicker">{lastAction ? `你的行动：${lastAction}` : `${worldTitle} · 开场`}</p>
           <h1 id="scene-title">{beat.title}</h1>
           <p className="flow-narrative">{isThinking && !narrative ? '世界正在回应你的行动……' : narrative}{isThinking && liveMode ? <span className="streaming-cursor" aria-label="正在生成" /> : null}</p>
           {incident && <p className="flow-incident"><Sparkles />{incident.title}</p>}
+          {!isThinking && <CompanyMedia key={`speech-${turn}`} kind="speech" text={narrative} accountScope={accountScope} />}
           {!isThinking && (beat.dialogues ? beat.dialogues.map((line, index) => {
             const speaker = availableRoles.find(item => item.id === line.characterId);
             return speaker ? <blockquote key={`${line.characterId}-${index}`}><RolePortrait role={speaker} /><div><strong>{speaker.name}</strong><p>“{line.text}”</p></div></blockquote> : null;

@@ -42,7 +42,7 @@ export function startImageTask(current: ImageTask, directive: ImageDirective, re
     assetUrl: current.assetUrl,
     cacheKey: current.cacheKey,
     reason: directive.reason,
-    message: '硅基流动正在生成场景图',
+    message: '公司网关正在生成场景图',
   };
 }
 
@@ -58,7 +58,7 @@ export function finishImageTask(
       status: 'ready',
       assetUrl: result.assetUrl,
       cacheKey: result.cacheKey,
-      message: result.assetUrl.startsWith('/api/image/asset/') ? '场景图已保存到云端 · 私人可见' : result.cacheKey ? '硅基流动场景图已更新 · 本机已保存' : '硅基流动场景图已更新',
+      message: result.assetUrl.startsWith('/api/image/asset/') ? '场景图已保存到云端 · 私人可见' : result.cacheKey ? '公司网关场景图已更新 · 本机已保存' : '公司网关场景图已更新',
     };
   }
   return {
