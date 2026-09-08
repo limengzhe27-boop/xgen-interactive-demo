@@ -37,7 +37,7 @@ test('invalid graph is repaired once while preserving the entire non-task propos
 });
 test('invalid, deleted, or rewritten repair cannot be offered as successful',async()=>{
  const r=response([task('a',['missing'])]);
- for(const candidate of [null,r,response([]),response([{...task('a'),title:'偷换目标'}])]) {
+ for(const candidate of [null,r,response([]),response([{...task('a'),title:'偷换目标'}]),response([{...task('a'),assignedRoleIds:[]}])]) {
   let calls=0;await assert.rejects(repairCreatorProposal(r,1,async()=>{calls++;return candidate;}),/invalid_creator_task_graph/);assert.equal(calls,1);
  }
 });

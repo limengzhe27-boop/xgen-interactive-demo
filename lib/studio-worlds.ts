@@ -20,6 +20,7 @@ export type StudioWorld = {
   portraits: Record<string, string>;
   portraitCacheKeys?: Record<string, string>;
   roleOpenings?: Record<string, string>;
+  roleEntryScenes?: Record<string, string>;
   roleChoices?: Record<string, string[]>;
 };
 
@@ -339,8 +340,8 @@ export function getRoleOpening(entry: StudioWorld, roleId: string): string {
   const role = entry.world.characters.find((item) => item.id === roleId);
   if (!role) throw new Error('unknown_role');
   // Offscreen roles must not receive the global opening's private viewpoint.
-  const scene = role.startLocationId === entry.world.openingScene.locationId
+  const scene = entry.roleEntryScenes?.[roleId] ?? (role.startLocationId === entry.world.openingScene.locationId
     ? entry.world.openingScene.narrative
-    : entry.world.locations.find((item) => item.id === role.startLocationId)?.description ?? '';
+    : entry.world.locations.find((item) => item.id === role.startLocationId)?.description ?? '');
   return `${scene}\n\n${entry.roleOpenings?.[roleId] ?? `你是${role.name}。${role.publicBackground}`}\n\n你的目标：${role.goal}`;
 }
