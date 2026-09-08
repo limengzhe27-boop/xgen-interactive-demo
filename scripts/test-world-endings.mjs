@@ -11,6 +11,19 @@ function response(patch = {}, ending = {}) {
     statePatch: { committedFacts: [], ...patch }, image: { required: false, reason: 'reuse', sceneId: 'now' },
     goalProgress: { activeTaskIds: [], completedTaskIds: [], summary: '' }, ending: { reached: false, canContinue: true, ...ending } };
 }
+test('NPC completion unlocks another role task without skipping prerequisites', () => {
+  const input=makeEndingFixture();
+  const npc=input.world.characters.find(c=>c.id!==input.selectedRoleId).id;
+  input.world.tasks=[{...input.world.tasks[0],id:'npc-event',assignedRoleIds:[npc],prerequisiteTaskIds:[]},{...input.world.tasks[0],id:'player-goal',assignedRoleIds:[input.selectedRoleId],prerequisiteTaskIds:['npc-event']}];
+  input.world.endingConditions=[];
+  input.state.completedTaskIds=[];
+  assert.throws(()=>guard(input,response({completeTaskIds:['player-goal']})),/invalid_task_transition/);
+  const done=guard(input,response({completeTaskIds:['npc-event']}));
+  assert.deepEqual(done.statePatch.completeTaskIds,['npc-event']);
+  assert.ok(done.goalProgress.activeTaskIds.includes('player-goal'));
+  input.state.completedTaskIds=['npc-event'];
+  assert.deepEqual(guard(input,response({completeTaskIds:['player-goal']})).statePatch.completeTaskIds,['player-goal']);
+});
 test('success requires all tasks and persists a fact from an earlier turn', () => {
   const input = makeEndingFixture();
   input.state = commitTurn(input.state, { action: '准备', result: '核对完成', clue: '', nextLocation: 'upstairs', relationshipDelta: 0,

@@ -86,9 +86,9 @@ test('dependent tasks require prerequisites first and undo cannot safely remove 
   assert.ok(creatorTaskIssues(applyCreatorChange(applied, a, true).castAndTasks.tasks, 2).length);
   assert.deepEqual(applyCreatorChange(applyCreatorChange(applied, b, true), a, true), before);
 });
-test('creator tasks reject invalid ownership, cycles and prerequisites a selected role cannot perform', () => {
+test('creator tasks allow cross-role dependencies but reject invalid owners and cycles', () => {
   assert.deepEqual(creatorTaskIssues([task('a', ['draft-role-0']), task('b', ['draft-role-0'], ['a']), task('c', ['draft-role-1'])], 2), []);
-  assert.ok(creatorTaskIssues([task('a', ['draft-role-0']), task('b', ['draft-role-1'], ['a'])], 2).some((error) => error.includes('无法完成前置')));
+  assert.deepEqual(creatorTaskIssues([task('a', ['draft-role-0']), task('b', ['draft-role-1'], ['a'])], 2), []);
   assert.ok(creatorTaskIssues([task('a', [], ['b']), task('b', [], ['a'])], 2).some((error) => error.includes('循环')));
   assert.ok(creatorTaskIssues([task('a', ['missing'])], 2).length);
   assert.ok(creatorTaskIssues([task('a', [], ['missing'])], 2).length);

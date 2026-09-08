@@ -11,7 +11,9 @@ export function creatorTaskIssues(tasks: CreatorTaskDraft[], roleCount: number):
     for (const id of task.prerequisiteTaskIds) {
       const parent = tasks.find((item) => item.id === id);
       if (!parent || id === task.id) errors.push(`「${task.title}」的前置任务无效。`);
-      else if (owners(task).some((role) => !owners(parent).includes(role))) errors.push(`「${task.title}」的体验角色无法完成前置「${parent.title}」，请调整任务归属。`);
+      // Prerequisites are world-level completed events, not ownership grants.
+      // An NPC can complete its own task and unlock another character's task.
+      // Keep both owners and dependency intact; never assign the NPC's job to the player.
     }
   }
   const visiting = new Set<string>(); const visited = new Set<string>();
