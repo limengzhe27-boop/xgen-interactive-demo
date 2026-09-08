@@ -2346,7 +2346,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       onCreate={newCreator} onOpenWorld={openCatalogWorld} onChat={(worldId, targetId) => { const entry = availableStudioWorlds.find((item) => item.id === worldId); if (entry) setChatEntry({ entry, targetId }); }} onPersonal={() => navigate('personal')} onLibrary={() => navigate('library')} onOpenRecord={openRecord}
     />;
     if (view === 'roles') return <RoleSelection identityControl={identityControl} worldTitle={activeWorldTitle} artNote={activeLibrary?.artNote} availableRoles={currentRoles} selected={selectedRole} onSelect={setSelectedRole} onBack={() => navigate('home')} onStart={() => beginWorld()} personaEntry={activeLibrary && restoreEntryPolicy(activeLibrary.world.entryPolicy).allowPersona ? <PersonaAdmission key={activeLibrary.id} entry={activeLibrary} roleId="persona-visitor" persona={playerPersona} onEnter={beginWorld} /> : undefined} />;
-    if (view === 'prologue') return <WorldProloguePlayer key={activeWorldDefinition.id} title={activeWorldTitle} prologue={worldPrologue(activeWorldDefinition.id, activeLibrary?.premise || activeWorldDefinition.premise, activeLibrary?.cover || (activeWorld === 'suggestion' && suggestedPreset ? legacyArt[suggestedPreset.id]?.cover : undefined) || creatorAssets?.cover || legacyArt['storm-manor'].cover)} onBack={() => navigate('home')} onContinue={() => navigate('roles')} continuation={<RoleSelection identityControl={identityControl} worldTitle={activeWorldTitle} availableRoles={currentRoles} selected={selectedRole} onSelect={setSelectedRole} onBack={() => navigate('home')} onStart={() => beginWorld()} personaEntry={activeLibrary && restoreEntryPolicy(activeLibrary.world.entryPolicy).allowPersona ? <PersonaAdmission key={activeLibrary.id} entry={activeLibrary} roleId="persona-visitor" persona={playerPersona} onEnter={beginWorld} /> : undefined} />} />;
+    if (view === 'prologue') return <WorldProloguePlayer key={activeWorldDefinition.id} title={activeWorldTitle} prologue={worldPrologue(activeWorldDefinition.id, activeLibrary?.premise || activeWorldDefinition.premise, activeLibrary?.cover || (activeWorld === 'suggestion' && suggestedPreset ? legacyArt[suggestedPreset.id]?.cover : undefined) || creatorAssets?.cover || legacyArt['storm-manor'].cover)} onBack={() => navigate('home')} onContinue={() => navigate('roles')} continuation={<RoleSelection compact identityControl={identityControl} worldTitle={activeWorldTitle} availableRoles={currentRoles} selected={selectedRole} onSelect={setSelectedRole} onBack={() => navigate('home')} onStart={() => beginWorld()} personaEntry={activeLibrary && restoreEntryPolicy(activeLibrary.world.entryPolicy).allowPersona ? <PersonaAdmission key={activeLibrary.id} entry={activeLibrary} roleId="persona-visitor" persona={playerPersona} onEnter={beginWorld} /> : undefined} />} />;
     if (view === 'play') {
       return (
         <PlayWorld
@@ -2513,10 +2513,10 @@ function RolePortrait({ role, className = '' }: { role: Role; className?: string
   );
 }
 
-function RoleSelection({ worldTitle, artNote, availableRoles, selected, onSelect, onBack, onStart, personaEntry, identityControl }: { worldTitle: string; artNote?: string; availableRoles: Role[]; selected: Role; onSelect: (role: Role) => void; onBack: () => void; onStart: () => void; identityControl: import('react').ReactNode; personaEntry?: import('react').ReactNode }) {
+function RoleSelection({ worldTitle, artNote, availableRoles, selected, onSelect, onBack, onStart, personaEntry, identityControl, compact = false }: { worldTitle: string; artNote?: string; availableRoles: Role[]; selected: Role; onSelect: (role: Role) => void; onBack: () => void; onStart: () => void; identityControl: import('react').ReactNode; personaEntry?: import('react').ReactNode; compact?: boolean }) {
   const [ownEntry, setOwnEntry] = useState(Boolean(personaEntry));
   return (
-    <div className="flow-page flow-selection-page">
+    <div className={`flow-page flow-selection-page${compact ? ' compact-role-selection' : ''}`}>
       <header className="flow-toolbar"><button className="back-link" type="button" onClick={onBack}><ArrowLeft />返回世界</button><p>{worldTitle}</p></header>
       {personaEntry && <div className="flow-role-switcher" aria-label="进入方式"><button className="flow-control" aria-pressed={ownEntry} onClick={() => setOwnEntry(true)}>用我的形象加入</button><button className="flow-control" aria-pressed={!ownEntry} onClick={() => setOwnEntry(false)}>扮演世界角色</button></div>}
       {ownEntry && personaEntry ? <section className="flow-role-intro">{personaEntry}{identityControl}</section> :
@@ -2526,12 +2526,12 @@ function RoleSelection({ worldTitle, artNote, availableRoles, selected, onSelect
           <p className="flow-kicker">选择你的身份</p>
           <h1>{selected.name}</h1><p className="flow-identity">{selected.identity}</p>
           <fieldset className="flow-role-switcher" aria-label="选择角色">{availableRoles.map(role => <button key={role.id} className="flow-control flow-role-option" type="button" aria-pressed={selected.id === role.id} onClick={() => onSelect(role)}>{selected.id === role.id && <Check aria-hidden="true" />}{role.name}</button>)}</fieldset>
-          <p className="flow-role-premise">{selected.publicStory.split(/(?<=[。！？])/u)[0] || selected.personality}</p>
+          {!compact && <p className="flow-role-premise">{selected.publicStory.split(/(?<=[。！？])/u)[0] || selected.personality}</p>}
           <p className="flow-role-goal"><Target /><span><small>你的目标</small>{selected.goal}</span></p>
           <Button className="primary-action flow-start" size="lg" onClick={onStart}>以 {selected.name} 的身份开始<ArrowRight /></Button>
-          <details className="flow-disclosure" key={`background-${selected.id}`}><summary>查看角色背景</summary><p>{selected.publicStory}</p><p>{selected.personality}</p><p><Eye />只有你知道：{selected.secret}</p></details>
-          {identityControl}
-          {!personaEntry && <p className="flow-identity">创作者暂未开放自带形象加入；本世界可选择原角色体验。</p>}
+          <details className="flow-disclosure" key={`background-${selected.id}`}><summary>查看角色背景</summary>{compact && <p>你的目标：{selected.goal}</p>}<p>{selected.publicStory}</p><p>{selected.personality}</p><p><Eye />只有你知道：{selected.secret}</p></details>
+          {!compact && identityControl}
+          {!compact && !personaEntry && <p className="flow-identity">创作者暂未开放自带形象加入；本世界可选择原角色体验。</p>}
         </section>
       </div>}
     </div>

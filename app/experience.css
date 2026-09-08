@@ -391,3 +391,33 @@
 .ability-option:focus-within { outline:2px solid var(--color-agent); outline-offset:2px; }
 .ability-option:active { border-color:var(--color-agent-hover); }
 @media (prefers-reduced-motion:reduce) { .entry-policy-editor .ability-option { transition:none; } }
+.prologue-page[data-choosing="true"] { max-width:1200px !important; }
+.prologue-page[data-choosing="true"] .prologue-stage { display:grid; grid-template-columns:minmax(0,1.5fr) minmax(300px,1fr); align-items:start; gap:24px; }
+.prologue-film { min-width:0; }
+.prologue-page[data-choosing="true"] .prologue-screen { width:100%; }
+.prologue-page[data-choosing="true"] .prologue-entry-panel { margin:0; padding:20px; max-height:calc(100dvh - 130px); overflow-y:auto; min-width:0; }
+.prologue-entry-panel .compact-role-selection .flow-kicker { display:none; }
+.prologue-entry-panel .compact-role-selection h1 { font-size:1.5rem; line-height:1.4; margin:0; }
+.prologue-entry-panel .compact-role-selection .flow-identity { font-size:.875rem; margin:4px 0 12px; }
+.prologue-entry-panel .compact-role-selection .flow-role-switcher { gap:6px; margin:0 0 12px; max-height:112px; overflow-y:auto; }
+.prologue-entry-panel .compact-role-selection .flow-role-option { min-height:44px; min-width:44px; padding:6px 10px; }
+.prologue-entry-panel .compact-role-selection .flow-role-option svg { display:none; }
+.prologue-entry-panel .compact-role-selection .flow-role-goal { margin:8px 0 12px; font-size:.875rem; }
+.prologue-entry-panel .compact-role-selection .flow-role-goal span { display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
+.prologue-entry-panel .compact-role-selection .flow-disclosure { margin:8px 0 0; }
+.prologue-entry-panel .compact-role-selection .flow-disclosure summary { min-height:44px; }
+.prologue-entry-panel .compact-role-selection .flow-start { width:100%; }
+@media(max-width:800px) {
+  .prologue-page[data-choosing="true"] .prologue-stage { grid-template-columns:minmax(0,1fr); gap:8px; }
+  .prologue-page[data-choosing="true"] .prologue-screen { height:clamp(80px,20dvh,150px); width:100%; aspect-ratio:auto; }
+  .prologue-page[data-choosing="true"] .prologue-caption,
+  .prologue-page[data-choosing="true"] .prologue-next,
+  .prologue-page[data-choosing="true"] .prologue-transcript { display:none; }
+  .prologue-page[data-choosing="true"] .prologue-entry-panel { padding:12px 16px; max-height:calc(80dvh - 150px); }
+  .prologue-page[data-choosing="true"] .prologue-controls { min-height:44px; }
+  .prologue-entry-panel .compact-role-selection .flow-role-goal { margin:4px 0 8px; }
+  .prologue-entry-panel .compact-role-selection .flow-role-goal small { display:none; }
+  .prologue-entry-panel .compact-role-selection .flow-role-goal span { -webkit-line-clamp:2; }
+}
+.prologue-mobile-transcript { display:none; }
+@media(max-width:800px) { .prologue-mobile-transcript { display:block; font-size:.875rem; color:var(--color-text-secondary); } .prologue-mobile-transcript summary { min-height:44px; cursor:pointer; } .prologue-mobile-transcript summary:hover { color:var(--color-primary); } }

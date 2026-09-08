@@ -35,10 +35,10 @@ export function WorldProloguePlayer({ title, prologue, onBack, onContinue, conti
     if (ended) { setElapsed(0); setEnded(false); if (ref.current) ref.current.currentTime = 0; }
     setPlaying(ended || !playing);
   }
-  return <section className="flow-page prologue-page">
+  return <section className="flow-page prologue-page" data-choosing={choosing && Boolean(continuation)}>
     <header className="flow-toolbar"><button className="flow-control" onClick={onBack}><ArrowLeft />返回</button><p>{hasVideo ? `${duration} 秒序章 · 无声字幕版` : '故事前情'}</p></header>
     <h1>{title}</h1>
-    <div className="prologue-screen">
+    <div className="prologue-stage"><div className="prologue-film"><div className="prologue-screen">
       {hasVideo ? <video ref={ref} src={prologue.video} poster={prologue.shots[0].poster} muted autoPlay playsInline preload="metadata"
         aria-label={`${title}，序章第 ${index + 1} 段`} onEnded={advance} onError={() => { setError(true); setPlaying(false); }}
         onTimeUpdate={() => { const t = ref.current?.currentTime || 0; setElapsed(Math.min(t,duration)); if(t >= duration) advance(); }} />
@@ -50,7 +50,7 @@ export function WorldProloguePlayer({ title, prologue, onBack, onContinue, conti
     {error && <p role="status">视频暂时无法播放，可以阅读前情后继续选角。</p>}
     <div className="prologue-caption" aria-live="polite">{hasVideo && !error ? shot.caption : prologue.shots.map(s => <p key={s.caption}>{s.caption}</p>)}</div>
     <footer className="prologue-next"><p>{prologue.handoff}</p>{(!choosing || !continuation) && <button className="primary-action" onClick={()=>{if(continuation){ref.current?.pause();setPlaying(false);setChoosing(true);}else onContinue();}}>选择角色继续 <ArrowRight /></button>}</footer>
-    {choosing && continuation && <section className="prologue-entry-panel" aria-label="选择入场身份">{continuation}</section>}
     {hasVideo && <details className="prologue-transcript"><summary>查看完整前情文字</summary>{prologue.shots.map(s => <p key={s.caption}>{s.caption}</p>)}</details>}
+    </div>{choosing && continuation && <section className="prologue-entry-panel" aria-label="选择入场身份">{continuation}<details className="prologue-mobile-transcript"><summary>查看前情与当前处境</summary>{prologue.shots.map(s => <p key={s.caption}>{s.caption}</p>)}<p>{prologue.handoff}</p></details></section>}</div>
   </section>;
 }
