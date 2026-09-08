@@ -1,4 +1,5 @@
 import { AI_CONTRACT_VERSION } from '@/lib/ai-contracts';
+import { creatorTaskIssues } from '@/lib/creator-task-graph';
 import { requestAccount } from '@/lib/server-auth';
 import { companionInstructions, makeCompanionInput, restoreCompanionContext } from '@/lib/companion-context';
 import { guardPersonalAction, personalActionInstructions } from '@/lib/personal-recommendations';
@@ -53,6 +54,9 @@ function getCompanyProvider(): CompanyProvider | null {
     model: companyModel('text'),
   };
 }
+
+operationInstructions['co-create-world'] = operationInstructions['co-create-world'].replace('前置必须可由同一个角色完成，不允许循环依赖。', '前置任务表示世界中已经完成的事件，允许跨角色依赖，不要求同一人完成；保留各自任务归属，不要为了依赖把其他角色的任务强加给玩家。不得引用不存在的任务或形成循环依赖。');
+operationInstructions['advance-world'] += '\n任务的 prerequisiteTaskIds 是世界级已完成事件，可由其他角色完成。依赖其他角色的任务不代表玩家继承其身份、任务或秘密；NPC 按其目标与实际条件推进并提交完成状态，尚未发生的事件不可提前标记完成。';
 
 function isOperation(value: unknown): value is Operation {
   return value === 'personal-agent' || value === 'co-create-world' || value === 'generate-world' || value === 'advance-world' || value === 'adapt-persona' || value === 'design-persona';
@@ -182,6 +186,13 @@ async function handlePost(request: Request) {
     const output = await callCompany(provider, body.operation, body.input, body.operation === 'advance-world' ? 35_000 : body.operation === 'adapt-persona' || body.operation === 'design-persona' ? 25_000 : undefined);
     if (body.operation !== 'advance-world' && !isValidOutput(body.operation, output)) {
       return Response.json({ error: 'invalid_model_output' }, { status: 502 });
+    }
+    if (body.operation === 'co-create-world' && isCreatorAgentResponse(output)) {
+      const inputRoles = (body.input as { characters?: unknown[] }).characters;
+      const roleCount = output.proposal.characters?.length || (Array.isArray(inputRoles) ? inputRoles.length : 0);
+      if (creatorTaskIssues(output.proposal.brief.tasks, roleCount).length) {
+        return Response.json({ error: 'invalid_creator_task_graph' }, { status: 502 });
+      }
     }
     let guardedOutput = body.operation === 'design-persona' ? readPersonaDesignReply(output) : output;
     if (adaptationInput) {
