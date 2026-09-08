@@ -189,6 +189,7 @@ export type CreatorChatMessage = {
 };
 
 export type CreatorAgentRequest = {
+  pendingSuggestions?: {section: string; value: unknown}[];
   companionContext?: { confirmedMemories: string[]; conversation: NonNullable<PersonalAgentRequest['conversation']> };
   contractVersion: typeof AI_CONTRACT_VERSION;
   userMessage: string;

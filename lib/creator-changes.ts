@@ -73,6 +73,7 @@ export function creatorChanges(before: Record<string, unknown>, after: Record<st
 export function applyCreatorChange(current: Record<string, unknown>, change: CreatorChange, undo = false): Record<string, unknown> | null {
   const expected = undo ? change.after : change.before;
   const replacement = undo ? change.before : change.after;
+  if (change.key === '__all') return equal(current, expected) ? replacement as Record<string, unknown> : null;
   if (change.target) {
     const cast = castFrom(current.castAndTasks);
     if (!cast) return null;
@@ -93,4 +94,23 @@ export function applyCreatorChange(current: Record<string, unknown>, change: Cre
   }
   if (!equal(current[change.key], expected)) return null;
   return { ...current, [change.key]: replacement };
+}
+
+// Check every baseline, then validate the final task graph at the caller. This
+// allows related task additions/removals to be accepted without ordering clicks.
+export function combineCreatorChanges(current: Record<string, unknown>, changes: CreatorChange[]): CreatorChange | null {
+  let next = current;
+  for (const change of changes) {
+    const updated = applyCreatorChange(next, change);
+    if (!updated) return null;
+    next = updated;
+  }
+  return {key: '__all', label: `整批 ${changes.length} 项建议`, before: current, after: next};
+}
+
+export function creatorConfirmation(text: string): 'accept' | 'dismiss' | null {
+  const normalized = text.trim().replace(/[，。！!\s]/g, '');
+  if (/^(全部采纳|采纳全部|采纳|确认采纳|全部确认|确认|可以|好的|好|就按这个来|就这么定|按这个来|同意|全部同意|采用这个方案)$/.test(normalized)) return 'accept';
+  if (/^(全部忽略|忽略全部|忽略剩余建议|不采纳|先不采纳)$/.test(normalized)) return 'dismiss';
+  return null;
 }

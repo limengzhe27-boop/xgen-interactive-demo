@@ -75,7 +75,7 @@ import {
 } from '@/lib/world-state';
 import { normalizeSurpriseLevel } from '@/lib/surprise-engine';
 import { preserveCreatorDetails, preserveCreatorFramework } from '@/lib/creator-framework';
-import { applyCreatorChange, creatorChanges, ensureCreatorRoleIds, identifyProposedRoles, type CreatorChange } from '@/lib/creator-changes';
+import { applyCreatorChange, combineCreatorChanges, creatorConfirmation, creatorChanges, ensureCreatorRoleIds, identifyProposedRoles, type CreatorChange } from '@/lib/creator-changes';
 import { CreatorProposalReview } from '@/components/creator-proposal-review';
 import { CreatorTaskEditor } from '@/components/creator-task-editor';
 import { creatorTaskIssues } from '@/lib/creator-task-graph';
@@ -1900,6 +1900,17 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
 
   async function discussCreator(value: string) {
     if (!value || creatorAgentThinking) return;
+    const confirmation = creatorConfirmation(value);
+    if (confirmation) {
+      let reply = '当前没有待采纳的建议。可以直接编辑世界设定，或告诉我新的想法。';
+      if (creatorProposal && proposalChanges.length) {
+        if (confirmation === 'accept') reply = applyAllCreatorProposals(proposalChanges);
+        else { setProposalChanges([]); setCreatorProposal(null); reply = '已忽略剩余建议，你的现有设定保持不变。'; }
+      }
+      setCreatorMessages(current => [...current, {role: 'creator', content: value}, {role: 'agent', content: reply}].slice(-12) as CreatorChatMessage[]);
+      setCreatorMessage('');
+      return;
+    }
     const baseline = creatorSections();
     const revision = navigationRevision.current;
     const userEntry: CreatorChatMessage = { role: 'creator', content: value };
@@ -1907,13 +1918,13 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     setCreatorMessages(conversation);
     setCreatorMessage('');
     setCreatorAgentThinking(true);
-    setCreatorProposal(null);
     try {
       const response = await runAI((adapter) => adapter.coCreateWorld({
         companionContext: makeCompanionInput(companionContext, memories),
         contractVersion: AI_CONTRACT_VERSION,
         userMessage: value,
         conversation,
+        pendingSuggestions: creatorProposal ? proposalChanges.map(change=>({section:change.label,value:change.after})) : [],
         editingContext: { step: createStep, section: ['角色与目标', '故事与任务', '意外与规则', '预览检查'][createStep - 1], focusedField: creatorFocus },
         characters: draftRoles.map((role, index) => ({
           id: `draft-role-${index}`, goal: role.goal || '',
@@ -1969,12 +1980,36 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     if (change.key === 'entryPolicy' && (JSON.stringify(change.roleOrder) !== JSON.stringify(draftRoles.map(role => role.editorId)) || restoreEntryPolicy(undo ? change.before : change.after).allowedRoleIds.some(id => !draftRoles.some((_, index) => id === `draft-role-${index}`)))) return '角色名单已变化或引用了不存在的角色，请重新讨论入场规则。';
     const next = applyCreatorChange(creatorSections(), change, undo);
     if (!next) return '相关字段或角色名单已有新修改，未覆盖。请保留手改或重新讨论。';
-    if (change.key === 'castAndTasks' || change.target?.kind === 'task') {
+    if (change.key === '__all' || change.key === 'castAndTasks' || change.target?.kind === 'task') {
       const cast = next.castAndTasks as { roles: DraftRole[]; tasks: CreatorTaskDraft[] };
       const problems = creatorTaskIssues(cast.tasks, cast.roles.length);
       if (problems.length) return `暂不能${undo ? '撤销' : '采纳'}：${problems[0]} 请先处理关联任务或手动调整。`;
+      if (change.key === '__all' && restoreEntryPolicy(next.entryPolicy).allowedRoleIds.some(id => !cast.roles.some((_, index) => id === `draft-role-${index}`))) return '入场规则引用了不存在的角色，请先调整。';
     }
     return '';
+  }
+
+  function applyAllCreatorProposals(changes: CreatorChange[]): string {
+    const combined = combineCreatorChanges(creatorSections(), changes);
+    if (!combined) {
+      const message = '有设定在建议生成后被手动修改，本次未覆盖任何内容。请先忽略冲突项，或重新讨论。';
+      setCreatorChangeNotice(message); return message;
+    }
+    const next = combined.after as Record<string, unknown>;
+    next.tasks = (next.castAndTasks as {tasks: CreatorTaskDraft[]}).tasks;
+    if (!changes.some(change => change.key === 'entryPolicy')) {
+      const cast = next.castAndTasks as {roles: DraftRole[]};
+      next.entryPolicy = {...entryPolicy, allowedRoleIds: entryPolicy.allowedRoleIds.flatMap(id => {
+        const old = draftRoles[Number(id.replace('draft-role-', ''))];
+        const index = cast.roles.findIndex(role => old && role.editorId === old.editorId);
+        return index < 0 ? [] : [`draft-role-${index}`];
+      })};
+    }
+    const problem = creatorProposalProblem(combined);
+    if (problem) {setCreatorChangeNotice(problem); return `${problem} 本次未写入任何建议。`;}
+    applyCreatorProposal(combined);
+    setProposalChanges([]); setCreatorProposal(null); setCreatorQuestions([]);
+    return `已将 ${changes.length} 项建议写入当前草稿。你可以直接点“编辑设定”修改，也可以继续告诉我想调整哪里；这不是发布操作。`;
   }
 
   function applyCreatorProposal(change: CreatorChange, undo = false) {
@@ -1982,11 +2017,16 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     if (problem) { setCreatorChangeNotice(problem); return; }
     const next = applyCreatorChange(creatorSections(), change, undo);
     if (!next) { setCreatorChangeNotice(`「${change.label}」已有新的手动修改，未覆盖。请重新讨论或手动调整。`); return; }
+    if (change.key === '__all') {
+      setWorldTitle(next.title as string); setWorldSeed(next.premise as string);
+      setSurprise(next.surpriseLevel as number); setEntryPolicy(restoreEntryPolicy(next.entryPolicy));
+      setCreatorBrief({...creatorBrief, coreGoal: next.coreGoal as string, successCondition: next.successCondition as string, failureCondition: next.failureCondition as string, complexityLevel: next.complexityLevel as CreatorBrief['complexityLevel'], difficulties: next.difficulties as string[], scheduledEvents: next.scheduledEvents as CreatorBrief['scheduledEvents'], tasks: (next.castAndTasks as {tasks: CreatorTaskDraft[]}).tasks});
+    }
     if (change.key === 'title') setWorldTitle(next.title as string);
     else if (change.key === 'entryPolicy') setEntryPolicy(restoreEntryPolicy(next.entryPolicy));
     else if (change.key === 'surpriseLevel') setSurprise(next.surpriseLevel as number);
     else if (change.key === 'premise') setWorldSeed(next.premise as string);
-    else if (change.key === 'castAndTasks' || change.target) {
+    else if (change.key === '__all' || change.key === 'castAndTasks' || change.target) {
       const cast = next.castAndTasks as { roles: DraftRole[]; tasks: CreatorTaskDraft[] };
       Array.from({ length: Math.max(cast.roles.length, draftRoles.length) }).forEach((_, index) => {
         const role = cast.roles[index];
@@ -2000,14 +2040,14 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       if (cast.roles.length !== draftRoles.length || cast.roles.some((role, index) => role.editorId !== draftRoles[index]?.editorId)) {
         setGeneratedWorld(null); setGeneratedStoryOutline([]);
         // Preserve opt-in by editor identity; never grant a new/replacement character an old slot.
-        setEntryPolicy(current => ({ ...current, allowedRoleIds: current.allowedRoleIds.flatMap(id => { const old = draftRoles[Number(id.replace('draft-role-', ''))]; const index = cast.roles.findIndex(role => old && role.editorId === old.editorId); return index < 0 ? [] : [`draft-role-${index}`]; }) }));
+        if (change.key !== '__all') setEntryPolicy(current => ({ ...current, allowedRoleIds: current.allowedRoleIds.flatMap(id => { const old = draftRoles[Number(id.replace('draft-role-', ''))]; const index = cast.roles.findIndex(role => old && role.editorId === old.editorId); return index < 0 ? [] : [`draft-role-${index}`]; }) }));
       }
       setDraftRoles(cast.roles);
       setCreatorBrief((current) => ({ ...current, tasks: cast.tasks }));
     } else setCreatorBrief((current) => ({ ...current, [change.key]: next[change.key] }));
     setGenerated(false);
     if (undo) setCreatorUndo((items) => items.filter((item) => item !== change));
-    else { setProposalChanges((items) => items.filter((item) => item !== change)); setCreatorUndo((items) => [...items, change].slice(-12)); }
+    else { setProposalChanges((items) => items.filter((item) => item.key !== change.key)); setCreatorUndo((items) => [...items, change].slice(-12)); }
     setCreatorChangeNotice(`${undo ? '已撤销' : '已采纳'}「${change.label}」，其他设定保持不变。`);
   }
 
@@ -2184,7 +2224,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     setWorldTitle(''); setWorldSeed(context ? '' : seed); setSurprise(2); setGenerated(false); setGeneratedWorld(null); setPublishedWorld(false);
     setGeneratedStoryOutline([]); setCreatorDetailBaseline(null); setCreatorBrief(emptyCreatorBrief); setCreatorProposal(null);
     setCreatorMessages(context ? [{ role: 'agent', content: '还是我，我们接着创作。我会参考你选好的上下文讨论角色、关系与目标，建议等你采纳后再写入设定。' }]
-      : [{ role: 'agent', content: '还是我，陪你一起创作。不用先填表，说说你最想体验的那个场面？设定可以边聊边完善，建议由你确认后写入。需要参考记忆时，在“查看设定 → 记忆与创作上下文”里选择。' }]);
+      : [{ role: 'agent', content: '还是我，陪你一起创作。不用先填表，说说你最想体验的那个场面？建议可以直接修改，发送“全部采纳”就会写入草稿。需要参考记忆时，在“编辑设定 → 记忆与创作上下文”里选择。' }]);
     setCreatorMessage(seed);
     setCreatorQuestions(['先帮我想几个互相有纠葛的人物', '一起讨论玩家最终想得到什么', '怎样增加一个有代价的困难？']);
     setDraftRoles(ensureCreatorRoleIds([{ name: '', identity: '', personality: '', relationship: '', appearance: '' }, { name: '', identity: '', personality: '', relationship: '', appearance: '' }]));
@@ -2324,8 +2364,10 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
           onCreatorMessage={setCreatorMessage}
           onSubmitCreatorMessage={submitCreatorMessage}
           onApplyCreatorProposal={applyCreatorProposal}
+          onApplyAllCreatorProposals={applyAllCreatorProposals}
+          onEditCreatorProposal={(change, value) => setProposalChanges(current=>current.map(item=>item.key===change.key?{...item,after:value}:item))}
           onCreatorProposalProblem={creatorProposalProblem}
-          onDismissCreatorProposal={(change) => change ? setProposalChanges((current) => current.filter((item) => item !== change)) : setCreatorProposal(null)}
+          onDismissCreatorProposal={(change) => change ? setProposalChanges((current) => current.filter((item) => item.key !== change.key)) : (setProposalChanges([]), setCreatorProposal(null))}
           onUpdateCreatorBrief={updateCreatorBriefField}
           onComplexity={(value) => setCreatorBrief((current) => ({ ...current, complexityLevel: normalizeSurpriseLevel(value) }))}
           onAddCreatorTask={addCreatorTask}
@@ -2598,6 +2640,8 @@ function CreateWorld({
   onCreatorMessage,
   onSubmitCreatorMessage,
   onApplyCreatorProposal,
+  onApplyAllCreatorProposals,
+  onEditCreatorProposal,
   onCreatorProposalProblem,
   onDismissCreatorProposal,
   onUpdateCreatorBrief,
@@ -2647,6 +2691,8 @@ function CreateWorld({
   onCreatorMessage: (value: string) => void;
   onSubmitCreatorMessage: (event: SyntheticEvent<HTMLFormElement>) => void;
   onApplyCreatorProposal: (change: CreatorChange, undo?: boolean) => void;
+  onApplyAllCreatorProposals: (changes: CreatorChange[]) => string;
+  onEditCreatorProposal: (change: CreatorChange, value: unknown) => void;
   onDismissCreatorProposal: (change?: CreatorChange) => void;
   onCreatorProposalProblem: (change: CreatorChange, undo?: boolean) => string;
   onUpdateCreatorBrief: (key: keyof Pick<CreatorBrief, 'coreGoal' | 'successCondition' | 'failureCondition'>, value: string) => void;
@@ -2683,7 +2729,7 @@ function CreateWorld({
                 {creatorAgentThinking ? <p data-role="agent"><small>Agent</small><span>正在把你的想法和已有设定放在一起考虑……</span></p> : null}
               </div>
               <div className="creator-question-chips">{creatorQuestions.slice(0, 1).map((question) => <button type="button" key={question} disabled={creatorAgentThinking} onClick={() => { onCreatorMessage(question); document.getElementById('creator-message')?.focus(); }}>{question}</button>)}</div>
-              {(creatorProposal && proposalChanges.length > 0 || creatorUndo.length > 0 || creatorChangeNotice) && <details className="flow-disclosure creation-proposals" key={creatorProposal ? creatorMessages.length : 'history'} open={Boolean(creatorProposal && proposalChanges.length)}><summary>{creatorProposal && proposalChanges.length ? `${proposalChanges.length} 项建议，等你确认` : '最近修改与撤销'}</summary><CreatorProposalReview changes={creatorProposal ? proposalChanges : []} undo={creatorUndo} notice={creatorChangeNotice} busy={creatorAgentThinking || generating} onApply={onApplyCreatorProposal} onDismiss={onDismissCreatorProposal} problemFor={onCreatorProposalProblem} /></details>}
+              {(creatorProposal && proposalChanges.length > 0 || creatorUndo.length > 0 || creatorChangeNotice) && <details className="flow-disclosure creation-proposals" open={Boolean(creatorProposal && proposalChanges.length)}><summary>{creatorProposal && proposalChanges.length ? `${proposalChanges.length} 项建议，可一键采纳或直接修改` : '最近修改与撤销'}</summary><CreatorProposalReview changes={creatorProposal ? proposalChanges : []} undo={creatorUndo} notice={creatorChangeNotice} busy={creatorAgentThinking || generating} onApply={onApplyCreatorProposal} onApplyAll={onApplyAllCreatorProposals} onEdit={onEditCreatorProposal} onDismiss={onDismissCreatorProposal} problemFor={onCreatorProposalProblem} /></details>}
               <form className="creator-composer" onSubmit={(event) => { followConversation.current = true; onSubmitCreatorMessage(event); }}>
                 <label htmlFor="creator-message">和 Agent 讨论你的世界 · Enter 发送，Shift + Enter 换行</label><MessageTextarea id="creator-message" maxLength={3000} value={creatorMessage} onChange={(event) => onCreatorMessage(event.target.value)} placeholder="只有一句话也可以。比如：想做一个被逐出家门后回来争家产的故事，人物还没想好。" disabled={creatorAgentThinking} />
                 <Button className="agent-send" type="submit" disabled={!creatorMessage.trim() || creatorAgentThinking}><Send />继续讨论</Button>
@@ -2693,7 +2739,7 @@ function CreateWorld({
   return (
     <div className="flow-page creation-flow">
       <Sheet open={settingsOpen} onOpenChange={setSettingsOpen}>
-      <header className="flow-toolbar"><button className="flow-control" type="button" onClick={onBack}><ArrowLeft />返回</button><h1>一起创作</h1><SheetTrigger className="flow-control">查看设定</SheetTrigger></header>
+      <header className="flow-toolbar"><button className="flow-control" type="button" onClick={onBack}><ArrowLeft />返回</button><h1>一起创作</h1><SheetTrigger className="flow-control">编辑设定</SheetTrigger></header>
       {discussionPanel}
       {worldSeed.trim() && <div className="creation-next"><p>{draftRoles.filter((role) => role.name.trim()).length} 个角色 · {creatorBrief.tasks.length} 项任务<span>{generated ? 'AI 框架已补全' : '设定仍可随时修改'}</span></p><SheetTrigger className="flow-control" onClick={() => onStep(4)} disabled={creatorAgentThinking || generating}>预览并试玩<ArrowRight /></SheetTrigger></div>}
       <SheetContent className="flow-drawer creator-settings-drawer" showCloseButton={false}>
