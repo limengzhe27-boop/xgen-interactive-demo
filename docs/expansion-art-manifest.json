@@ -1,0 +1,260 @@
+{
+  "provider": "Codex built-in GPT image generation",
+  "modelVersion": "Not exposed by the built-in tool",
+  "date": "2026-09-09",
+  "method": "28 individually prompted four-panel artboards; deterministic crop and WebP compression; original source files retained outside the repository",
+  "assets": [
+    {
+      "id": "libai-moon-debt",
+      "prompt": "Use case: stylized-concept. Asset type: premium narrative game art atlas for separately cropped website assets. Create one large SQUARE image, ideally 2048x2048, with EXACTLY FOUR equal square panels in a strict edge-to-edge 2x2 grid: vertical split exactly 50%, horizontal split exactly 50%. No gaps, no borders, no text, no letters, no logos, no watermark. Upper left is a dramatic cinematic world cover scene. Upper right, lower left and lower right are three separate expressive waist-up character portraits, one character in each square, with full head and shoulders safely inside the panel, distinct faces and vivid relevant environmental backdrops. Nothing crosses panels. Professional painterly cinematic realism, exceptionally attractive polished key art, tactile costumes, expressive eyes, dramatic lighting, strong storytelling; not passport photos. All human characters are adults. No nudity, no sexual posing, no gore. World: Tang dynasty Chang'an moonlight, lapis blue and vermilion palette. TOP LEFT: flamboyant drunken poet Li Bai in flowing white robes splashes wine from a cup onto an unlettered golden imperial scroll in the moonlight, sword and poetry scroll, cinematic defiant gesture, palace rooftops. TOP RIGHT: Li Bai, Chinese man age 40, long dark hair, elegant mustache and beard, free-spirited white robe, wine gourd, mischievous soulful gaze. BOTTOM LEFT: Gao Shi, Chinese man age 40, broad serious weathered face, worn black travel robe, hand on sheathed sword. BOTTOM RIGHT: Princess Yuzhen, Chinese woman age 40, noble purple Daoist robe, whisk, calm commanding gaze.",
+      "characters": [
+        "李白",
+        "高适",
+        "玉真公主"
+      ]
+    },
+    {
+      "id": "jingke-map",
+      "prompt": "Use case: stylized-concept. Asset type: premium narrative game art atlas for separately cropped website assets. Create one large SQUARE image, ideally 2048x2048, with EXACTLY FOUR equal square panels in a strict edge-to-edge 2x2 grid: vertical split exactly 50%, horizontal split exactly 50%. No gaps, no borders, no text, no letters, no logos, no watermark. Upper left is a dramatic cinematic world cover scene. Upper right, lower left and lower right are three separate expressive waist-up character portraits, one character in each square, with full head and shoulders safely inside the panel, distinct faces and vivid relevant environmental backdrops. Nothing crosses panels. Professional painterly cinematic realism, exceptionally attractive polished key art, tactile costumes, expressive eyes, dramatic lighting, strong storytelling; not passport photos. All human characters are adults. No nudity, no sexual posing, no gore. TOP LEFT COVER SCENE: 秦殿展开地图露出匕首、秦王后退、医官举药囊，黑金肃杀. TOP RIGHT PORTRAIT: 荆轲(30岁灰白燕国使服瘦硬). BOTTOM LEFT PORTRAIT: 嬴政(30岁黑金王服冠冷眼). BOTTOM RIGHT PORTRAIT: 夏无且(45岁褐色医官袍药囊).",
+      "characters": [
+        "荆轲(30岁灰白燕国使服瘦硬)",
+        "嬴政(30岁黑金王服冠冷眼)",
+        "夏无且(45岁褐色医官袍药囊)"
+      ]
+    },
+    {
+      "id": "ximen-red-ledger",
+      "prompt": "Use case: stylized-concept. Asset type: premium narrative game art atlas for separately cropped website assets. Create one large SQUARE image, ideally 2048x2048, with EXACTLY FOUR equal square panels in a strict edge-to-edge 2x2 grid: vertical split exactly 50%, horizontal split exactly 50%. No gaps, no borders, no text, no letters, no logos, no watermark. Upper left is a dramatic cinematic world cover scene. Upper right, lower left and lower right are three separate expressive waist-up character portraits, one character in each square, with full head and shoulders safely inside the panel, distinct faces and vivid relevant environmental backdrops. Nothing crosses panels. Professional painterly cinematic realism, exceptionally attractive polished key art, tactile costumes, expressive eyes, dramatic lighting, strong storytelling; not passport photos. All human characters are adults. No nudity, no sexual posing, no gore. TOP LEFT COVER SCENE: 古代中国红灯宅院成人关系权谋，西门庆举酒、女人握红账簿另一个收钥匙. TOP RIGHT PORTRAIT: 沈青棠(26岁青衣客商女手执账簿). BOTTOM LEFT PORTRAIT: 西门庆(35岁金黑锦袍精明短须). BOTTOM RIGHT PORTRAIT: 吴月娘(30岁端庄暗红衣成熟女主人钥匙).",
+      "characters": [
+        "沈青棠(26岁青衣客商女手执账簿)",
+        "西门庆(35岁金黑锦袍精明短须)",
+        "吴月娘(30岁端庄暗红衣成熟女主人钥匙)"
+      ]
+    },
+    {
+      "id": "peach-source",
+      "prompt": "Use case: stylized-concept. Asset type: premium narrative game art atlas for separately cropped website assets. Create one large SQUARE image, ideally 2048x2048, with EXACTLY FOUR equal square panels in a strict edge-to-edge 2x2 grid: vertical split exactly 50%, horizontal split exactly 50%. No gaps, no borders, no text, no letters, no logos, no watermark. Upper left is a dramatic cinematic world cover scene. Upper right, lower left and lower right are three separate expressive waist-up character portraits, one character in each square, with full head and shoulders safely inside the panel, distinct faces and vivid relevant environmental backdrops. Nothing crosses panels. Professional painterly cinematic realism, exceptionally attractive polished key art, tactile costumes, expressive eyes, dramatic lighting, strong storytelling; not passport photos. All human characters are adults. No nudity, no sexual posing, no gore. TOP LEFT COVER SCENE: 武陵渔人发现桃花林后隐藏村落，村老挡在桥上，春粉苍翠神秘桃源. TOP RIGHT PORTRAIT: 武陵渔人(30岁草帽蓑衣鱼篓). BOTTOM LEFT PORTRAIT: 村老(65岁白须粗麻袍拐杖). BOTTOM RIGHT PORTRAIT: 村中织者(28岁蓝布衣纺线).",
+      "characters": [
+        "武陵渔人(30岁草帽蓑衣鱼篓)",
+        "村老(65岁白须粗麻袍拐杖)",
+        "村中织者(28岁蓝布衣纺线)"
+      ]
+    },
+    {
+      "id": "borrow-arrows",
+      "prompt": "Use case: stylized-concept. Asset type: premium narrative game art atlas for separately cropped website assets. Create one large SQUARE image, ideally 2048x2048, with EXACTLY FOUR equal square panels in a strict edge-to-edge 2x2 grid: vertical split exactly 50%, horizontal split exactly 50%. No gaps, no borders, no text, no letters, no logos, no watermark. Upper left is a dramatic cinematic world cover scene. Upper right, lower left and lower right are three separate expressive waist-up character portraits, one character in each square, with full head and shoulders safely inside the panel, distinct faces and vivid relevant environmental backdrops. Nothing crosses panels. Professional painterly cinematic realism, exceptionally attractive polished key art, tactile costumes, expressive eyes, dramatic lighting, strong storytelling; not passport photos. All human characters are adults. No nudity, no sexual posing, no gore. TOP LEFT COVER SCENE: 三国草船借箭，鲁肃在雾江船头握军令，诸葛亮羽扇，远处火炬漫天箭影，雾蓝金色. TOP RIGHT PORTRAIT: 鲁肃(35岁深蓝袍宽脸). BOTTOM LEFT PORTRAIT: 诸葛亮(30岁白袍纶巾羽扇). BOTTOM RIGHT PORTRAIT: 周瑜(30岁绯色甲衣俊锐).",
+      "characters": [
+        "鲁肃(35岁深蓝袍宽脸)",
+        "诸葛亮(30岁白袍纶巾羽扇)",
+        "周瑜(30岁绯色甲衣俊锐)"
+      ]
+    },
+    {
+      "id": "rome-three-percent",
+      "prompt": "Use case: stylized-concept. Asset type: premium narrative game art atlas for separately cropped website assets. Create one large SQUARE image, ideally 2048x2048, with EXACTLY FOUR equal square panels in a strict edge-to-edge 2x2 grid: vertical split exactly 50%, horizontal split exactly 50%. No gaps, no borders, no text, no letters, no logos, no watermark. Upper left is a dramatic cinematic world cover scene. Upper right, lower left and lower right are three separate expressive waist-up character portraits, one character in each square, with full head and shoulders safely inside the panel, distinct faces and vivid relevant environmental backdrops. Nothing crosses panels. Professional painterly cinematic realism, exceptionally attractive polished key art, tactile costumes, expressive eyes, dramatic lighting, strong storytelling; not passport photos. All human characters are adults. No nudity, no sexual posing, no gore. TOP LEFT COVER SCENE: 罗马机场丢行李，青年旅客举剩一丝电的手机，空行李传送带，旅行电影质感. TOP RIGHT PORTRAIT: 林舟(25岁中国男绿外套背包). BOTTOM LEFT PORTRAIT: Elena(32岁意大利女机场制服卷发). BOTTOM RIGHT PORTRAIT: Marco(45岁意大利男蓝维修工装胡子).\nCORRECTION EDIT: Edit only visible lettering/logos: remove the words Baggage Claim from upper-left panel sign leaving only a simple suitcase pictogram. Remove any other letters/numbers/logos from all four panels. Preserve exact 2x2 geometry, all faces, characters, lighting, props, framing and art.",
+      "characters": [
+        "林舟(25岁中国男绿外套背包)",
+        "Elena(32岁意大利女机场制服卷发)",
+        "Marco(45岁意大利男蓝维修工装胡子)"
+      ]
+    },
+    {
+      "id": "moon-parcel",
+      "prompt": "Use case: stylized-concept. Asset type: premium narrative game art atlas for separately cropped website assets. Create one large SQUARE image, ideally 2048x2048, with EXACTLY FOUR equal square panels in a strict edge-to-edge 2x2 grid: vertical split exactly 50%, horizontal split exactly 50%. No gaps, no borders, no text, no letters, no logos, no watermark. Upper left is a dramatic cinematic world cover scene. Upper right, lower left and lower right are three separate expressive waist-up character portraits, one character in each square, with full head and shoulders safely inside the panel, distinct faces and vivid relevant environmental backdrops. Nothing crosses panels. Professional painterly cinematic realism, exceptionally attractive polished key art, tactile costumes, expressive eyes, dramatic lighting, strong storytelling; not passport photos. All human characters are adults. No nudity, no sexual posing, no gore. TOP LEFT COVER SCENE: 月球快递站，第一人称手套抓漂起少许的箱子，月球地球窗景封闭舱内，写实科幻，白橙深蓝. TOP RIGHT PORTRAIT: 沈禾(26岁中国女白橙宇航服). BOTTOM LEFT PORTRAIT: 老周(45岁中国男灰工装). BOTTOM RIGHT PORTRAIT: Ada(30岁黑人女科学家银灰服).\nCORRECTION EDIT: Edit this four-panel image, keep exact 2x2 geometry, keep all three portrait faces identities costumes and rendering. Correct lunar physics and sealed habitat: TOP LEFT box rests firmly on a workbench with both gloved hands visibly supporting its bottom, with a small balance scale beside it. All other cases sit on floor or shelves, absolutely nothing floats. Show lunar landscape and Earth through a CLOSED glass window with obvious metal frame. BOTTOM LEFT man's habitat window must also be clearly sealed. Remove any visible letters/numbers/text/logos in all panels. Preserve beautiful cinematic art and no borders.",
+      "characters": [
+        "沈禾(26岁中国女白橙宇航服)",
+        "老周(45岁中国男灰工装)",
+        "Ada(30岁黑人女科学家银灰服)"
+      ]
+    },
+    {
+      "id": "campus-three-truths",
+      "prompt": "Use case: stylized-concept. Asset type: premium narrative game art atlas for separately cropped website assets. Create one large SQUARE image, ideally 2048x2048, with EXACTLY FOUR equal square panels in a strict edge-to-edge 2x2 grid: vertical split exactly 50%, horizontal split exactly 50%. No gaps, no borders, no text, no letters, no logos, no watermark. Upper left is a dramatic cinematic world cover scene. Upper right, lower left and lower right are three separate expressive waist-up character portraits, one character in each square, with full head and shoulders safely inside the panel, distinct faces and vivid relevant environmental backdrops. Nothing crosses panels. Professional painterly cinematic realism, exceptionally attractive polished key art, tactile costumes, expressive eyes, dramatic lighting, strong storytelling; not passport photos. All human characters are adults. No nudity, no sexual posing, no gore. TOP LEFT COVER SCENE: 大学校报三版真相，大学新闻编辑室，三只手递来不同照片，黑红新闻悬疑电影. TOP RIGHT PORTRAIT: 许知(22岁女编辑短发白衬衣). BOTTOM LEFT PORTRAIT: 陈野(23岁男篮球队员运动服). BOTTOM RIGHT PORTRAIT: 许音(24岁女摄影师卷发相机).",
+      "characters": [
+        "许知(22岁女编辑短发白衬衣)",
+        "陈野(23岁男篮球队员运动服)",
+        "许音(24岁女摄影师卷发相机)"
+      ]
+    },
+    {
+      "id": "cultivation-three-centuries",
+      "prompt": "Use case: stylized-concept. Asset type: premium narrative game art atlas for separately cropped website assets. Create one large SQUARE image, ideally 2048x2048, with EXACTLY FOUR equal square panels in a strict edge-to-edge 2x2 grid: vertical split exactly 50%, horizontal split exactly 50%. No gaps, no borders, no text, no letters, no logos, no watermark. Upper left is a dramatic cinematic world cover scene. Upper right, lower left and lower right are three separate expressive waist-up character portraits, one character in each square, with full head and shoulders safely inside the panel, distinct faces and vivid relevant environmental backdrops. Nothing crosses panels. Professional painterly cinematic realism, exceptionally attractive polished key art, tactile costumes, expressive eyes, dramatic lighting, strong storytelling; not passport photos. All human characters are adults. No nudity, no sexual posing, no gore. TOP LEFT COVER SCENE: 第一人称修仙，青袖双手推开山门，雨中村落和新坟同框，霜白青山朱灯，苍凉玄幻. TOP RIGHT PORTRAIT: 沈照(30岁青袍散修灰白发). BOTTOM LEFT PORTRAIT: 阿蘅(25岁红围巾女药农). BOTTOM RIGHT PORTRAIT: 守山人(60岁黑斗篷竹杖).",
+      "characters": [
+        "沈照(30岁青袍散修灰白发)",
+        "阿蘅(25岁红围巾女药农)",
+        "守山人(60岁黑斗篷竹杖)"
+      ]
+    },
+    {
+      "id": "spider-under-table",
+      "prompt": "Use case: stylized-concept. Asset type: premium narrative game art atlas for separately cropped website assets. Create one large SQUARE image, ideally 2048x2048, with EXACTLY FOUR equal square panels in a strict edge-to-edge 2x2 grid: vertical split exactly 50%, horizontal split exactly 50%. No gaps, no borders, no text, no letters, no logos, no watermark. Upper left is a dramatic cinematic world cover scene. Upper right, lower left and lower right are three separate expressive waist-up character portraits, one character in each square, with full head and shoulders safely inside the panel, distinct faces and vivid relevant environmental backdrops. Nothing crosses panels. Professional painterly cinematic realism, exceptionally attractive polished key art, tactile costumes, expressive eyes, dramatic lighting, strong storytelling; not passport photos. All human characters are adults. No nudity, no sexual posing, no gore. TOP LEFT COVER SCENE: 真正宏观低机位蜘蛛腿第一人称视角，桌底巨大扫帚逼近蛛卵，琥珀微距自然写实。三个小格必须全是自然蜘蛛，绝无拟人绝无人脸. TOP RIGHT PORTRAIT: 同一自然写实棕色跳蛛正面，完整蜘蛛和蛛网，清晰大眼. BOTTOM LEFT PORTRAIT: 同一自然写实棕色跳蛛侧面，完整蜘蛛与木纹背景. BOTTOM RIGHT PORTRAIT: 同一自然写实棕色跳蛛三分之四背侧角度，完整蜘蛛，琥珀侧光.",
+      "characters": [
+        "同一自然写实棕色跳蛛正面，完整蜘蛛和蛛网，清晰大眼",
+        "同一自然写实棕色跳蛛侧面，完整蜘蛛与木纹背景",
+        "同一自然写实棕色跳蛛三分之四背侧角度，完整蜘蛛，琥珀侧光"
+      ]
+    },
+    {
+      "id": "final-circle-future",
+      "prompt": "Use case: stylized-concept. Asset type: premium narrative game art atlas for separately cropped website assets. Create one large SQUARE image, ideally 2048x2048, with EXACTLY FOUR equal square panels in a strict edge-to-edge 2x2 grid: vertical split exactly 50%, horizontal split exactly 50%. No gaps, no borders, no text, no letters, no logos, no watermark. Upper left is a dramatic cinematic world cover scene. Upper right, lower left and lower right are three separate expressive waist-up character portraits, one character in each square, with full head and shoulders safely inside the panel, distinct faces and vivid relevant environmental backdrops. Nothing crosses panels. Professional painterly cinematic realism, exceptionally attractive polished key art, tactile costumes, expressive eyes, dramatic lighting, strong storytelling; not passport photos. All human characters are adults. No nudity, no sexual posing, no gore. TOP LEFT COVER SCENE: 第一人称吃鸡游戏悬疑，双手握空弹匣枪，蓝色缩圈外另一个同装备自己举无线电，无血. TOP RIGHT PORTRAIT: 林烬(26岁中国男白围巾战术衣). BOTTOM LEFT PORTRAIT: 回声(同林烬面孔蓝围巾). BOTTOM RIGHT PORTRAIT: 侦察员(30岁黑衣面罩女性).",
+      "characters": [
+        "林烬(26岁中国男白围巾战术衣)",
+        "回声(同林烬面孔蓝围巾)",
+        "侦察员(30岁黑衣面罩女性)"
+      ]
+    },
+    {
+      "id": "emperor-last-decree",
+      "prompt": "Use case: stylized-concept. Asset type: premium narrative game art atlas for separately cropped website assets. Create one large SQUARE image, ideally 2048x2048, with EXACTLY FOUR equal square panels in a strict edge-to-edge 2x2 grid: vertical split exactly 50%, horizontal split exactly 50%. No gaps, no borders, no text, no letters, no logos, no watermark. Upper left is a dramatic cinematic world cover scene. Upper right, lower left and lower right are three separate expressive waist-up character portraits, one character in each square, with full head and shoulders safely inside the panel, distinct faces and vivid relevant environmental backdrops. Nothing crosses panels. Professional painterly cinematic realism, exceptionally attractive polished key art, tactile costumes, expressive eyes, dramatic lighting, strong storytelling; not passport photos. All human characters are adults. No nudity, no sexual posing, no gore. TOP LEFT COVER SCENE: 第一人称醒来当皇帝，龙袍手伸向无字赐死诏书，满朝黑影金銮殿，赤金威压. TOP RIGHT PORTRAIT: 萧景(28岁年轻皇帝黑金衣). BOTTOM LEFT PORTRAIT: 裴衡(55岁红袍权臣长须). BOTTOM RIGHT PORTRAIT: 沈砚秋(30岁女将军银甲).",
+      "characters": [
+        "萧景(28岁年轻皇帝黑金衣)",
+        "裴衡(55岁红袍权臣长须)",
+        "沈砚秋(30岁女将军银甲)"
+      ]
+    },
+    {
+      "id": "president-dead-yesterday",
+      "prompt": "Use case: stylized-concept. Asset type: premium narrative game art atlas for separately cropped website assets. Create one large SQUARE image, ideally 2048x2048, with EXACTLY FOUR equal square panels in a strict edge-to-edge 2x2 grid: vertical split exactly 50%, horizontal split exactly 50%. No gaps, no borders, no text, no letters, no logos, no watermark. Upper left is a dramatic cinematic world cover scene. Upper right, lower left and lower right are three separate expressive waist-up character portraits, one character in each square, with full head and shoulders safely inside the panel, distinct faces and vivid relevant environmental backdrops. Nothing crosses panels. Professional painterly cinematic realism, exceptionally attractive polished key art, tactile costumes, expressive eyes, dramatic lighting, strong storytelling; not passport photos. All human characters are adults. No nudity, no sexual posing, no gore. TOP LEFT COVER SCENE: 虚构架空美国总统悬疑，第一人称在白宫风格办公室拿着自己黑白肖像讣告无文字，红色电话。绝不似现实总统. TOP RIGHT PORTRAIT: Alex Reed(45岁虚构男总统黑发，绝不似现实总统). BOTTOM LEFT PORTRAIT: Mara Cole(40岁黑人女幕僚长紫西装). BOTTOM RIGHT PORTRAIT: Evan Price(38岁白人男安保主管耳机).",
+      "characters": [
+        "Alex Reed(45岁虚构男总统黑发，绝不似现实总统)",
+        "Mara Cole(40岁黑人女幕僚长紫西装)",
+        "Evan Price(38岁白人男安保主管耳机)"
+      ]
+    },
+    {
+      "id": "roommates-yesterday",
+      "prompt": "Use case: stylized-concept. Asset type: premium narrative game art atlas for separately cropped website assets. Create one large SQUARE image, ideally 2048x2048, with EXACTLY FOUR equal square panels in a strict edge-to-edge 2x2 grid: vertical split exactly 50%, horizontal split exactly 50%. No gaps, no borders, no text, no letters, no logos, no watermark. Upper left is a dramatic cinematic world cover scene. Upper right, lower left and lower right are three separate expressive waist-up character portraits, one character in each square, with full head and shoulders safely inside the panel, distinct faces and vivid relevant environmental backdrops. Nothing crosses panels. Professional painterly cinematic realism, exceptionally attractive polished key art, tactile costumes, expressive eyes, dramatic lighting, strong storytelling; not passport photos. All human characters are adults. No nudity, no sexual posing, no gore. TOP LEFT COVER SCENE: 第一人称合租悬疑，门外握钥匙，三位成年不同风格室友都拿着一样合照招手，现代居家暖光不安. TOP RIGHT PORTRAIT: 顾遥(27岁女建筑师黑短发灰衬衫). BOTTOM LEFT PORTRAIT: 林夏(25岁女乐队鼓手红挑染皮衣). BOTTOM RIGHT PORTRAIT: 苏白(28岁女法医白外套眼镜).",
+      "characters": [
+        "顾遥(27岁女建筑师黑短发灰衬衫)",
+        "林夏(25岁女乐队鼓手红挑染皮衣)",
+        "苏白(28岁女法医白外套眼镜)"
+      ]
+    },
+    {
+      "id": "nightguard-double",
+      "prompt": "Use case: stylized-concept. Asset type: premium narrative game art atlas for separately cropped website assets. Create one large SQUARE image, ideally 2048x2048, with EXACTLY FOUR equal square panels in a strict edge-to-edge 2x2 grid: vertical split exactly 50%, horizontal split exactly 50%. No gaps, no borders, no text, no letters, no logos, no watermark. Upper left is a dramatic cinematic world cover scene. Upper right, lower left and lower right are three separate expressive waist-up character portraits, one character in each square, with full head and shoulders safely inside the panel, distinct faces and vivid relevant environmental backdrops. Nothing crosses panels. Professional painterly cinematic realism, exceptionally attractive polished key art, tactile costumes, expressive eyes, dramatic lighting, strong storytelling; not passport photos. All human characters are adults. No nudity, no sexual posing, no gore. TOP LEFT COVER SCENE: 第一人称夜班保安，手电照监控，屏幕另一个自己敲玻璃，青绿恐怖非血腥. TOP RIGHT PORTRAIT: 陈默(30岁中国男深蓝保安服). BOTTOM LEFT PORTRAIT: 何姨(55岁女保洁黄雨衣). BOTTOM RIGHT PORTRAIT: 夜班替身(同陈默脸但衣扣镜像).",
+      "characters": [
+        "陈默(30岁中国男深蓝保安服)",
+        "何姨(55岁女保洁黄雨衣)",
+        "夜班替身(同陈默脸但衣扣镜像)"
+      ]
+    },
+    {
+      "id": "surrounded-by-beauties",
+      "prompt": "Use case: stylized-concept. Asset type: premium narrative game art atlas for separately cropped website assets. Create one large SQUARE image, ideally 2048x2048, with EXACTLY FOUR equal square panels in a strict edge-to-edge 2x2 grid: vertical split exactly 50%, horizontal split exactly 50%. No gaps, no borders, no text, no letters, no logos, no watermark. Upper left is a dramatic cinematic world cover scene. Upper right, lower left and lower right are three separate expressive waist-up character portraits, one character in each square, with full head and shoulders safely inside the panel, distinct faces and vivid relevant environmental backdrops. Nothing crosses panels. Professional painterly cinematic realism, exceptionally attractive polished key art, tactile costumes, expressive eyes, dramatic lighting, strong storytelling; not passport photos. All human characters are adults. No nudity, no sexual posing, no gore. TOP LEFT COVER SCENE: 原创成年人的互动恋爱，第一人称抱行李箱，咖啡洒了，三名有各自主业的成年女主反应不同，阳光电影，非性感摆拍. TOP RIGHT PORTRAIT: 许星遥(26岁女纪录片导演短发牛仔相机). BOTTOM LEFT PORTRAIT: 江晚(29岁女餐厅主厨深绿围裙). BOTTOM RIGHT PORTRAIT: 唐梨(25岁女机器人创业者橙外套眼镜).",
+      "characters": [
+        "许星遥(26岁女纪录片导演短发牛仔相机)",
+        "江晚(29岁女餐厅主厨深绿围裙)",
+        "唐梨(25岁女机器人创业者橙外套眼镜)"
+      ]
+    },
+    {
+      "id": "retro-family-tags",
+      "prompt": "Use case: stylized-concept. Asset type: premium narrative game art atlas for separately cropped website assets. Create one large SQUARE image, ideally 2048x2048, with EXACTLY FOUR equal square panels in a strict edge-to-edge 2x2 grid: vertical split exactly 50%, horizontal split exactly 50%. No gaps, no borders, no text, no letters, no logos, no watermark. Upper left is a dramatic cinematic world cover scene. Upper right, lower left and lower right are three separate expressive waist-up character portraits, one character in each square, with full head and shoulders safely inside the panel, distinct faces and vivid relevant environmental backdrops. Nothing crosses panels. Professional painterly cinematic realism, exceptionally attractive polished key art, tactile costumes, expressive eyes, dramatic lighting, strong storytelling; not passport photos. All human characters are adults. No nudity, no sexual posing, no gore. TOP LEFT COVER SCENE: 1992重生家庭，旧供销社里青年撕掉欠条，亲戚抢老缝纫机，视野有抽象无字透明小面板，复古暖电影. TOP RIGHT PORTRAIT: 许麦(24岁女工红格衬衫). BOTTOM LEFT PORTRAIT: 二叔(48岁男棕夹克烟斗). BOTTOM RIGHT PORTRAIT: 赵青(27岁女收购员蓝工作服).",
+      "characters": [
+        "许麦(24岁女工红格衬衫)",
+        "二叔(48岁男棕夹克烟斗)",
+        "赵青(27岁女收购员蓝工作服)"
+      ]
+    },
+    {
+      "id": "reborn-bride-auction",
+      "prompt": "Use case: stylized-concept. Asset type: premium narrative game art atlas for separately cropped website assets. Create one large SQUARE image, ideally 2048x2048, with EXACTLY FOUR equal square panels in a strict edge-to-edge 2x2 grid: vertical split exactly 50%, horizontal split exactly 50%. No gaps, no borders, no text, no letters, no logos, no watermark. Upper left is a dramatic cinematic world cover scene. Upper right, lower left and lower right are three separate expressive waist-up character portraits, one character in each square, with full head and shoulders safely inside the panel, distinct faces and vivid relevant environmental backdrops. Nothing crosses panels. Professional painterly cinematic realism, exceptionally attractive polished key art, tactile costumes, expressive eyes, dramatic lighting, strong storytelling; not passport photos. All human characters are adults. No nudity, no sexual posing, no gore. TOP LEFT COVER SCENE: 重生新娘，婚礼上新娘把捧花扔进香槟塔，屏幕账本抽象不写字，白金与紫对比，戏剧动作. TOP RIGHT PORTRAIT: 宋棠(27岁女黑发白婚纱冷静). BOTTOM LEFT PORTRAIT: 陆衍(30岁男白西装惊慌). BOTTOM RIGHT PORTRAIT: 孟惜(28岁女紫礼服握合同).",
+      "characters": [
+        "宋棠(27岁女黑发白婚纱冷静)",
+        "陆衍(30岁男白西装惊慌)",
+        "孟惜(28岁女紫礼服握合同)"
+      ]
+    },
+    {
+      "id": "apocalypse-labels",
+      "prompt": "Use case: stylized-concept. Asset type: premium narrative game art atlas for separately cropped website assets. Create one large SQUARE image, ideally 2048x2048, with EXACTLY FOUR equal square panels in a strict edge-to-edge 2x2 grid: vertical split exactly 50%, horizontal split exactly 50%. No gaps, no borders, no text, no letters, no logos, no watermark. Upper left is a dramatic cinematic world cover scene. Upper right, lower left and lower right are three separate expressive waist-up character portraits, one character in each square, with full head and shoulders safely inside the panel, distinct faces and vivid relevant environmental backdrops. Nothing crosses panels. Professional painterly cinematic realism, exceptionally attractive polished key art, tactile costumes, expressive eyes, dramatic lighting, strong storytelling; not passport photos. All human characters are adults. No nudity, no sexual posing, no gore. TOP LEFT COVER SCENE: 末世词条，超市停电，青年透过透明抽象无字面板看见被动过手脚的物资，外面暴雪，冰蓝黄色. TOP RIGHT PORTRAIT: 周燃(28岁男黄外套). BOTTOM LEFT PORTRAIT: 韩朔(35岁男黑战术背心). BOTTOM RIGHT PORTRAIT: 林穗(30岁女医生青色外套急救包).",
+      "characters": [
+        "周燃(28岁男黄外套)",
+        "韩朔(35岁男黑战术背心)",
+        "林穗(30岁女医生青色外套急救包)"
+      ]
+    },
+    {
+      "id": "king-last-light",
+      "prompt": "Use case: stylized-concept. Asset type: premium narrative game art atlas for separately cropped website assets. Create one large SQUARE image, ideally 2048x2048, with EXACTLY FOUR equal square panels in a strict edge-to-edge 2x2 grid: vertical split exactly 50%, horizontal split exactly 50%. No gaps, no borders, no text, no letters, no logos, no watermark. Upper left is a dramatic cinematic world cover scene. Upper right, lower left and lower right are three separate expressive waist-up character portraits, one character in each square, with full head and shoulders safely inside the panel, distinct faces and vivid relevant environmental backdrops. Nothing crosses panels. Professional painterly cinematic realism, exceptionally attractive polished key art, tactile costumes, expressive eyes, dramatic lighting, strong storytelling; not passport photos. All human characters are adults. No nudity, no sexual posing, no gore. TOP LEFT COVER SCENE: 王者高燃同人非官方美术，李信残甲半跪守城，公孙离撑伞挡箭、裴擒虎金光，玄幻战场壮丽无血腥. TOP RIGHT PORTRAIT: 李信(成年男金发金黑重甲巨剑). BOTTOM LEFT PORTRAIT: 公孙离(成年女兔耳红枫伞橙红衣). BOTTOM RIGHT PORTRAIT: 裴擒虎(成年男橙发虎纹拳套).",
+      "characters": [
+        "李信(成年男金发金黑重甲巨剑)",
+        "公孙离(成年女兔耳红枫伞橙红衣)",
+        "裴擒虎(成年男橙发虎纹拳套)"
+      ]
+    },
+    {
+      "id": "king-minion-tags",
+      "prompt": "Use case: stylized-concept. Asset type: premium narrative game art atlas for separately cropped website assets. Create one large SQUARE image, ideally 2048x2048, with EXACTLY FOUR equal square panels in a strict edge-to-edge 2x2 grid: vertical split exactly 50%, horizontal split exactly 50%. No gaps, no borders, no text, no letters, no logos, no watermark. Upper left is a dramatic cinematic world cover scene. Upper right, lower left and lower right are three separate expressive waist-up character portraits, one character in each square, with full head and shoulders safely inside the panel, distinct faces and vivid relevant environmental backdrops. Nothing crosses panels. Professional painterly cinematic realism, exceptionally attractive polished key art, tactile costumes, expressive eyes, dramatic lighting, strong storytelling; not passport photos. All human characters are adults. No nudity, no sexual posing, no gore. TOP LEFT COVER SCENE: 王者重生词条同人非官方美术，小兵第一人称视角看李白头顶破碎透明预警符号绝无文字，司马懿藏阴影. TOP RIGHT PORTRAIT: 阿卒(成年青年男蓝甲小兵). BOTTOM LEFT PORTRAIT: 李白(成年男白棕游戏侠客服酒剑). BOTTOM RIGHT PORTRAIT: 司马懿(成年男银发深紫法衣).",
+      "characters": [
+        "阿卒(成年青年男蓝甲小兵)",
+        "李白(成年男白棕游戏侠客服酒剑)",
+        "司马懿(成年男银发深紫法衣)"
+      ]
+    },
+    {
+      "id": "king-fate-umbrella",
+      "prompt": "Use case: stylized-concept. Asset type: premium narrative game art atlas for separately cropped website assets. Create one large SQUARE image, ideally 2048x2048, with EXACTLY FOUR equal square panels in a strict edge-to-edge 2x2 grid: vertical split exactly 50%, horizontal split exactly 50%. No gaps, no borders, no text, no letters, no logos, no watermark. Upper left is a dramatic cinematic world cover scene. Upper right, lower left and lower right are three separate expressive waist-up character portraits, one character in each square, with full head and shoulders safely inside the panel, distinct faces and vivid relevant environmental backdrops. Nothing crosses panels. Professional painterly cinematic realism, exceptionally attractive polished key art, tactile costumes, expressive eyes, dramatic lighting, strong storytelling; not passport photos. All human characters are adults. No nudity, no sexual posing, no gore. TOP LEFT COVER SCENE: 王者成人李信公孙离守护改写同人非官方美术，风雪桥上巨剑与破伞对峙，成人浪漫无裸露，冰蓝枫红. TOP RIGHT PORTRAIT: 李信(成年金发黑金甲). BOTTOM LEFT PORTRAIT: 公孙离(成年女兔耳红伞). BOTTOM RIGHT PORTRAIT: 弈星(成年男棋士墨蓝袍棋子).",
+      "characters": [
+        "李信(成年金发黑金甲)",
+        "公孙离(成年女兔耳红伞)",
+        "弈星(成年男棋士墨蓝袍棋子)"
+      ]
+    },
+    {
+      "id": "zhaoyun-run",
+      "prompt": "Use case: stylized-concept. Asset type: premium narrative game art atlas for separately cropped website assets. Create one large SQUARE image, ideally 2048x2048, with EXACTLY FOUR equal square panels in a strict edge-to-edge 2x2 grid: vertical split exactly 50%, horizontal split exactly 50%. No gaps, no borders, no text, no letters, no logos, no watermark. Upper left is a dramatic cinematic world cover scene. Upper right, lower left and lower right are three separate expressive waist-up character portraits, one character in each square, with full head and shoulders safely inside the panel, distinct faces and vivid relevant environmental backdrops. Nothing crosses panels. Professional painterly cinematic realism, exceptionally attractive polished key art, tactile costumes, expressive eyes, dramatic lighting, strong storytelling; not passport photos. All human characters are adults. No nudity, no sexual posing, no gore. TOP LEFT COVER SCENE: 长坂原创穿越，赵云骑白马回身拉住现代外卖骑手，桥后曹军旗无字无血，银白黄，极速动作. TOP RIGHT PORTRAIT: 赵云(28岁银甲白马将军). BOTTOM LEFT PORTRAIT: 陈驰(25岁黄头盔配送员). BOTTOM RIGHT PORTRAIT: 糜芳(35岁暗红旧甲将领).",
+      "characters": [
+        "赵云(28岁银甲白马将军)",
+        "陈驰(25岁黄头盔配送员)",
+        "糜芳(35岁暗红旧甲将领)"
+      ]
+    },
+    {
+      "id": "pilgrimage-five-secrets",
+      "prompt": "Use case: stylized-concept. Asset type: premium narrative game art atlas for separately cropped website assets. Create one large SQUARE image, ideally 2048x2048, with EXACTLY FOUR equal square panels in a strict edge-to-edge 2x2 grid: vertical split exactly 50%, horizontal split exactly 50%. No gaps, no borders, no text, no letters, no logos, no watermark. Upper left is a dramatic cinematic world cover scene. Upper right, lower left and lower right are three separate expressive waist-up character portraits, one character in each square, with full head and shoulders safely inside the panel, distinct faces and vivid relevant environmental backdrops. Nothing crosses panels. Professional painterly cinematic realism, exceptionally attractive polished key art, tactile costumes, expressive eyes, dramatic lighting, strong storytelling; not passport photos. All human characters are adults. No nudity, no sexual posing, no gore. TOP LEFT COVER SCENE: 西游五人各怀鬼胎，火焰映出师徒四人的不同眼神，远处观音玉瓶照出锁链，奇幻人性冲突，庄重不侮辱宗教。八戒沙僧只在封面同景. TOP RIGHT PORTRAIT: 孙悟空(成年金甲猴王). BOTTOM LEFT PORTRAIT: 唐僧(30岁男绯袈裟). BOTTOM RIGHT PORTRAIT: 观音(成人女白衣圣洁但冷峻).",
+      "characters": [
+        "孙悟空(成年金甲猴王)",
+        "唐僧(30岁男绯袈裟)",
+        "观音(成人女白衣圣洁但冷峻)"
+      ]
+    },
+    {
+      "id": "honest-groom-wedding",
+      "prompt": "Use case: stylized-concept. Asset type: premium narrative game art atlas for separately cropped website assets. Create one large SQUARE image, ideally 2048x2048, with EXACTLY FOUR equal square panels in a strict edge-to-edge 2x2 grid: vertical split exactly 50%, horizontal split exactly 50%. No gaps, no borders, no text, no letters, no logos, no watermark. Upper left is a dramatic cinematic world cover scene. Upper right, lower left and lower right are three separate expressive waist-up character portraits, one character in each square, with full head and shoulders safely inside the panel, distinct faces and vivid relevant environmental backdrops. Nothing crosses panels. Professional painterly cinematic realism, exceptionally attractive polished key art, tactile costumes, expressive eyes, dramatic lighting, strong storytelling; not passport photos. All human characters are adults. No nudity, no sexual posing, no gore. TOP LEFT COVER SCENE: 婚礼骗局，新郎在交换戒指前收到三份矛盾邀请函无文字，新娘看着第三人，白金藏蓝婚礼悬疑电影. TOP RIGHT PORTRAIT: 周诚(29岁男灰西装眼镜). BOTTOM LEFT PORTRAIT: 林漫(28岁女白婚纱). BOTTOM RIGHT PORTRAIT: 贺临(31岁男黑礼服蓝袖扣).",
+      "characters": [
+        "周诚(29岁男灰西装眼镜)",
+        "林漫(28岁女白婚纱)",
+        "贺临(31岁男黑礼服蓝袖扣)"
+      ]
+    },
+    {
+      "id": "wife-young-student",
+      "prompt": "Use case: stylized-concept. Asset type: premium narrative game art atlas for separately cropped website assets. Create one large SQUARE image, ideally 2048x2048, with EXACTLY FOUR equal square panels in a strict edge-to-edge 2x2 grid: vertical split exactly 50%, horizontal split exactly 50%. No gaps, no borders, no text, no letters, no logos, no watermark. Upper left is a dramatic cinematic world cover scene. Upper right, lower left and lower right are three separate expressive waist-up character portraits, one character in each square, with full head and shoulders safely inside the panel, distinct faces and vivid relevant environmental backdrops. Nothing crosses panels. Professional painterly cinematic realism, exceptionally attractive polished key art, tactile costumes, expressive eyes, dramatic lighting, strong storytelling; not passport photos. All human characters are adults. No nudity, no sexual posing, no gore. TOP LEFT COVER SCENE: 成人婚姻三角，家里丈夫拿结婚照，妻子护着男大学生的画板，所有人明确成年人，不含性内容，家庭电影冲突. TOP RIGHT PORTRAIT: 程远(39岁男蓝衬衣). BOTTOM LEFT PORTRAIT: 许宁(36岁女栗色卷发米裙). BOTTOM RIGHT PORTRAIT: 季白(21岁男大学生白T牛仔画板).",
+      "characters": [
+        "程远(39岁男蓝衬衣)",
+        "许宁(36岁女栗色卷发米裙)",
+        "季白(21岁男大学生白T牛仔画板)"
+      ]
+    },
+    {
+      "id": "blue-stamp-rumor",
+      "prompt": "Use case: stylized-concept. Asset type: premium narrative game art atlas for separately cropped website assets. Create one large SQUARE image, ideally 2048x2048, with EXACTLY FOUR equal square panels in a strict edge-to-edge 2x2 grid: vertical split exactly 50%, horizontal split exactly 50%. No gaps, no borders, no text, no letters, no logos, no watermark. Upper left is a dramatic cinematic world cover scene. Upper right, lower left and lower right are three separate expressive waist-up character portraits, one character in each square, with full head and shoulders safely inside the panel, distinct faces and vivid relevant environmental backdrops. Nothing crosses panels. Professional painterly cinematic realism, exceptionally attractive polished key art, tactile costumes, expressive eyes, dramatic lighting, strong storytelling; not passport photos. All human characters are adults. No nudity, no sexual posing, no gore. TOP LEFT COVER SCENE: 原创蓝章传闻，市场围观者手机镜头对着成年女商贩衣袖上的蓝色检疫印墨，丈夫挡开镜头、冷库商人握货单。蓝印只在衣袖，不在隐私部位。关于断章取义栽赃家庭猜疑的现实题材戏剧场景. TOP RIGHT PORTRAIT: 余桃(32岁女深绿围裙，蓝印只在衣袖). BOTTOM LEFT PORTRAIT: 刘峰(35岁男灰工服). BOTTOM RIGHT PORTRAIT: 马姐(45岁女红皮衣货单).",
+      "characters": [
+        "余桃(32岁女深绿围裙，蓝印只在衣袖)",
+        "刘峰(35岁男灰工服)",
+        "马姐(45岁女红皮衣货单)"
+      ]
+    },
+    {
+      "id": "pilgrimage-extra",
+      "prompt": "Use case: stylized-concept. Asset type: premium narrative game art atlas for separately cropped website assets. Create one large SQUARE image, ideally 2048x2048, with EXACTLY FOUR equal square panels in a strict edge-to-edge 2x2 grid: vertical split exactly 50%, horizontal split exactly 50%. No gaps, no borders, no text, no letters, no logos, no watermark. Upper left is a dramatic cinematic world cover scene. Upper right, lower left and lower right are three separate expressive waist-up character portraits, one character in each square, with full head and shoulders safely inside the panel, distinct faces and vivid relevant environmental backdrops. Nothing crosses panels. Professional painterly cinematic realism, exceptionally attractive polished key art, tactile costumes, expressive eyes, dramatic lighting, strong storytelling; not passport photos. All human characters are adults. No nudity, no sexual posing, no gore. This additional atlas contains TWO environments and TWO character portraits, override bottom-right portrait with environment only. TOP LEFT COVER SCENE: 黑风山西游队伍环境，宏大奇幻电影. TOP RIGHT PORTRAIT: 猪八戒（成年猪面神话角色，黑僧帽褐袍九齿钉耙，圆壮但机灵）. BOTTOM LEFT PORTRAIT: 沙僧（成年魁梧长发须，赭色僧衣大佛珠降妖杖，沉默坚毅）. BOTTOM RIGHT ENVIRONMENT ONLY: 古代山中旧驿环境，没有人物.",
+      "characters": [
+        "猪八戒（成年猪面神话角色，黑僧帽褐袍九齿钉耙，圆壮但机灵）",
+        "沙僧（成年魁梧长发须，赭色僧衣大佛珠降妖杖，沉默坚毅）",
+        "古代山中旧驿环境，没有人物"
+      ]
+    }
+  ]
+}

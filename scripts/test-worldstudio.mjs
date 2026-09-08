@@ -46,7 +46,7 @@ test('every playable role has scoped goals, prerequisites and reachable nonempty
   }
 });
 
-test('new worlds expose both entries and have valid connected task graphs for every role', () => {
+test('worlds have reachable goals; multi-character worlds also support direct conversation', () => {
   assert.equal(new Set(studioWorlds.map((world) => world.id)).size, studioWorlds.length);
   assert.ok(studioWorlds.length >= 17);
   for (const entry of studioWorlds) {
@@ -59,8 +59,12 @@ test('new worlds expose both entries and have valid connected task graphs for ev
       assert.ok(entry.portraits[role.id]);
       assert.ok(getRoleOpening(entry, role.id).includes(role.goal));
       const target = world.characters.find((other) => other.id !== role.id);
-      const chat = conversationEntry(entry, role.id, target.id);
-      assert.equal(chat.world.characters.find((candidate) => candidate.id === role.id).startLocationId, target.startLocationId);
+      if (target) {
+        const chat = conversationEntry(entry, role.id, target.id);
+        assert.equal(chat.world.characters.find((candidate) => candidate.id === role.id).startLocationId, target.startLocationId);
+      } else {
+        assert.equal(entry.fixedRoleId, role.id, 'a solo world must expose its fixed first-person entry');
+      }
       const tasks = world.tasks.filter((task) => task.assignedRoleIds.includes(role.id));
       const visited = new Set();
       for (const task of tasks) {

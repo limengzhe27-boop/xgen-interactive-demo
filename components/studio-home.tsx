@@ -7,6 +7,7 @@ import { MessageTextarea } from '@/components/message-textarea';
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { GalleryAtmosphere, GalleryMasonry, GalleryReveal } from '@/components/gallery-motion';
 import { mixGallery } from '@/lib/gallery-order';
+import { restoreGalleryPosition, type GalleryBrowseState, type GalleryPosition } from '@/lib/gallery-memory';
 
 export type StudioSection = 'home' | 'library' | 'characters' | 'personal' | 'profile';
 export type WorldCard = { id: string; title: string; genre: string; premise: string; cover: string; roleCount: number; artNote?: string; featured?: boolean; fixedRoleId?: string };
@@ -37,16 +38,32 @@ function Artwork({ src, alt }: { src: string; alt: string }) {
   return src && failedSrc !== src ? <img src={src} alt={alt} loading="lazy" decoding="async" onError={() => setFailedSrc(src)} /> : <div className="gallery-art-unavailable"><BookOpen /><span>封面暂不可用<br />故事仍可进入</span></div>;
 }
 
-export function StudioHome({ section, worlds, characters, recent, onCreate, onOpenWorld, onChat, onPersonal, onLibrary, onOpenRecord }: {
+export function StudioHome({ section, worlds, characters, recent, onCreate, onOpenWorld, onChat, onPersonal, onLibrary, onOpenRecord, initialBrowse, returnPosition, onBrowseChange }: {
+  initialBrowse?: GalleryBrowseState; returnPosition?: GalleryPosition; onBrowseChange?: (state: GalleryBrowseState) => void;
   section: StudioSection; worlds: WorldCard[]; characters: CharacterCard[]; recent: RecentCard[];
   onCreate: (seed?: string) => void; onOpenWorld: (id: string) => void;
   onChat: (worldId: string, characterId: string) => void; onPersonal: () => void; onLibrary: () => void;
   onOpenRecord: (id: string) => void;
 }) {
-  const [seed, setSeed] = useState('');
-  const [genre, setGenre] = useState('全部');
-  const [query, setQuery] = useState('');
-  const [kind, setKind] = useState<'all' | 'world' | 'character'>(section === 'characters' ? 'character' : 'all');
+  const [seed, setSeed] = useState(initialBrowse?.seed ?? '');
+  const [genre, setGenre] = useState(initialBrowse?.genre ?? '全部');
+  const [query, setQuery] = useState(initialBrowse?.query ?? '');
+  const [kind, setKind] = useState<'all' | 'world' | 'character'>(initialBrowse?.kind ?? (section === 'characters' ? 'character' : 'all'));
+  useEffect(() => { onBrowseChange?.({ seed, genre, query, kind }); }, [seed, genre, query, kind, onBrowseChange]);
+  // Restore after the masonry has measured its rows, not while the old page is
+  // still mounted. Cancel on user input so restoration never fights scrolling.
+  useEffect(() => {
+    let frame = 0;
+    const restore = () => { cancelAnimationFrame(frame); frame = requestAnimationFrame(() => restoreGalleryPosition(returnPosition ?? { y: 0 })); };
+    const stop = () => { cancelAnimationFrame(frame); document.removeEventListener('gallery:layout', restore); };
+    document.addEventListener('gallery:layout', restore);
+    window.addEventListener('wheel', stop, { passive: true, once: true });
+    window.addEventListener('touchstart', stop, { passive: true, once: true });
+    window.addEventListener('keydown', stop, { once: true });
+    restore();
+    const timer = window.setTimeout(stop, 600);
+    return () => { stop(); clearTimeout(timer); window.removeEventListener('wheel', stop); window.removeEventListener('touchstart', stop); window.removeEventListener('keydown', stop); };
+  }, [returnPosition]);
   const [detail, setDetail] = useState<WorldCard | null>(null);
   const [offscreen, setOffscreen] = useState(false);
   const [focused, setFocused] = useState(false);
@@ -101,7 +118,7 @@ export function StudioHome({ section, worlds, characters, recent, onCreate, onOp
         const id = world?.id || character!.worldId + ':' + character!.id;
         const title = world?.title || character!.name;
         const open = () => world ? onOpenWorld(world.id) : onChat(character!.worldId, character!.id);
-        return <div className="gallery-cell" key={item.kind + ':' + id}><GalleryReveal delay={(index % 4) * 60}><article className="gallery-card" data-kind={item.kind} aria-label={title}>
+        return <div className="gallery-cell" key={item.kind + ':' + id} data-gallery-id={item.kind + ':' + id}><GalleryReveal delay={(index % 4) * 60}><article className="gallery-card" data-kind={item.kind} aria-label={title}>
           <button className="gallery-art" onClick={open} type="button" aria-label={world ? '进入世界：' + title : '和' + title + '聊聊'}><Artwork src={world?.cover || character!.image} alt={world ? title + '的世界封面' : title + '的角色形象'} /></button>
           <span className="gallery-type">{world ? <Compass /> : <MessageCircleMore />}{world ? world.genre : '角色'}</span>
           <div className="gallery-card-copy"><small>{world ? (world.fixedRoleId ? '第一人称 · 固定身份体验' : world.roleCount + ' 个可选身份') : character!.worldTitle}</small><h3>{title}</h3>{character && <p>{character.identity}</p>}<div className="gallery-card-actions">{world && <button type="button" className="gallery-detail-button" onClick={() => setDetail(world)} aria-label={'剧情简介：' + title}><BookOpen /></button>}<button type="button" className="gallery-enter" onClick={open}>{world ? '进入世界' : '和 TA 聊聊'}<ArrowRight /></button></div></div>

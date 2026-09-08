@@ -33,6 +33,7 @@ import {
 
 import { Button } from '@/components/ui/button';
 import { StudioHome, StudioNav } from '@/components/studio-home';
+import { captureGalleryPosition, type GalleryBrowseState, type GalleryPosition } from '@/lib/gallery-memory';
 import { AccountBar, PublishWorldDialog } from '@/components/account-publication';
 import { MyPublications } from '@/components/my-publications';
 import { publicationDraft } from '@/lib/restore-publication';
@@ -962,6 +963,9 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
   const creatorKickoff = useRef<string | null>(null);
   const personalRequestBusy = useRef(false);
   const navigationRevision = useRef(0);
+  const galleryMemory = useRef<Record<string, { browse?: GalleryBrowseState; position?: GalleryPosition }>>({});
+  const [galleryRestore, setGalleryRestore] = useState<{ browse?: GalleryBrowseState; position?: GalleryPosition }>({});
+  const catalogReturnView = useRef<View>('home');
   const [modelMode, setModelMode] = useState<ModelMode>('checking');
   const [imageModelMode, setImageModelMode] = useState<ImageModelMode>('checking');
   const lastImageAttemptTurnRef = useRef(0);
@@ -1387,13 +1391,20 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
   }, []);
 
   function navigate(next: View) {
+    if (['home', 'library', 'characters'].includes(view) && next !== view) {
+      galleryMemory.current[`${accountScope}:${view}`] = { ...galleryMemory.current[`${accountScope}:${view}`], position: captureGalleryPosition() };
+      catalogReturnView.current = view;
+    }
     if (next !== 'create') cancelCreatorRequest();
     if (next === 'create' && view !== 'create') creatorReturnView.current = view;
     navigationRevision.current++;
     if (next !== 'play') stopActiveGeneration();
+    if (['home', 'library', 'characters'].includes(next)) setGalleryRestore(galleryMemory.current[`${accountScope}:${next}`] ?? {});
     setView(next);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    if (!['home', 'library', 'characters'].includes(next)) window.scrollTo({ top: 0, behavior: 'instant' });
   }
+
+  function returnToCatalog() { navigate(catalogReturnView.current); }
 
   function cancelCreatorRequest() {
     creatorRequest.current.cancel();
@@ -1652,7 +1663,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     if (!world || !openCatalogWorld(worldId)) { setAgentError('这本世界目前不可用，请重新推荐或选择其他世界。'); return false; }
     setAgentConversation((current) => restorePersonalConversation([...current,
       { role: 'user', content: userMessage || `打开《${world.title}》` },
-      { role: 'assistant', content: `已打开《${world.title}》的身份选择。选好角色后，再开始体验；现在还没有创建新的游戏进度。` }]));
+      { role: 'assistant', content: `已打开《${world.title}》的故事前情。看完后即可继续入场；现在还没有创建新的游戏进度。` }]));
     setMessage('');
     return true;
   }
@@ -2355,8 +2366,10 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       if (memories.length >= 24) { setStorageError('记忆已满（24 条），请先删除不再需要的内容。'); return; }
       setMemories(current => [...new Set([...current, memory])]); setMemoryDetails(current => confirmMemoryDetail(current, memory)); setPendingPersonalMemories(current => current.filter(item => item !== memory));
     }} />;
-    if (view === 'chat' && activeChat) return <CharacterChat key={`${accountScope}:${activeChat.id}`} accountScope={accountScope} initial={activeChat} onSave={saveChat} onBack={() => navigate('home')} />;
+    if (view === 'chat' && activeChat) return <CharacterChat key={`${accountScope}:${activeChat.id}`} accountScope={accountScope} initial={activeChat} onSave={saveChat} onBack={returnToCatalog} />;
     if (view === 'home' || view === 'library' || view === 'characters') return <StudioHome key={`${accountScope}:${view}`}
+      initialBrowse={galleryRestore.browse} returnPosition={galleryRestore.position}
+      onBrowseChange={browse => { galleryMemory.current[`${accountScope}:${view}`] = { ...galleryMemory.current[`${accountScope}:${view}`], browse }; }}
       section={view} worlds={[
         ...availableStudioWorlds.map((entry) => ({ ...entry, roleCount: entry.fixedRoleId ? 1 : entry.world.characters.length })),
         ...worldCatalog.map((world) => ({ ...world, roleCount: world.id === 'storm-manor' ? roles.length : presetWorlds.find((preset) => preset.id === world.id)?.roles.length ?? 0, cover: world.id === 'storm-manor' ? legacyArt['storm-manor'].cover : world.id === 'sea-train' ? legacyArt['sea-train'].cover : legacyArt['sixth-roommate'].cover }))]}
@@ -2368,8 +2381,8 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       ].sort((a, b) => b.savedAt - a.savedAt)}
       onCreate={newCreator} onOpenWorld={openCatalogWorld} onChat={(worldId, targetId) => { const entry = availableStudioWorlds.find((item) => item.id === worldId); if (entry) setChatEntry({ entry, targetId }); }} onPersonal={() => navigate('personal')} onLibrary={() => navigate('library')} onOpenRecord={openRecord}
     />;
-    if (view === 'roles') return <RoleSelection identityControl={identityControl} worldTitle={activeWorldTitle} artNote={activeLibrary?.artNote} availableRoles={currentRoles} selected={selectedRole} onSelect={setSelectedRole} onBack={() => navigate('home')} onStart={() => beginWorld()} personaEntry={activeLibrary && restoreEntryPolicy(activeLibrary.world.entryPolicy).allowPersona ? <PersonaAdmission key={activeLibrary.id} entry={activeLibrary} roleId="persona-visitor" persona={playerPersona} onEnter={beginWorld} /> : undefined} />;
-    if (view === 'prologue') return <WorldProloguePlayer key={activeWorldDefinition.id} title={activeWorldTitle} fixedIdentity={activeLibrary?.fixedRoleId ? selectedRole.name : undefined} prologue={worldPrologue(activeWorldDefinition.id, activeLibrary?.premise || activeWorldDefinition.premise, activeLibrary?.cover || (activeWorld === 'suggestion' && suggestedPreset ? legacyArt[suggestedPreset.id]?.cover : undefined) || creatorAssets?.cover || legacyArt['storm-manor'].cover)} onBack={() => navigate('home')} onContinue={() => activeLibrary?.fixedRoleId ? beginWorld() : navigate('roles')} continuation={activeLibrary?.fixedRoleId ? undefined : <RoleSelection compact identityControl={identityControl} worldTitle={activeWorldTitle} availableRoles={currentRoles} selected={selectedRole} onSelect={setSelectedRole} onBack={() => navigate('home')} onStart={() => beginWorld()} personaEntry={activeLibrary && restoreEntryPolicy(activeLibrary.world.entryPolicy).allowPersona ? <PersonaAdmission key={activeLibrary.id} entry={activeLibrary} roleId="persona-visitor" persona={playerPersona} onEnter={beginWorld} /> : undefined} />} />;
+    if (view === 'roles') return <RoleSelection identityControl={identityControl} worldTitle={activeWorldTitle} artNote={activeLibrary?.artNote} availableRoles={currentRoles} selected={selectedRole} onSelect={setSelectedRole} onBack={returnToCatalog} onStart={() => beginWorld()} personaEntry={activeLibrary && restoreEntryPolicy(activeLibrary.world.entryPolicy).allowPersona ? <PersonaAdmission key={activeLibrary.id} entry={activeLibrary} roleId="persona-visitor" persona={playerPersona} onEnter={beginWorld} /> : undefined} />;
+    if (view === 'prologue') return <WorldProloguePlayer key={activeWorldDefinition.id} title={activeWorldTitle} fixedIdentity={activeLibrary?.fixedRoleId ? selectedRole.name : undefined} prologue={worldPrologue(activeWorldDefinition.id, activeLibrary?.premise || activeWorldDefinition.premise, activeLibrary?.cover || (activeWorld === 'suggestion' && suggestedPreset ? legacyArt[suggestedPreset.id]?.cover : undefined) || creatorAssets?.cover || legacyArt['storm-manor'].cover)} onBack={returnToCatalog} onContinue={() => activeLibrary?.fixedRoleId ? beginWorld() : navigate('roles')} continuation={activeLibrary?.fixedRoleId ? undefined : <RoleSelection compact identityControl={identityControl} worldTitle={activeWorldTitle} availableRoles={currentRoles} selected={selectedRole} onSelect={setSelectedRole} onBack={returnToCatalog} onStart={() => beginWorld()} personaEntry={activeLibrary && restoreEntryPolicy(activeLibrary.world.entryPolicy).allowPersona ? <PersonaAdmission key={activeLibrary.id} entry={activeLibrary} roleId="persona-visitor" persona={playerPersona} onEnter={beginWorld} /> : undefined} />} />;
     if (view === 'play') {
       return (
         <PlayWorld
@@ -2407,7 +2420,8 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
           onFreeAction={setFreeAction}
           onLiveMode={setLiveMode}
           onAction={takeAction}
-          onBack={() => { if (activeLibrary?.world.entryAdmission) { if (!openCatalogWorld(activeLibrary.id)) navigate('home'); } else navigate('roles'); }}
+          backLabel={activeLibrary?.fixedRoleId ? '返回前情' : '重新选角'}
+          onBack={() => { if (activeLibrary?.fixedRoleId) navigate('prologue'); else if (activeLibrary?.world.entryAdmission) { if (!openCatalogWorld(activeLibrary.id)) returnToCatalog(); } else navigate('roles'); }}
         />
       );
     }
@@ -2468,7 +2482,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
         />
       );
     }
-    if (view === 'ending') return <Ending worldTitle={activeWorldTitle} role={selectedRole} decision={endingDecision} state={worldState} world={activeWorldDefinition} imageUrl={imageTask.assetUrl} onContinue={continueWorld} onReplay={() => { if (activeLibrary?.world.entryAdmission) { if (!openCatalogWorld(activeLibrary.id)) navigate('home'); } else navigate('roles'); }} onHome={() => navigate('home')} />;
+    if (view === 'ending') return <Ending worldTitle={activeWorldTitle} role={selectedRole} decision={endingDecision} state={worldState} world={activeWorldDefinition} imageUrl={imageTask.assetUrl} onContinue={continueWorld} onReplay={() => { if (activeLibrary?.world.entryAdmission) { if (!openCatalogWorld(activeLibrary.id)) navigate('home'); } else navigate('roles'); }} onHome={returnToCatalog} />;
     return (
       <PersonalAgent
         accountScope={accountScope}
@@ -2563,6 +2577,7 @@ function RoleSelection({ worldTitle, artNote, availableRoles, selected, onSelect
 
 function PlayWorld({
   accountScope,
+  backLabel,
   artNote,
   world,
   role,
@@ -2596,6 +2611,7 @@ function PlayWorld({
   onBack,
 }: {
   artNote?: string;
+  backLabel: string;
   world: WorldDefinition;
   accountScope: string;
   role: Role;
@@ -2642,7 +2658,7 @@ function PlayWorld({
     <div className="flow-page flow-play-page">
       <Sheet open={detailsOpen} onOpenChange={setDetailsOpen}>
       <header className="flow-toolbar">
-        <button className="back-link" type="button" onClick={onBack}><ArrowLeft />重新选角</button>
+        <button className="back-link" type="button" onClick={onBack}><ArrowLeft />{backLabel}</button>
         <p className="flow-player-label">你是 {role.name}</p>
         <SheetTrigger className="flow-control" onClick={() => setCategory('tasks')}>故事资料</SheetTrigger>
       </header>
