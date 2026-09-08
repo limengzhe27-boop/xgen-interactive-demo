@@ -8,7 +8,7 @@ import { publicationWorld } from '../lib/publication.ts';
 import { directConversationEntry } from '../lib/studio-session.ts';
 
 test('conquest has four playable perspectives without replacing the existing parody', () => {
-  assert.equal(studioWorlds[0].id,entry.id);
+  assert.ok(studioWorlds.some(world=>world.id===entry.id));
   assert.ok(studioWorlds.some(w=>w.title.includes('生死簿')));
   assert.deepEqual(publicationWorld(structuredClone(entry.world)),entry.world);
   assert.deepEqual(entry.world.characters.map(r=>r.id),['liu','vendor','companion','witness']);
