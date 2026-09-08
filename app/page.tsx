@@ -1008,6 +1008,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
   const [savedRuns, setSavedRuns] = useState<(SavedRun & { id: string })[]>([]);
   const [chatSessions, setChatSessions] = useState<ChatSession[]>([]);
   const [creatorDocuments, setCreatorDocuments] = useState<CreatorDocument[]>([]);
+  const deletedDraftIds = useRef(new Set<string>());
   const [draftId, setDraftId] = useState('creator-world');
   const [runId, setRunId] = useState('legacy-run');
   const [activeLibrary, setActiveLibrary] = useState<StudioWorld | null>(null);
@@ -1264,7 +1265,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     if (!storageReady) return;
     const data = JSON.parse(creatorDocumentJSON) as CreatorDocument['data'];
     if (!data.worldTitle.trim() && !data.worldSeed.trim() && !data.generatedWorld && !data.creatorMessages?.some(turn => turn.role === 'creator') && !data.companionContext?.conversation.length) return;
-    const timer = window.setTimeout(() => setCreatorDocuments((current) => upsertById(current, { id: draftId, savedAt: Date.now(), data })), 0);
+    const timer = window.setTimeout(() => setCreatorDocuments((current) => deletedDraftIds.current.has(draftId) ? current : upsertById(current, { id: draftId, savedAt: Date.now(), data })), 0);
     return () => window.clearTimeout(timer);
   }, [creatorDocumentJSON, draftId, storageReady]);
 
@@ -2213,11 +2214,11 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       cover: roleImages['draft-role-0'] || creatorAssets?.cover || legacyArt['storm-manor'].cover, portraits, world });
   }
 
-  function newCreator(seed = '', context?: CompanionContext) {
+  function newCreator(seed = '', context?: CompanionContext, preserveCurrent = true) {
     if (worldGenerating || creatorAgentThinking) { setStorageError('创作 Agent 仍在处理当前作品，请等本次回应结束后再新建。'); return; }
     setProposalChanges([]); setCreatorUndo([]); setCreatorChangeNotice(''); setCreatorFocus('');
     const data = JSON.parse(creatorDocumentJSON) as CreatorDocument['data'];
-    if (hasCreation) setCreatorDocuments((current) => upsertById(current, { id: draftId, savedAt: Date.now(), data }));
+    if (preserveCurrent && hasCreation && !deletedDraftIds.current.has(draftId)) setCreatorDocuments((current) => upsertById(current, { id: draftId, savedAt: Date.now(), data }));
     setCompanionContext(restoreCompanionContext(context));
     setActiveLibrary(null); setActiveWorld('storm'); setSelectedRole(roles[0]); setRuntimeBeat(null);
     setDraftId(crypto.randomUUID());
@@ -2235,6 +2236,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
 
   function editCreator(doc: CreatorDocument) {
     if (worldGenerating || creatorAgentThinking) { setStorageError('请等当前创作回应结束后再切换作品。'); return; }
+    deletedDraftIds.current.delete(doc.id);
     setActiveLibrary(null); setActiveWorld('storm'); setSelectedRole(roles[0]); setRuntimeBeat(null);
     const data = doc.data;
     setCreatorAssets(data.creatorAssets); setRoleImages({});
@@ -2248,6 +2250,19 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
   }
 
   function saveChat(session: ChatSession) { setChatSessions((current) => upsertById(current, session)); }
+
+  function deleteCreator(id: string) {
+    const doc = creatorDocuments.find(item => item.id === id);
+    if (!doc || !storageReady || storageReadFailed.current) return;
+    if (worldGenerating || creatorAgentThinking) { setStorageError('请等当前创作回应结束后再删除草稿。'); return; }
+    if (!window.confirm(`删除草稿“${doc.data.worldTitle || '未命名世界'}”？\n将移除这份本机草稿及其中的创作讨论，无法在此撤销。已发布版本、体验存档、个人聊天和云端图片不受影响。此前手动保存的云存档仍保留旧副本。`)) return;
+    deletedDraftIds.current.add(id);
+    if (id === draftId) {
+      newCreator('', undefined, false);
+      navigate('library');
+    }
+    setCreatorDocuments(current => current.filter(item => item.id !== id));
+  }
 
   function openRecord(id: string) {
     const doc = creatorDocuments.find((item) => `doc-${item.id}` === id);
@@ -2437,7 +2452,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       }} />}
       {storageError && <p className="studio-storage-error" role="alert">{storageError}</p>}
       {(view === 'play' || view === 'ending') && activeLibrary?.world.entryAdmission && <p className="persona-runtime">你以 {selectedRole.name} 的形象代入 {activeLibrary.world.entryAdmission.originalName} 的剧情身份 · 额外能力：{activeLibrary.world.entryAdmission.grantedAbilities.join('；') || '无'}。这是独立会话，原世界未改变。</p>}
-      {view === 'library' && <MyPublications key={accountScope} accountScope={accountScope} drafts={creatorDocuments.map(doc => ({ id: doc.id, title: doc.data.worldTitle }))} onEdit={id => { const doc = creatorDocuments.find(item => item.id === id); if (doc) editCreator(doc); }} onRestore={entry => { const doc = publicationDraft(entry); setCreatorDocuments(current => upsertById(current, doc)); editCreator(doc); }} onChanged={() => setCatalogRevision(value => value + 1)} />}
+      {view === 'library' && <MyPublications key={accountScope} accountScope={accountScope} drafts={creatorDocuments.map(doc => ({ id: doc.id, title: doc.data.worldTitle }))} onDelete={deleteCreator} onEdit={id => { const doc = creatorDocuments.find(item => item.id === id); if (doc) editCreator(doc); }} onRestore={entry => { const doc = publicationDraft(entry); setCreatorDocuments(current => upsertById(current, doc)); editCreator(doc); }} onChanged={() => setCatalogRevision(value => value + 1)} />}
       {screen}
       {publicationNotice && <p className="account-bar" role="status">{publicationNotice}</p>}
       {publicationEntry && <PublishWorldDialog accountScope={accountScope} entry={publicationEntry} onClose={() => setPublicationEntry(null)} onPublished={(entry) => { setCommunityWorlds(current => upsertById(current, entry)); setPublicationEntry(null); setPublicationNotice('世界已公开发布，其他访客现在可以在世界探索中找到它。'); navigate('home'); }} />}

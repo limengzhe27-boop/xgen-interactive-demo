@@ -4,8 +4,8 @@ import { Button } from '@/components/ui/button';
 import type { StudioWorld } from '@/lib/studio-worlds';
 
 type Publication = { id: string; document: StudioWorld & { sourceId?: string }; published: boolean; updated_at: string };
-export function MyPublications({ accountScope, drafts, onEdit, onRestore, onChanged }: {
-  accountScope: string; drafts: { id: string; title: string }[]; onEdit: (id: string) => void; onRestore: (entry: StudioWorld & { sourceId?: string }) => void; onChanged: () => void;
+export function MyPublications({ accountScope, drafts, onEdit, onDelete, onRestore, onChanged }: {
+  accountScope: string; drafts: { id: string; title: string }[]; onEdit: (id: string) => void; onDelete: (id: string) => void; onRestore: (entry: StudioWorld & { sourceId?: string }) => void; onChanged: () => void;
 }) {
   const [rows, setRows] = useState<Publication[]>([]);
   const [loading, setLoading] = useState(true);
@@ -48,7 +48,7 @@ export function MyPublications({ accountScope, drafts, onEdit, onRestore, onChan
     </div>
     {tab === 'drafts' ? <>
       <p>编辑不会改变公开版本；修改完成后需再次确认发布。</p>
-      {drafts.length ? drafts.map(draft => <article key={draft.id}><strong>{draft.title || '未命名世界'}</strong><Button variant="outline" onClick={() => onEdit(draft.id)}>继续编辑</Button></article>) : <p>还没有草稿。从“新建”开始一个世界。</p>}
+      {drafts.length ? drafts.map(draft => <article key={draft.id}><strong>{draft.title || '未命名世界'}</strong><div><Button variant="outline" onClick={() => onEdit(draft.id)}>继续编辑</Button><Button variant="ghost" aria-label={`删除草稿：${draft.title || '未命名世界'}`} onClick={() => onDelete(draft.id)}>删除草稿</Button></div></article>) : <p>还没有草稿。从“新建”开始一个世界。</p>}
     </> : <>
       {accountScope === 'guest' ? <p>登录后查看自己发布的作品。</p> : loading ? <p role="status">正在读取作品…</p> : !error && !rows.length ? <p>还没有公开版本。保存并试玩后，可在创作的发布设置中发布。</p> : null}
       {!loading && rows.map(row => <article key={row.id}><div><strong>{row.document.title}</strong><p>{row.published ? '已发布' : '已下架'} · {new Date(row.updated_at).toLocaleString('zh-CN')}</p></div><div>
