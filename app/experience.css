@@ -1,27 +1,32 @@
 /* Approved secondary-page L1 flow. Gallery styling remains independent. */
-.prologue-page { max-width: 960px !important; padding-bottom: calc(64px + env(safe-area-inset-bottom)) !important; }
-.prologue-page h1 { font: 600 clamp(1.4rem, 3vw, 2rem)/1.7 var(--font-story); margin: 0 0 24px; }
-.prologue-screen { position: relative; aspect-ratio: 16/9; border-radius: 18px; overflow: hidden; background: var(--color-surface); }
+.prologue-page { max-width: 960px !important; padding: 12px 24px calc(16px + env(safe-area-inset-bottom)) !important; }
+.prologue-page .flow-toolbar { margin-bottom: 8px; }
+.prologue-page h1 { font: 600 clamp(1.15rem, 2.5vw, 1.5rem)/1.5 var(--font-story); margin: 0 0 12px; }
+.prologue-screen { position: relative; width: min(100%, max(260px, calc((100dvh - 340px) * 16 / 9))); margin-inline: auto; aspect-ratio: 16/9; border-radius: 18px; overflow: hidden; background: var(--color-surface); }
 .prologue-screen :is(video,img) { width: 100%; height: 100%; object-fit: contain; display: block; }
+.prologue-message { position: absolute; inset: auto 12px 12px; width: fit-content; max-width: calc(100% - 24px); padding: 10px 14px; border: 1px solid var(--color-border); border-radius: 12px; background: var(--color-bg-elevated); color: var(--color-text); font: .875rem/1.6 var(--font-ui); box-shadow: 0 4px 20px rgba(var(--color-ink-rgb), .12); }
+.prologue-message strong { color: var(--color-primary); font-size: .8125rem; }
+.prologue-message p { margin: 2px 0 0; }
 .prologue-play { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); width: 64px; height: 64px; display: grid; place-items: center; border: 1px solid var(--color-border); border-radius: 50%; background: var(--color-surface); color: var(--color-primary); cursor: pointer; transition: background .18s; }
 .prologue-play:hover { background: var(--color-agent-soft); }
 .prologue-play:active { transform: translate(-50%,-50%) scale(.96); }
 .prologue-controls { display: flex; align-items: center; gap: 16px; font-size: .8125rem; color: var(--color-text-muted); }
 .prologue-controls progress { flex: 1; min-width: 0; height: 4px; accent-color: var(--color-primary); }
 .prologue-controls span { white-space: nowrap; }
-.prologue-caption { margin: 20px 0; min-height: 3.6em; font: 400 1.05rem/1.9 var(--font-story); }
-.prologue-next { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding-top: 24px; border-top: 1px solid var(--color-border); }
-.prologue-next p { color: var(--color-text-secondary); font-size: .875rem; }
+.prologue-caption { margin: 8px 0 12px; min-height: 3.6em; font: 400 1rem/1.8 var(--font-story); }
+.prologue-caption p { margin: 0 0 8px; }
+.prologue-next { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-top: 12px; border-top: 1px solid var(--color-border); }
+.prologue-next p { margin: 0; color: var(--color-text-secondary); font-size: .875rem; }
 .prologue-next .primary-action { display: inline-flex; align-items: center; justify-content: center; gap: 8px; flex-shrink: 0; }
 .prologue-next .primary-action svg { width: 18px; height: 18px; }
 .prologue-controls progress { appearance: none; border: 0; border-radius: 4px; overflow: hidden; background: var(--color-border); }
 .prologue-controls progress::-webkit-progress-bar { background: var(--color-border); }
 .prologue-controls progress::-webkit-progress-value { background: var(--color-primary); }
 .prologue-controls progress::-moz-progress-bar { background: var(--color-primary); }
-.prologue-transcript { margin-top: 24px; color: var(--color-text-secondary); }
+.prologue-transcript { margin-top: 8px; color: var(--color-text-secondary); font-size: .875rem; }
 .prologue-transcript summary { min-height: 44px; cursor: pointer; }
 .prologue-transcript summary:hover { color: var(--color-primary); }
-@media(max-width:600px) { .prologue-next { flex-direction: column; align-items: stretch; gap: 8px; } .prologue-screen { border-radius: 12px; } .prologue-caption { font-size: 1rem; } }
+@media(max-width:600px) { .prologue-next { flex-direction: column; align-items: stretch; gap: 8px; } .prologue-screen { border-radius: 12px; width: 100%; } .prologue-page { padding-inline: 16px !important; } }
 .flow-page { max-width: 1120px; margin: 0 auto; padding: 24px 32px 48px; color: var(--color-text); font: 1rem/1.8 var(--font-ui); letter-spacing: .02em; animation: flow-enter .18s ease-out both; overflow-wrap: anywhere; }
 .flow-page *, .flow-drawer * { box-sizing: border-box; }
 .flow-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 32px; }

@@ -6,7 +6,7 @@ import { prologueDuration, prologueShotAt, type WorldPrologue } from '@/lib/worl
 export function WorldProloguePlayer({ title, prologue, onBack, onContinue }: {
   title: string; prologue: WorldPrologue; onBack: () => void; onContinue: () => void;
 }) {
-  const [playing, setPlaying] = useState(false);
+  const [playing, setPlaying] = useState(Boolean(prologue.video));
   const [ended, setEnded] = useState(false);
   const [error, setError] = useState(false);
   const [elapsed, setElapsed] = useState(0);
@@ -15,6 +15,7 @@ export function WorldProloguePlayer({ title, prologue, onBack, onContinue }: {
   const duration = prologueDuration(prologue);
   const index = prologueShotAt(prologue, elapsed);
   const shot = prologue.shots[index];
+  const message = prologue.message && elapsed >= prologue.message.at && elapsed < prologue.message.until ? prologue.message : undefined;
   useEffect(() => {
     if (!ref.current || !hasVideo) return;
     if (playing) void ref.current.play().catch(() => setPlaying(false));
@@ -33,14 +34,14 @@ export function WorldProloguePlayer({ title, prologue, onBack, onContinue }: {
     setPlaying(ended || !playing);
   }
   return <section className="flow-page prologue-page">
-    <header className="flow-toolbar"><button className="flow-control" onClick={onBack}><ArrowLeft />返回</button><p>序章 → 选择角色 → 开始探索</p></header>
-    <p className="flow-kicker">{hasVideo ? `${duration} 秒序章 · 字幕版` : '故事前情'}</p>
+    <header className="flow-toolbar"><button className="flow-control" onClick={onBack}><ArrowLeft />返回</button><p>{hasVideo ? `${duration} 秒序章 · 无声字幕版` : '故事前情'}</p></header>
     <h1>{title}</h1>
     <div className="prologue-screen">
-      {hasVideo ? <video ref={ref} src={prologue.video} poster={prologue.shots[0].poster} muted playsInline preload="metadata"
+      {hasVideo ? <video ref={ref} src={prologue.video} poster={prologue.shots[0].poster} muted autoPlay playsInline preload="metadata"
         aria-label={`${title}，序章第 ${index + 1} 段`} onEnded={advance} onError={() => { setError(true); setPlaying(false); }}
         onTimeUpdate={() => { const t = ref.current?.currentTime || 0; setElapsed(Math.min(t,duration)); if(t >= duration) advance(); }} />
         : <img src={shot.poster} alt={`${title}，世界封面`} />}
+      {hasVideo && !error && message && <aside className="prologue-message" aria-label="剧情中的手机消息"><strong>{message.sender}</strong><p>{message.text}</p></aside>}
       {hasVideo && !playing && !error && <button className="prologue-play" onClick={toggle} aria-label={ended ? '重看序章' : '播放序章'}>{ended ? <RotateCcw /> : <Play />}</button>}
     </div>
     {hasVideo && <div className="prologue-controls"><button className="flow-control" onClick={toggle} disabled={error}>{ended ? <RotateCcw /> : playing ? <Pause /> : <Play />}{ended ? '重看' : playing ? '暂停' : '播放'}</button><progress max={duration} value={elapsed} aria-label="序章播放进度" /><span>{Math.floor(elapsed)} / {duration} 秒</span></div>}
