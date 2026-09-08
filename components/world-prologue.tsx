@@ -3,8 +3,8 @@ import { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, ArrowRight, Play, Pause, RotateCcw } from 'lucide-react';
 import { prologueDuration, prologueShotAt, type WorldPrologue } from '@/lib/world-prologue';
 
-export function WorldProloguePlayer({ title, prologue, onBack, onContinue, continuation }: {
-  title: string; prologue: WorldPrologue; onBack: () => void; onContinue: () => void; continuation?: import('react').ReactNode;
+export function WorldProloguePlayer({ title, prologue, onBack, onContinue, continuation, fixedIdentity, continueLabel }: {
+  title: string; prologue: WorldPrologue; onBack: () => void; onContinue: () => void; continuation?: import('react').ReactNode; fixedIdentity?: string; continueLabel?: string;
 }) {
   const [playing, setPlaying] = useState(Boolean(prologue.video));
   const [ended, setEnded] = useState(false);
@@ -47,8 +47,8 @@ export function WorldProloguePlayer({ title, prologue, onBack, onContinue, conti
     </div>
     {hasVideo && <div className="prologue-controls"><button className="flow-control" onClick={toggle} disabled={error}>{ended ? <RotateCcw /> : playing ? <Pause /> : <Play />}{ended ? '重看' : playing ? '暂停' : '播放'}</button><progress max={duration} value={elapsed} aria-label="序章播放进度" /><span>{Math.floor(elapsed)} / {duration} 秒</span></div>}
     {error && <p role="status">视频暂时无法播放，可以阅读前情后继续选角。</p>}
-    <div className="prologue-caption" aria-live="polite">{hasVideo && !error ? shot.caption : prologue.shots.map(s => <p key={s.caption}>{s.caption}</p>)}</div>
-    {(!choosing || !continuation) && <footer className="prologue-next"><p>{prologue.handoff}</p><button className="primary-action" onClick={()=>{if(continuation){ref.current?.pause();setPlaying(false);setChoosing(true);}else onContinue();}}>选择角色继续 <ArrowRight /></button></footer>}
+    <div className={prologue.captionsEmbedded && !error ? 'sr-only' : 'prologue-caption'} aria-live="polite">{hasVideo && !error ? shot.caption : prologue.shots.map(s => <p key={s.caption}>{s.caption}</p>)}</div>
+    {(!choosing || !continuation) && <footer className="prologue-next"><p>{prologue.handoff}</p><button className="primary-action" onClick={()=>{if(continuation){ref.current?.pause();setPlaying(false);setChoosing(true);}else onContinue();}}>{continueLabel || (fixedIdentity ? `以${fixedIdentity}的视角继续` : '选择角色继续')} <ArrowRight /></button></footer>}
     </div>{choosing && continuation && <section className="prologue-entry-panel" aria-label="选择入场身份">{continuation}<details className="prologue-mobile-transcript"><summary>查看前情与当前处境</summary>{prologue.shots.map(s => <p key={s.caption}>{s.caption}</p>)}<p>{prologue.handoff}</p></details></section>}</div>
   </section>;
 }

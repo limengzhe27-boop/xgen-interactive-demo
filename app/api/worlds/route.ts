@@ -32,8 +32,8 @@ async function publishImage(path: unknown, request: Request, userId: string): Pr
   return `${publicPrefix()}${publishedId}.webp`;
 }
 
-export async function GET(request?: Request) {
-  if (request && new URL(request.url).searchParams.get('mine') === 'true') {
+export async function GET(request: Request) {
+  if (new URL(request.url).searchParams.get('mine') === 'true') {
     if (!authConfigured()) return Response.json({ error: 'login_required' }, { status: 401, headers: noStore });
     const auth = authContext(request);
     const reply = (body: unknown, status = 200) => auth.finish(Response.json(body, { status }));

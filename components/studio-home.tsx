@@ -9,7 +9,7 @@ import { GalleryAtmosphere, GalleryMasonry, GalleryReveal } from '@/components/g
 import { mixGallery } from '@/lib/gallery-order';
 
 export type StudioSection = 'home' | 'library' | 'characters' | 'personal' | 'profile';
-export type WorldCard = { id: string; title: string; genre: string; premise: string; cover: string; roleCount: number; artNote?: string; featured?: boolean };
+export type WorldCard = { id: string; title: string; genre: string; premise: string; cover: string; roleCount: number; artNote?: string; featured?: boolean; fixedRoleId?: string };
 export type CharacterCard = { id: string; worldId: string; worldTitle: string; name: string; identity: string; persona: string; image: string };
 export type RecentCard = { id: string; title: string; subtitle: string; label: string; cover: string };
 type GalleryItem = { kind: 'world'; value: WorldCard } | { kind: 'character'; value: CharacterCard };
@@ -82,7 +82,7 @@ export function StudioHome({ section, worlds, characters, recent, onCreate, onOp
           <div className="gallery-composer-tools"><span><Sparkles />和 Agent 一起构思</span><small>Enter 发送 · Shift + Enter 换行</small><Button className="gallery-send" type="submit" aria-label="与 Agent 一起创作"><ArrowUp /></Button></div>
         </form>
       </div>
-      <div className="gallery-prompts" aria-label="创作灵感">{['豪门情感', '职场逆袭', '家族争产', '都市关系'].map(idea => <button key={idea} type="button" onClick={() => setSeed('我想创造一个' + idea + '的小世界，帮我讨论角色、关系和目标。')}>{idea}<ArrowRight /></button>)}</div>
+      <div className="gallery-prompts" aria-label="创作灵感">{['豪门情感', '职场逆袭', '家族争产', '都市关系'].map(idea => <button key={idea} type="button" onClick={() => setSeed('我想创造一个' + idea + '的小世界，帮我讨论角色、关系和目标。')}>{idea}<ArrowRight /></button>)}<a href="/prologue-comparison">新序章 · 样片对比 ↗</a></div>
     </section>}
 
     {section !== 'characters' && (recent.length > 0 || section === 'library') && <GalleryReveal className="gallery-recent">
@@ -104,12 +104,12 @@ export function StudioHome({ section, worlds, characters, recent, onCreate, onOp
         return <div className="gallery-cell" key={item.kind + ':' + id}><GalleryReveal delay={(index % 4) * 60}><article className="gallery-card" data-kind={item.kind} aria-label={title}>
           <button className="gallery-art" onClick={open} type="button" aria-label={world ? '进入世界：' + title : '和' + title + '聊聊'}><Artwork src={world?.cover || character!.image} alt={world ? title + '的世界封面' : title + '的角色形象'} /></button>
           <span className="gallery-type">{world ? <Compass /> : <MessageCircleMore />}{world ? world.genre : '角色'}</span>
-          <div className="gallery-card-copy"><small>{world ? world.roleCount + ' 个可选身份' : character!.worldTitle}</small><h3>{title}</h3>{character && <p>{character.identity}</p>}<div className="gallery-card-actions">{world && <button type="button" className="gallery-detail-button" onClick={() => setDetail(world)} aria-label={'剧情简介：' + title}><BookOpen /></button>}<button type="button" className="gallery-enter" onClick={open}>{world ? '进入世界' : '和 TA 聊聊'}<ArrowRight /></button></div></div>
+          <div className="gallery-card-copy"><small>{world ? (world.fixedRoleId ? '第一人称 · 固定身份体验' : world.roleCount + ' 个可选身份') : character!.worldTitle}</small><h3>{title}</h3>{character && <p>{character.identity}</p>}<div className="gallery-card-actions">{world && <button type="button" className="gallery-detail-button" onClick={() => setDetail(world)} aria-label={'剧情简介：' + title}><BookOpen /></button>}<button type="button" className="gallery-enter" onClick={open}>{world ? '进入世界' : '和 TA 聊聊'}<ArrowRight /></button></div></div>
         </article></GalleryReveal></div>;
       })}</GalleryMasonry>
       {!items.length && <div className="gallery-no-results" aria-live="polite"><Search /><h3>暂时没有找到</h3><p>换一个词，或者和 Agent 一起创造它。</p><button className="studio-button" type="button" onClick={() => { setQuery(''); setGenre('全部'); setKind('all'); }}>清除筛选</button></div>}
     </section>}
     <p className="studio-local-note">设定来自创作者，后续故事由 AI 实时演绎。草稿与互动记录保存在当前浏览器。</p>
-    {detail && <Dialog open onOpenChange={open => { if (!open) setDetail(null); }}><DialogContent className="studio-world-detail"><DialogTitle>{detail.title}</DialogTitle><DialogDescription>{detail.genre} · {detail.roleCount} 个可选身份</DialogDescription><Artwork src={detail.cover} alt="" /><p>{detail.premise}</p>{detail.artNote && <small>{detail.artNote}</small>}<Button className="studio-button studio-solid" onClick={() => { onOpenWorld(detail.id); setDetail(null); }}>选择身份进入<ArrowRight /></Button></DialogContent></Dialog>}
+    {detail && <Dialog open onOpenChange={open => { if (!open) setDetail(null); }}><DialogContent className="studio-world-detail"><DialogTitle>{detail.title}</DialogTitle><DialogDescription>{detail.genre} · {detail.fixedRoleId ? '固定身份体验' : detail.roleCount + ' 个可选身份'}</DialogDescription><Artwork src={detail.cover} alt="" /><p>{detail.premise}</p>{detail.artNote && <small>{detail.artNote}</small>}<Button className="studio-button studio-solid" onClick={() => { onOpenWorld(detail.id); setDetail(null); }}>{detail.fixedRoleId ? '以第一人称进入' : '选择身份进入'}<ArrowRight /></Button></DialogContent></Dialog>}
   </div>;
 }

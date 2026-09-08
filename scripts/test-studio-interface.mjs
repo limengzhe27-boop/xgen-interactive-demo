@@ -152,7 +152,7 @@ test('identity shortcut exposes create or edit directly without requesting an im
 });
 test('melodramatic revision changes rules, openings and tasks while preserving independent role goals', () => {
   for (const entry of studioWorlds) {
-    assert.ok(entry.world.rules.some((rule) => rule.id === 'melodrama'));
+    assert.ok(entry.world.rules.some((rule) => rule.id === (entry.fixedRoleId ? 'first-person' : 'melodrama')));
     assert.equal(entry.world.title, entry.title);
     assert.ok(entry.world.characters.every((role) => entry.world.goals.some((goal) => goal.roleId === role.id)));
   }

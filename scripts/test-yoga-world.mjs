@@ -8,7 +8,7 @@ import {publicationWorld} from '../lib/publication.ts';
 import {directConversationEntry} from '../lib/studio-session.ts';
 
 test('yoga world is discoverable, valid and has four adult role-specific task lines',()=>{
-  assert.equal(studioWorlds[0].id,entry.id);
+  assert.ok(studioWorlds.some(world=>world.id===entry.id));
   assert.deepEqual(publicationWorld(structuredClone(entry.world)),entry.world);
   assert.deepEqual(entry.world.characters.map(r=>r.id),['lin','lu','zhou','wang']);
   assert.deepEqual(entry.world.openingScene.presentCharacterIds,['lin']);

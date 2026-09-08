@@ -36,7 +36,7 @@ test('offscreen role starts in their own place without receiving the global open
 test('every playable role has scoped goals, prerequisites and reachable nonempty endings', () => {
   for (const entry of studioWorlds) {
   const world = entry.world;
-  for (const role of world.characters) {
+  for (const role of world.characters.filter(role => !entry.fixedRoleId || role.id === entry.fixedRoleId)) {
     const goal = world.goals.find((goal) => goal.roleId === role.id);
     assert.ok(goal.requiredTaskIds.length >= 2);
     assert.ok(goal.requiredTaskIds.every((id) => world.tasks.some((task) => task.id === id && task.assignedRoleIds.includes(role.id))));

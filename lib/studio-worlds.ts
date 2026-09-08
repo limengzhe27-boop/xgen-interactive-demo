@@ -5,6 +5,7 @@ import { wildWorlds } from './wild-worlds.ts';
 import { memeWorlds } from './meme-worlds.ts';
 import { conquestWorld } from './conquest-world.ts';
 import { yogaWorld } from './yoga-world.ts';
+import { firstPersonWorld } from './first-person-world.ts';
 import { libraryArt } from './library-art.ts';
 import { legacyArt } from './legacy-art.ts';
 
@@ -16,6 +17,8 @@ export type StudioWorld = {
   cover: string;
   artNote?: string;
   featured?: boolean;
+  fixedRoleId?: string;
+  openingImage?: string;
   world: WorldDefinition;
   portraits: Record<string, string>;
   portraitCacheKeys?: Record<string, string>;
@@ -327,7 +330,7 @@ const publicImage = (path: string) => {
   const id = (publicImages as Record<string, string>)[path];
   return id ? `https://rrgyjvkkgcurtatidyuc.supabase.co/storage/v1/object/public/world-public/${id}.webp` : path;
 };
-export const studioWorlds: StudioWorld[] = [yogaWorld, conquestWorld, ...memeWorlds, contractWorld, workplaceWorld, inheritanceWorld, ...serialWorlds, ...wildWorlds].map((entry) => {
+export const studioWorlds: StudioWorld[] = [firstPersonWorld, yogaWorld, conquestWorld, ...memeWorlds, contractWorld, workplaceWorld, inheritanceWorld, ...serialWorlds, ...wildWorlds].map((entry) => {
   const art = libraryArt[entry.id] ?? legacyArt[entry.id];
   return {
     ...entry, cover: art?.cover ?? publicImage(entry.cover),
