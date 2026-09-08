@@ -320,3 +320,25 @@
 @media (prefers-reduced-motion: reduce) {
   .flow-page, .flow-page *, .flow-drawer, .flow-drawer * { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
 }
+
+.draft-label, .draft-actions { display: flex; align-items: center; gap: 12px; }
+.draft-label { flex: 1; min-width: 0; }
+.draft-label > svg { flex-shrink: 0; color: var(--color-text-muted); }
+.draft-label strong { overflow-wrap: anywhere; }
+.draft-actions button, .draft-dialog-actions button { min-height: 44px; border-radius: 12px; padding: 10px 16px; display: inline-flex; justify-content: center; align-items: center; gap: 8px; cursor: pointer; border: 1px solid transparent; transition: background .16s ease, color .16s ease; }
+.draft-actions .draft-edit { color: var(--color-primary); background: var(--color-agent-soft); }
+.draft-actions .draft-edit:hover { background: var(--color-surface-hover); }
+.draft-actions .draft-remove { width: 44px; padding: 10px; color: var(--color-text-muted); background: transparent; }
+.draft-actions .draft-remove:hover { color: var(--color-danger); background: rgba(var(--color-danger-rgb), .08); }
+.draft-actions button:focus-visible, .draft-dialog-actions button:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 3px; }
+[data-slot="dialog-content"].draft-delete-dialog { position: fixed; z-index: 70; top: 50%; left: 50%; transform: translate(-50%, -50%); width: min(460px, calc(100vw - 32px)); max-width: 460px; max-height: calc(100dvh - 32px); overflow-y: auto; display: grid; gap: 16px; background: var(--color-bg-elevated); color: var(--color-text); border: 1px solid var(--color-border); border-radius: 24px; padding: 28px; box-shadow: 0 24px 90px rgba(var(--color-text-rgb), .14); }
+.draft-delete-dialog { translate: none; }
+.draft-delete-dialog h2 { margin: 0; font-size: 22px; font-weight: 600; }
+.draft-delete-dialog p { margin: 0; line-height: 1.7; font-size: 14px; color: var(--color-text-secondary); overflow-wrap: anywhere; }
+.draft-dialog-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 8px; }
+.draft-dialog-actions button { background: var(--color-surface); color: var(--color-text); }
+.draft-dialog-actions button:hover { background: var(--color-surface-hover); }
+.draft-dialog-actions .draft-confirm-delete { background: var(--color-danger); color: var(--color-on-primary); }
+.draft-dialog-actions .draft-confirm-delete:hover { background: var(--color-danger); filter: brightness(.9); }
+@media (max-width: 520px) { .draft-row .draft-label { flex-basis: 100%; } .draft-actions { margin-left: auto; } [data-slot="dialog-content"].draft-delete-dialog { padding: 24px; } }
+@media (prefers-reduced-motion: reduce) { .draft-actions button, .draft-dialog-actions button { transition: none; } }
