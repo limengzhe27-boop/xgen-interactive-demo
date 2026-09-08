@@ -108,6 +108,13 @@ export function combineCreatorChanges(current: Record<string, unknown>, changes:
   return {key: '__all', label: `整批 ${changes.length} 项建议`, before: current, after: next};
 }
 
+// A qualified confirmation authorizes the existing proposal, not any new model rewrite.
+export function creatorOpeningRevision(text: string): boolean {
+  return /^(确认|同意|采纳|全部采纳|好的|好|可以)[，,。\s]/.test(text.trim())
+    && /(?:但是|不过|只是|但)[\s\S]*(?:开幕|开场|开局)[\s\S]*(?:换|改|调整)/.test(text)
+    && !/(?:不要采纳|不采纳|先别|暂不|人物也|角色也|任务也)/.test(text);
+}
+
 export function creatorConfirmation(text: string): 'accept' | 'dismiss' | null {
   const normalized = text.trim().replace(/[，。！!\s]/g, '');
   if (/^(全部采纳|采纳全部|采纳|确认采纳|全部确认|确认|可以|好的|好|就按这个来|就这么定|按这个来|同意|全部同意|采用这个方案)$/.test(normalized)) return 'accept';

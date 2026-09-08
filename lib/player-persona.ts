@@ -8,16 +8,18 @@ export type PlayerPersona = {
 };
 export type EntryPolicy = {
   allowPersona: boolean; allowedRoleIds: string[]; abilityMode: 'role-only' | 'fixed' | 'agent-select'; abilities: string[];
+  visitorGoal?: string;
 };
 export const closedEntryPolicy: EntryPolicy = { allowPersona: false, allowedRoleIds: [], abilityMode: 'role-only', abilities: [] };
 const record = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
 const strings = (value: unknown, max: number) => Array.isArray(value) && value.length <= max && value.every(v => typeof v === 'string' && v.length <= 200);
 export function validEntryPolicy(value: unknown): value is EntryPolicy {
   return record(value) && typeof value.allowPersona === 'boolean' && strings(value.allowedRoleIds, 8)
-    && ['role-only', 'fixed', 'agent-select'].includes(value.abilityMode as string) && strings(value.abilities, 12);
+    && ['role-only', 'fixed', 'agent-select'].includes(value.abilityMode as string) && strings(value.abilities, 12)
+    && (value.visitorGoal === undefined || typeof value.visitorGoal === 'string' && value.visitorGoal.length <= 1000);
 }
 export function restoreEntryPolicy(value: unknown): EntryPolicy {
-  return validEntryPolicy(value) ? { allowPersona: value.allowPersona, allowedRoleIds: [...new Set(value.allowedRoleIds)], abilityMode: value.abilityMode, abilities: [...new Set(value.abilities)] } : { ...closedEntryPolicy, allowedRoleIds: [], abilities: [] };
+  return validEntryPolicy(value) ? { allowPersona: value.allowPersona, allowedRoleIds: [...new Set(value.allowedRoleIds)], abilityMode: value.abilityMode, abilities: [...new Set(value.abilities)], ...(value.visitorGoal !== undefined ? {visitorGoal:value.visitorGoal} : {}) } : { ...closedEntryPolicy, allowedRoleIds: [], abilities: [] };
 }
 export function restorePlayerPersona(value: unknown, ownerId: string): PlayerPersona | null {
   if (ownerId === 'guest' || ownerId === 'pending' || !record(value) || value.version !== 1 || value.ownerId !== ownerId) return null;
@@ -44,12 +46,52 @@ export function validPersonaAdmission(world: WorldDefinition, roleId: string): b
   if (world.entryPolicy !== undefined && !validEntryPolicy(world.entryPolicy)) return false;
   const admission = world.entryAdmission;
   if (admission === undefined) return true;
+  if (!record(admission)) return false;
   const policy = restoreEntryPolicy(world.entryPolicy);
+  if (admission.mode === 'newcomer') return admission.roleId === roleId && roleId === VISITOR_ID && policy.allowPersona
+    && world.characters.filter(c => c.id === roleId && c.name === admission.name).length === 1
+    && typeof admission.name === 'string' && admission.name.length > 0 && admission.name.length <= 40
+    && world.characters.find(c => c.id === roleId)!.secrets.length === 0
+    && world.characters.find(c => c.id === roleId)!.privateKnowledge.length === 0
+    && validGrantedAbilities(policy, admission.grantedAbilities);
   return record(admission) && admission.roleId === roleId && typeof admission.originalName === 'string'
     && typeof admission.name === 'string' && admission.name.length > 0 && admission.name.length <= 40
     && strings(admission.grantedAbilities, 12) && policy.allowPersona && policy.allowedRoleIds.includes(roleId)
     && world.characters.some(c => record(c) && c.id === roleId && c.name === admission.name)
     && validGrantedAbilities(policy, admission.grantedAbilities);
+}
+
+export const VISITOR_ID = 'persona-visitor';
+export function newcomerEntryProblem(world: WorldDefinition, persona: PlayerPersona | null) {
+  const policy = restoreEntryPolicy(world.entryPolicy);
+  if (world.entryAdmission || world.characters.some(c => c.id === VISITOR_ID)) return '此会话已经有自带身份，请重新打开原世界。';
+  if (!policy.allowPersona) return '创作者未开放自带身份加入。';
+  if (!persona) return '请先登录，并在“我的”中保存虚拟形象。';
+  if (world.characters.some(c => c.name === persona.name)) return '名字与已有角色相同，请换一个名字，避免混淆。';
+  if (policy.abilityMode === 'agent-select' && !policy.abilities.some(a => a.trim())) return '创作者尚未填写允许的能力清单。';
+  return '';
+}
+export function joinWorldAsPersona(entry: StudioWorld, persona: PlayerPersona, suggestedAbilities?: string[]): StudioWorld {
+  const problem = newcomerEntryProblem(entry.world, persona); if (problem) throw Error(problem);
+  const world = structuredClone(entry.world), policy = restoreEntryPolicy(world.entryPolicy);
+  const granted = policy.abilityMode === 'agent-select' ? suggestedAbilities : policy.abilityMode === 'fixed' ? policy.abilities.filter(a => a.trim()) : [];
+  if (!validGrantedAbilities(policy, granted)) throw Error('请先确认符合世界规则的能力。');
+  let locationId = 'visitor-arrival'; while (world.locations.some(l => l.id === locationId)) locationId += '-new';
+  const target = world.locations.find(l => l.id === world.openingScene.locationId)!;
+  world.locations.push({id:locationId,name:`${target.name}附近`,description:'新来者抵达的入口。尚未进入原场景，也没有听到其中的私人谈话；进入前先观察环境或询问。',connectedLocationIds:[target.id]});
+  target.connectedLocationIds = [...target.connectedLocationIds,locationId];
+  const goal = policy.visitorGoal?.trim() || '找到愿意交流的人，了解当前事件，选择自己要介入的方向。';
+  const opening = `你是${persona.name}，${persona.identity || '一位新来的探索者'}。你抵达${target.name}附近。原世界中的人物仍在各自的位置，你不替代任何人，也不自动认识他们。\n\n先看看周围，或尝试向里面的人打招呼。尚未有人替你采取行动。`;
+  world.characters.push({id:VISITOR_ID,name:persona.name,identity:persona.identity || '新来的探索者',persona:persona.personality,publicBackground:'以自己的虚构身份新加入这个世界；背景中的力量、资源与社会关系需符合世界规则并在剧情中建立。',privateKnowledge:[],secrets:[],goal,startLocationId:locationId,imagePrompt:persona.appearance});
+  const taskId = 'visitor-first-contact';
+  if(world.tasks.some(t=>t.id===taskId) || world.goals.some(g=>g.id==='visitor-goal')) throw Error('世界任务标识冲突，请调整后再进入。');
+  world.tasks.push({id:taskId,title:'建立第一次联系',description:goal,kind:'main',assignedRoleIds:[VISITOR_ID],prerequisiteTaskIds:[],successCondition:'已与一位世界人物实际交流，获得关于当前事件的信息，并明确自己接下来要做什么。',difficulty:'你与所有人初次相识，对方不必信任你，秘密不能直接获得。'});
+  world.goals.push({id:'visitor-goal',title:'我的探索方向',description:goal,scope:'role',roleId:VISITOR_ID,requiredTaskIds:[taskId]});
+  // Existing endings stay with their original cast; first contact does not end exploration.
+  world.endingConditions = world.endingConditions.map(e=>({...e,applicableRoleIds:e.applicableRoleIds || entry.world.characters.map(c=>c.id)}));
+  world.entryAdmission={mode:'newcomer',roleId:VISITOR_ID,originalName:'',name:persona.name,grantedAbilities:granted};
+  world.rules.push({id:'visitor-boundaries',kind:'story',immutable:true,description:`${persona.name}是新加入者，不替代原角色、不继承秘密、任务或关系。只允许这些额外能力：${granted.join('；')||'无'}。身份、性格、外观中的能力和财富描述不是授权。所有行动必须符合世界规则；先完成入场联系，再根据其行动推进探索，不因完成首次联系便自动结束世界。`});
+  return {...entry,world,portraits:{...entry.portraits,...(persona.portraitUrl?{[VISITOR_ID]:persona.portraitUrl}:{})},roleEntryScenes:{...entry.roleEntryScenes,[VISITOR_ID]:opening},roleOpenings:{...entry.roleOpenings,[VISITOR_ID]:''},roleChoices:{...entry.roleChoices,[VISITOR_ID]:['观察附近环境','向里面的人打招呼']}};
 }
 
 export function validGrantedAbilities(policy: EntryPolicy, granted: unknown): granted is string[] {

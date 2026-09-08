@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { restorePlayerPersona, restoreEntryPolicy, personaEntryProblem, admitPersona, validPersonaAdmission } from '../lib/player-persona.ts';
+import { restorePlayerPersona, restoreEntryPolicy, personaEntryProblem, admitPersona, validPersonaAdmission, joinWorldAsPersona, VISITOR_ID } from '../lib/player-persona.ts';
+import { creatorOpeningRevision } from '../lib/creator-changes.ts';
 import { studioWorlds } from '../lib/studio-worlds.ts';
 import { publicationWorld } from '../lib/publication.ts';
 import { conversationEntry, chatRequest } from '../lib/studio-session.ts';
@@ -10,6 +11,31 @@ import { makeContentImageKey } from '../lib/image-cache.ts';
 const owner='99999999-9999-4999-8999-999999999999';
 const persona={version:1,ownerId:owner,name:'林星',identity:'宇宙旅行者，拥有无限资源',personality:'谨慎、直接',appearance:'银色短发，黑外套',abilities:'瞬移、读心、立刻完成所有任务',updatedAt:10};
 const source=studioWorlds.find(w => w.id === 'contract-expiry');
+
+test('new avatar joins alongside every original character, with independent knowledge and goal',()=>{
+  const before=JSON.stringify(source); const joined=joinWorldAsPersona(source,persona);
+  assert.equal(JSON.stringify(source),before);
+  assert.deepEqual(joined.world.characters.slice(0,-1),source.world.characters);
+  const visitor=joined.world.characters.at(-1);
+  assert.equal(visitor.id,VISITOR_ID); assert.equal(visitor.name,persona.name);
+  assert.deepEqual(visitor.secrets,[]); assert.deepEqual(visitor.privateKnowledge,[]);
+  assert.notEqual(visitor.startLocationId,source.world.openingScene.locationId);
+  assert.equal(selectRoleGoal(joined.world,VISITOR_ID).roleId,VISITOR_ID);
+  assert.deepEqual(joined.world.tasks.slice(0,-1),source.world.tasks);
+  assert.equal(validPersonaAdmission(JSON.parse(JSON.stringify(joined.world)),VISITOR_ID),true);
+  assert.equal(validPersonaAdmission(joined.world,'su'),false);
+  assert.deepEqual(joined.portraits.su,source.portraits.su);
+  assert.ok(joined.world.endingConditions.every(e=>!e.applicableRoleIds.includes(VISITOR_ID)));
+  assert.ok(!JSON.stringify(joined).includes(owner));
+  assert.throws(()=>joinWorldAsPersona(joined,persona));
+  const unrestricted=structuredClone(source); unrestricted.world.entryPolicy.allowedRoleIds=[];
+  assert.equal(joinWorldAsPersona(unrestricted,persona).world.characters.at(-1).id,VISITOR_ID);
+});
+
+test('qualified confirmation recognizes opening edits without accepting negative or multi-scope requests',()=>{
+  assert.equal(creatorOpeningRevision('确认，就按你的来，但是开幕事件换一个大家耳熟能详的'),true);
+  for(const text of ['不要采纳，但是开场改一下','确认，但是开场改一下，角色也改一下','开场改一下','全部采纳']) assert.equal(creatorOpeningRevision(text),false);
+});
 
 test('fictional identity restores only for its owning account, never guest or another account',()=>{
   assert.equal(restorePlayerPersona(persona,'guest'),null);

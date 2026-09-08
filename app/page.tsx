@@ -79,7 +79,7 @@ import {
 } from '@/lib/world-state';
 import { normalizeSurpriseLevel } from '@/lib/surprise-engine';
 import { preserveCreatorDetails, preserveCreatorFramework } from '@/lib/creator-framework';
-import { applyCreatorChange, combineCreatorChanges, creatorConfirmation, creatorChanges, ensureCreatorRoleIds, identifyProposedRoles, type CreatorChange } from '@/lib/creator-changes';
+import { applyCreatorChange, combineCreatorChanges, creatorConfirmation, creatorOpeningRevision, creatorChanges, ensureCreatorRoleIds, identifyProposedRoles, type CreatorChange } from '@/lib/creator-changes';
 import { CreatorProposalReview } from '@/components/creator-proposal-review';
 import { CreatorTaskEditor } from '@/components/creator-task-editor';
 import { creatorTaskIssues } from '@/lib/creator-task-graph';
@@ -1635,7 +1635,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
   function beginWorld(adapted?: StudioWorld) {
     const startingEntry = adapted ?? activeLibrary;
     const startingWorld = startingEntry?.world ?? activeWorldDefinition;
-    const startingRole = adapted ? entryRoles(adapted).find(role => role.id === selectedRole.id)! : selectedRole;
+    const startingRole = adapted ? entryRoles(adapted).find(role => role.id === (adapted.world.entryAdmission?.roleId ?? selectedRole.id))! : selectedRole;
     const startingStory = adapted ? entryStory(adapted, startingRole.id) : currentStory;
     if (adapted) { setActiveLibrary(adapted); setSelectedRole(startingRole); }
     stopActiveGeneration();
@@ -1932,6 +1932,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       return;
     }
     const baseline = creatorSections();
+    const openingRevision = !!creatorProposal && proposalChanges.length > 0 && creatorOpeningRevision(value);
     const revision = navigationRevision.current;
     const signal = creatorRequest.current.start();
     const userEntry: CreatorChatMessage = { role: 'creator', content: value };
@@ -1943,7 +1944,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       const response = await runAI((adapter) => adapter.coCreateWorld({
         companionContext: makeCompanionInput(companionContext, memories),
         contractVersion: AI_CONTRACT_VERSION,
-        userMessage: value,
+        userMessage: openingRevision ? `${value}\n本轮只调整开场对应的背景与预设事件，其他待采纳建议保持原样。新的开场仍须展示给我确认。` : value,
         conversation,
         pendingSuggestions: creatorProposal ? proposalChanges.map(change=>({section:change.label,value:change.after})) : [],
         editingContext: { step: createStep, section: ['角色与目标', '故事与任务', '意外与规则', '预览检查'][createStep - 1], focusedField: creatorFocus },
@@ -1969,11 +1970,23 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       setCreatorProposal(response.proposal);
       const brief = normalizeCreatorBrief(response.proposal.brief);
       const nextRoles = response.proposal.characters?.length ? identifyProposedRoles(draftRoles, response.proposal.characters.map((role, index) => ({ name: role.name, identity: role.identity, personality: role.persona, relationship: role.relationship, appearance: role.appearance, goal: role.goal ?? draftRoles[index]?.goal ?? '' }))) : draftRoles;
-      setProposalChanges(creatorChanges(baseline, { ...brief, entryPolicy: response.proposal.entryPolicy ?? entryPolicy, surpriseLevel: response.proposal.surpriseLevel ?? surprise, title: response.proposal.title, premise: response.proposal.premise, castAndTasks: { roles: nextRoles, tasks: brief.tasks } }, {
+      const nextChanges = creatorChanges(baseline, { ...brief, entryPolicy: response.proposal.entryPolicy ?? entryPolicy, surpriseLevel: response.proposal.surpriseLevel ?? surprise, title: response.proposal.title, premise: response.proposal.premise, castAndTasks: { roles: nextRoles, tasks: brief.tasks } }, {
         entryPolicy: '身份入场与能力规则',
         surpriseLevel: '意外程度',
         title: '世界名称', premise: '背景与冲突', castAndTasks: '角色目标与任务编排', coreGoal: '世界核心目标', successCondition: '成功条件', failureCondition: '失败条件', complexityLevel: '世界复杂度', difficulties: '世界级困难', scheduledEvents: '预设事件',
-      }).map(change => change.key === 'entryPolicy' ? { ...change, roleOrder: draftRoles.map(role => role.editorId!), referenceLabels: Object.fromEntries(draftRoles.map((role, index) => [`draft-role-${index}`, role.name || `角色 ${index + 1}`])) } : change));
+      }).map(change => change.key === 'entryPolicy' ? { ...change, roleOrder: draftRoles.map(role => role.editorId!), referenceLabels: Object.fromEntries(draftRoles.map((role, index) => [`draft-role-${index}`, role.name || `角色 ${index + 1}`])) } : change);
+      if (openingRevision) {
+        const opening = (change: CreatorChange) => ['premise', 'scheduledEvents'].includes(change.key);
+        const unchanged = proposalChanges.filter(change => !opening(change));
+        const result = unchanged.length ? applyAllCreatorProposals(unchanged) : '已将其他设定保留。';
+        if (result.startsWith('已将')) {
+          setProposalChanges(nextChanges.filter(opening)); setCreatorProposal(response.proposal);
+          setCreatorMessages(current => [...current, {role:'agent',content:`${result} 新开场单独留作待确认建议，不会再次要求你采纳其他项目。`}].slice(-12) as CreatorChatMessage[]);
+        } else {
+          setCreatorProposal(creatorProposal); setProposalChanges(proposalChanges);
+          setCreatorMessages(current => [...current, {role:'agent',content:result}].slice(-12) as CreatorChatMessage[]);
+        }
+      } else setProposalChanges(nextChanges);
       setCreatorChangeNotice('');
       setCreatorQuestions(response.nextQuestions.slice(0, 3));
     } catch (error) {
@@ -2330,7 +2343,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       ].sort((a, b) => b.savedAt - a.savedAt)}
       onCreate={newCreator} onOpenWorld={openCatalogWorld} onChat={(worldId, targetId) => { const entry = availableStudioWorlds.find((item) => item.id === worldId); if (entry) setChatEntry({ entry, targetId }); }} onPersonal={() => navigate('personal')} onLibrary={() => navigate('library')} onOpenRecord={openRecord}
     />;
-    if (view === 'roles') return <RoleSelection identityControl={identityControl} worldTitle={activeWorldTitle} artNote={activeLibrary?.artNote} availableRoles={currentRoles} selected={selectedRole} onSelect={setSelectedRole} onBack={() => navigate('home')} onStart={() => beginWorld()} personaEntry={activeLibrary && restoreEntryPolicy(activeLibrary.world.entryPolicy).allowPersona && restoreEntryPolicy(activeLibrary.world.entryPolicy).allowedRoleIds.includes(selectedRole.id) ? <PersonaAdmission key={`${activeLibrary.id}:${selectedRole.id}`} entry={activeLibrary} roleId={selectedRole.id} persona={playerPersona} onEnter={beginWorld} /> : undefined} />;
+    if (view === 'roles') return <RoleSelection identityControl={identityControl} worldTitle={activeWorldTitle} artNote={activeLibrary?.artNote} availableRoles={currentRoles} selected={selectedRole} onSelect={setSelectedRole} onBack={() => navigate('home')} onStart={() => beginWorld()} personaEntry={activeLibrary && restoreEntryPolicy(activeLibrary.world.entryPolicy).allowPersona ? <PersonaAdmission key={activeLibrary.id} entry={activeLibrary} roleId="persona-visitor" persona={playerPersona} onEnter={beginWorld} /> : undefined} />;
     if (view === 'prologue') return <WorldProloguePlayer key={activeWorldDefinition.id} title={activeWorldTitle} prologue={worldPrologue(activeWorldDefinition.id, activeLibrary?.premise || activeWorldDefinition.premise, activeLibrary?.cover || (activeWorld === 'suggestion' && suggestedPreset ? legacyArt[suggestedPreset.id]?.cover : undefined) || creatorAssets?.cover || legacyArt['storm-manor'].cover)} onBack={() => navigate('home')} onContinue={() => navigate('roles')} />;
     if (view === 'play') {
       return (
@@ -2479,7 +2492,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
         newCreator(seed, context); setCompanionHandoff(null); setCreationSuggestion(null);
       }} />}
       {storageError && <p className="studio-storage-error" role="alert">{storageError}</p>}
-      {(view === 'play' || view === 'ending') && activeLibrary?.world.entryAdmission && <p className="persona-runtime">你以 {selectedRole.name} 的形象代入 {activeLibrary.world.entryAdmission.originalName} 的剧情身份 · 额外能力：{activeLibrary.world.entryAdmission.grantedAbilities.join('；') || '无'}。这是独立会话，原世界未改变。</p>}
+      {(view === 'play' || view === 'ending') && activeLibrary?.world.entryAdmission && <p className="persona-runtime">{activeLibrary.world.entryAdmission.mode === 'newcomer' ? `你是新加入的 ${selectedRole.name}，原角色仍在这个世界中` : `旧会话：${selectedRole.name} 代入 ${activeLibrary.world.entryAdmission.originalName}`} · 额外能力：{activeLibrary.world.entryAdmission.grantedAbilities.join('；') || '无'}。这是独立会话，原世界未改变。</p>}
       {view === 'library' && <MyPublications key={accountScope} accountScope={accountScope} drafts={creatorDocuments.map(doc => ({ id: doc.id, title: doc.data.worldTitle }))} onDelete={deleteCreator} onEdit={id => { const doc = creatorDocuments.find(item => item.id === id); if (doc) editCreator(doc); }} onRestore={entry => { const doc = publicationDraft(entry); setCreatorDocuments(current => upsertById(current, doc)); editCreator(doc); }} onChanged={() => setCatalogRevision(value => value + 1)} />}
       {screen}
       {publicationNotice && <p className="account-bar" role="status">{publicationNotice}</p>}
@@ -2499,9 +2512,12 @@ function RolePortrait({ role, className = '' }: { role: Role; className?: string
 }
 
 function RoleSelection({ worldTitle, artNote, availableRoles, selected, onSelect, onBack, onStart, personaEntry, identityControl }: { worldTitle: string; artNote?: string; availableRoles: Role[]; selected: Role; onSelect: (role: Role) => void; onBack: () => void; onStart: () => void; identityControl: import('react').ReactNode; personaEntry?: import('react').ReactNode }) {
+  const [ownEntry, setOwnEntry] = useState(Boolean(personaEntry));
   return (
     <div className="flow-page flow-selection-page">
       <header className="flow-toolbar"><button className="back-link" type="button" onClick={onBack}><ArrowLeft />返回世界</button><p>{worldTitle}</p></header>
+      {personaEntry && <div className="flow-role-switcher" aria-label="进入方式"><button className="flow-control" aria-pressed={ownEntry} onClick={() => setOwnEntry(true)}>用我的形象加入</button><button className="flow-control" aria-pressed={!ownEntry} onClick={() => setOwnEntry(false)}>扮演世界角色</button></div>}
+      {ownEntry && personaEntry ? <section className="flow-role-intro">{personaEntry}{identityControl}</section> :
       <div className="flow-selection">
         <div className="flow-role-art"><RolePortrait role={selected} />{artNote && <small>{artNote}</small>}</div>
         <section className="flow-role-intro">
@@ -2513,9 +2529,9 @@ function RoleSelection({ worldTitle, artNote, availableRoles, selected, onSelect
           <Button className="primary-action flow-start" size="lg" onClick={onStart}>以 {selected.name} 的身份开始<ArrowRight /></Button>
           <details className="flow-disclosure" key={`background-${selected.id}`}><summary>查看角色背景</summary><p>{selected.publicStory}</p><p>{selected.personality}</p><p><Eye />只有你知道：{selected.secret}</p></details>
           {identityControl}
-          {personaEntry ? <details className="flow-disclosure" key={`persona-${selected.id}`}><summary>使用我的形象</summary>{personaEntry}</details> : <p className="flow-identity">当前剧情位置仅开放原角色；你仍可编辑自己的形象，留待其他世界使用。</p>}
+          {!personaEntry && <p className="flow-identity">创作者暂未开放自带形象加入；本世界可选择原角色体验。</p>}
         </section>
-      </div>
+      </div>}
     </div>
   );
 }
@@ -2790,7 +2806,7 @@ function CreateWorld({
       <SheetContent className="flow-drawer creator-settings-drawer" showCloseButton={false}>
       <div className="flow-drawer-heading"><SheetTitle>世界设定</SheetTitle><SheetClose className="flow-control" aria-label="关闭世界设定"><X /></SheetClose></div>
       <SheetDescription>这里可以直接修改；关闭后，接着和同一个 Agent 聊。</SheetDescription>
-      <details className="flow-disclosure creation-context"><summary>记忆与创作上下文</summary>{companionPanel}</details>
+      <details className="flow-disclosure creation-context"><summary>选择带入的日常聊天与记忆</summary>{companionPanel}</details>
       {taskIssues.length > 0 && <div className="creator-validation" role="alert"><strong>先修正任务关系再生成或发布</strong>{taskIssues.map((issue) => <p key={issue}>{issue}</p>)}</div>}
 
       <nav className="creator-chapters" aria-label="创作章节">{['角色与目标', '故事与任务', '意外与规则', '预览与发布'].map((label, index) => <button key={label} type="button" aria-current={step === index + 1 ? 'step' : undefined} onClick={() => onStep(index + 1)}>{String(index + 1).padStart(2, '0')} · {label}</button>)}</nav>

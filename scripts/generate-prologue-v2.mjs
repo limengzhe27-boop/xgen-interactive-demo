@@ -18,7 +18,7 @@ const selected = Number(process.argv[3] || 1) - 1;
 if (![0, 1].includes(selected)) throw Error('invalid_shot');
 const shot = journal.shots[selected];
 if (action === 'submit' && shot.status === 'new') {
-  shot.prompt = prompts[selected]; // Editorial revisions only before the first submission.
+  shot.prompt = selected === 1 ? prompts[selected].replace('3至6秒她拿起椅子上米白开衫，披在绿色上衣外，', '女主已经穿着米白开衫与绿色上衣，始终保持这套服装，不再穿脱衣服。3至6秒她从裤兜取出手机，') : prompts[selected]; // Match the reviewed first shot, only before submission.
   const paths = selected === 0 ? [`${dir}/lin.png`, `${dir}/lu.png`] : [`${dir}/continuation.png`];
   const image_list = await Promise.all(paths.map(async path => ({ image: (await readFile(path)).toString('base64'), ...(selected === 1 ? { type: 'first_frame' } : {}) })));
   shot.status = 'submitting'; await save();

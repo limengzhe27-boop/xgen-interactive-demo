@@ -10,7 +10,7 @@ import { MessageTextarea } from '@/components/message-textarea';
 import { makePersonaAdaptationRequest, type PersonaAdaptationSuggestion } from '@/lib/persona-adaptation';
 import { requestPersonaAdaptation } from '@/lib/remote-persona-adaptation';
 import { generateSceneImage } from '@/lib/remote-image-service';
-import { admitPersona, personaEntryProblem, restoreEntryPolicy, type PlayerPersona, type EntryPolicy } from '@/lib/player-persona';
+import { joinWorldAsPersona, newcomerEntryProblem, VISITOR_ID, restoreEntryPolicy, type PlayerPersona, type EntryPolicy } from '@/lib/player-persona';
 import type { StudioWorld } from '@/lib/studio-worlds';
 import { PersonaDesigner } from '@/components/persona-designer';
 import { localPortrait, readPersonaUpload } from '@/lib/persona-upload';
@@ -79,10 +79,9 @@ export function PersonaEditor({ value, accountScope, onSave, expanded = false }:
 export function EntryPolicyEditor({ value, roles, onChange }: { value: EntryPolicy; roles: { id: string; name: string }[]; onChange: (value: EntryPolicy) => void }) {
   return <section className="entry-policy-editor" aria-label="世界入场规则"><h3>谁能带着自己的形象进入？</h3>
     <label className="persona-check"><input type="checkbox" checked={value.allowPersona} onChange={e => onChange({ ...value, allowPersona: e.target.checked })} />允许使用账号的虚构身份</label>
-    <p>玩家保留自己的名字、外观和性格，代入下方开放角色的剧情身份、关系、知识与目标。未开放的世界仍只使用原角色。</p>
-    {value.allowPersona && <><fieldset><legend>允许代入的剧情位置</legend>{roles.map(role => <label className="persona-check" key={role.id}><input type="checkbox" checked={value.allowedRoleIds.includes(role.id)} onChange={e => onChange({ ...value, allowedRoleIds: e.target.checked ? [...value.allowedRoleIds, role.id] : value.allowedRoleIds.filter(id => id !== role.id) })} />{role.name || '未命名角色'}</label>)}</fieldset>
-      {!value.allowedRoleIds.length && <p>尚未开放任何剧情位置；玩家暂不能使用自带身份。</p>}
-      <label htmlFor="entry-ability-mode">能力如何适配？<select id="entry-ability-mode" value={value.abilityMode} onChange={e => onChange({ ...value, abilityMode: e.target.value as EntryPolicy['abilityMode'] })}><option value="role-only">仅使用剧情身份本身的能力</option><option value="fixed">创作者指定额外允许的能力</option><option value="agent-select">Agent 从允许清单中挑选</option></select></label>
+    <p>玩家作为新人物加入。原角色全部保留，不继承他们的秘密、关系或任务。</p>
+    {value.allowPersona && <><label htmlFor="visitor-goal">新加入玩家的探索目标（可选）<Textarea id="visitor-goal" maxLength={1000} value={value.visitorGoal || ''} onChange={e => onChange({...value, visitorGoal:e.target.value})} placeholder="例如：结识取经队伍，查清沿途妖怪的目的；不代替任何原角色。" /></label>
+      <label htmlFor="entry-ability-mode">能力如何适配？<select id="entry-ability-mode" value={value.abilityMode} onChange={e => onChange({ ...value, abilityMode: e.target.value as EntryPolicy['abilityMode'] })}><option value="role-only">不额外授予超常能力</option><option value="fixed">创作者指定额外允许的能力</option><option value="agent-select">Agent 从允许清单中挑选</option></select></label>
       {value.abilityMode !== 'role-only' && <label htmlFor="entry-abilities">{value.abilityMode === 'agent-select' ? '可供 Agent 挑选的能力' : '额外能力'}（每行一项，最多 12 项）<Textarea id="entry-abilities" maxLength={2400} value={value.abilities.join('\n')} onChange={e => onChange({ ...value, abilities: e.target.value.split('\n').slice(0, 12).map(line => line.slice(0, 200)) })} placeholder="例如：善于观察细微表情，但不能直接读心" /></label>}
       {value.abilityMode === 'agent-select' && <p>Agent 结合玩家的虚构档案，从清单中挑选最多 3 项，经玩家确认才生效。清单为空时不能自带身份进入；没有合适项可以不授予额外能力。</p>}
       <p>能力仍受物理规律、可知信息和任务条件约束。不会直接带入玩家自述的超能力，也不会由 Agent 扩大你的授权清单。</p></>}
@@ -101,7 +100,7 @@ function PersonaAdmissionSession({ entry, roleId, persona, onEdit, onEnter }: Ad
   const controller = useRef<AbortController | null>(null);
   useEffect(() => () => { controller.current?.abort(); controller.current = null; }, []);
   const policy = restoreEntryPolicy(entry.world.entryPolicy); const role = entry.world.characters.find(c => c.id === roleId);
-  const problem = personaEntryProblem(entry.world, roleId, persona);
+  const problem = newcomerEntryProblem(entry.world, persona);
   const currentResult = result?.usable && result.preference === preference ? result.suggestion : null;
   const canEnter = !busy && (policy.abilityMode !== 'agent-select' || !!currentResult);
   async function suggest() {
@@ -110,7 +109,7 @@ function PersonaAdmissionSession({ entry, roleId, persona, onEdit, onEnter }: Ad
     setBusy(true); setError(''); setConfirmed(false); setResult(previous => previous ? { ...previous, usable: false } : null);
     const timeout = setTimeout(() => aborter.abort(), 30_000);
     try {
-      const input = makePersonaAdaptationRequest(entry, roleId, persona, preference);
+      const input = makePersonaAdaptationRequest(entry, VISITOR_ID, persona, preference);
       const suggestion = await requestPersonaAdaptation(input, persona.ownerId, aborter.signal);
       if (!aborter.signal.aborted) setResult({ suggestion, preference, usable: true });
     } catch (err) {
@@ -121,20 +120,20 @@ function PersonaAdmissionSession({ entry, roleId, persona, onEdit, onEnter }: Ad
     }
   }
   function cancel() { controller.current?.abort(); controller.current = null; setBusy(false); setError('已取消等待，不会自动入场；已发出的模型请求仍可能产生少量费用。'); }
-  return <section className="persona-admission" aria-label="自带身份入场"><h3>或者，带上我的虚构身份</h3>
+  return <section className="persona-admission" aria-label="自带身份入场"><h3>以我的虚拟形象加入</h3>
     {problem ? <><p>{problem}</p>{!persona && onEdit && <Button variant="outline" onClick={onEdit}>去设定我的身份</Button>}</> : <>
-      <p><strong>{persona!.name}</strong> → 代入 {role?.name} 的剧情位置</p>
-      <dl><dt>本世界身份</dt><dd>{role?.identity}</dd><dt>本次目标</dt><dd>{role?.goal}</dd><dt>保留的个性与外观</dt><dd>{persona!.personality || '使用剧情角色性格'}；{persona!.appearance || '使用剧情角色外观'}</dd><dt>额外允许的能力</dt><dd>{policy.abilityMode === 'agent-select' ? currentResult ? currentResult.grantedAbilities.join('；') || '无，仅剧情身份原有能力' : '等待 Agent 从创作者清单中建议' : policy.abilityMode === 'fixed' ? policy.abilities.filter(Boolean).join('；') || '无' : '无，仅剧情身份原有能力'}</dd></dl>
+      <p><strong>{persona!.name}</strong> · 新加入这个世界，不替代任何角色</p>
+      <dl><dt>本世界身份</dt><dd>{persona!.identity || '新来的探索者'}</dd><dt>本次目标</dt><dd>{policy.visitorGoal || '结识世界中的人物，了解当前事件，选择自己要介入的方向。'}</dd><dt>保留的个性与外观</dt><dd>{persona!.personality || '由你在互动中表达'}；{persona!.appearance || '尚未设置'}</dd><dt>额外允许的能力</dt><dd>{policy.abilityMode === 'agent-select' ? currentResult ? currentResult.grantedAbilities.join('；') || '无额外超常能力' : '等待 Agent 从创作者清单中建议' : policy.abilityMode === 'fixed' ? policy.abilities.filter(Boolean).join('；') || '无' : '无额外超常能力'}</dd></dl>
       <section className="persona-adaptation" aria-label="世界 Agent 入场建议" aria-busy={busy}>
         <h4><Sparkles />让世界 Agent 帮我适配</h4>
-        <p>点击后将把你的虚构背景、性格、外观、愿望能力，以及本次偏好和剧情位置的公开身份／目标发送给公司网关及其模型供应商。不会发送私人聊天、个人记忆或角色秘密；只提供建议，不生图、不开始剧情。</p>
+        <p>点击后将把你的虚构背景、性格、外观、愿望能力，以及本次偏好和新加入者的探索目标发送给公司网关及其模型供应商。不会发送私人聊天、个人记忆或角色秘密；只提供建议，不生图、不开始剧情。</p>
         <label htmlFor="adaptation-preference">这次想怎么体验？（可不填）<MessageTextarea id="adaptation-preference" maxLength={1000} value={preference} disabled={busy} onChange={e => { setPreference(e.target.value); setConfirmed(false); setResult(previous => previous ? { ...previous, usable: false } : null); }} onSend={suggest} placeholder="例如：希望更擅长谈判，但不想轻松跳过冲突" /></label>
         <div className="persona-actions"><Button type="button" variant="outline" disabled={busy} onClick={suggest}>{busy ? <LoaderCircle className="animate-spin" /> : <Sparkles />}{busy ? '正在适配…' : result ? '重新获取入场建议' : '获取入场建议'}</Button>{busy && <Button type="button" variant="outline" onClick={cancel}>取消等待</Button>}</div>
-        <div aria-live="polite">{result && <div className="persona-adaptation-result"><strong>{currentResult ? '待你确认的建议' : '上一次建议 · 已失效，请重新获取'}</strong><p>{result.suggestion.summary}</p><dl><dt>建议授予（以此清单为准）</dt><dd>{result.suggestion.grantedAbilities.join('；') || '不增加额外能力'}</dd><dt>不带入的愿望与限制</dt><dd>{result.suggestion.limitations}</dd></dl><p>这是代入建议，不改变上方固定的剧情身份、关系与目标。</p></div>}</div>
+        <div aria-live="polite">{result && <div className="persona-adaptation-result"><strong>{currentResult ? '待你确认的建议' : '上一次建议 · 已失效，请重新获取'}</strong><p>{result.suggestion.summary}</p><dl><dt>建议授予（以此清单为准）</dt><dd>{result.suggestion.grantedAbilities.join('；') || '不增加额外能力'}</dd><dt>不带入的愿望与限制</dt><dd>{result.suggestion.limitations}</dd></dl><p>这是入场建议，不会把你替换成已有角色，也不会建立未经经历的人际关系。</p></div>}</div>
       </section>
-      <p>自带背景与愿望能力不会自动生效；关系、知识、任务和世界规则保持不变。这里只适配一个新会话，不覆盖原世界。确认进入后，上述虚构设定会用于世界模型演绎，不附带你的私人聊天或个人记忆。</p>
+      <p>保留你的虚构身份与性格，但其中的财富、超能力和人际关系不自动成为世界事实。你有自己的探索目标，原角色的目标与秘密保持独立。这里只适配一个新会话，不覆盖原世界。确认进入后，上述虚构设定会用于世界模型演绎，不附带你的私人聊天或个人记忆。</p>
       <label className="persona-check"><input type="checkbox" disabled={!canEnter} checked={confirmed} onChange={e => setConfirmed(e.target.checked)} />我确认本次身份与能力适配</label>
-      <Button disabled={!confirmed || !canEnter} onClick={() => { try { onEnter(admitPersona(entry, roleId, persona!, currentResult?.grantedAbilities)); } catch (err) { setError(err instanceof Error ? err.message : '入场失败'); } }}>以我的身份 {persona!.name} 进入</Button>
+      <Button disabled={!confirmed || !canEnter} onClick={() => { try { onEnter(joinWorldAsPersona(entry, persona!, currentResult?.grantedAbilities)); } catch (err) { setError(err instanceof Error ? err.message : '入场失败'); } }}>以我的身份 {persona!.name} 进入</Button>
     </>}{error && <p role="alert">{error}</p>}
   </section>;
 }
