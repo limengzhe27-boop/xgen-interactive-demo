@@ -1,3 +1,4 @@
+import { sceneVideoPrompt } from './creative-guidance.ts';
 export const SPEECH_MAX_CHARS = 1200;
 export const SPEECH_VOICES = [
   { id: 'zh_female_vv_uranus_bigtts', label: '明亮女声' },
@@ -14,7 +15,7 @@ export function readMediaInput(value: unknown) {
 }
 export function mediaLimit(kind: MediaKind) { return kind === 'video' ? 20_000_000 : 2_000_000; }
 export function videoPayload(model: string, text: string) {
-  return { model, prompt: `把以下已经发生的一幕演绎成一个连续镜头，不追加剧情，不出现字幕：${text}`, seconds: '5', size: '1920x1080', mode: 'pro' };
+  return { model, prompt: sceneVideoPrompt(text), seconds: '5', size: '1920x1080', mode: 'pro' };
 }
 export function videoResult(value: unknown): { status: 'queued' | 'ready' | 'failed'; url?: string } {
   if (!value || typeof value !== 'object') throw new Error('invalid_video_response');
