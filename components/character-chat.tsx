@@ -5,6 +5,8 @@ import { ArrowLeft, LoaderCircle, RefreshCw, Send, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { MessageTextarea } from '@/components/message-textarea';
 import { LocalSpeech } from '@/components/local-speech';
+import { SpeechSequence } from '@/components/speech-sequence';
+import { speechSegments } from '@/lib/speech-sequence';
 import { Sheet, SheetTrigger, SheetContent, SheetTitle, SheetDescription, SheetClose } from '@/components/ui/sheet';
 import { createRemoteAIAdapter } from '@/lib/remote-ai-adapter';
 import { generateSceneImage } from '@/lib/remote-image-service';
@@ -117,7 +119,7 @@ export function CharacterChat({ initial, accountScope, onSave, onBack }: { initi
       {session.turns.map((turn, index) => <article className="studio-chat-turn" key={index}>
         <div className="studio-chat-user"><small>{player.name} · 你</small><p>{turn.action}</p></div>
         <div className="studio-chat-narrative"><small>世界回应 · 第 {index + 1} 轮</small><p>{turn.response.narrative}</p></div>
-        <LocalSpeech accountScope={accountScope} text={turn.response.dialogue.filter(line => line.characterId === target.id && line.visibleToRoleIds.includes(player.id)).map(line => line.text).join('\n')} speaker={`${session.entry.id}:${target.id}`} />
+        <SpeechSequence accountScope={accountScope} segments={speechSegments(turn.response.narrative, turn.response.dialogue.filter(line => line.visibleToRoleIds.includes(player.id) && line.characterId !== player.id))} />
         {turn.response.dialogue.filter((line) => line.visibleToRoleIds.includes(player.id) && line.characterId !== player.id).map((line, i) => <div className="studio-chat-line" key={i}><strong>{session.entry.world.characters.find((role) => role.id === line.characterId)?.name}</strong><p>{line.text}</p></div>)}
         {turn.response.ending.reached && <p className="studio-chat-ending">已抵达阶段结局。可以返回结束，也可以继续聊，已有事实不会重置。</p>}
       </article>)}

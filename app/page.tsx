@@ -42,6 +42,8 @@ import { applyPendingWorkspace, restoredImage, workspaceKeys } from '@/lib/cloud
 import { accountStorageKey } from '@/lib/account-scope';
 import { PersonalAgent } from '@/components/personal-agent';
 import { CompanyMedia } from '@/components/company-media';
+import { SpeechSequence } from '@/components/speech-sequence';
+import { speechSegments } from '@/lib/speech-sequence';
 import { ProfilePage } from '@/components/profile-page';
 import { emptyProfile, restoreUserProfile, profileMemories, type UserProfile } from '@/lib/user-profile';
 import { CompanionHandoff, CompanionContextPanel } from '@/components/companion-handoff';
@@ -2648,7 +2650,7 @@ function PlayWorld({
           <h1 id="scene-title">{beat.title}</h1>
           <p className="flow-narrative">{isThinking && !narrative ? '世界正在回应你的行动……' : narrative}{isThinking && liveMode ? <span className="streaming-cursor" aria-label="正在生成" /> : null}</p>
           {incident && <p className="flow-incident"><Sparkles />{incident.title}</p>}
-          {!isThinking && <CompanyMedia key={`speech-${turn}`} kind="speech" text={narrative} accountScope={accountScope} />}
+          {!isThinking && <SpeechSequence key={`speech-${turn}`} segments={speechSegments(narrative, (beat.dialogues ?? []).filter(line => availableRoles.some(role => role.id === line.characterId)), beat.dialogues ? '' : beat.dialogue)} accountScope={accountScope} />}
           {!isThinking && (beat.dialogues ? beat.dialogues.map((line, index) => {
             const speaker = availableRoles.find(item => item.id === line.characterId);
             return speaker ? <blockquote key={`${line.characterId}-${index}`}><RolePortrait role={speaker} /><div><strong>{speaker.name}</strong><p>“{line.text}”</p></div></blockquote> : null;
