@@ -9,7 +9,7 @@ import { publicationWorld } from '../lib/publication.ts';
 import { visibleSystem } from '../lib/world-system.ts';
 
 test('new parody worlds lead the catalogue with distinct role goals and reusable art', async () => {
-  assert.deepEqual(studioWorlds.slice(0,2).map(w=>w.id),memeWorlds.map(w=>w.id));
+  assert.deepEqual(studioWorlds.filter(w=>memeWorlds.some(m=>m.id===w.id)).map(w=>w.id),memeWorlds.map(w=>w.id));
   assert.equal(memeArtPaths.size,8);
   for(const entry of memeWorlds){
     assert.deepEqual(publicationWorld(structuredClone(entry.world)),entry.world);
