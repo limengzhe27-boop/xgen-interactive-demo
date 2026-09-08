@@ -1,6 +1,6 @@
 export type PrologueShot = { caption: string; poster: string; seconds: number };
 export type WorldPrologue = {
-  shots: PrologueShot[]; handoff: string; video?: string;
+  shots: PrologueShot[]; handoff: string; video?: string; captionsEmbedded?: boolean;
   message?: { at: number; until: number; sender: string; text: string };
 };
 export const yogaPrologue: WorldPrologue = {
@@ -14,8 +14,29 @@ export const yogaPrologue: WorldPrologue = {
   ],
   handoff: '门还没打开，消息还没回复。接下来的事，尚未发生。',
 };
+export const yogaComparisonPrologue: WorldPrologue = {
+  video: '/assets/prologues/yoga-v3/prologue.mp4',
+  captionsEmbedded: true,
+  shots: [
+    { caption: '林栀，结婚九年的全职太太。陆晨，二十七岁的瑜伽私教——不是她的丈夫。', poster: '/assets/prologues/yoga-v3/poster.webp', seconds: 4 },
+    { caption: '拉伸停了，她却没有走开。这次拥吻，已经越过了教学与婚姻的界线。', poster: '/assets/prologues/yoga-v3/poster.webp', seconds: 6 },
+    { caption: '丈夫：幼儿园快关门了，你到底几点去接孩子？她低头看着手机，陆晨就在面前。', poster: '/assets/prologues/yoga-v3/poster.webp', seconds: 4 },
+  ],
+  handoff: '是先安排接送，还是面对门外这段关系？停在这里，接下来交给你。',
+};
+export const ascensionPrologue: WorldPrologue = {
+  video: '/assets/prologues/ascension-v1/prologue.mp4',
+  captionsEmbedded: true,
+  shots: [
+    { caption: '你是沈砚。百年修行，一柄断剑，终于走到了天门前。', poster: '/assets/ascension-v1/cover.webp', seconds: 5 },
+    { caption: '接引官不问仙名，只说：“丁字九十七号，到你了。”', poster: '/assets/ascension-v1/cover.webp', seconds: 5 },
+    { caption: '契牌下的金链探向你的手腕。飞升，为什么还要上锁？', poster: '/assets/ascension-v1/cover.webp', seconds: 5 },
+    { caption: '你还没答应，金链已经缠上红绳。他转身引路——这是飞升，还是押送？', poster: '/assets/ascension-v1/cover.webp', seconds: 5 },
+  ],
+  handoff: '你还站在桥上，金链已缠住红绳。问清规矩、检查链扣，或用一次剑气斩断它。',
+};
 export function worldPrologue(worldId: string, publicPremise: string, cover: string): WorldPrologue {
-  return worldId === 'yoga-lotus-boundary' ? yogaPrologue : {
+  return worldId === 'ascension-work-number' ? ascensionPrologue : worldId === 'yoga-lotus-boundary' ? yogaPrologue : {
     shots: [{ caption: publicPremise, poster: cover, seconds: 0 }],
     handoff: '先了解这场故事，再选择你要成为的人。',
   };
