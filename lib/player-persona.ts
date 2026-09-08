@@ -7,15 +7,15 @@ export type PlayerPersona = {
   appearance: string; abilities: string; portraitUrl?: string; updatedAt: number;
 };
 export type EntryPolicy = {
-  allowPersona: boolean; allowedRoleIds: string[]; abilityMode: 'role-only' | 'fixed' | 'agent-select'; abilities: string[];
+  allowPersona: boolean; allowedRoleIds: string[]; abilityMode: 'role-only' | 'fixed' | 'agent-select' | 'agent-judge'; abilities: string[];
   visitorGoal?: string;
 };
 export const closedEntryPolicy: EntryPolicy = { allowPersona: false, allowedRoleIds: [], abilityMode: 'role-only', abilities: [] };
 const record = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
-const strings = (value: unknown, max: number) => Array.isArray(value) && value.length <= max && value.every(v => typeof v === 'string' && v.length <= 200);
+const strings = (value: unknown, max: number): value is string[] => Array.isArray(value) && value.length <= max && value.every(v => typeof v === 'string' && v.length <= 200);
 export function validEntryPolicy(value: unknown): value is EntryPolicy {
   return record(value) && typeof value.allowPersona === 'boolean' && strings(value.allowedRoleIds, 8)
-    && ['role-only', 'fixed', 'agent-select'].includes(value.abilityMode as string) && strings(value.abilities, 12)
+    && ['role-only', 'fixed', 'agent-select', 'agent-judge'].includes(value.abilityMode as string) && strings(value.abilities, 12)
     && (value.visitorGoal === undefined || typeof value.visitorGoal === 'string' && value.visitorGoal.length <= 1000);
 }
 export function restoreEntryPolicy(value: unknown): EntryPolicy {
@@ -74,7 +74,7 @@ export function newcomerEntryProblem(world: WorldDefinition, persona: PlayerPers
 export function joinWorldAsPersona(entry: StudioWorld, persona: PlayerPersona, suggestedAbilities?: string[]): StudioWorld {
   const problem = newcomerEntryProblem(entry.world, persona); if (problem) throw Error(problem);
   const world = structuredClone(entry.world), policy = restoreEntryPolicy(world.entryPolicy);
-  const granted = policy.abilityMode === 'agent-select' ? suggestedAbilities : policy.abilityMode === 'fixed' ? policy.abilities.filter(a => a.trim()) : [];
+  const granted = requiresAbilityJudgment(policy) ? suggestedAbilities : policy.abilityMode === 'fixed' ? policy.abilities.filter(a => a.trim()) : [];
   if (!validGrantedAbilities(policy, granted)) throw Error('请先确认符合世界规则的能力。');
   let locationId = 'visitor-arrival'; while (world.locations.some(l => l.id === locationId)) locationId += '-new';
   const target = world.locations.find(l => l.id === world.openingScene.locationId)!;
@@ -96,11 +96,18 @@ export function joinWorldAsPersona(entry: StudioWorld, persona: PlayerPersona, s
 
 export function validGrantedAbilities(policy: EntryPolicy, granted: unknown): granted is string[] {
   if (!strings(granted, 12)) return false;
+  // Semantic fit is judged by the model against world rules; this checks the bounded grant format.
+  if (policy.abilityMode === 'agent-judge') return granted.length <= 3
+    && new Set(granted).size === granted.length && granted.every(a => a.trim());
   if (policy.abilityMode === 'agent-select') return policy.abilities.some(a => a.trim())
     && (granted as string[]).length <= 3
     && new Set(granted as string[]).size === (granted as string[]).length
     && (granted as string[]).every(a => a.trim() && policy.abilities.includes(a));
   return JSON.stringify(granted) === JSON.stringify(policy.abilityMode === 'fixed' ? policy.abilities.filter(a => a.trim()) : []);
+}
+
+export function requiresAbilityJudgment(policy: EntryPolicy): boolean {
+  return policy.abilityMode === 'agent-select' || policy.abilityMode === 'agent-judge';
 }
 
 // Only rewrite story prose, never IDs, asset paths, object keys or reference arrays.
@@ -117,7 +124,7 @@ export function admitPersona(entry: StudioWorld, roleId: string, persona: Player
   const original = entry.world.characters.find(c => c.id === roleId)!;
   const policy = restoreEntryPolicy(entry.world.entryPolicy);
   const world = renameProse(structuredClone(entry.world), original.name, persona.name) as WorldDefinition;
-  const granted = policy.abilityMode === 'agent-select' ? suggestedAbilities : policy.abilityMode === 'fixed' ? policy.abilities.filter(a => a.trim()) : [];
+  const granted = requiresAbilityJudgment(policy) ? suggestedAbilities : policy.abilityMode === 'fixed' ? policy.abilities.filter(a => a.trim()) : [];
   if (!validGrantedAbilities(policy, granted)) throw new Error('请先获取并确认符合创作者清单的入场建议。');
   world.characters = world.characters.map(c => c.id === roleId ? { ...c, name: persona.name, persona: persona.personality || c.persona, imagePrompt: persona.appearance || c.imagePrompt } : c);
   world.entryAdmission = { roleId, originalName: original.name, name: persona.name, grantedAbilities: granted };

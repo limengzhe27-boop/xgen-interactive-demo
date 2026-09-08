@@ -380,3 +380,14 @@
 .draft-dialog-actions .draft-confirm-delete:hover { background: var(--color-danger); filter: brightness(.9); }
 @media (max-width: 520px) { .draft-row .draft-label { flex-basis: 100%; } .draft-actions { margin-left: auto; } [data-slot="dialog-content"].draft-delete-dialog { padding: 24px; } }
 @media (prefers-reduced-motion: reduce) { .draft-actions button, .draft-dialog-actions button { transition: none; } }
+.entry-policy-editor .ability-options { display:grid; gap:8px; border:0; padding:0; margin:20px 0; min-width:0; }
+.ability-options legend { margin-bottom:12px; font-weight:600; }
+.entry-policy-editor .ability-option { display:flex; align-items:flex-start; gap:12px; padding:14px 16px; border:1px solid var(--color-border); border-radius:12px; background:var(--color-bg-elevated); cursor:pointer; min-height:44px; transition:border-color .16s,background-color .16s; }
+.ability-option input { flex:0 0 auto; width:18px; height:18px; margin-top:5px; accent-color:var(--color-agent); }
+.ability-option span { min-width:0; }
+.ability-option strong,.ability-option small { display:block; line-height:1.7; }
+.ability-option small { color:var(--color-text-secondary); font-size:14px; }
+.entry-policy-editor .ability-option:hover,.entry-policy-editor .ability-option[data-selected="true"] { border-color:var(--color-agent); background:var(--color-agent-soft); }
+.ability-option:focus-within { outline:2px solid var(--color-agent); outline-offset:2px; }
+.ability-option:active { border-color:var(--color-agent-hover); }
+@media (prefers-reduced-motion:reduce) { .entry-policy-editor .ability-option { transition:none; } }
