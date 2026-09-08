@@ -35,22 +35,20 @@ export function WorldProloguePlayer({ title, prologue, onBack, onContinue, conti
     if (ended) { setElapsed(0); setEnded(false); if (ref.current) ref.current.currentTime = 0; }
     setPlaying(ended || !playing);
   }
-  return <section className="flow-page prologue-page" data-choosing={choosing && Boolean(continuation)}>
-    <header className="flow-toolbar"><button className="flow-control" onClick={onBack}><ArrowLeft />返回</button><p>{hasVideo ? `${duration} 秒序章 · 无声字幕版` : '故事前情'}</p></header>
-    <h1>{title}</h1>
+  return <section className="flow-page prologue-page cinema-page" data-choosing={choosing && Boolean(continuation)} data-has-video={hasVideo}>
+    <header className="flow-toolbar"><button className="flow-control" onClick={onBack}><ArrowLeft />返回</button><h1>{title}</h1><p>{hasVideo ? `${duration} 秒序章 · 无声字幕版` : '故事前情'}</p></header>
     <div className="prologue-stage"><div className="prologue-film"><div className="prologue-screen">
       {hasVideo ? <video ref={ref} src={prologue.video} poster={prologue.shots[0].poster} muted autoPlay playsInline preload="metadata"
         aria-label={`${title}，序章第 ${index + 1} 段`} onEnded={advance} onError={() => { setError(true); setPlaying(false); }}
         onTimeUpdate={() => { const t = ref.current?.currentTime || 0; setElapsed(Math.min(t,duration)); if(t >= duration) advance(); }} />
         : <img src={shot.poster} alt={`${title}，世界封面`} />}
       {hasVideo && !error && message && <aside className="prologue-message" aria-label="剧情中的手机消息"><strong>{message.sender}</strong><p>{message.text}</p></aside>}
-      {hasVideo && !playing && !error && <button className="prologue-play" onClick={toggle} aria-label={ended ? '重看序章' : '播放序章'}>{ended ? <RotateCcw /> : <Play />}</button>}
+      {hasVideo && !playing && !ended && !error && <button className="prologue-play" onClick={toggle} aria-label="播放序章"><Play /></button>}
     </div>
     {hasVideo && <div className="prologue-controls"><button className="flow-control" onClick={toggle} disabled={error}>{ended ? <RotateCcw /> : playing ? <Pause /> : <Play />}{ended ? '重看' : playing ? '暂停' : '播放'}</button><progress max={duration} value={elapsed} aria-label="序章播放进度" /><span>{Math.floor(elapsed)} / {duration} 秒</span></div>}
     {error && <p role="status">视频暂时无法播放，可以阅读前情后继续选角。</p>}
     <div className="prologue-caption" aria-live="polite">{hasVideo && !error ? shot.caption : prologue.shots.map(s => <p key={s.caption}>{s.caption}</p>)}</div>
-    <footer className="prologue-next"><p>{prologue.handoff}</p>{(!choosing || !continuation) && <button className="primary-action" onClick={()=>{if(continuation){ref.current?.pause();setPlaying(false);setChoosing(true);}else onContinue();}}>选择角色继续 <ArrowRight /></button>}</footer>
-    {hasVideo && <details className="prologue-transcript"><summary>查看完整前情文字</summary>{prologue.shots.map(s => <p key={s.caption}>{s.caption}</p>)}</details>}
+    {(!choosing || !continuation) && <footer className="prologue-next"><p>{prologue.handoff}</p><button className="primary-action" onClick={()=>{if(continuation){ref.current?.pause();setPlaying(false);setChoosing(true);}else onContinue();}}>选择角色继续 <ArrowRight /></button></footer>}
     </div>{choosing && continuation && <section className="prologue-entry-panel" aria-label="选择入场身份">{continuation}<details className="prologue-mobile-transcript"><summary>查看前情与当前处境</summary>{prologue.shots.map(s => <p key={s.caption}>{s.caption}</p>)}<p>{prologue.handoff}</p></details></section>}</div>
   </section>;
 }

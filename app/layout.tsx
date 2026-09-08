@@ -3,6 +3,7 @@ import './globals.css';
 import './studio.css';
 import './gallery.css';
 import './experience.css';
+import './prologue.css';
 
 export const metadata: Metadata = {
   title: '小世界｜图文互动体验',
