@@ -115,7 +115,7 @@ function PersonaAdmissionSession({ entry, roleId, persona, onEdit, onEnter }: Ad
     if (controller.current || problem || !persona) return;
     const aborter = new AbortController(); controller.current = aborter;
     setBusy(true); setError(''); setConfirmed(false); setResult(previous => previous ? { ...previous, usable: false } : null);
-    const timeout = setTimeout(() => aborter.abort(), 30_000);
+    const timeout = setTimeout(() => aborter.abort(), 45_000);
     try {
       const input = makePersonaAdaptationRequest(entry, VISITOR_ID, persona, preference);
       const suggestion = await requestPersonaAdaptation(input, persona.ownerId, aborter.signal);

@@ -204,7 +204,15 @@ async function handlePost(request: Request) {
     }
     let guardedOutput = body.operation === 'design-persona' ? readPersonaDesignReply(output) : output;
     if (adaptationInput) {
-      const suggestion = readPersonaAdaptationSuggestion(output, adaptationInput);
+      let suggestion = readPersonaAdaptationSuggestion(output, adaptationInput);
+      const remainingMs = Math.min(15_000, 40_000 - (Date.now() - startedAt));
+      if (!suggestion && adaptationInput.policy.abilityMode === 'agent-judge' && remainingMs >= 3000) {
+        const repaired = await callCompany(provider, 'adapt-persona', {...adaptationInput,
+          rejectedSuggestion: output,
+          validationFeedback: '这份建议尚未展示、未授权。请修正为最多3项不重复、每项200字以内的能力；名称：范围与限制。世界不允许超常能力时必须拒绝读心等魔法，包括有限读心、取得同意后读心；最多改成普通表情观察且可能误判。不要在summary或limitations里重新授予被拒能力。无法适配可以grantedAbilities=[]并明确原因。返回完整JSON。',
+        }, remainingMs);
+        suggestion = readPersonaAdaptationSuggestion(repaired, adaptationInput);
+      }
       if (!suggestion) return Response.json({ error: 'invalid_adaptation_suggestion' }, { status: 502 });
       guardedOutput = suggestion;
     }
