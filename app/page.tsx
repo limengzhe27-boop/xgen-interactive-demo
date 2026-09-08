@@ -2472,7 +2472,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
   return (
     <main className="studio-frame" data-focused-flow={view === 'prologue' || view === 'roles' || view === 'play' || view === 'personal' || view === 'create' || view === 'chat'}>
       <StudioNav section={view} onNavigate={navigate} onCreate={newCreator} />
-      <AccountBar onProfile={['home', 'library', 'characters', 'personal'].includes(view) ? () => navigate('profile') : undefined} workspaceControls={['home', 'library', 'personal', 'profile', 'characters'].includes(view) && <CloudWorkspace accountScope={accountScope} disabled={!storageReady || storageReadFailed.current || agentThinking || creatorAgentThinking || worldGenerating} />} />
+      {view !== 'prologue' && <AccountBar onProfile={['home', 'library', 'characters', 'personal'].includes(view) ? () => navigate('profile') : undefined} workspaceControls={['home', 'library', 'personal', 'profile', 'characters'].includes(view) && <CloudWorkspace accountScope={accountScope} disabled={!storageReady || storageReadFailed.current || agentThinking || creatorAgentThinking || worldGenerating} />} />}
       {companionHandoff && <CompanionHandoff seed={companionHandoff.seed} conversation={agentConversation} memoryCount={memories.length} onClose={() => setCompanionHandoff(null)} onConfirm={(seed, context) => {
         if (worldGenerating || creatorAgentThinking) { setStorageError('请等当前创作回应结束后再新建。'); return; }
         creatorKickoff.current = seed || '接着我们的讨论，一起想一个小世界的角色、关系和目标。';

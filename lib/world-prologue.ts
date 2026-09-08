@@ -1,5 +1,8 @@
 export type PrologueShot = { caption: string; poster: string; seconds: number };
-export type WorldPrologue = { shots: PrologueShot[]; handoff: string; video?: string };
+export type WorldPrologue = {
+  shots: PrologueShot[]; handoff: string; video?: string;
+  message?: { at: number; until: number; sender: string; text: string };
+};
 export const yogaPrologue: WorldPrologue = {
   video: '/assets/prologues/yoga-v1/prologue.mp4',
   shots: [
