@@ -315,7 +315,7 @@ export type WorldTurnResponse = {
 
 export interface AIAdapter {
   talkToPersonalAgent(input: PersonalAgentRequest): Promise<PersonalAgentResponse>;
-  coCreateWorld(input: CreatorAgentRequest): Promise<CreatorAgentResponse>;
-  generateWorld(input: WorldGenerationRequest): Promise<WorldGenerationResponse>;
+  coCreateWorld(input: CreatorAgentRequest, signal?: AbortSignal): Promise<CreatorAgentResponse>;
+  generateWorld(input: WorldGenerationRequest, signal?: AbortSignal): Promise<WorldGenerationResponse>;
   advanceWorld(input: WorldTurnRequest, signal?: AbortSignal): Promise<WorldTurnResponse>;
 }

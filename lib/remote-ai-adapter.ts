@@ -32,7 +32,19 @@ async function callRemote<T>(
     cache: 'no-store',
     signal,
   });
-  if (!response.ok) throw new Error(`AI request failed with status ${response.status}`);
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({})) as { error?: string };
+    const messages: Record<string, string> = {
+      model_output_truncated: '这次角色与任务较多，模型输出被截断，未覆盖你的草稿。请重试，或先讨论角色再细化任务。',
+      invalid_model_output: '模型返回的设定格式不完整，未覆盖你的草稿。可以重试或手动编辑。',
+      model_timeout: '模型响应超时，未覆盖你的草稿。请稍后重试。',
+      model_rate_limited: '公司模型当前请求过多，请稍后重试。',
+      model_not_configured: '服务端尚未配置文字模型，请联系维护者。',
+      model_access_denied: '公司模型访问被拒绝，请维护者检查网关权限与额度。',
+      account_changed_or_unavailable: '登录状态发生变化或暂时无法验证，请刷新后重试。',
+    };
+    throw new Error(messages[body.error || ''] || `创作服务暂时不可用（${response.status}），你的内容已保留。`);
+  }
   const body: unknown = await response.json();
   if (!validate(body)) throw new Error('AI response did not match the contract');
   return body;
@@ -45,12 +57,12 @@ class RemoteAIAdapter implements AIAdapter {
     return callRemote('personal-agent', input, isPersonalAgentResponse, undefined, this.accountScope);
   }
 
-  coCreateWorld(input: CreatorAgentRequest): Promise<CreatorAgentResponse> {
-    return callRemote('co-create-world', input, isCreatorAgentResponse, undefined, this.accountScope);
+  coCreateWorld(input: CreatorAgentRequest, signal?: AbortSignal): Promise<CreatorAgentResponse> {
+    return callRemote('co-create-world', input, isCreatorAgentResponse, signal, this.accountScope);
   }
 
-  generateWorld(input: WorldGenerationRequest): Promise<WorldGenerationResponse> {
-    return callRemote('generate-world', input, isWorldGenerationResponse, undefined, this.accountScope);
+  generateWorld(input: WorldGenerationRequest, signal?: AbortSignal): Promise<WorldGenerationResponse> {
+    return callRemote('generate-world', input, isWorldGenerationResponse, signal, this.accountScope);
   }
 
   advanceWorld(input: WorldTurnRequest, signal?: AbortSignal): Promise<WorldTurnResponse> {

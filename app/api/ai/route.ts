@@ -18,6 +18,7 @@ import { personaDesignInstructions, readPersonaDesignInput, readPersonaDesignRep
 type Operation = 'personal-agent' | 'co-create-world' | 'generate-world' | 'advance-world' | 'adapt-persona' | 'design-persona';
 import { companyGateway, companyModel } from '@/lib/company-gateway';
 type CompanyProvider = { apiKey: string; endpoint: string; model: string };
+export const maxDuration = 120;
 
 const operationInstructions: Record<Operation, string> = {
   'design-persona': personaDesignInstructions,
@@ -98,16 +99,20 @@ async function callCompany(provider: CompanyProvider, operation: Operation, inpu
         thinking: { type: 'disabled' },
         stream: false,
         temperature: operation === 'advance-world' || operation === 'co-create-world' ? 0.7 : 0.5,
-        max_tokens: operation === 'adapt-persona' ? 900 : operation === 'generate-world' ? 5600 : operation === 'co-create-world' ? 3000 : 2800,
+        max_tokens: operation === 'adapt-persona' ? 900 : operation === 'generate-world' ? 5600 : operation === 'co-create-world' ? 6000 : 2800,
       }),
       signal: controller.signal,
       redirect: 'error',
     });
-    if (!response.ok) throw new Error(`Provider returned ${response.status}`);
-    const result = await response.json() as { choices?: { message?: { content?: unknown } }[] };
+    if (!response.ok) throw new Error(response.status === 429 ? 'model_rate_limited' : [401, 403].includes(response.status) ? 'model_access_denied' : 'company_gateway_failed');
+    const result = await response.json() as { choices?: { finish_reason?: string; message?: { content?: unknown } }[] };
+    if (result.choices?.[0]?.finish_reason === 'length') throw new Error('model_output_truncated');
     const content = result.choices?.[0]?.message?.content;
     if (typeof content !== 'string' || !content.trim()) throw new Error('Provider returned empty content');
-    return parseModelJSON(content);
+    try { return parseModelJSON(content); } catch { throw new Error('invalid_model_output'); }
+  } catch (error) {
+    if (controller.signal.aborted) throw new Error('model_timeout');
+    throw error;
   } finally {
     clearTimeout(timeout);
   }
@@ -223,8 +228,9 @@ async function handlePost(request: Request) {
       headers: { 'Cache-Control': 'no-store', 'X-AI-Provider': 'yibu' },
     });
   } catch (error) {
-    const code = error instanceof Error && ['invalid_task_transition', 'premature_ending', 'unauthorized_player_movement', 'repeated_narrative', 'player_perspective_drift', 'chat_target_missing'].includes(error.message)
+    const code = error instanceof Error && ['model_timeout', 'model_output_truncated', 'invalid_model_output', 'model_rate_limited', 'model_access_denied', 'invalid_task_transition', 'premature_ending', 'unauthorized_player_movement', 'repeated_narrative', 'player_perspective_drift', 'chat_target_missing'].includes(error.message)
       ? error.message : 'company_gateway_failed';
+    console.warn('ai_request_failed', { operation: body.operation, code, elapsedMs: Date.now() - startedAt });
     return Response.json({ error: code }, { status: 502 });
   }
 }

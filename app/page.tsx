@@ -4,6 +4,7 @@
 import { SyntheticEvent, useEffect, useEffectEvent, useRef, useState } from 'react';
 import { WorldSystemPanel } from '@/components/world-system-panel';
 import { visibleSystem } from '@/lib/world-system';
+import { CreatorRequest } from '@/lib/creator-request';
 import { currentPlayableTask, taskDisplayStatus } from '@/lib/experience-flow';
 import { Sheet, SheetTrigger, SheetContent, SheetTitle, SheetDescription, SheetClose } from '@/components/ui/sheet';
 import {
@@ -939,6 +940,8 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     return cacheImage(key, url, accountScope);
   };
   const remoteAIAdapter = createRemoteAIAdapter(accountScope);
+  const creatorRequest = useRef(new CreatorRequest());
+  useEffect(() => () => creatorRequest.current.cancel(), []);
   const [view, setView] = useState<View>('home');
   const creatorReturnView = useRef<View>('home');
   const [playerPersona, setPlayerPersona] = useState<PlayerPersona | null>(null);
@@ -1353,11 +1356,18 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
   }, []);
 
   function navigate(next: View) {
+    if (next !== 'create') cancelCreatorRequest();
     if (next === 'create' && view !== 'create') creatorReturnView.current = view;
     navigationRevision.current++;
     if (next !== 'play') stopActiveGeneration();
     setView(next);
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function cancelCreatorRequest() {
+    creatorRequest.current.cancel();
+    setCreatorAgentThinking(false);
+    setWorldGenerating(false);
   }
 
   function stopActiveGeneration() {
@@ -1453,9 +1463,9 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       const result = await operation(remoteAIAdapter);
       setModelMode('real');
       return result;
-    } catch {
+    } catch (error) {
       setModelMode('fallback');
-      throw new Error('公司模型暂时不可用，内容与进度已保留，请稍后重试。');
+      throw error;
     }
   }
 
@@ -1902,7 +1912,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
   }
 
   async function discussCreator(value: string) {
-    if (!value || creatorAgentThinking) return;
+    if (!value || creatorAgentThinking || worldGenerating) return;
     const confirmation = creatorConfirmation(value);
     if (confirmation) {
       let reply = '当前没有待采纳的建议。可以直接编辑世界设定，或告诉我新的想法。';
@@ -1916,6 +1926,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     }
     const baseline = creatorSections();
     const revision = navigationRevision.current;
+    const signal = creatorRequest.current.start();
     const userEntry: CreatorChatMessage = { role: 'creator', content: value };
     const conversation = [...creatorMessages, userEntry].slice(-10);
     setCreatorMessages(conversation);
@@ -1945,8 +1956,8 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
           surpriseLevel: normalizeSurpriseLevel(surprise),
           brief: normalizeCreatorBrief(creatorBrief),
         },
-      }), false);
-      if (revision !== navigationRevision.current) return;
+      }, signal), false);
+      if (!creatorRequest.current.current(signal) || revision !== navigationRevision.current) return;
       setCreatorMessages((current) => [...current, { role: 'agent', content: response.reply } satisfies CreatorChatMessage].slice(-12));
       setCreatorProposal(response.proposal);
       const brief = normalizeCreatorBrief(response.proposal.brief);
@@ -1958,12 +1969,12 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       }).map(change => change.key === 'entryPolicy' ? { ...change, roleOrder: draftRoles.map(role => role.editorId!), referenceLabels: Object.fromEntries(draftRoles.map((role, index) => [`draft-role-${index}`, role.name || `角色 ${index + 1}`])) } : change));
       setCreatorChangeNotice('');
       setCreatorQuestions(response.nextQuestions.slice(0, 3));
-    } catch {
-      if (revision !== navigationRevision.current) return;
+    } catch (error) {
+      if (!creatorRequest.current.current(signal) || revision !== navigationRevision.current) return;
       setCreatorMessage(value);
-      setCreatorMessages((current) => [...current, { role: 'agent', content: '这轮没有成功整理。你的现有设定没有被覆盖，可以重试或先手动编辑世界框架。' } satisfies CreatorChatMessage].slice(-12));
+      setCreatorMessages((current) => [...current, { role: 'agent', content: error instanceof Error ? error.message : '这轮创作暂时失败，你的内容已保留，请稍后重试。' } satisfies CreatorChatMessage].slice(-12));
     } finally {
-      setCreatorAgentThinking(false);
+      if (creatorRequest.current.current(signal)) setCreatorAgentThinking(false);
     }
   }
 
@@ -2095,7 +2106,8 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
   }
 
   async function generateWorld() {
-    if (worldGenerating) return;
+    if (worldGenerating || creatorAgentThinking) return;
+    const signal = creatorRequest.current.start();
     setWorldGenerating(true);
     try {
       const fallbackOutline = generatedStoryOutline.length >= 3 ? generatedStoryOutline : makeEditableOutline(worldSeed, draftRoles);
@@ -2115,7 +2127,8 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
         storySeed: worldSeed,
         surpriseLevel: normalizeSurpriseLevel(surprise),
         creatorBrief: effectiveBrief,
-      }));
+      }, signal));
+      if (!creatorRequest.current.current(signal)) return;
       const normalizedWorld = normalizeGeneratedWorld(response.world, draftRoles);
       const generatedDraftRoles = draftRoles.map((role, index) => ({ ...role, goal: role.goal || normalizedWorld.characters[index]?.goal || '', appearance: role.appearance || normalizedWorld.characters[index]?.imagePrompt || '' }));
       setCreatorDetailBaseline({ roles: generatedDraftRoles, outline: response.storyOutline });
@@ -2146,8 +2159,10 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
         appearance: role.appearance || normalizedWorld.characters[index]?.imagePrompt || '',
       })));
       setGenerated(true);
+    } catch (error) {
+      if (creatorRequest.current.current(signal)) setCreatorChangeNotice(error instanceof Error ? error.message : '生成失败，草稿已保留。');
     } finally {
-      setWorldGenerating(false);
+      if (creatorRequest.current.current(signal)) setWorldGenerating(false);
     }
   }
 
@@ -2215,7 +2230,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
   }
 
   function newCreator(seed = '', context?: CompanionContext, preserveCurrent = true) {
-    if (worldGenerating || creatorAgentThinking) { setStorageError('创作 Agent 仍在处理当前作品，请等本次回应结束后再新建。'); return; }
+    cancelCreatorRequest();
     setProposalChanges([]); setCreatorUndo([]); setCreatorChangeNotice(''); setCreatorFocus('');
     const data = JSON.parse(creatorDocumentJSON) as CreatorDocument['data'];
     if (preserveCurrent && hasCreation && !deletedDraftIds.current.has(draftId)) setCreatorDocuments((current) => upsertById(current, { id: draftId, savedAt: Date.now(), data }));
@@ -2235,7 +2250,8 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
   }
 
   function editCreator(doc: CreatorDocument) {
-    if (worldGenerating || creatorAgentThinking) { setStorageError('请等当前创作回应结束后再切换作品。'); return; }
+    cancelCreatorRequest();
+    setCreatorMessage('');
     deletedDraftIds.current.delete(doc.id);
     setActiveLibrary(null); setActiveWorld('storm'); setSelectedRole(roles[0]); setRuntimeBeat(null);
     const data = doc.data;
@@ -2254,8 +2270,6 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
   function deleteCreator(id: string) {
     const doc = creatorDocuments.find(item => item.id === id);
     if (!doc || !storageReady || storageReadFailed.current) return;
-    if (worldGenerating || creatorAgentThinking) { setStorageError('请等当前创作回应结束后再删除草稿。'); return; }
-    if (!window.confirm(`删除草稿“${doc.data.worldTitle || '未命名世界'}”？\n将移除这份本机草稿及其中的创作讨论，无法在此撤销。已发布版本、体验存档、个人聊天和云端图片不受影响。此前手动保存的云存档仍保留旧副本。`)) return;
     deletedDraftIds.current.add(id);
     if (id === draftId) {
       newCreator('', undefined, false);
