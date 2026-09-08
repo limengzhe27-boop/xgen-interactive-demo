@@ -1,5 +1,15 @@
 /* Approved secondary-page L1 flow. Gallery styling remains independent. */
 .prologue-page { max-width: 960px !important; padding: 12px 24px calc(16px + env(safe-area-inset-bottom)) !important; }
+.prologue-entry-panel { margin-top: 16px; padding: 24px; border: 1px solid var(--color-border); border-radius: 20px; background: var(--color-bg-elevated); animation: prologue-entry-in .22s ease-out; }
+.prologue-entry-panel .flow-selection-page { padding: 0 !important; min-height: 0; }
+.prologue-entry-panel .flow-toolbar, .prologue-entry-panel .flow-role-art { display: none; }
+.prologue-entry-panel .flow-selection { display: block; margin: 0; }
+.prologue-entry-panel .flow-role-intro { padding: 0; max-width: none; }
+.prologue-entry-panel .flow-role-premise { margin-block: 12px; }
+.prologue-entry-panel .flow-role-goal { margin-block: 16px; }
+@keyframes prologue-entry-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+@media(prefers-reduced-motion:reduce) { .prologue-entry-panel { animation: none; } }
+@media(max-width:600px) { .prologue-entry-panel { padding: 16px; } }
 .prologue-page .flow-toolbar { margin-bottom: 8px; }
 .prologue-page h1 { font: 600 clamp(1.15rem, 2.5vw, 1.5rem)/1.5 var(--font-story); margin: 0 0 12px; }
 .prologue-screen { position: relative; width: min(100%, max(260px, calc((100dvh - 340px) * 16 / 9))); margin-inline: auto; aspect-ratio: 16/9; border-radius: 18px; overflow: hidden; background: var(--color-surface); }
