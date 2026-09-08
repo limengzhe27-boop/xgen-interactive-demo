@@ -32,6 +32,7 @@ const spec: Serial = {
 };
 
 export const yogaWorld = createSerial(spec);
+yogaWorld.roleEntryScenes = { lin: '17:40，更衣室独立隔间。你已经穿好衣服，手腕上的莲花手链贴着袖口。周衡刚问你几点接孩子；锁扣旁的手停住了。\n\n陆晨在门外轻轻敲了两下：“林栀，还好吗？”你还没有回应。你可以先回复消息、隔门说话，也可以走出去。没有人替你作出决定。' };
 yogaWorld.featured = true;
 yogaWorld.artNote = '据用户提供的《拾月心理》故事改编为非官方互动世界；新增姓名、角色视角、任务与分支为互动扩展。原创 GPT 角色与封面，不对应真人。';
 yogaWorld.world.surpriseLevel = 2;

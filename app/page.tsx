@@ -3,8 +3,11 @@
 
 import { SyntheticEvent, useEffect, useEffectEvent, useRef, useState } from 'react';
 import { WorldSystemPanel } from '@/components/world-system-panel';
+import { WorldProloguePlayer } from '@/components/world-prologue';
+import { worldPrologue } from '@/lib/world-prologue';
 import { visibleSystem } from '@/lib/world-system';
 import { CreatorRequest } from '@/lib/creator-request';
+import { restoreCreatorSession, type CreatorSession } from '@/lib/creator-session';
 import { currentPlayableTask, taskDisplayStatus } from '@/lib/experience-flow';
 import { Sheet, SheetTrigger, SheetContent, SheetTitle, SheetDescription, SheetClose } from '@/components/ui/sheet';
 import {
@@ -98,7 +101,7 @@ import type {
 import type { ImageTask } from '@/lib/image-task';
 import type { ActionValidation, EventRecord, WorldIncident, WorldState } from '@/lib/world-state';
 
-type View = 'home' | 'library' | 'characters' | 'personal' | 'profile' | 'chat' | 'roles' | 'play' | 'create' | 'ending';
+type View = 'home' | 'library' | 'characters' | 'personal' | 'profile' | 'chat' | 'prologue' | 'roles' | 'play' | 'create' | 'ending';
 type WorldKind = 'storm' | 'suggestion' | 'draft';
 type ModelMode = 'checking' | 'real' | 'mock' | 'fallback';
 type ImageModelMode = 'checking' | 'real' | 'off' | 'fallback';
@@ -197,12 +200,13 @@ type PersistedDemoState = {
   generatedStoryOutline?: StoryOutlineBeat[];
   creatorBrief?: CreatorBrief;
   creatorMessages?: CreatorChatMessage[];
+  creatorSession?: CreatorSession;
   savedRun?: SavedRun;
 };
 
 type CreatorDocument = {
   id: string; savedAt: number;
-  data: Pick<PersistedDemoState, 'creatorAssets' | 'companionContext' | 'entryPolicy' | 'worldTitle' | 'worldSeed' | 'surprise' | 'draftRoles' | 'generated' | 'generatedWorld' | 'creatorDetailBaseline' | 'generatedStoryOutline' | 'creatorBrief' | 'creatorMessages' | 'publishedWorld'>;
+  data: Pick<PersistedDemoState, 'creatorSession' | 'creatorAssets' | 'companionContext' | 'entryPolicy' | 'worldTitle' | 'worldSeed' | 'surprise' | 'draftRoles' | 'generated' | 'generatedWorld' | 'creatorDetailBaseline' | 'generatedStoryOutline' | 'creatorBrief' | 'creatorMessages' | 'publishedWorld'>;
 };
 type StudioStorage = { version: 1; runs: (SavedRun & { id: string })[]; chats: ChatSession[]; documents: CreatorDocument[]; draftId: string };
 
@@ -1154,6 +1158,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
           const backupKey = `${demoStorageKey}-before-worldstudio`;
           if (!window.localStorage.getItem(backupKey)) window.localStorage.setItem(backupKey, raw);
           const saved = JSON.parse(raw) as Partial<PersistedDemoState>;
+          restorePendingCreator(saved.creatorSession);
           setCreatorAssets(saved.creatorAssets);
           setPlayerPersona(restorePlayerPersona(saved.playerPersona, accountScope));
           setEntryPolicy(restoreEntryPolicy(saved.entryPolicy ?? saved.generatedWorld?.entryPolicy));
@@ -1248,6 +1253,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       worldSeed,
       creatorBrief,
       creatorMessages,
+      creatorSession: { proposal: creatorProposal, changes: proposalChanges, input: creatorMessage, questions: creatorQuestions },
       generated,
       publishedWorld,
       draftRoles,
@@ -1259,11 +1265,12 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     };
     try { window.localStorage.setItem(demoStorageKey, JSON.stringify(snapshot)); }
     catch { window.setTimeout(() => setStorageError('浏览器空间不足，最新修改还没有保存。请保持页面打开，勿刷新。'), 0); }
-  }, [memoryDetails, creatorAssets, userProfile, companionContext, playerPersona, entryPolicy, agentConversation, personalRecommendations, creatorBrief, creatorDetailBaseline, creatorMessages, draftRoles, generated, generatedStoryOutline, generatedWorld, liveMode, memories, publishedWorld, savedRun, storageReady, surprise, worldSeed, worldTitle]);
+  }, [creatorProposal, proposalChanges, creatorMessage, creatorQuestions, memoryDetails, creatorAssets, userProfile, companionContext, playerPersona, entryPolicy, agentConversation, personalRecommendations, creatorBrief, creatorDetailBaseline, creatorMessages, draftRoles, generated, generatedStoryOutline, generatedWorld, liveMode, memories, publishedWorld, savedRun, storageReady, surprise, worldSeed, worldTitle]);
 
   const hasCreation = Boolean(worldTitle.trim() || worldSeed.trim() || generatedWorld || creatorMessages.some(turn => turn.role === 'creator') || companionContext.conversation.length);
   const creatorDocumentJSON = JSON.stringify({ creatorAssets, companionContext, entryPolicy, worldTitle, worldSeed, surprise, draftRoles, generated, generatedWorld: generatedWorld ?? undefined,
-    creatorDetailBaseline: creatorDetailBaseline ?? undefined, generatedStoryOutline, creatorBrief, creatorMessages, publishedWorld });
+    creatorDetailBaseline: creatorDetailBaseline ?? undefined, generatedStoryOutline, creatorBrief, creatorMessages, publishedWorld,
+    creatorSession: { proposal: creatorProposal, changes: proposalChanges, input: creatorMessage, questions: creatorQuestions } });
   useEffect(() => {
     if (!storageReady) return;
     const data = JSON.parse(creatorDocumentJSON) as CreatorDocument['data'];
@@ -1474,7 +1481,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     setActiveWorld('storm');
     setSelectedRole(roles[0]);
     setRuntimeBeat(null);
-    navigate('roles');
+    navigate('prologue');
   }
 
   function openDraftWorld() {
@@ -1485,7 +1492,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     setActiveWorld('draft');
     setSelectedRole(nextRoles[0]);
     setRuntimeBeat(null);
-    navigate('roles');
+    navigate('prologue');
     return true;
   }
 
@@ -1493,7 +1500,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     const libraryEntry = availableStudioWorlds.find((entry) => entry.id === worldId);
     if (libraryEntry) {
       if (!libraryEntry.world.characters.length) return false;
-      setActiveLibrary(libraryEntry); setActiveWorld('draft'); setSelectedRole(entryRoles(libraryEntry)[0]); setRuntimeBeat(null); navigate('roles'); return true;
+      setActiveLibrary(libraryEntry); setActiveWorld('draft'); setSelectedRole(entryRoles(libraryEntry)[0]); setRuntimeBeat(null); navigate('prologue'); return true;
     }
     if (worldId === 'creator-world') {
       return openDraftWorld();
@@ -1510,7 +1517,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     setActiveWorld('suggestion');
     setSelectedRole(nextRoles[0]);
     setRuntimeBeat(null);
-    navigate('roles');
+    navigate('prologue');
     return true;
   }
 
@@ -2219,7 +2226,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     setPublishedWorld(true);
     const entry: StudioWorld = { id: draftId, title: published.title, genre: '我的创作', premise: published.premise, cover: creatorAssets?.cover || legacyArt['storm-manor'].cover, portraits: creatorAssets?.portraits || {}, world: published,
       portraitCacheKeys: Object.fromEntries(draftRoles.map((role, index) => [published.characters[index]?.id ?? `draft-role-${index}`, portraitCacheKey(role)])) };
-    setActiveLibrary(entry); setActiveWorld('draft'); setSelectedRole(entryRoles(entry)[0]); setRuntimeBeat(null); navigate('roles');
+    setActiveLibrary(entry); setActiveWorld('draft'); setSelectedRole(entryRoles(entry)[0]); setRuntimeBeat(null); navigate('prologue');
   }
 
   function preparePublicWorld() {
@@ -2262,7 +2269,13 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     setDraftRoles(ensureCreatorRoleIds(data.draftRoles)); setGenerated(data.generated); setPublishedWorld(data.publishedWorld);
     setGeneratedWorld(data.generatedWorld ?? null); setCreatorDetailBaseline(data.creatorDetailBaseline ?? null);
     setGeneratedStoryOutline(data.generatedStoryOutline ?? []); setCreatorBrief(data.creatorBrief ?? emptyCreatorBrief);
-    setCreatorMessages(data.creatorMessages ?? []); setCreatorProposal(null); setProposalChanges([]); setCreatorUndo([]); setCreatorChangeNotice(''); setCreatorFocus(''); setCreateStep(1); navigate('create');
+    setCreatorMessages(data.creatorMessages ?? []); restorePendingCreator(data.creatorSession); setCreatorUndo([]); setCreatorChangeNotice(''); setCreatorFocus(''); setCreateStep(1); navigate('create');
+  }
+
+  function restorePendingCreator(value: unknown) {
+    const session = restoreCreatorSession(value);
+    setCreatorProposal(session.proposal); setProposalChanges(session.changes);
+    setCreatorMessage(session.input); setCreatorQuestions(session.questions);
   }
 
   function saveChat(session: ChatSession) { setChatSessions((current) => upsertById(current, session)); }
@@ -2318,6 +2331,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       onCreate={newCreator} onOpenWorld={openCatalogWorld} onChat={(worldId, targetId) => { const entry = availableStudioWorlds.find((item) => item.id === worldId); if (entry) setChatEntry({ entry, targetId }); }} onPersonal={() => navigate('personal')} onLibrary={() => navigate('library')} onOpenRecord={openRecord}
     />;
     if (view === 'roles') return <RoleSelection identityControl={identityControl} worldTitle={activeWorldTitle} artNote={activeLibrary?.artNote} availableRoles={currentRoles} selected={selectedRole} onSelect={setSelectedRole} onBack={() => navigate('home')} onStart={() => beginWorld()} personaEntry={activeLibrary && restoreEntryPolicy(activeLibrary.world.entryPolicy).allowPersona && restoreEntryPolicy(activeLibrary.world.entryPolicy).allowedRoleIds.includes(selectedRole.id) ? <PersonaAdmission key={`${activeLibrary.id}:${selectedRole.id}`} entry={activeLibrary} roleId={selectedRole.id} persona={playerPersona} onEnter={beginWorld} /> : undefined} />;
+    if (view === 'prologue') return <WorldProloguePlayer key={activeWorldDefinition.id} title={activeWorldTitle} prologue={worldPrologue(activeWorldDefinition.id, activeLibrary?.premise || activeWorldDefinition.premise, activeLibrary?.cover || (activeWorld === 'suggestion' && suggestedPreset ? legacyArt[suggestedPreset.id]?.cover : undefined) || creatorAssets?.cover || legacyArt['storm-manor'].cover)} onBack={() => navigate('home')} onContinue={() => navigate('roles')} />;
     if (view === 'play') {
       return (
         <PlayWorld
@@ -2456,7 +2470,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
   const screen = renderScreen();
 
   return (
-    <main className="studio-frame" data-focused-flow={view === 'roles' || view === 'play' || view === 'personal' || view === 'create' || view === 'chat'}>
+    <main className="studio-frame" data-focused-flow={view === 'prologue' || view === 'roles' || view === 'play' || view === 'personal' || view === 'create' || view === 'chat'}>
       <StudioNav section={view} onNavigate={navigate} onCreate={newCreator} />
       <AccountBar onProfile={['home', 'library', 'characters', 'personal'].includes(view) ? () => navigate('profile') : undefined} workspaceControls={['home', 'library', 'personal', 'profile', 'characters'].includes(view) && <CloudWorkspace accountScope={accountScope} disabled={!storageReady || storageReadFailed.current || agentThinking || creatorAgentThinking || worldGenerating} />} />
       {companionHandoff && <CompanionHandoff seed={companionHandoff.seed} conversation={agentConversation} memoryCount={memories.length} onClose={() => setCompanionHandoff(null)} onConfirm={(seed, context) => {

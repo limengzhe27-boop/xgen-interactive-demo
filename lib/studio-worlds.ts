@@ -1,4 +1,5 @@
 import type { WorldDefinition } from './ai-contracts';
+import publicImages from './public-image-manifest.json' with { type: 'json' };
 import { serialWorlds } from './serial-worlds.ts';
 import { wildWorlds } from './wild-worlds.ts';
 import { memeWorlds } from './meme-worlds.ts';
@@ -19,6 +20,7 @@ export type StudioWorld = {
   portraits: Record<string, string>;
   portraitCacheKeys?: Record<string, string>;
   roleOpenings?: Record<string, string>;
+  roleEntryScenes?: Record<string, string>;
   roleChoices?: Record<string, string[]>;
 };
 
@@ -321,8 +323,10 @@ export const inheritanceWorld: StudioWorld = {
   },
 };
 
-// Public source distribution uses bundled assets, not the original deployment's storage.
-const publicImage = (path: string) => path;
+const publicImage = (path: string) => {
+  const id = (publicImages as Record<string, string>)[path];
+  return id ? `https://rrgyjvkkgcurtatidyuc.supabase.co/storage/v1/object/public/world-public/${id}.webp` : path;
+};
 export const studioWorlds: StudioWorld[] = [yogaWorld, conquestWorld, ...memeWorlds, contractWorld, workplaceWorld, inheritanceWorld, ...serialWorlds, ...wildWorlds].map((entry) => {
   const art = libraryArt[entry.id] ?? legacyArt[entry.id];
   return {
@@ -336,8 +340,8 @@ export function getRoleOpening(entry: StudioWorld, roleId: string): string {
   const role = entry.world.characters.find((item) => item.id === roleId);
   if (!role) throw new Error('unknown_role');
   // Offscreen roles must not receive the global opening's private viewpoint.
-  const scene = role.startLocationId === entry.world.openingScene.locationId
+  const scene = entry.roleEntryScenes?.[roleId] ?? (role.startLocationId === entry.world.openingScene.locationId
     ? entry.world.openingScene.narrative
-    : entry.world.locations.find((item) => item.id === role.startLocationId)?.description ?? '';
+    : entry.world.locations.find((item) => item.id === role.startLocationId)?.description ?? '');
   return `${scene}\n\n${entry.roleOpenings?.[roleId] ?? `你是${role.name}。${role.publicBackground}`}\n\n你的目标：${role.goal}`;
 }

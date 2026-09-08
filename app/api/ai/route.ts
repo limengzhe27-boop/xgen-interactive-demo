@@ -1,5 +1,5 @@
 import { AI_CONTRACT_VERSION } from '@/lib/ai-contracts';
-import { creatorTaskIssues } from '@/lib/creator-task-graph';
+import { repairCreatorProposal } from '@/lib/creator-proposal-repair';
 import { requestAccount } from '@/lib/server-auth';
 import { companionInstructions, makeCompanionInput, restoreCompanionContext } from '@/lib/companion-context';
 import { guardPersonalAction, personalActionInstructions } from '@/lib/personal-recommendations';
@@ -183,16 +183,22 @@ async function handlePost(request: Request) {
   if (!provider) return Response.json({ error: 'model_not_configured' }, { status: 503 });
   const startedAt = Date.now();
   try {
-    const output = await callCompany(provider, body.operation, body.input, body.operation === 'advance-world' ? 35_000 : body.operation === 'adapt-persona' || body.operation === 'design-persona' ? 25_000 : undefined);
+    let output = await callCompany(provider, body.operation, body.input, body.operation === 'advance-world' ? 35_000 : body.operation === 'adapt-persona' || body.operation === 'design-persona' ? 25_000 : undefined);
     if (body.operation !== 'advance-world' && !isValidOutput(body.operation, output)) {
       return Response.json({ error: 'invalid_model_output' }, { status: 502 });
     }
     if (body.operation === 'co-create-world' && isCreatorAgentResponse(output)) {
       const inputRoles = (body.input as { characters?: unknown[] }).characters;
-      const roleCount = output.proposal.characters?.length || (Array.isArray(inputRoles) ? inputRoles.length : 0);
-      if (creatorTaskIssues(output.proposal.brief.tasks, roleCount).length) {
-        return Response.json({ error: 'invalid_creator_task_graph' }, { status: 502 });
-      }
+      const original = output;
+      output = await repairCreatorProposal(original, Array.isArray(inputRoles) ? inputRoles.length : 0, async (issues) => {
+        const remainingMs = Math.min(40_000, 105_000 - (Date.now() - startedAt));
+        if (remainingMs < 3000) throw new Error('invalid_creator_task_graph');
+        return callCompany(provider, 'co-create-world', {
+          ...body.input as object,
+          uncommittedProposal: original,
+          validationFeedback: { issues, instruction: '上次建议尚未提交。只修正该建议的任务 id、prerequisiteTaskIds、assignedRoleIds，使引用有效且无循环。保持任务顺序、数量、标题、描述、难度、完成条件及其他所有设定原样；不删除任务，不重写故事。跨角色前置是允许的世界事件，不需要扩大任务归属。返回完整 co-create-world JSON。' },
+        }, remainingMs);
+      });
     }
     let guardedOutput = body.operation === 'design-persona' ? readPersonaDesignReply(output) : output;
     if (adaptationInput) {
@@ -239,7 +245,7 @@ async function handlePost(request: Request) {
       headers: { 'Cache-Control': 'no-store', 'X-AI-Provider': 'yibu' },
     });
   } catch (error) {
-    const code = error instanceof Error && ['model_timeout', 'model_output_truncated', 'invalid_model_output', 'model_rate_limited', 'model_access_denied', 'invalid_task_transition', 'premature_ending', 'unauthorized_player_movement', 'repeated_narrative', 'player_perspective_drift', 'chat_target_missing'].includes(error.message)
+    const code = error instanceof Error && ['invalid_creator_task_graph', 'model_timeout', 'model_output_truncated', 'invalid_model_output', 'model_rate_limited', 'model_access_denied', 'invalid_task_transition', 'premature_ending', 'unauthorized_player_movement', 'repeated_narrative', 'player_perspective_drift', 'chat_target_missing'].includes(error.message)
       ? error.message : 'company_gateway_failed';
     console.warn('ai_request_failed', { operation: body.operation, code, elapsedMs: Date.now() - startedAt });
     return Response.json({ error: code }, { status: 502 });
