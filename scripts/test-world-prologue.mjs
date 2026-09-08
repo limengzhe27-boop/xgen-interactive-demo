@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile, stat } from 'node:fs/promises';
-import { yogaPrologue, worldPrologue, prologueDuration, prologueShotAt } from '../lib/world-prologue.ts';
+import { yogaPrologue, yogaAudioPrologue, worldPrologue, prologueDuration, prologueShotAt } from '../lib/world-prologue.ts';
 import { yogaWorld } from '../lib/yoga-world.ts';
 import { getRoleOpening } from '../lib/studio-worlds.ts';
 
@@ -13,6 +13,23 @@ test('public prologue is 20 seconds, stops before decisions, and does not disclo
  assert.match(yogaPrologue.handoff,/尚未发生/);
  assert.equal(worldPrologue('other','公开简介','/cover.webp').video,undefined);
  assert.equal(worldPrologue('other','公开简介','/cover.webp').shots[0].caption,'公开简介');
+});
+test('30-second comparison has a real audio track and preserves the original', async()=>{
+ assert.equal(prologueDuration(yogaAudioPrologue),30);
+ assert.equal(yogaAudioPrologue.hasAudio,true);
+ assert.equal(yogaAudioPrologue.captionsEmbedded,true);
+ assert.notEqual(yogaAudioPrologue.video,yogaPrologue.video);
+ assert.deepEqual([0,5,10,20,25,30].map(t=>prologueShotAt(yogaAudioPrologue,t)),[0,1,2,3,4,4]);
+ const bytes=await readFile(new URL('../public'+yogaAudioPrologue.video,import.meta.url));
+ assert.equal(bytes.subarray(4,8).toString(),'ftyp');
+ // Inspect track metadata rather than treating a file extension as proof of sound.
+ const moov=bytes.indexOf(Buffer.from('moov'));
+ assert.ok(moov>0);
+ const size=bytes.readUInt32BE(moov-4), metadata=bytes.subarray(moov,moov+size-4);
+ assert.ok(metadata.includes(Buffer.from('soun')));
+ assert.ok(metadata.includes(Buffer.from('mp4a')));
+ assert.ok(bytes.length<12000000);
+ assert.ok((await stat(new URL('../public'+yogaAudioPrologue.shots[0].poster,import.meta.url))).size>0);
 });
 test('role handoff is brief, preserves location and does not replay the entire prologue',()=>{
  const lin=getRoleOpening(yogaWorld,'lin');assert.ok(lin.length<500);assert.match(lin,/你已经穿好衣服/);

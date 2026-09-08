@@ -72,3 +72,6 @@
   .cinema-page .prologue-next p { font-size:14px; }
 }
 @media(prefers-reduced-motion:reduce) { .cinema-page,.cinema-page * { animation:none !important; transition:none !important; } }
+.cinema-page .prologue-enable-sound { position:absolute; top:16px; right:16px; z-index:3; display:flex; align-items:center; gap:8px; padding:12px 16px; border:1px solid #ffffff66; border-radius:999px; background:#12211ee8; color:#fff; font-size:14px; cursor:pointer; box-shadow:0 4px 20px #0004; }
+.cinema-page .prologue-enable-sound:hover { background:#196b56; }
+.cinema-page .prologue-enable-sound svg { width:20px; height:20px; }
