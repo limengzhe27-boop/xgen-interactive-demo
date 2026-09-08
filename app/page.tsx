@@ -5,6 +5,7 @@ import { SyntheticEvent, useEffect, useEffectEvent, useRef, useState } from 'rea
 import { WorldSystemPanel } from '@/components/world-system-panel';
 import { visibleSystem } from '@/lib/world-system';
 import { CreatorRequest } from '@/lib/creator-request';
+import { restoreCreatorSession, type CreatorSession } from '@/lib/creator-session';
 import { currentPlayableTask, taskDisplayStatus } from '@/lib/experience-flow';
 import { Sheet, SheetTrigger, SheetContent, SheetTitle, SheetDescription, SheetClose } from '@/components/ui/sheet';
 import {
@@ -197,12 +198,13 @@ type PersistedDemoState = {
   generatedStoryOutline?: StoryOutlineBeat[];
   creatorBrief?: CreatorBrief;
   creatorMessages?: CreatorChatMessage[];
+  creatorSession?: CreatorSession;
   savedRun?: SavedRun;
 };
 
 type CreatorDocument = {
   id: string; savedAt: number;
-  data: Pick<PersistedDemoState, 'creatorAssets' | 'companionContext' | 'entryPolicy' | 'worldTitle' | 'worldSeed' | 'surprise' | 'draftRoles' | 'generated' | 'generatedWorld' | 'creatorDetailBaseline' | 'generatedStoryOutline' | 'creatorBrief' | 'creatorMessages' | 'publishedWorld'>;
+  data: Pick<PersistedDemoState, 'creatorSession' | 'creatorAssets' | 'companionContext' | 'entryPolicy' | 'worldTitle' | 'worldSeed' | 'surprise' | 'draftRoles' | 'generated' | 'generatedWorld' | 'creatorDetailBaseline' | 'generatedStoryOutline' | 'creatorBrief' | 'creatorMessages' | 'publishedWorld'>;
 };
 type StudioStorage = { version: 1; runs: (SavedRun & { id: string })[]; chats: ChatSession[]; documents: CreatorDocument[]; draftId: string };
 
@@ -1154,6 +1156,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
           const backupKey = `${demoStorageKey}-before-worldstudio`;
           if (!window.localStorage.getItem(backupKey)) window.localStorage.setItem(backupKey, raw);
           const saved = JSON.parse(raw) as Partial<PersistedDemoState>;
+          restorePendingCreator(saved.creatorSession);
           setCreatorAssets(saved.creatorAssets);
           setPlayerPersona(restorePlayerPersona(saved.playerPersona, accountScope));
           setEntryPolicy(restoreEntryPolicy(saved.entryPolicy ?? saved.generatedWorld?.entryPolicy));
@@ -1248,6 +1251,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       worldSeed,
       creatorBrief,
       creatorMessages,
+      creatorSession: { proposal: creatorProposal, changes: proposalChanges, input: creatorMessage, questions: creatorQuestions },
       generated,
       publishedWorld,
       draftRoles,
@@ -1259,11 +1263,12 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     };
     try { window.localStorage.setItem(demoStorageKey, JSON.stringify(snapshot)); }
     catch { window.setTimeout(() => setStorageError('浏览器空间不足，最新修改还没有保存。请保持页面打开，勿刷新。'), 0); }
-  }, [memoryDetails, creatorAssets, userProfile, companionContext, playerPersona, entryPolicy, agentConversation, personalRecommendations, creatorBrief, creatorDetailBaseline, creatorMessages, draftRoles, generated, generatedStoryOutline, generatedWorld, liveMode, memories, publishedWorld, savedRun, storageReady, surprise, worldSeed, worldTitle]);
+  }, [creatorProposal, proposalChanges, creatorMessage, creatorQuestions, memoryDetails, creatorAssets, userProfile, companionContext, playerPersona, entryPolicy, agentConversation, personalRecommendations, creatorBrief, creatorDetailBaseline, creatorMessages, draftRoles, generated, generatedStoryOutline, generatedWorld, liveMode, memories, publishedWorld, savedRun, storageReady, surprise, worldSeed, worldTitle]);
 
   const hasCreation = Boolean(worldTitle.trim() || worldSeed.trim() || generatedWorld || creatorMessages.some(turn => turn.role === 'creator') || companionContext.conversation.length);
   const creatorDocumentJSON = JSON.stringify({ creatorAssets, companionContext, entryPolicy, worldTitle, worldSeed, surprise, draftRoles, generated, generatedWorld: generatedWorld ?? undefined,
-    creatorDetailBaseline: creatorDetailBaseline ?? undefined, generatedStoryOutline, creatorBrief, creatorMessages, publishedWorld });
+    creatorDetailBaseline: creatorDetailBaseline ?? undefined, generatedStoryOutline, creatorBrief, creatorMessages, publishedWorld,
+    creatorSession: { proposal: creatorProposal, changes: proposalChanges, input: creatorMessage, questions: creatorQuestions } });
   useEffect(() => {
     if (!storageReady) return;
     const data = JSON.parse(creatorDocumentJSON) as CreatorDocument['data'];
@@ -2262,7 +2267,13 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     setDraftRoles(ensureCreatorRoleIds(data.draftRoles)); setGenerated(data.generated); setPublishedWorld(data.publishedWorld);
     setGeneratedWorld(data.generatedWorld ?? null); setCreatorDetailBaseline(data.creatorDetailBaseline ?? null);
     setGeneratedStoryOutline(data.generatedStoryOutline ?? []); setCreatorBrief(data.creatorBrief ?? emptyCreatorBrief);
-    setCreatorMessages(data.creatorMessages ?? []); setCreatorProposal(null); setProposalChanges([]); setCreatorUndo([]); setCreatorChangeNotice(''); setCreatorFocus(''); setCreateStep(1); navigate('create');
+    setCreatorMessages(data.creatorMessages ?? []); restorePendingCreator(data.creatorSession); setCreatorUndo([]); setCreatorChangeNotice(''); setCreatorFocus(''); setCreateStep(1); navigate('create');
+  }
+
+  function restorePendingCreator(value: unknown) {
+    const session = restoreCreatorSession(value);
+    setCreatorProposal(session.proposal); setProposalChanges(session.changes);
+    setCreatorMessage(session.input); setCreatorQuestions(session.questions);
   }
 
   function saveChat(session: ChatSession) { setChatSessions((current) => upsertById(current, session)); }
