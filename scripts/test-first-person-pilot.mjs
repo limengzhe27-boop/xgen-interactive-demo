@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { stat, readFile } from 'node:fs/promises';
 import { firstPersonWorld } from '../lib/first-person-world.ts';
 import { studioWorlds, getRoleOpening } from '../lib/studio-worlds.ts';
-import { ascensionPrologue, yogaComparisonPrologue, yogaPrologue, worldPrologue, prologueDuration } from '../lib/world-prologue.ts';
+import { ascensionPrologue, yogaComparisonPrologue, yogaPrologue, yogaAudioPrologue, worldPrologue, prologueDuration } from '../lib/world-prologue.ts';
 
 test('first-person pilot has one fixed player, another active NPC and an open choice',()=>{
  assert.equal(firstPersonWorld.fixedRoleId,'shen');
@@ -17,8 +17,10 @@ test('first-person pilot has one fixed player, another active NPC and an open ch
  assert.match(firstPersonWorld.world.rules.find(r=>r.id==='physical').description,/一次护身剑气/);
  assert.equal(firstPersonWorld.roleChoices.shen.length,3);
 });
-test('sample videos are independent saved MP4s; original yoga remains default',async()=>{
- assert.equal(worldPrologue('yoga-lotus-boundary','',''),yogaPrologue);
+test('sample videos stay independent; approved voiced yoga is the world default',async()=>{
+ assert.equal(worldPrologue('yoga-lotus-boundary','',''),yogaAudioPrologue);
+ assert.equal(prologueDuration(worldPrologue('yoga-lotus-boundary','','')),30);
+ assert.equal(worldPrologue('yoga-lotus-boundary','','').hasAudio,true);
  assert.deepEqual([ascensionPrologue,yogaPrologue,yogaComparisonPrologue].map(prologueDuration),[20,20,14]);
  assert.equal(new Set([ascensionPrologue.video,yogaPrologue.video,yogaComparisonPrologue.video]).size,3);
  for(const p of [ascensionPrologue,yogaComparisonPrologue]) {
