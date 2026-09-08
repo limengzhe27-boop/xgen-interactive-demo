@@ -940,6 +940,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
   };
   const remoteAIAdapter = createRemoteAIAdapter(accountScope);
   const [view, setView] = useState<View>('home');
+  const creatorReturnView = useRef<View>('home');
   const [playerPersona, setPlayerPersona] = useState<PlayerPersona | null>(null);
   const [entryPolicy, setEntryPolicy] = useState<EntryPolicy>(closedEntryPolicy);
   const [message, setMessage] = useState('');
@@ -1351,6 +1352,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
   }, []);
 
   function navigate(next: View) {
+    if (next === 'create' && view !== 'create') creatorReturnView.current = view;
     navigationRevision.current++;
     if (next !== 'play') stopActiveGeneration();
     setView(next);
@@ -2379,7 +2381,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
           onUpdateStoryBeat={updateStoryOutline}
           onGenerateRoleImage={(index) => { void generateRoleImage(index); }}
           onGenerateAllRoleImages={() => { void generateAllRoleImages(); }}
-          onBack={() => navigate('personal')}
+          onBack={() => navigate(creatorReturnView.current)}
           onPublish={publishCreatorWorld}
           onShare={preparePublicWorld}
         />
