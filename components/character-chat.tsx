@@ -132,7 +132,7 @@ export function CharacterChat({ initial, accountScope, onSave, onBack }: { initi
       {session.turns.map((turn, index) => <article className="studio-chat-turn" key={index}>
         <div className="studio-chat-user"><small>{player.name === '你' ? '你' : `${player.name} · 你`}</small><p>{turn.action}</p></div>
         <div className="conversation-response">
-        <div className="conversation-narrative"><p>{turn.response.narrative}</p></div>
+        {turn.response.narrative.trim() && <div className="conversation-narrative">{turn.response.narrative.split(/\n\s*\n/).filter(part => part.trim()).map((part, paragraph) => <p key={paragraph}>{part}</p>)}</div>}
         {turn.response.dialogue.filter((line) => line.visibleToRoleIds.includes(player.id) && line.characterId !== player.id).map((line, i) => <div className="conversation-line" key={i}><img src={session.entry.portraits[line.characterId] || session.entry.cover} alt="" /><div><strong>{session.entry.world.characters.find((role) => role.id === line.characterId)?.name || '角色'}</strong><p>{line.text}</p></div></div>)}
         <SpeechSequence accountScope={accountScope} segments={speechSegments(turn.response.narrative, turn.response.dialogue.filter(line => line.visibleToRoleIds.includes(player.id) && line.characterId !== player.id))} />
         </div>
