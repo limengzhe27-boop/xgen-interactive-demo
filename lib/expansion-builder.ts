@@ -19,7 +19,7 @@ export function createExpansion(seed: ExpansionSeed): StudioWorld {
   const base = createSerial({
     id: seed.id, title: seed.title, genre: seed.genre, hook: seed.hook,
     time: seed.time ?? '故事开场当下；后续时间只随玩家行动合理推进。',
-    event: seed.opening, cover: asset(seed.id === 'spider-under-table' ? 'cover-v2' : 'cover'), physics: seed.physics,
+    event: seed.opening, cover: asset(['spider-under-table', 'peach-source', 'rome-three-percent'].includes(seed.id) ? 'cover-v2' : 'cover'), physics: seed.physics,
     places: seed.places, opening: seed.opening,
     roles: seed.roles.map((r, i) => ({
       id: `r${i + 1}`, name: r.name, identity: r.identity, persona: r.persona,
