@@ -50,6 +50,31 @@ const noop = () => {};
 const personalProps = { message: '', conversation: [], busy: false, error: '', recommendations: [], worlds,
   memories: [], onMessage: noop, onSubmit: noop, onRemoveMemory: noop, onOpenWorld: noop, onCreate: noop };
 
+test('persona entry collapses optional adaptation but preserves disclosure and explicit consent', async () => {
+  const { PersonaAdmission } = await import('../components/player-persona.tsx');
+  const entry = studioWorlds.find(w => w.id === 'contract-expiry');
+  const persona = { version: 1, ownerId: 'test', name: '测试旅人', identity: '旅人', personality: '谨慎', appearance: '外套', abilities: '读心', updatedAt: 1 };
+  const html = renderToStaticMarkup(React.createElement(PersonaAdmission, {entry, roleId:'persona-visitor', persona, onEnter:noop}));
+  assert.match(html, /<details class="persona-adaptation"[^>]*>/);
+  assert.doesNotMatch(html.match(/<details class="persona-adaptation"[^>]*>/)[0], /\bopen/);
+  assert.match(html, /公司网关及模型供应商/);
+  assert.match(html, /不附带私人聊天或个人记忆/);
+  assert.match(html, /本世界不带入额外超常能力/);
+  assert.match(html, /我确认本次身份与能力适配/);
+  assert.match(html, /disabled[^>]*>以我的身份进入/);
+});
+
+test('required ability judgment stays expanded and cannot be skipped by the compact entry UI', async () => {
+  const { PersonaAdmission } = await import('../components/player-persona.tsx');
+  const base = studioWorlds.find(w => w.id === 'contract-expiry');
+  const entry = {...base, world:{...base.world, entryPolicy:{...base.world.entryPolicy, abilityMode:'agent-judge'}}};
+  const persona = {version:1,ownerId:'test',name:'测试旅人',identity:'旅人',personality:'谨慎',appearance:'外套',abilities:'读心',updatedAt:1};
+  const html = renderToStaticMarkup(React.createElement(PersonaAdmission,{entry,roleId:'persona-visitor',persona,onEnter:noop}));
+  assert.match(html, /<details class="persona-adaptation"[^>]*open=""/);
+  assert.match(html, /请先获取入场建议，再确认进入/);
+  assert.match(html, /type="checkbox"[^>]*disabled/);
+});
+
 test('account profile separates fictional persona from confirmed and pending real memories', () => {
   const html = renderToStaticMarkup(React.createElement(ProfilePage, {
     persona: { name: '测试侠客', identity: '虚构剑客', personality: '勇敢但怕高', appearance: '银发', abilities: '御剑' },

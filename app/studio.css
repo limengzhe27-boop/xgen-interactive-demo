@@ -209,8 +209,24 @@ html[data-account-locked] [data-slot="dialog-content"], html[data-account-locked
 .persona-admission dt { color: var(--color-agent); }
 .persona-admission dd { margin: 0; white-space: pre-wrap; }
 .persona-adaptation { margin-block: 20px; padding: 18px; border: 1px solid var(--color-agent); border-radius: 12px; background: var(--color-agent-soft); min-width: 0; }
-.persona-adaptation h4 { display: flex; align-items: center; gap: 8px; color: var(--color-agent); font-size: 17px; line-height: 1.8; margin: 0; }
-.persona-adaptation h4 svg { width: 20px; flex-shrink: 0; }
+.persona-adaptation > summary { display: flex; align-items: center; gap: 8px; color: var(--color-text); font-size: 16px; line-height: 1.8; margin: 0; min-height:44px; cursor:pointer; }
+.persona-adaptation > summary svg { width: 20px; flex-shrink: 0; }
+.persona-adaptation > summary small { margin-left:auto; color:var(--color-text-secondary); font-size:14px; }
+.persona-adaptation[open] > summary .persona-adaptation-chevron { transform:rotate(180deg); }
+.persona-entry-details > summary { min-height:44px; padding-block:8px; cursor:pointer; color:var(--color-text-secondary); font-size:15px; }
+.persona-admission summary:hover { color:var(--color-agent); }
+.persona-admission summary:focus-visible { outline:2px solid var(--color-focus-ring); outline-offset:2px; }
+.persona-entry-summary { display:flex; align-items:center; gap:24px; }
+.persona-entry-summary > div { flex:1; min-width:0; }
+.persona-entry-summary h3 { margin:0; }
+.persona-entry-summary p { margin:4px 0; }
+.persona-entry-summary .persona-entry-goal { flex:1; }
+.persona-entry-footer { margin-top:8px; padding-top:12px; border-top:1px solid var(--color-border); }
+.persona-entry-footer > p { margin:0 0 8px; font-size:14px; }
+.persona-entry-confirm { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+.persona-entry-confirm .persona-enter { min-width:200px; }
+.persona-admission .persona-adaptation { margin-block:8px; padding:4px 12px; }
+.persona-admission .persona-adaptation[open] { padding-bottom:16px; }
 .persona-adaptation label { display: grid; gap: 8px; font-size: 15px; }
 .persona-adaptation textarea { width: 100%; min-height: 88px; font-size: 15px; line-height: 1.8; }
 .persona-adaptation-result { border-top: 1px solid var(--color-border); margin-top: 16px; padding-top: 16px; }
@@ -221,6 +237,8 @@ html[data-account-locked] [data-slot="dialog-content"], html[data-account-locked
 .player-role .persona-no-image { min-height: 0; padding: 0; font-size: 0; gap: 0; }
 .player-role .persona-no-image svg { width: 24px; height: 24px; }
 @media (max-width: 600px) {
+  .persona-entry-summary { display:block; }
+  .persona-entry-confirm .persona-enter { width:100%; }
   .persona-fields { grid-template-columns: minmax(0, 1fr); }
   .persona-editor, .persona-admission, .entry-policy-editor { padding: 16px; }
   .persona-admission dl { grid-template-columns: minmax(0, 1fr); gap: 4px; }
