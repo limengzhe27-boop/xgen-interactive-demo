@@ -53,11 +53,17 @@ export const ascensionNativePrologue: WorldPrologue = {
   handoff:'你仍在天门外，未签契、未挥剑。追问逃亡者、检查锁链，或付出剑气斩链，由你决定。',
 };
 export function worldPrologue(worldId: string, publicPremise: string, cover: string): WorldPrologue {
+  if (worldId === 'emperor-last-decree') return emperorNativePrologue;
   return worldId === 'ascension-work-number' ? ascensionNativePrologue : worldId === 'yoga-lotus-boundary' ? yogaAudioPrologue : {
     shots: [{ caption: publicPremise, poster: cover, seconds: 0 }],
     handoff: '先了解这场故事，再选择你要成为的人。',
   };
 }
+export const emperorNativePrologue: WorldPrologue = {
+  video: '/assets/prologues/emperor-native-v1/preview.mp4', hasAudio: true, audioOrigin: 'native',
+  shots: [{poster:'/assets/prologues/emperor-native-v1/poster.webp',seconds:15,caption:'丞相推来诏书与笔；门外传来求见声。你尚未签字。'}],
+  handoff:'诏书尚未签下。核对军令、要求隔门对话，或检查玺印，接下来由你决定。',
+};
 export function prologueDuration(prologue: WorldPrologue) {
   return Math.min(30, prologue.shots.reduce((sum, shot) => sum + shot.seconds, 0));
 }

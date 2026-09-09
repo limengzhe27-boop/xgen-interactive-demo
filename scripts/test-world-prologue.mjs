@@ -4,6 +4,18 @@ import { readFile, stat } from 'node:fs/promises';
 import { yogaPrologue, yogaAudioPrologue, worldPrologue, prologueDuration, prologueShotAt } from '../lib/world-prologue.ts';
 import { yogaWorld } from '../lib/yoga-world.ts';
 import { getRoleOpening } from '../lib/studio-worlds.ts';
+import { studioWorlds } from '../lib/studio-worlds.ts';
+
+test('emperor approved opening is playable native audio and hands off to three fixed-role actions',async()=>{
+ const prologue=worldPrologue('emperor-last-decree','','');
+ assert.equal(prologue.video,'/assets/prologues/emperor-native-v1/preview.mp4');
+ assert.equal(prologue.audioOrigin,'native');assert.equal(prologueDuration(prologue),15);
+ const bytes=await readFile(new URL('../public'+prologue.video,import.meta.url));
+ assert.equal(bytes.subarray(4,8).toString(),'ftyp');assert.ok(bytes.includes(Buffer.from('soun')));
+ const entry=studioWorlds.find(w=>w.id==='emperor-last-decree');assert.ok(entry.fixedRoleId);
+ assert.equal(entry.roleChoices[entry.fixedRoleId].length,3);
+ assert.match(getRoleOpening(entry,entry.fixedRoleId),/诏书没签|落款处却空着/);
+});
 
 test('formal cultivation uses the latest native video, and both real entry points use VideoExplorer',async()=>{
  const current=worldPrologue('ascension-work-number','','');
