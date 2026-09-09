@@ -103,6 +103,7 @@ import type {
 } from '@/lib/ai-contracts';
 import type { ImageTask } from '@/lib/image-task';
 import type { ActionValidation, EventRecord, WorldIncident, WorldState } from '@/lib/world-state';
+import { turnMemoryText } from '@/lib/world-state';
 
 type View = 'home' | 'library' | 'characters' | 'personal' | 'profile' | 'chat' | 'prologue' | 'roles' | 'play' | 'create' | 'ending';
 type WorldKind = 'storm' | 'suggestion' | 'draft';
@@ -1799,11 +1800,12 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
           setRuntimeBeat(responseToStoryBeat(response, currentBeat, currentRoles, selectedRole, runtimeWorld));
           setWorldState((current) => commitTurn(current, {
             action: nextAction,
-            result: response.narrative,
+            result: turnMemoryText(response, runtimeWorld, selectedRole.id),
             clue: responseClue,
             nextLocation: runtimeWorld.locations.find((location) => location.id === response.statePatch.locationId)?.name || current.location,
             reachedEndingId: response.ending.endingId,
             relationshipDelta: responseRelation,
+            relationshipDeltas: response.statePatch.relationshipDeltas,
             clock: response.statePatch.clock,
             addInventory: response.statePatch.addInventory,
             removeInventory: response.statePatch.removeInventory,
@@ -1829,10 +1831,11 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
         const finishTurn = () => {
           setWorldState((current) => commitTurn(current, {
             action: nextAction,
-            result: response.narrative,
+            result: turnMemoryText(response, runtimeWorld, selectedRole.id),
             clue: responseClue,
             nextLocation: nextBeat.location,
             relationshipDelta: responseRelation,
+            relationshipDeltas: response.statePatch.relationshipDeltas,
             incident: response.incident,
             clock: response.statePatch.clock,
             addInventory: response.statePatch.addInventory,

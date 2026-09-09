@@ -12,7 +12,7 @@ import { createRemoteAIAdapter } from '@/lib/remote-ai-adapter';
 import { generateSceneImage } from '@/lib/remote-image-service';
 import { shouldGenerateImage } from '@/lib/image-policy';
 import { cacheSceneImage, getCachedSceneImage, makeContentImageKey } from '@/lib/image-cache';
-import { commitTurn, createInitialWorldState, selectRoleGoal } from '@/lib/world-state';
+import { commitTurn, createInitialWorldState, selectRoleGoal, turnMemoryText } from '@/lib/world-state';
 import { chatRequest, directConversationEntry } from '@/lib/studio-session';
 import type { ChatSession } from '@/lib/studio-session';
 import type { StudioWorld } from '@/lib/studio-worlds';
@@ -98,7 +98,7 @@ export function CharacterChat({ initial, accountScope, onSave, onBack }: { initi
       if (!response.actionDecision.allowed) { setError(response.actionDecision.reason || '这次行动没有发生，请换一种表达。'); return; }
       const patch = response.statePatch;
       const world = session.entry.world;
-      const state = commitTurn(sessionRef.current.state, { ...patch, action: action.trim(), result: response.narrative, clue: '',
+      const state = commitTurn(sessionRef.current.state, { ...patch, action: action.trim(), result: turnMemoryText(response, world, session.playerRoleId), clue: '',
         nextLocation: world.locations.find((place) => place.id === patch.locationId)?.name || sessionRef.current.state.location,
         relationshipDelta: patch.relationshipDeltas?.[target.id] ?? 0, reachedEndingId: response.ending.reached ? response.ending.endingId : undefined });
       const next = { ...sessionRef.current, state, narrative: response.narrative, turns: [...sessionRef.current.turns, { action: action.trim(), response }], savedAt: Date.now() };
