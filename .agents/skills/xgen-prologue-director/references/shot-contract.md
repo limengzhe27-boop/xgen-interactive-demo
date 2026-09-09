@@ -12,7 +12,7 @@
 
 - `story`：一句主因果、公共/固定第一人称视角、按镜排列的 `beats`（前因与局面变化），以及人物/关系/事件/压力/未决动作五项 `recall` 答案和事实引用。答案不能凭空当作观众已理解的证据。
 - `audio`：默认且必须有声；`mode` 选 `native` 或 `post`，逐句写 `start/end/speakerId/kind/text/delivery`。旁白ID为 `narrator`，其余说话者要在人物表声明。收到文字消息的画外朗读不是接电话，不让画面演成通话。
-- 当前用户明确要求所有后续视频有声音。新序章预检拒绝 `silent`；不能用背景音乐或一个空音轨冒充叙事声音。后期配音也是有声交付，但必须如实标注，不声称模型原生生成。
+- 当前用户进一步明确：后续新视频必须原生音画同步。`post` 仅为历史兼容，不是新交付选项。正式使用 `--native-direction` 拒绝非 native；背景音乐、空音轨和后期配音都不能代替原生对白。
 
 v2只解决故事与声音安排。正式提示词还需 `references/shot-performance.md` 的表演层，机器实现 `lib/prologue-direction.ts`；示例 `docs/prologue-first-person.direction.json` 与同名故事示例按镜头ID配对。节拍与动作声使用本镜相对秒，编译附全片时间；对话仍使用全片时间。
 

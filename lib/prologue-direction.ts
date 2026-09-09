@@ -18,6 +18,35 @@ const object = (v: unknown): v is Record<string, unknown> => !!v && typeof v ===
 const filled = (v: unknown): v is string => typeof v === 'string' && !!v.trim() && v.length <= 4000;
 const finite = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
 
+/** New production requires native sound; legacy plans remain inspectable separately. */
+export function compileNativeDirectedPrologue(value: unknown, direction: unknown) {
+  const compiled = compileDirectedProloguePlan(value, direction);
+  const plan = value as ProloguePlan;
+  if (plan.audio?.mode !== 'native') throw new Error('NATIVE_AUDIO: 新生成序章必须原生有声，不能使用后期配音或无声模式');
+  return {
+    ...compiled,
+    nativeAudioRequired: true,
+    postDubbingAllowed: false,
+    shots: compiled.shots.map((shot, i) => {
+      const origin = plan.shots[i].start;
+      // Separate requests cannot carry a single spoken sentence across their boundary.
+      if (shot.spokenCues.some(c => c.start < origin || c.end > plan.shots[i].end)) {
+        throw new Error('NATIVE_AUDIO: 完整台词不得跨独立生成片段，请调整片段划分或台词时间');
+      }
+      const sound = [
+        '原生音画同步生成。中文自然对白与现场环境音一起生成，不追加未安排的解释型旁白，不以音乐代替对白。',
+        ...shot.spokenCues.map(c => {
+          const speaker = c.speakerId === 'narrator' ? '旁白' : plan.characters.find(p => p.id === c.speakerId)!.identity;
+          return `${(c.start-origin).toFixed(2)}—${(c.end-origin).toFixed(2)}秒，${speaker}：${JSON.stringify(c.text)}。表演与声源：${c.delivery}`;
+        }),
+        ...shot.sound.map(c => `${c.start}—${c.end}秒现场音：${c.description}`),
+      ].join('\n');
+      return { ...shot, nativeTextToVideoPrompt: `${shot.textToVideoPrompt}\n${sound}`,
+        nativeImageToVideoPrompt: `${shot.imageToVideoMotionPrompt}\n${sound}` };
+    }),
+  };
+}
+
 export function checkPrologueDirection(plan: unknown, direction: unknown): string[] {
   const errors = checkStoryProloguePlan(plan);
   if (errors.length) return errors;
