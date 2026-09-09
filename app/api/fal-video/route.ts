@@ -14,7 +14,7 @@ export async function GET(request:Request){
     if(!id){
       let storageReady=false;try{await storageFetch('/rest/v1/demo_media_assets?select=id&limit=0');storageReady=true;}catch{/* Fail closed before billing. */}
       return account.finish(Response.json({configured:!!process.env.FAL_KEY?.trim()&&storageConfigured()&&storageReady,model:FAL_VIDEO_MODEL,seconds:FAL_VIDEO_SECONDS,
-        note:'配置就绪不代表余额或实际生成已验证。',perAccountDailyLimit:2}, {headers:{...headers,...(owner?.cookie?{'Set-Cookie':owner.cookie}:{})}}));
+        note:'配置就绪不代表余额或实际生成已验证。',perAccountDailyLimit:null}, {headers:{...headers,...(owner?.cookie?{'Set-Cookie':owner.cookie}:{})}}));
     }
     let asset=await findMedia(id);
     if(!asset||asset.owner_id!==owner?.id||asset.model!==FAL_VIDEO_MODEL)return account.finish(Response.json({error:'not_found'},{status:404,headers}));
@@ -41,8 +41,13 @@ export async function POST(request:Request){
     }
     // Stable per owner/turn: edited text cannot repurchase an uncertain submission.
     const id=imageId(['fal-native-v1',owner.id,input.turnKey]);
-    const reservation=await storageFetch('/rest/v1/rpc/demo_claim_media',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({p_id:id,p_owner:owner.id,p_kind:'video',p_model:FAL_VIDEO_MODEL})});
-    const claim=await reservation.json() as {status:string};
+    // Unique primary key remains the cross-instance billing lock. User removed
+    // fal trial count quotas; do not change unrelated company speech/video quotas.
+    const reservation=await storageFetch('/rest/v1/demo_media_assets?on_conflict=id',{method:'POST',headers:{'Content-Type':'application/json',Prefer:'resolution=ignore-duplicates,return=representation'},body:JSON.stringify({id,owner_id:owner.id,kind:'video',model:FAL_VIDEO_MODEL,status:'reserved',bytes:0})});
+    const inserted=await reservation.json() as {id:string}[];
+    const existing=inserted.length?null:await findMedia(id);
+    if(!inserted.length&&(!existing||existing.owner_id!==owner.id||existing.model!==FAL_VIDEO_MODEL))throw new Error('fal_reservation_failed');
+    const claim={status:inserted.length?'claimed':existing!.status};
     const reply=(status:string,reused=false,error?:string)=>account.finish(Response.json({id,status,reused,error,model:FAL_VIDEO_MODEL,...(status==='ready'?{assetUrl:`/api/media/asset/${id}`}:{})},{headers}));
     if(['ready','queued','reserved','failed'].includes(claim.status))return reply(claim.status,true);
     if(claim.status!=='claimed')return account.finish(Response.json({error:claim.status},{status:429,headers}));

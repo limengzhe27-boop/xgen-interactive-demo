@@ -261,7 +261,7 @@ export type ImageDirective = {
 };
 
 export type WorldTurnRequest = {
-  presentation?: { medium: 'native-video'; seconds: 5 };
+  presentation?: { medium: 'native-video'; seconds: 5 | 15 };
   contractVersion: typeof AI_CONTRACT_VERSION;
   world: WorldDefinition;
   selectedRoleId: string;

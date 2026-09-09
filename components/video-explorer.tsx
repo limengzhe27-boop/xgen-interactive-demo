@@ -96,7 +96,7 @@ export function VideoExplorer({entry,onBack,onText}:{entry:StudioWorld;onBack?:(
   }
   async function act(action:string){
     const s=current.current;
-    if(busy.current||!enabled||!scope||!s.state||!action.trim()||s.rounds>=2||s.finished||s.pending)return;
+    if(busy.current||!enabled||!scope||!s.state||!action.trim()||s.finished||s.pending)return;
     // Fresh first-person continuations require a real decoded last frame, never a poster fallback.
     if((s.rounds>0||entry.fixedRoleId&&s.clip)&&!frame.current){setError('未能读取末帧，请完整重播当前片段后再选择。没有提交生成。');setPaused(true);return;}
     busy.current=true;setError('');setPhase('planning');const abort=new AbortController();controller.current=abort;
@@ -122,7 +122,7 @@ export function VideoExplorer({entry,onBack,onText}:{entry:StudioWorld;onBack?:(
   }
   const autoAction=useRef(()=>{});
   useEffect(()=>{autoAction.current=()=>{if(phase==='roles')selectRole(roles[0].id);else void act(current.current.choices[0]?.label??'');};});
-  const ticking=enabled&&!paused&&visible&&!focused&&!text.trim()&&!error&&!session.pending&&session.rounds<2&&!session.finished&&(phase==='choices'||phase==='roles');
+  const ticking=enabled&&!paused&&visible&&!focused&&!text.trim()&&!error&&!session.pending&&!session.finished&&(phase==='choices'||phase==='roles');
   useEffect(()=>{
     if(!ticking)return;
     const timer=setInterval(()=>setSeconds(n=>Math.max(0,n-1)),1000);return()=>clearInterval(timer);
@@ -131,7 +131,7 @@ export function VideoExplorer({entry,onBack,onText}:{entry:StudioWorld;onBack?:(
   useEffect(()=>{if(phase==='ready')void player.current?.play().catch(()=>{/* User gesture required, keep visible controls. */});},[phase]);
   const active=phase==='roles'||phase==='choices'||phase==='error';
   return <section className="video-explorer">
-    <header>{onBack?<button onClick={onBack}><ArrowLeft size={18}/> 返回</button>:<Link href="/prologue-comparison"><ArrowLeft size={18}/> 返回对比</Link>}<h1>{entry.title}</h1><span>视频探索 · 试用</span></header>
+    <header>{onBack?<button onClick={onBack}><ArrowLeft size={18}/> 返回</button>:<Link href="/prologue-comparison"><ArrowLeft size={18}/> 返回对比</Link>}<h1>{entry.title}</h1><span>视频探索</span></header>
     <div className="video-explorer-stage">
       {/* Actual native dialogue is unverified; don't invent a caption transcript. */}
       {/* oxlint-disable-next-line jsx-a11y/media-has-caption */}
@@ -141,16 +141,16 @@ export function VideoExplorer({entry,onBack,onText}:{entry:StudioWorld;onBack?:(
       </video>:<Image src={entry.cover} alt={entry.title} width={1280} height={720} unoptimized/>}
     </div>
     <section className="video-explorer-controls" aria-label="接下来的行动">
-      {!enabled&&<div className="video-explorer-start"><p>看完前情，在此选择后续行动。续片由 fal H3 Max 生成，要求原生声音。试用每段5秒、最多两段；配置就绪不代表账户余额充足。</p>
+      {!enabled&&<div className="video-explorer-start"><p>看完前情，在此选择后续行动。续片由 fal H3 Max 生成，要求原生声音。每段15秒，不设体验段数上限，会持续消耗额度；配置就绪不代表账户余额充足。</p>
         <p>开启后，将本世界的可见剧情、角色外观与视频末帧交给 fal；不发送个人资料、私人聊天或角色秘密。视频存入本账号私人空间。</p>
         <button disabled={loading||!configured} onClick={()=>{setEnabled(true);setPaused(false);setSeconds(15);if(!session.clip)ended();else if(player.current?.ended)ended();}}>{loading?'检查连接中…':configured?'开启视频探索（会使用 fal 额度）':'fal 尚未就绪'}</button>
       </div>}
       {(enabled||active)&&<>
-        <div className="video-explorer-status"><span>{phase==='planning'?'Agent 正在决定这次行动的后果…':phase==='generating'?'视频生成中，保留当前现场…':phase==='ready'?'新片就绪，点击播放继续':session.finished?'这一段故事已到达结局':session.rounds>=2?'本次两段试用已结束':active?`${phase==='roles'?'选择体验角色':'接下来怎么做'} · ${ticking?`${seconds}秒后自动选择第一项`:'自动选择已暂停'}`:'正在播放，结束后在这里选择'}</span>
+        <div className="video-explorer-status"><span>{phase==='planning'?'Agent 正在决定这次行动的后果…':phase==='generating'?'视频生成中，保留当前现场…':phase==='ready'?'新片就绪，点击播放继续':session.finished?'这一段故事已到达结局':active?`${phase==='roles'?'选择体验角色':'接下来怎么做'} · ${ticking?`${seconds}秒后自动选择第一项`:'自动选择已暂停'}`:'正在播放，结束后在这里选择'}</span>
           <button onClick={()=>{setPaused(!paused);setSeconds(15);}} aria-label={paused?'恢复自动选择':'暂停自动选择'}>{paused?<Play size={16}/>:<Pause size={16}/>} {paused?'恢复计时':'暂停计时'}</button>
         </div>
         {phase==='roles'&&<div className="video-explorer-choices">{roles.map((role,i)=><button key={role.id} onClick={()=>selectRole(role.id)}><strong>{role.name}{i===0?' · 默认':''}</strong><span>{role.identity}</span></button>)}</div>}
-        {(phase==='choices'||phase==='error'&&!session.pending)&&session.state&&!session.finished&&session.rounds<2&&<>
+        {(phase==='choices'||phase==='error'&&!session.pending)&&session.state&&!session.finished&&<>
           {!enabled&&<p>先开启上方视频探索，再提交行动；未开启不会生成或计费。</p>}
           <div className="video-explorer-choices">{session.choices.map((c,i)=><button disabled={!enabled} key={c.id} onClick={()=>void act(c.label)}><small>{i===0?'默认行动':'另一种选择'}</small>{c.label}</button>)}</div>
           <form onSubmit={e=>{e.preventDefault();void act(text);}}><label htmlFor="video-action">或自己行动</label><div><input id="video-action" maxLength={600} value={text} onChange={e=>setText(e.target.value)} onFocus={()=>setFocused(true)} onBlur={()=>setFocused(false)} placeholder="说一句话，或描述一个动作…"/><button disabled={!enabled||!text.trim()} aria-label="提交自己的行动"><Send size={18}/></button></div></form>
@@ -160,8 +160,8 @@ export function VideoExplorer({entry,onBack,onText}:{entry:StudioWorld;onBack?:(
       {error&&<p role="alert">{error}</p>}
       {session.pending&&phase==='error'&&<button onClick={()=>void resume()}>恢复本回合查询（不重新购买）</button>}
       {onText&&<button onClick={onText}>改用图文 / 自带形象探索</button>}
-      {!onText&&(session.rounds>=2||session.finished)&&<Link href={`/?world=${entry.id}&mode=text`}>改用图文探索（另开体验）</Link>}
-      <details><summary>查看当前剧情文字与试用说明</summary><p>{session.narrative}</p><p>多角色选角后的第一段重建对应视角，之后读取实际末帧续演。原生音轨会自动检查，但模型是否拍准动作、对白是否清晰，仍需实际观看。刷新后需重播/恢复查询；不会在后台无限生成。</p></details>
+      {!onText&&session.finished&&<Link href={`/?world=${entry.id}&mode=text`}>改用图文探索（另开体验）</Link>}
+      <details><summary>查看当前剧情文字与试用说明</summary><p>{session.narrative}</p><p>多角色选角后的第一段重建对应视角，之后读取实际末帧续演。原生音轨会自动检查，但模型是否拍准动作、对白是否清晰，仍需实际观看。刷新后需重播/恢复查询；离开或失焦后暂停自动选择。</p></details>
     </section>
   </section>;
 }

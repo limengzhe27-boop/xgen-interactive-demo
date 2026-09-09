@@ -22,23 +22,23 @@ export function initialVideoRole(entry:StudioWorld,roleId:string){
   return {state,narrative:getRoleOpening(entry,roleId),choices:threeChoices(custom??(role.startLocationId===world.openingScene.locationId?world.openingScene.choices:[]))};
 }
 export function videoTurnRequest(entry:StudioWorld,roleId:string,state:WorldState,narrative:string,choices:VideoChoice[],action:string):WorldTurnRequest{
-  return {contractVersion:'2026-09-04.v2',presentation:{medium:'native-video',seconds:5},world:entry.world,selectedRoleId:roleId,state,userAction:action,
+  return {contractVersion:'2026-09-04.v2',presentation:{medium:'native-video',seconds:15},world:entry.world,selectedRoleId:roleId,state,userAction:action,
     recentTurns:state.eventLedger.slice(-6).map(e=>({action:e.action,result:e.result})),
     currentScene:{id:`video-${state.turn}`,title:state.location,narrative,choices}};
 }
 export function videoMotionPrompt(entry:StudioWorld,roleId:string,state:WorldState,response:WorldTurnResponse,hasFrame:boolean){
   if(!response.actionDecision.allowed)throw new Error(response.actionDecision.reason||'这个行动暂时无法进行');
   const lines=response.dialogue.filter(l=>l.visibleToRoleIds.includes(roleId));
-  if(lines.length>2||lines.reduce((n,l)=>n+l.text.replace(/[\s，。！？、：；“”‘’,.!?]/g,'').length,0)>22||response.narrative.length>650)
-    throw new Error('这轮故事或对白太长，无法完整放进5秒视频；没有提交视频生成。请缩小本次行动再试。');
+  if(lines.length>4||lines.reduce((n,l)=>n+l.text.replace(/[\s，。！？、：；“”‘’,.!?]/g,'').length,0)>55||response.narrative.length>650)
+    throw new Error('这轮故事或对白太长，无法完整放进15秒视频；没有提交视频生成。请缩小本次行动再试。');
   const role=entry.world.characters.find(c=>c.id===roleId)!;
   // Only public visual descriptions of heard speakers. No secrets, personal memories or full world object.
   const cast=lines.map(l=>entry.world.characters.find(c=>c.id===l.characterId)).filter(c=>c&&c.id!==roleId);
-  return `Generate a continuous 5-second story action video WITH native synchronized audio, not a moving poster. Strict first-person eyes of ${role.name}, ${role.imagePrompt}. Never show the player externally. ${hasFrame?'Continue from this exact last frame, preserve hands, props, characters and spatial positions.':'Re-establish the selected character’s own first-person location; this is a viewpoint change, not the old camera position.'}
+  return `Generate a continuous 15-second story action video WITH native synchronized audio, not a moving poster. Strict first-person eyes of ${role.name}, ${role.imagePrompt}. Never show the player externally. ${hasFrame?'Continue from this exact last frame, preserve hands, props, characters and spatial positions.':'Re-establish the selected character’s own first-person location; this is a viewpoint change, not the old camera position.'}
 Current location: ${state.location}. Visible/heard characters: ${cast.map(c=>`${c!.name}: ${c!.imagePrompt}`).join('; ')}.
 Act out this already adjudicated short event in order (trigger, physical action, response, changed end state): ${response.narrative}
 Native Mandarin dialogue, spoken once by the named speakers in the order below, voices appropriate to their identities, not narration: ${lines.map(l=>`${entry.world.characters.find(c=>c.id===l.characterId)?.name}: “${l.text}”`).join('; ')||'No dialogue; generate audible synchronized physical action and environmental sounds.'}
-First second starts the action immediately, middle completes the interaction, final second shows its consequence. Camera follows the player’s actual movement, never moves as a substitute for acting. Include audible footsteps, material/contact sounds only when the corresponding contact happens, and location-appropriate ambience below the dialogue. No external TTS, no added music, no subtitles, no looping or return to the starting pose. Do not invent extra powers, teleport, reveal off-screen secrets or make the next decision for the player. Stop at the event’s unresolved end state.`;
+0–3 seconds start the authorized action; 3–9 seconds carry out the interaction and obstacle; 9–13 seconds show the visible reaction and changed situation; 13–15 seconds settle at the unresolved end state. Never stretch a static pose to fill time. Camera follows the player’s actual movement, never moves as a substitute for acting. Include audible footsteps, material/contact sounds only when the corresponding contact happens, and location-appropriate ambience below the dialogue. No external TTS, no added music, no subtitles, no looping or return to the starting pose. Do not invent extra powers, teleport, reveal off-screen secrets or make the next decision for the player. Stop at the event’s unresolved end state.`;
 }
 export function commitVideoTurn(entry:StudioWorld,roleId:string,state:WorldState,action:string,response:WorldTurnResponse){
   const patch=response.statePatch;

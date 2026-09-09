@@ -207,7 +207,7 @@ export function isWorldTurnRequest(value: unknown): value is WorldTurnRequest {
     || !Array.isArray(value.currentScene.choices)) return false;
 
   if (!value.world.characters.some((character) => isRecord(character) && character.id === value.selectedRoleId)) return false;
-  if (value.presentation !== undefined && (!isRecord(value.presentation) || value.presentation.medium !== 'native-video' || value.presentation.seconds !== 5)) return false;
+  if (value.presentation !== undefined && (!isRecord(value.presentation) || value.presentation.medium !== 'native-video' || (value.presentation.seconds !== 5 && value.presentation.seconds !== 15))) return false;
   if (!validOptionalSystem(value.world)) return false;
   if (!validPersonaAdmission(value.world as WorldTurnRequest['world'], value.selectedRoleId)) return false;
   if (value.interaction !== undefined) {

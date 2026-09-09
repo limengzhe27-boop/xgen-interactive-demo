@@ -1,5 +1,5 @@
 export const FAL_VIDEO_MODEL = 'minimax/h3-max/image-to-video';
-export const FAL_VIDEO_SECONDS = 5;
+export const FAL_VIDEO_SECONDS = 15;
 export type FalVideoInput = { confirmed: true; turnKey: string; prompt: string; frame: string | null };
 export function readFalInput(value: unknown): FalVideoInput | null {
   if (!value || typeof value !== 'object') return null;
