@@ -69,13 +69,35 @@ export function StudioHome({ section, worlds, characters, recent, onCreate, onOp
   const [detail, setDetail] = useState<WorldCard | null>(null);
   const [offscreen, setOffscreen] = useState(false);
   const [focused, setFocused] = useState(false);
-  const [expanded, setExpanded] = useState(false);
   const [pinnedWhileFocused, setPinnedWhileFocused] = useState(false);
   const anchor = useRef<HTMLDivElement>(null);
   const isHome = section === 'home';
   const docked = isHome && (focused ? pinnedWhileFocused : offscreen);
   const [scrollHidden, setScrollHidden] = useState(false);
   const composerHidden = docked && scrollHidden && !focused;
+  useEffect(() => {
+    const input = anchor.current?.querySelector('textarea');
+    if (!input || !docked) return;
+    input.style.height = '44px';
+    if (focused) input.style.height = Math.min(120, Math.max(44, input.scrollHeight)) + 'px';
+    return () => { input.style.height = ''; };
+  }, [seed, focused, docked]);
+  useEffect(() => {
+    if (!focused) return;
+    // Scrolling the page ends editing; scrolling inside a long draft does not.
+    const resumeBrowsing = (event: Event) => {
+      const target = event.target;
+      if (target instanceof HTMLTextAreaElement && anchor.current?.contains(target) && target.scrollHeight > target.clientHeight + 1) {
+        if (!(event instanceof WheelEvent) || (event.deltaY < 0 && target.scrollTop > 0) || (event.deltaY > 0 && target.scrollTop + target.clientHeight < target.scrollHeight - 1)) return;
+      }
+      const active = document.activeElement;
+      if (active instanceof HTMLElement && anchor.current?.contains(active)) active.blur();
+      setFocused(false);
+    };
+    window.addEventListener('wheel', resumeBrowsing, { passive: true });
+    window.addEventListener('touchmove', resumeBrowsing, { passive: true });
+    return () => { window.removeEventListener('wheel', resumeBrowsing); window.removeEventListener('touchmove', resumeBrowsing); };
+  }, [focused]);
   useEffect(() => {
     if (!isHome) return;
     let state = { y: Math.max(0, window.scrollY), travel: 0, hidden: false };
@@ -113,9 +135,9 @@ export function StudioHome({ section, worlds, characters, recent, onCreate, onOp
       <GalleryAtmosphere />
       <div className="gallery-hero-heading"><span className="studio-wordmark gallery-eyebrow">WORLDSTUDIO · 小世界</span><h1 id="studio-title"><span>下一段故事，</span><span>你来入戏。</span></h1><p className="gallery-eyebrow">成为故事里的人，也成为故事的作者。</p></div>
       <div className="gallery-composer-anchor" ref={anchor}>
-        <form className="gallery-composer" data-floating={docked} data-expanded={expanded} data-scroll-hidden={composerHidden} inert={composerHidden} aria-hidden={composerHidden || undefined} onSubmit={event => { event.preventDefault(); start(); }} onFocusCapture={() => { if (!focused) { setScrollHidden(false); setPinnedWhileFocused(docked); setFocused(true); } }} onBlurCapture={event => { if (!event.currentTarget.contains(event.relatedTarget)) { setFocused(false); setExpanded(false); } }}>
-          <MessageTextarea aria-label="你想创造怎样的世界" placeholder="一个念头，就能开启一个世界。想让谁，遇见什么？" value={seed} maxLength={2000} onChange={event => setSeed(event.target.value)} onFocus={() => setExpanded(true)} onSend={start} />
-          <div className="gallery-composer-tools"><span><Sparkles />和 Agent 一起构思</span><small>Enter 发送 · Shift + Enter 换行</small><Button className="gallery-send" type="submit" aria-label="与 Agent 一起创作"><ArrowUp /></Button></div>
+        <form className="gallery-composer" data-floating={docked} data-editing={focused} data-scroll-hidden={composerHidden} inert={composerHidden} aria-hidden={composerHidden || undefined} onSubmit={event => { event.preventDefault(); start(); }} onFocusCapture={() => { if (!focused) { setScrollHidden(false); setPinnedWhileFocused(docked); setFocused(true); } }} onBlurCapture={event => { if (!event.currentTarget.contains(event.relatedTarget)) setFocused(false); }}>
+          <MessageTextarea aria-label="你想创造怎样的世界" aria-describedby="gallery-composer-hint" placeholder="一个念头，就能开启一个世界。想让谁，遇见什么？" value={seed} maxLength={2000} onChange={event => setSeed(event.target.value)} onSend={start} />
+          <div className="gallery-composer-tools"><div className="gallery-composer-hint" id="gallery-composer-hint"><span>和 Agent 一起构思</span><small>Enter 发送 · Shift + Enter 换行</small></div><Button className="gallery-send" type="submit" aria-label="与 Agent 一起创作"><ArrowUp /></Button></div>
         </form>
       </div>
       <div className="gallery-prompts" aria-label="创作灵感">{['豪门情感', '职场逆袭', '家族争产', '都市关系'].map(idea => <button key={idea} type="button" onClick={() => setSeed('我想创造一个' + idea + '的小世界，帮我讨论角色、关系和目标。')}>{idea}<ArrowRight /></button>)}<a href="/prologue-comparison">新序章 · 样片对比 ↗</a></div>

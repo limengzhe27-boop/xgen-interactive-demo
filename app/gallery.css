@@ -63,10 +63,14 @@
 .gallery-composer[data-floating=true] { position: fixed; left: calc(50% + 40px); bottom: 24px; width: min(680px, calc(100vw - 128px)); transform: translate(-50%, 0); z-index: 35; box-shadow: var(--shadow-floating); transition: transform .22s ease, opacity .22s ease, border-color .2s, box-shadow .2s; }
 .gallery-composer[data-floating=true][data-scroll-hidden=true] { transform: translate(-50%, calc(100% + 140px)); opacity: 0; pointer-events: none; }
 @media (prefers-reduced-motion: reduce) { .gallery-composer[data-floating=true] { transition: none; } }
-.gallery-composer[data-floating=true][data-expanded=false] { display: flex; align-items: center; gap: 16px; padding: 12px 14px 12px 22px; }
-.gallery-composer[data-floating=true][data-expanded=false] textarea { height: 44px; min-height: 44px; padding-top: 8px; }
-.gallery-composer[data-floating=true][data-expanded=false] .gallery-composer-tools { margin: 0; }
-.gallery-composer[data-floating=true][data-expanded=false] .gallery-composer-tools > :not(button) { display: none; }
+.gallery-composer-hint { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 14px; color: var(--color-text-muted); font-size: 12px; line-height: 16px; }
+.gallery-composer-hint small { margin: 0; }
+.gallery-composer[data-floating=true] { display: grid; grid-template-columns: minmax(0, 1fr) 44px; align-items: center; gap: 0 12px; padding: 12px 14px 12px 22px; }
+.gallery-composer[data-floating=true] textarea { grid-column: 1; grid-row: 1; height: 44px; min-height: 44px; max-height: 120px; padding-top: 8px; overflow-y: auto; transition: none; }
+.gallery-composer[data-floating=true] .gallery-composer-tools { display: contents; }
+.gallery-composer[data-floating=true] .gallery-send { grid-column: 2; grid-row: 1; align-self: end; }
+.gallery-composer[data-floating=true] .gallery-composer-hint { display: none; grid-column: 1 / -1; grid-row: 2; padding: 2px 4px 0; }
+.gallery-composer[data-floating=true][data-editing=true] .gallery-composer-hint { display: flex; }
 .gallery-prompts { position: relative; display: flex; justify-content: center; flex-wrap: wrap; gap: 10px; margin-top: 10px; }
 .gallery-prompts button { display: flex; align-items: center; gap: 5px; border: 0; background: transparent; color: var(--color-text-muted); font-size: 13px; min-height: 44px; padding: 8px 12px; border-radius: 12px; cursor: pointer; }
 .gallery-prompts button svg { width: 12px; height: 12px; transition: transform .2s; }
