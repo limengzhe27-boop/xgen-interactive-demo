@@ -2,6 +2,7 @@ import type { StudioWorld } from './studio-worlds';
 import type { WorldState } from './world-state';
 import { turnMemoryText } from './world-state.ts';
 import type { WorldTurnRequest, WorldTurnResponse } from './ai-contracts';
+import type { CharacterGreeting } from './character-greeting';
 
 export function upsertById<T extends { id: string }>(records: T[], next: T): T[] {
   return [next, ...records.filter((record) => record.id !== next.id)];
@@ -17,6 +18,7 @@ export type ChatSession = {
   turns: { action: string; response: WorldTurnResponse }[];
   savedAt: number;
   imageCacheKey?: string;
+  greeting?: CharacterGreeting;
 };
 
 // A neutral participant is transport state, not an imposed role or an account profile.

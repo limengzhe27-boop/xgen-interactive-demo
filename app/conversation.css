@@ -25,7 +25,7 @@
 .conversation-line p { margin-top: 4px; color: var(--color-text); }
 .conversation-shell .company-media { margin: 4px 0; }
 .conversation-shell .company-media .flow-control { font-size: 12px; color: var(--color-text-muted); padding: 4px 8px; min-height: 44px; }
-.conversation-composer { padding: 10px 24px calc(12px + env(safe-area-inset-bottom)); border-top: 1px solid var(--color-border-soft); background: var(--color-bg); max-height: 45dvh; overflow-y: auto; }
+.conversation-composer { padding: 12px 24px calc(32px + env(safe-area-inset-bottom)); border-top: 1px solid var(--color-border-soft); background: var(--color-bg); max-height: 45dvh; overflow-y: auto; }
 .conversation-input { display: flex; align-items: end; gap: 8px; border: 1px solid var(--color-border); background: var(--color-bg-elevated); border-radius: 18px; padding: 8px; }
 .conversation-input:focus-within { border-color: var(--color-primary); }
 .conversation-input textarea { min-width: 0; flex: 1; min-height: 48px; max-height: 120px; resize: vertical; border: 0; box-shadow: none; background: transparent; font: 16px/1.8 var(--font-ui); padding: 8px; }
@@ -43,6 +43,9 @@
 .conversation-profile h2 { font: 600 20px/1.7 var(--font-ui); margin: 16px 0; }
 .conversation-profile details { border-top: 1px solid var(--color-border-soft); }
 .conversation-profile p { font-size: 14px; line-height: 1.8; white-space: pre-wrap; }
+.conversation-profile h3 { font: 500 13px/1.8 var(--font-ui); color: var(--color-text-muted); margin: 18px 0 6px; }
+.conversation-profile .conversation-identity { color: var(--color-primary); margin: -8px 0 16px; }
+.conversation-profile section p { margin-top: 4px; }
 .conversation-wait { display: flex; align-items: center; gap: 8px; color: var(--color-text-muted); font-size: 14px; }
 .conversation-wait svg { width: 16px; }
 @keyframes conversation-in { from { opacity: 0; } to { opacity: 1; } }
@@ -52,7 +55,7 @@
   .conversation-header { padding: 8px 12px; gap: 4px; }
   .conversation-heading strong { font-size: 16px; }
   .conversation-messages { padding: 20px 16px; }
-  .conversation-composer { padding: 8px 12px calc(10px + env(safe-area-inset-bottom)); }
+  .conversation-composer { padding: 8px 12px calc(22px + env(safe-area-inset-bottom)); }
   .conversation-shell .studio-chat-user { max-width: 94%; }
   .conversation-input-hint { display: none; }
 }
