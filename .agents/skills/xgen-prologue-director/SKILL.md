@@ -5,7 +5,7 @@ description: 将 XGEN 已确定世界前情改成不超过30秒的连贯视频�
 
 # 序章导演
 
-先读 `references/shot-contract.md` 与 `references/story-first.md`。做完整序章时用项目 `docs/prologue-story.example.json` 的 v2 格式；旧 `docs/prologue-plan.example.json` 仅供兼容，不作为新版生产样板。人物事实来自已确认世界；不得用样例覆盖当前世界。
+先读 `references/shot-contract.md`、`references/story-first.md` 与 `references/shot-performance.md`。故事层使用项目 v2 格式；正式生成提示另需逐镜表演层，完整示例为 `docs/prologue-first-person.example.json` + `docs/prologue-first-person.direction.json`。旧 `docs/prologue-plan.example.json` 仅供兼容；没有表演层的v2只是故事草案，不作为可提交提示词。人物事实来自已确认世界；不得用样例覆盖当前世界。
 
 ## 先写一场戏，再拆镜头
 
@@ -25,6 +25,7 @@ description: 将 XGEN 已确定世界前情改成不超过30秒的连贯视频�
 
 - 用户已明确要求后续视频必须有声音：不默认交付无声字幕版，不以音乐代替必要台词。模型原生音频不足时安排后期配音、环境声与最终混音；未真正合成并听检前只称声音计划。
 - 每镜一个关键变化，写主语、动作对象、可见反应和结束状态。情绪词不能代替动作。
+- 把关键变化拆成可演的节拍：刺激、身体/物件运动、对方反馈、落点和必要停顿。每节拍明确镜头看谁、何时跟随、在哪停；“丰富”不是添特效或每秒换景。按 `shot-performance.md` 输出导演时间表及独立的模型运动提示。
 - 同一人物锁定参考图、年龄、发型、服装、关键道具；承接镜明确位置、视线和前一镜状态。生成片实际与计划不同时先修连续性，不照旧生成下一段。
 - 用双人中景证明人与人的关系，用环境物件证明场景；不要全拍脸、手机特写和走廊空镜。
 - 镜头数由动作复杂度和已核实的模型单次限制决定，不能声称所有模型一次能生成30秒。5秒互动片段接口不是序章生成器。
@@ -35,7 +36,7 @@ description: 将 XGEN 已确定世界前情改成不超过30秒的连贯视频�
 
 ## 花钱前
 
-写 v2 plan JSON，运行 `node scripts/prepare-prologue.mjs <plan.json> --story`；这是不联网预检，不会生成视频。修完错误后按 `references/story-first.md` 做“只听声轨文字/只看动作描述/整体复述”三次纸面检查，明确只是纸面。输出待试拍风险和真实模型限制待核项。不能用素材快剪或静态推拉替代缺失叙事。
+写 v2 plan JSON 和 v1 direction JSON，运行 `node scripts/prepare-prologue.mjs <plan.json> --direction <direction.json>`；这是不联网预检，不会生成视频。`--story`只检查故事草案，不替代表演预检。修完错误后按 `references/story-first.md` 做“只听声轨文字/只看动作描述/整体复述”三次纸面检查，明确只是纸面。输出待试拍风险和真实模型限制待核项。不能用素材快剪或静态推拉替代缺失叙事。
 
 只有用户已授权本轮素材、模型用途和消费范围才提交。未确认费用就标待查，不能承诺免费。先做风险最大的一段，验收后再续镜；记录任务ID，超时先查状态，禁止盲目重提。旧公共成片继续复用，不因刷新、换用户或升级提示词重生成。
 

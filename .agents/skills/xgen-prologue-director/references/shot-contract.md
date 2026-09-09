@@ -14,6 +14,8 @@
 - `audio`：默认且必须有声；`mode` 选 `native` 或 `post`，逐句写 `start/end/speakerId/kind/text/delivery`。旁白ID为 `narrator`，其余说话者要在人物表声明。收到文字消息的画外朗读不是接电话，不让画面演成通话。
 - 当前用户明确要求所有后续视频有声音。新序章预检拒绝 `silent`；不能用背景音乐或一个空音轨冒充叙事声音。后期配音也是有声交付，但必须如实标注，不声称模型原生生成。
 
-运行 `node scripts/prepare-prologue.mjs <plan.json> --story`，只本地预检，不联网、不扣费。默认也执行v2检查；查看旧计划才用 `--legacy`。编译输出将视觉提示、后期字幕、声轨分开，`submissionAuthorized: false`，不是付费提交器。
+v2只解决故事与声音安排。正式提示词还需 `references/shot-performance.md` 的表演层，机器实现 `lib/prologue-direction.ts`；示例 `docs/prologue-first-person.direction.json` 与同名故事示例按镜头ID配对。节拍与动作声使用本镜相对秒，编译附全片时间；对话仍使用全片时间。
+
+运行 `node scripts/prepare-prologue.mjs <plan.json> --direction <direction.json>`检查并编译完整导演稿，只本地运行，不联网、不扣费。默认/`--story`仍可检查v2故事草案；查看旧计划才用 `--legacy`。输出将文生视觉、图生运动、导演时间表、后期字幕、声轨分开，`submissionAuthorized: false`，不是付费提交器。实际参考图和模型能力默认未验证。
 
 预检只能查时间、引用、因果声明、五项答案覆盖、台词重叠及明显超速，不能判断真人表演、画面真实性或语义是否真的成立。每秒五个汉字单位只是阻止明显塞词，不保证实际语速。剪辑后必须实际看、听成片，记录镜头时间点；未看只能报告“分镜自审”。用户暂停视频测试时不得先行试拍。

@@ -8,3 +8,4 @@
 
 纯功能修复不强行加载编剧规范。网站不会自动执行 SKILL.md；运行时接线和边界见 `docs/CREATIVE_SKILLS.md`。
 任何付费序章提交（包括旧 editorial 脚本）必须先准备本次计划并通过 `scripts/prepare-prologue.mjs`，再完成事实与分镜自审；预检通过不是用户授权，不代表成片已合格。不要为验证 Skill 自动生成付费视频。
+正式序章提示词须同时有故事层与逐镜表演层，使用 `--direction <direction.json>`；`--story`仅检查故事草案，不能将宽泛动作梗概称为完整导演提示。
