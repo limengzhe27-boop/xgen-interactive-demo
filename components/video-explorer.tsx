@@ -24,6 +24,20 @@ export function VideoExplorer({entry,onBack,onText}:{entry:StudioWorld;onBack?:(
   const [enabled,setEnabled]=useState(false),[paused,setPaused]=useState(false),[seconds,setSeconds]=useState(15),[text,setText]=useState(''),[focused,setFocused]=useState(false);
   const [visible,setVisible]=useState(true),[error,setError]=useState(''),[loading,setLoading]=useState(true);
   const player=useRef<HTMLVideoElement>(null),frame=useRef<string|null>(null),busy=useRef(false),alive=useRef(true),controller=useRef<AbortController|null>(null);
+  const layout=useRef<HTMLElement>(null),heading=useRef<HTMLElement>(null),controls=useRef<HTMLElement>(null);
+  useEffect(()=>{
+    const resize=()=>{
+      if(!layout.current||!heading.current||!controls.current)return;
+      const style=getComputedStyle(layout.current);
+      const available=window.innerHeight-heading.current.offsetHeight-controls.current.offsetHeight-parseFloat(style.paddingTop)-parseFloat(style.paddingBottom)-24;
+      layout.current.style.setProperty('--stage-height',`${Math.max(160,available)}px`);
+    };
+    const observer=new ResizeObserver(resize);
+    if(heading.current)observer.observe(heading.current);
+    if(controls.current)observer.observe(controls.current);
+    resize();window.addEventListener('resize',resize);
+    return()=>{observer.disconnect();window.removeEventListener('resize',resize);};
+  },[]);
   const storageKey=scope?`xgen:video-pilot:v2:${scope}:${entry.id}`:null;
   const save=(next:Session)=>{current.current=next;setSession(next);if(storageKey)try{sessionStorage.setItem(storageKey,JSON.stringify(next));}catch{/* Existing world saves are separate. */}};
   useEffect(()=>{
@@ -130,8 +144,8 @@ export function VideoExplorer({entry,onBack,onText}:{entry:StudioWorld;onBack?:(
   useEffect(()=>{if(seconds===0&&ticking){const timer=setTimeout(()=>{setSeconds(15);autoAction.current();},0);return()=>clearTimeout(timer);}},[seconds,ticking]);
   useEffect(()=>{if(phase==='ready')void player.current?.play().catch(()=>{/* User gesture required, keep visible controls. */});},[phase]);
   const active=phase==='roles'||phase==='choices'||phase==='error';
-  return <section className="video-explorer">
-    <header>{onBack?<button onClick={onBack}><ArrowLeft size={18}/> 返回</button>:<Link href="/prologue-comparison"><ArrowLeft size={18}/> 返回对比</Link>}<h1>{entry.title}</h1><span>视频探索</span></header>
+  return <section ref={layout} className="video-explorer">
+    <header ref={heading}>{onBack?<button onClick={onBack}><ArrowLeft size={18}/> 返回</button>:<Link href="/prologue-comparison"><ArrowLeft size={18}/> 返回对比</Link>}<h1>{entry.title}</h1><span>视频探索</span></header>
     <div className="video-explorer-stage">
       {/* Actual native dialogue is unverified; don't invent a caption transcript. */}
       {/* oxlint-disable-next-line jsx-a11y/media-has-caption */}
@@ -140,14 +154,14 @@ export function VideoExplorer({entry,onBack,onText}:{entry:StudioWorld;onBack?:(
         {/* Raw model dialogue is unverified: no invented subtitle track. Text alternative below. */}
       </video>:<Image src={entry.cover} alt={entry.title} width={1280} height={720} unoptimized/>}
     </div>
-    <section className="video-explorer-controls" aria-label="接下来的行动">
+    <section ref={controls} className="video-explorer-controls" aria-label="接下来的行动">
       {!enabled&&<div className="video-explorer-start"><p>看完前情，在此选择后续行动。续片由 fal H3 Max 生成，要求原生声音。每段15秒，不设体验段数上限，会持续消耗额度；配置就绪不代表账户余额充足。</p>
         <p>开启后，将本世界的可见剧情、角色外观与视频末帧交给 fal；不发送个人资料、私人聊天或角色秘密。视频存入本账号私人空间。</p>
         <button disabled={loading||!configured} onClick={()=>{setEnabled(true);setPaused(false);setSeconds(15);if(!session.clip)ended();else if(player.current?.ended)ended();}}>{loading?'检查连接中…':configured?'开启视频探索（会使用 fal 额度）':'fal 尚未就绪'}</button>
       </div>}
       {(enabled||active)&&<>
         <div className="video-explorer-status"><span>{phase==='planning'?'Agent 正在决定这次行动的后果…':phase==='generating'?'视频生成中，保留当前现场…':phase==='ready'?'新片就绪，点击播放继续':session.finished?'这一段故事已到达结局':active?`${phase==='roles'?'选择体验角色':'接下来怎么做'} · ${ticking?`${seconds}秒后自动选择第一项`:'自动选择已暂停'}`:'正在播放，结束后在这里选择'}</span>
-          <button onClick={()=>{setPaused(!paused);setSeconds(15);}} aria-label={paused?'恢复自动选择':'暂停自动选择'}>{paused?<Play size={16}/>:<Pause size={16}/>} {paused?'恢复计时':'暂停计时'}</button>
+          {active&&enabled&&!session.pending&&!session.finished&&<button onClick={()=>{setPaused(!paused);setSeconds(15);}} aria-label={paused?'恢复自动选择':'暂停自动选择'}>{paused?<Play size={16}/>:<Pause size={16}/>} {paused?'恢复计时':'暂停计时'}</button>}
         </div>
         {phase==='roles'&&<div className="video-explorer-choices">{roles.map((role,i)=><button key={role.id} onClick={()=>selectRole(role.id)}><strong>{role.name}{i===0?' · 默认':''}</strong><span>{role.identity}</span></button>)}</div>}
         {(phase==='choices'||phase==='error'&&!session.pending)&&session.state&&!session.finished&&<>
@@ -159,9 +173,10 @@ export function VideoExplorer({entry,onBack,onText}:{entry:StudioWorld;onBack?:(
       </>}
       {error&&<p role="alert">{error}</p>}
       {session.pending&&phase==='error'&&<button onClick={()=>void resume()}>恢复本回合查询（不重新购买）</button>}
-      {onText&&<button onClick={onText}>改用图文 / 自带形象探索</button>}
-      {!onText&&session.finished&&<Link href={`/?world=${entry.id}&mode=text`}>改用图文探索（另开体验）</Link>}
-      <details><summary>查看当前剧情文字与试用说明</summary><p>{session.narrative}</p><p>多角色选角后的第一段重建对应视角，之后读取实际末帧续演。原生音轨会自动检查，但模型是否拍准动作、对白是否清晰，仍需实际观看。刷新后需重播/恢复查询；离开或失焦后暂停自动选择。</p></details>
+      <details onToggle={e=>{if(e.currentTarget.open)setPaused(true);}}><summary>更多 · 剧情与探索方式</summary>
+        {onText&&<button onClick={onText}>改用图文 / 自带形象探索</button>}
+        {!onText&&session.finished&&<Link href={`/?world=${entry.id}&mode=text`}>改用图文探索（另开体验）</Link>}
+        <p>{session.narrative}</p><p>多角色选角后的第一段重建对应视角，之后读取实际末帧续演。原生音轨会自动检查，但模型是否拍准动作、对白是否清晰，仍需实际观看。刷新后需重播/恢复查询；离开或失焦后暂停自动选择。</p></details>
     </section>
   </section>;
 }

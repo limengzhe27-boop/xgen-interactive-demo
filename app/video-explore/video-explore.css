@@ -1,4 +1,6 @@
-.video-explorer { --video-line: color-mix(in srgb,var(--color-on-primary) 22%,transparent); min-height:100dvh;background:rgb(var(--color-ink-rgb));color:var(--color-on-primary);padding:16px clamp(16px,4vw,64px) max(32px,env(safe-area-inset-bottom));font-size:16px;line-height:1.7;letter-spacing:.02em;animation:video-enter 180ms ease-out; }
+.studio-frame:has(.video-explorer) { padding:0; background:rgb(var(--color-ink-rgb)); }
+.studio-frame:has(.video-explorer) > .studio-nav { display:none; }
+.video-explorer { --video-line: color-mix(in srgb,var(--color-on-primary) 22%,transparent); --stage-height:calc(100dvh - 340px); box-sizing:border-box; min-height:100dvh;width:100%;background:rgb(var(--color-ink-rgb));color:var(--color-on-primary);padding:12px clamp(12px,2vw,32px) max(12px,env(safe-area-inset-bottom));font-size:16px;line-height:1.7;letter-spacing:.02em;animation:video-enter 180ms ease-out; }
 .video-explorer header {display:flex;align-items:center;gap:20px;flex-wrap:wrap;margin-bottom:12px;}
 .video-explorer h1 {font-family:var(--font-serif);font-size:clamp(20px,2.4vw,30px);margin:0;flex:1;}
 .video-explorer a {color:inherit;display:inline-flex;align-items:center;gap:6px;min-height:44px;}
@@ -8,8 +10,8 @@
 .video-explorer :is(button,a,input,summary):focus-visible {outline:2px solid var(--color-on-primary);outline-offset:3px;}
 .video-explorer button:disabled {opacity:.5;cursor:not-allowed;}
 .video-explorer-stage {display:flex;justify-content:center;}
-.video-explorer-stage :is(video,img) {display:block;width:100%;height:clamp(180px,calc(100dvh - 330px),62dvh);object-fit:contain;border-radius:16px;}
-.video-explorer-controls {max-width:1280px;margin:12px auto 0;}
+.video-explorer-stage :is(video,img) {display:block;width:auto;height:auto;max-width:100%;max-height:var(--stage-height);object-fit:contain;border-radius:0;}
+.video-explorer-controls {width:100%;max-width:1440px;margin:12px auto 0;}
 .video-explorer-status {display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:12px;}
 .video-explorer-choices {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;}
 .video-explorer-choices button {align-items:flex-start;flex-direction:column;text-align:left;overflow-wrap:anywhere;}
@@ -20,9 +22,9 @@
 .video-explorer input {flex:1;min-width:0;border:1px solid var(--video-line);border-radius:12px;background:transparent;color:inherit;padding:10px 12px;min-height:44px;}
 .video-explorer input::placeholder {color:color-mix(in srgb,var(--color-on-primary) 70%,transparent);}
 .video-explorer p {margin:10px 0;white-space:pre-wrap;overflow-wrap:anywhere;}
-.video-explorer details {margin-top:14px;color:color-mix(in srgb,var(--color-on-primary) 80%,transparent);}
+.video-explorer details {margin-top:4px;color:color-mix(in srgb,var(--color-on-primary) 80%,transparent);}
 .video-explorer summary {min-height:44px;cursor:pointer;}
 .video-explorer [role=alert] {border-left:3px solid var(--color-on-primary);padding:8px 12px;}
 @keyframes video-enter {from{opacity:0}to{opacity:1}}
-@media(max-width:600px){.video-explorer{padding:12px 16px 36px;}.video-explorer header{gap:8px;}.video-explorer header>span{display:none;}.video-explorer-stage :is(video,img){height:min(38dvh,250px);}.video-explorer-choices{grid-template-columns:1fr;}.video-explorer-choices button{padding:8px 12px;gap:2px;}.video-explorer form{align-items:flex-start;flex-direction:column;gap:4px;}.video-explorer form>div{width:100%;}.video-explorer-status{font-size:15px;}.video-explorer-status button{flex-shrink:0;}}
+@media(max-width:600px){.video-explorer header{gap:8px;}.video-explorer header>span{display:none;}.video-explorer-choices{grid-template-columns:1fr;}.video-explorer-choices button{padding:8px 12px;gap:2px;}.video-explorer form{align-items:flex-start;flex-direction:column;gap:4px;}.video-explorer form>div{width:100%;}.video-explorer-status{font-size:15px;}.video-explorer-status button{flex-shrink:0;}}
 @media(prefers-reduced-motion:reduce){.video-explorer{animation:none}.video-explorer button{transition:none}}
