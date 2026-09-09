@@ -7,6 +7,12 @@ export type ProloguePlan = {
     startState: string; action: string; endState: string; continuity: string;
     evidence: { factId: string; channel: 'visual' | 'overlay'; detail: string }[] }[];
   handoff: { shotId: string; unresolved: string; choices: string[] };
+  version?: 2;
+  story?: { throughline: string; perspective: 'external' | 'first-person'; povCharacterId?: string;
+    beats: { shotId: string; cause: string; change: string }[];
+    recall: { topic: 'who' | 'relationship' | 'event' | 'pressure' | 'handoff'; answer: string; factIds: string[] }[] };
+  audio?: { mode: 'native' | 'post' | 'silent'; silentReason?: string;
+    cues: { start: number; end: number; speakerId: string; kind: 'narration' | 'dialogue' | 'phone'; text: string; delivery: string }[] };
 };
 const record = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
 const text = (v: unknown): v is string => typeof v === 'string' && !!v.trim() && v.length <= 4000;
@@ -48,7 +54,7 @@ export function checkProloguePlan(value: unknown): string[] {
     else for (const e of s.evidence) {
       if (!record(e) || !factIds.has(String(e.factId)) || !text(e.detail) || !['visual', 'overlay'].includes(String(e.channel))) { errors.push('EVIDENCE: 无效证据引用'); continue; }
       const fact = facts.find(f => record(f) && f.id === e.factId);
-      if (fact.channel === 'visual' && e.channel !== 'visual') errors.push(`EVIDENCE: ${e.factId}不能仅靠字幕证明`);
+      if (fact.channel === 'visual' && e.channel !== 'visual') errors.push(`EVIDENCE: ${String(e.factId)}不能仅靠字幕证明`);
       else covered.add(String(e.factId));
     }
   }
@@ -59,14 +65,49 @@ export function checkProloguePlan(value: unknown): string[] {
     || new Set(h.choices).size !== h.choices.length) errors.push('HANDOFF: 需要在末镜留下问题和2至4个不同的可行动方向');
   return errors;
 }
-export function compileProloguePlan(value: unknown) {
-  const errors = checkProloguePlan(value);
+// Only declared causal/recall coverage is checked. No semantic or video comprehension score.
+export function checkStoryProloguePlan(value: unknown): string[] {
+  const base = checkProloguePlan(value); if (base.length) return base;
+  const v = value as Record<string, unknown>, plan = value as ProloguePlan;
+  const errors: string[] = [];
+  if (v.version !== 2) errors.push('VERSION: 完整序章需要v2叙事与声轨计划，旧结构仅供历史查看');
+  const story = v.story;
+  if (!record(story) || !text(story.throughline) || !['external', 'first-person'].includes(String(story.perspective))) errors.push('STORY: 缺少主因果与视角');
+  else {
+    if (story.perspective === 'first-person' && !plan.characters.some(c => c.id === story.povCharacterId)) errors.push('POV: 第一人称需锁定体验人物');
+    if (!Array.isArray(story.beats) || story.beats.length !== plan.shots.length || story.beats.some((b, i) => !record(b) || b.shotId !== plan.shots[i].id || !text(b.cause) || !text(b.change))) errors.push('CAUSALITY: 每镜按顺序声明前因与局面变化');
+    const topics = ['who', 'relationship', 'event', 'pressure', 'handoff'];
+    if (!Array.isArray(story.recall) || story.recall.length !== topics.length || new Set(story.recall.map(r => record(r) ? r.topic : '')).size !== topics.length
+      || story.recall.some(r => !record(r) || !topics.includes(String(r.topic)) || !text(r.answer) || !Array.isArray(r.factIds) || !r.factIds.length || r.factIds.some(f => !plan.facts.some(p => p.id === f)))) errors.push('RECALL: 需将人物/关系/事件/压力/未决动作五项答案关联到事实证据');
+  }
+  const audio = v.audio, duration = plan.shots.at(-1)!.end;
+  if (!record(audio) || !['native', 'post', 'silent'].includes(String(audio.mode)) || !Array.isArray(audio.cues) || audio.cues.length > 20) errors.push('AUDIO: 缺少声音制作方式或有效声轨安排');
+  else if (audio.mode === 'silent') {
+    errors.push('AUDIO: 当前交付要求必须有声音；无声计划不得用于新序章，须安排原生语音或后期配音');
+  } else {
+    if (!audio.cues.length) errors.push('AUDIO: 有声版必须写出实际台词，不能只有配乐愿望');
+    let end = 0;
+    for (const cue of audio.cues) {
+      if (!record(cue) || typeof cue.start !== 'number' || typeof cue.end !== 'number' || !Number.isFinite(cue.start) || !Number.isFinite(cue.end) || cue.start < end || cue.end <= cue.start || cue.end > duration || cue.start < 0) { errors.push('AUDIO_TIME: 语句重叠、时间无效或超出影片'); continue; }
+      end = cue.end;
+      if (!['narration', 'dialogue', 'phone'].includes(String(cue.kind)) || !text(cue.text) || !text(cue.delivery) || !(cue.speakerId === 'narrator' || plan.characters.some(c => c.id === cue.speakerId))) { errors.push('VOICE: 缺少归属/原句/语气，或说话者未声明'); continue; }
+      const units = (cue.text.match(/\p{Script=Han}/gu) || []).length + (cue.text.match(/[A-Za-z0-9]+/g) || []).length * 2;
+      if (units > (cue.end - cue.start) * 5) errors.push('PACE: 台词明显超出粗估时长，请缩句并实际试读；不是精确语速测量');
+    }
+  }
+  return errors;
+}
+export function compileProloguePlan(value: unknown, requireStory = false) {
+  const errors = requireStory || (record(value) && value.version === 2) ? checkStoryProloguePlan(value) : checkProloguePlan(value);
   if (errors.length) throw new Error(errors.join('\n'));
   const plan = value as ProloguePlan;
-  return { title: plan.title, totalSeconds: plan.shots.at(-1)!.end, status: 'plan-only-not-video-reviewed',
+  return { title: plan.title, totalSeconds: plan.shots.at(-1)!.end, status: 'plan-only-not-video-reviewed', submissionAuthorized: false,
+    story: plan.story, audio: plan.audio,
+    reviewRequired: ['实际声画是否支持五项复述', '演员动作与因果连续性', '原生音频/后期配音及真实口读时长', '模型参数与本轮费用授权'],
     shots: plan.shots.map(s => ({ id: s.id, seconds: s.end - s.start,
       prompt: [
         '按已确认前情拍摄一个连贯片段，不追加未来剧情、不生成字幕文字。',
+        ...(plan.story ? [`本片主线：${plan.story.throughline}`, plan.story.perspective === 'first-person' ? `固定${plan.story.povCharacterId}眼睛视角，只显露合理的手/持物，不从外部拍体验者。` : '公共外部视角，不提前指定玩家扮演谁。', `本镜改变：${plan.story.beats.find(b => b.shotId === s.id)!.change}`] : []),
         ...s.characterIds.map(cid => { const c = plan.characters.find(c => c.id === cid)!; return `${c.id}：${c.identity}；形象锁定：${c.appearance}`; }),
         `地点：${s.location}。起始：${s.startState}。动作：${s.action}。结束：${s.endState}。承接：${s.continuity || '序章首镜'}。`,
         ...s.evidence.filter(e => e.channel === 'visual').map(e => `必须拍到：${e.detail}`),

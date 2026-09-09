@@ -1,0 +1,330 @@
+{
+  "version": 2,
+  "title": "瑜伽馆：被忽略、被看见、被催回家（30秒声画提案，未生成）",
+  "characters": [
+    {
+      "id": "lin",
+      "identity": "林栀，36岁已婚全职太太，瑜伽私教学员",
+      "appearance": "沿用已确认林栀参考；及肩黑发，绿色上衣与米白开衫，手链。各场同一张脸；不在单镜穿脱衣服"
+    },
+    {
+      "id": "lu",
+      "identity": "陆晨，27岁男瑜伽私教，不是林栀丈夫",
+      "appearance": "沿用陆晨参考，短黑发，深灰运动T恤黑裤"
+    },
+    {
+      "id": "zhou",
+      "identity": "周衡，39岁丈夫，后半段仅通过消息参与",
+      "appearance": "沿用周衡参考，短黑发藏蓝衬衫；成熟低男声，与陆晨年轻男声区分"
+    }
+  ],
+  "facts": [
+    {
+      "id": "marriage",
+      "description": "林栀在婚姻中渴望亲近却被敷衍",
+      "channel": "visual"
+    },
+    {
+      "id": "training",
+      "description": "她在瑜伽私教课获得关注，陆晨是教练",
+      "channel": "visual"
+    },
+    {
+      "id": "affair",
+      "description": "停止训练后她主动亲吻教练，已越过婚姻边界",
+      "channel": "visual"
+    },
+    {
+      "id": "pickup",
+      "description": "丈夫催她接即将放学的孩子",
+      "channel": "overlay"
+    },
+    {
+      "id": "retreat",
+      "description": "家庭消息打断亲密，她慌张退出",
+      "channel": "visual"
+    },
+    {
+      "id": "decision",
+      "description": "隔间门关闭，消息未回复，责任与秘密仍待处理",
+      "channel": "visual"
+    }
+  ],
+  "shots": [
+    {
+      "id": "home",
+      "start": 0,
+      "end": 6,
+      "characterIds": [
+        "lin",
+        "zhou"
+      ],
+      "location": "此前家中晚餐桌旁",
+      "startState": "林栀靠近丈夫，试着握他的手；两副碗筷",
+      "action": "她问多久没拥抱，丈夫抽回手拿手机只回明天早起；她收回手，话停住",
+      "endState": "两人的手分开，林栀仍坐着，丈夫注意力在手机",
+      "continuity": "前情起点；后期小字此前，丈夫称谓在声轨明确，不在片名里补关系",
+      "evidence": [
+        {
+          "factId": "marriage",
+          "channel": "visual",
+          "detail": "同桌的妻子主动伸手，丈夫抽开、回避她的拥抱请求；不是两个陌生人静坐"
+        }
+      ]
+    },
+    {
+      "id": "class",
+      "start": 6,
+      "end": 11,
+      "characterIds": [
+        "lin",
+        "lu"
+      ],
+      "location": "随后傍晚的瑜伽私教室，镜墙、垫子、砖",
+      "startState": "她在垫上站姿伸展，陆晨在侧后方",
+      "action": "教练扶肩背纠正动作，认真看她完成；她松下紧绷肩膀看向他",
+      "endState": "她完成动作，两人站回垫边",
+      "continuity": "明确切到之后的瑜伽馆，不伪装家门直通教室；新男演员与丈夫明显区分",
+      "evidence": [
+        {
+          "factId": "training",
+          "channel": "visual",
+          "detail": "清楚的瑜伽姿势、教练专业指导与完成后的对视，环境不能只有普通房间"
+        }
+      ]
+    },
+    {
+      "id": "intimacy",
+      "start": 11,
+      "end": 17,
+      "characterIds": [
+        "lin",
+        "lu"
+      ],
+      "location": "同一私教室垫边",
+      "startState": "训练结束，两人已经站起面对面",
+      "action": "她主动环抱他肩，两人短暂亲吻后仍相拥；完整穿着",
+      "endState": "两人相拥，林栀手机在旁边椅上",
+      "continuity": "承接上镜站位和衣着；从训练结束变为自愿亲密，不剪成专业扶腰",
+      "evidence": [
+        {
+          "factId": "affair",
+          "channel": "visual",
+          "detail": "主动环抱、清楚短吻及相拥后的停留，动作主体可辨；不是镜头遮挡后用字幕宣称"
+        }
+      ]
+    },
+    {
+      "id": "message",
+      "start": 17,
+      "end": 22,
+      "characterIds": [
+        "lin",
+        "lu"
+      ],
+      "location": "同一教室椅边",
+      "startState": "相拥尚未结束，椅上手机亮起",
+      "action": "她听见震动松开一只手取手机，看到消息时笑容消失，两人拥抱松开",
+      "endState": "她握手机看向隔间方向，教练手放下",
+      "continuity": "手机先在上一镜椅上出现，不凭空到手；用桌边切点减少手部生成风险",
+      "evidence": [
+        {
+          "factId": "pickup",
+          "channel": "overlay",
+          "detail": "17.4–22秒后期消息条：丈夫：幼儿园快关门了，你几点去接？消息不是已接通电话"
+        },
+        {
+          "factId": "retreat",
+          "channel": "visual",
+          "detail": "震动/消息出现后才松开拥抱、收起笑容；反应与刺激同时间对应"
+        }
+      ]
+    },
+    {
+      "id": "leave",
+      "start": 22,
+      "end": 26,
+      "characterIds": [
+        "lin",
+        "lu"
+      ],
+      "location": "瑜伽教室通向相邻更衣隔间的门口",
+      "startState": "她持手机离开垫边，陆晨留在原地",
+      "action": "她快步进入相邻隔间，教练在门外低声叮嘱；她合上门",
+      "endState": "教练在外，林栀独自在门内",
+      "continuity": "用门框遮挡切到门内正反打，手机和衣着不变；不穿脱衣服、不长距离穿多间房",
+      "evidence": [
+        {
+          "factId": "retreat",
+          "channel": "visual",
+          "detail": "她从教练身旁退到隔间，门将两人隔开，维持同一时刻"
+        }
+      ]
+    },
+    {
+      "id": "hold",
+      "start": 26,
+      "end": 30,
+      "characterIds": [
+        "lin"
+      ],
+      "location": "更衣隔间内",
+      "startState": "背靠刚合上的门，手机仍在手里",
+      "action": "她低头看未回复消息，手指停在屏幕上；抬眼看门，未打开",
+      "endState": "门关闭，信息未发送，选择仍然悬着",
+      "continuity": "承接门内角度，保持手机手别，不重复播放前面镜头凑时长",
+      "evidence": [
+        {
+          "factId": "decision",
+          "channel": "visual",
+          "detail": "没有打字发送/开门动作，手指停住；镜头给到人与门关系，不只一张手机特写"
+        }
+      ]
+    }
+  ],
+  "handoff": {
+    "shotId": "hold",
+    "unresolved": "门未打开、消息未回复；先选体验角色，再决定处理接送或面对关系",
+    "choices": [
+      "安排孩子接送",
+      "隔着门询问陆晨"
+    ]
+  },
+  "story": {
+    "throughline": "林栀在婚姻中被忽略，于是在私教课的关注中越界；丈夫催接孩子的消息打断拥抱，她退入隔间，尚未决定如何回应。",
+    "perspective": "external",
+    "beats": [
+      {
+        "shotId": "home",
+        "cause": "她渴望丈夫回应",
+        "change": "主动亲近被敷衍，留下对被关注的渴望"
+      },
+      {
+        "shotId": "class",
+        "cause": "她来到私教课寻找关注",
+        "change": "教练的指导与注视让她放松"
+      },
+      {
+        "shotId": "intimacy",
+        "cause": "对关注的依赖已经超出课程",
+        "change": "训练结束后发生主动亲密，教学变成秘密关系"
+      },
+      {
+        "shotId": "message",
+        "cause": "家庭接送责任此时到来",
+        "change": "消息打断相拥，满足转为慌乱"
+      },
+      {
+        "shotId": "leave",
+        "cause": "她不敢在教练面前处理家庭消息",
+        "change": "退入隔间，将公开责任与秘密关系暂时隔开"
+      },
+      {
+        "shotId": "hold",
+        "cause": "关门并未解决接送和隐瞒",
+        "change": "停在要回应但尚未行动的时刻"
+      }
+    ],
+    "recall": [
+      {
+        "topic": "who",
+        "answer": "渴望被关注的已婚林栀；周衡是丈夫，陆晨是瑜伽私教",
+        "factIds": [
+          "marriage",
+          "training"
+        ]
+      },
+      {
+        "topic": "relationship",
+        "answer": "她与丈夫冷淡，却与教练主动亲密，不是普通教学或未婚情侣",
+        "factIds": [
+          "marriage",
+          "affair"
+        ]
+      },
+      {
+        "topic": "event",
+        "answer": "下课后主动亲吻被丈夫消息打断",
+        "factIds": [
+          "affair",
+          "retreat"
+        ]
+      },
+      {
+        "topic": "pressure",
+        "answer": "幼儿园快关门，丈夫催她去接孩子",
+        "factIds": [
+          "pickup"
+        ]
+      },
+      {
+        "topic": "handoff",
+        "answer": "消息和这段秘密关系还未处理",
+        "factIds": [
+          "decision"
+        ]
+      }
+    ]
+  },
+  "audio": {
+    "mode": "post",
+    "cues": [
+      {
+        "start": 0.2,
+        "end": 3.4,
+        "speakerId": "lin",
+        "kind": "dialogue",
+        "text": "老公，你多久没抱过我了？",
+        "delivery": "低声期待，句末停一下；新增改编对白，不冒充原文逐字"
+      },
+      {
+        "start": 3.5,
+        "end": 5.8,
+        "speakerId": "zhou",
+        "kind": "dialogue",
+        "text": "明天还要早起。",
+        "delivery": "成熟男声，疲惫敷衍，不大吼"
+      },
+      {
+        "start": 6.1,
+        "end": 10.8,
+        "speakerId": "narrator",
+        "kind": "narration",
+        "text": "后来，她把被关心的感觉，留在了私教课上。",
+        "delivery": "克制女旁白；6秒处后期小字陆晨·瑜伽私教；不用大段说教"
+      },
+      {
+        "start": 11.2,
+        "end": 14.5,
+        "speakerId": "lu",
+        "kind": "dialogue",
+        "text": "下课了，再陪我一会儿。",
+        "delivery": "年轻男声轻低；新增改编对白，后留亲密动作与呼吸"
+      },
+      {
+        "start": 17.4,
+        "end": 21.8,
+        "speakerId": "zhou",
+        "kind": "phone",
+        "text": "幼儿园快关门了，你几点去接？",
+        "delivery": "丈夫文字消息的画外朗读，配消息条，不演来电接听；短震动后再讲话"
+      },
+      {
+        "start": 22.1,
+        "end": 25.8,
+        "speakerId": "lu",
+        "kind": "dialogue",
+        "text": "别紧张，回去喷点自己的香水。",
+        "delivery": "门外低声，年轻男声，与丈夫区别；不延长为新表白"
+      },
+      {
+        "start": 26.2,
+        "end": 29.8,
+        "speakerId": "narrator",
+        "kind": "narration",
+        "text": "这条消息，她还没敢回。",
+        "delivery": "不加结局；尾部留环境声，不播放音乐高潮盖台词"
+      }
+    ]
+  }
+}

@@ -3,6 +3,7 @@
 import { mkdir, readFile, writeFile, access } from 'node:fs/promises';
 import { companyFetch, companyAssetUrl } from '../lib/company-gateway.ts';
 import { videoResult } from '../lib/media-policy.ts';
+if (process.argv[2] === 'submit') throw Error('旧硬编码试拍脚本已停用新提交。请先用v2声画计划完成叙事审阅和模型/费用确认；status与collect仍可用。');
 const dir='work/yoga-prologue-v1';
 const output='public/assets/prologues/yoga-v1';
 const style='虚构成人都市婚姻短剧，克制真实的中国电影摄影，横屏16:9，柔和胶片质感，不出现任何字幕、标志、旁白或可读文字，没有裸露、没有亲密性行为、没有儿童出镜。女主36岁中国女性，及肩黑发，米白开衫配鼠尾草绿高领上衣。';

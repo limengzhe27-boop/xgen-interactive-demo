@@ -1,0 +1,68 @@
+{
+  "version": 2,
+  "title": "飞升门开了，门外却有人喊我的工号 · 28秒有声分镜提案（未生成）",
+  "characters": [
+    {"id":"shen","identity":"成年散修沈砚，修行百年，刚刚渡劫；固定体验者","appearance":"严格眼睛视角，只见靛蓝破袖、左腕红绳、右手断剑；不出现正脸背影"},
+    {"id":"registrar","identity":"成年天门执籍官，负责接引，不可替沈砚签契","appearance":"白发老者、象牙白黑边长袍、青铜半面具；持青铜契牌，腕有金锁环；沿用已确认参考图"}
+  ],
+  "facts": [
+    {"id":"arrival","description":"沈砚刚渡劫，带断剑和红绳抵达天门","channel":"visual"},
+    {"id":"number","description":"接引者不是迎接贵客，而是按工号要求接牌","channel":"overlay"},
+    {"id":"chain","description":"拒伸手时金链强行缠住红绳，并非本人同意签契","channel":"visual"},
+    {"id":"choice","description":"仍在桥上，未接契牌、未签仙籍、未踏入天门","channel":"visual"}
+  ],
+  "shots": [
+    {"id":"arrival","start":0,"end":6,"characterIds":["shen","registrar"],"location":"半开的玉石天门外，同一座云海石桥",
+      "startState":"我站在桥上，余雷映亮靛蓝袖和握着的断剑；接引官挡在门前",
+      "action":"我低头看一瞬断剑裂纹，然后抬眼；执籍官向我的方向抬起契牌",
+      "endState":"契牌和老者在视线前方，左腕红绳尚未被束缚","continuity":"首镜；固定眼平，不用远景飞越山河",
+      "evidence":[{"factId":"arrival","channel":"visual","detail":"断剑、破袖、红绳与刚散去的雷光在同一主观视野；半开天门位于眼前，不拍主角全身"}]},
+    {"id":"offer","start":6,"end":12,"characterIds":["shen","registrar"],"location":"原地接引桥与天门门槛之间",
+      "startState":"执籍官仍持契牌，站位与前镜相同",
+      "action":"执籍官把青铜牌递到我胸前；我没有接，他等待的手停住",
+      "endState":"契牌仍在他手中，我的左手停在身体一侧","continuity":"沿同一主观视线切近契牌，红绳和断剑保持左右手一致",
+      "evidence":[{"factId":"number","channel":"overlay","detail":"后期与原句同步叠字幕：工号九五二七，接牌入籍。画面原始契牌不要求模型生成准确数字。"},{"factId":"choice","channel":"visual","detail":"递牌者的手与我没有伸出的手同时可见，没有接牌或签字动作"}]},
+    {"id":"bind","start":12,"end":18,"characterIds":["shen","registrar"],"location":"同一桥面，低头看到的左腕近景",
+      "startState":"我尚未接牌，左腕红绳空着",
+      "action":"接引金链突然缠住左腕红绳，我本能收腕，细链随之绷紧",
+      "endState":"链已缠住红绳；右手断剑仍未挥出","continuity":"用低头动机切到手部，衣袖和红绳不变；只完成一次缠绕与受力反应",
+      "evidence":[{"factId":"chain","channel":"visual","detail":"空着的红绳被外来金链缠紧，收腕受阻；没有我主动戴链或接受契印的动作"}]},
+    {"id":"turn","start":18,"end":23,"characterIds":["shen","registrar"],"location":"同一桥上看向门槛",
+      "startState":"金链绷在左腕，我抬眼看执籍官",
+      "action":"执籍官收回未被接走的契牌，转身朝向门内；我仍停在原地",
+      "endState":"老者背向我，契牌不在我手上，门槛仍在前方","continuity":"从腕部切回眼平；链、断剑保持原状态，不能穿门转场",
+      "evidence":[{"factId":"choice","channel":"visual","detail":"老者收回契牌而我留在桥上，门槛未跨过；不能出现签名、入门成功或镜头进入仙界"}]},
+    {"id":"hold","start":23,"end":28,"characterIds":["shen","registrar"],"location":"原接引桥，视野同时含链与门前执籍官",
+      "startState":"我仍在桥上，左腕受缚，右手持裂纹断剑",
+      "action":"我看向绷紧的金链，再看向仍未跨过的门槛，稳住断剑，不挥砍",
+      "endState":"链未断、牌未接、门未入，保持可接互动的现场","continuity":"不回放雷劫，不新增天庭工厂；主观凝视来自眼前两个具体选择对象",
+      "evidence":[{"factId":"choice","channel":"visual","detail":"末帧保留被束左腕、未挥断剑与门槛；不提前替玩家选斩链或签契"}]}
+  ],
+  "handoff":{"shotId":"hold","unresolved":"未签仙籍、未进门，金链仍缠红绳；接下来问清代价还是付出剑气斩链由玩家决定","choices":["开口追问：不接这块牌，能不能回去？","观察金链与断剑裂纹，评估消耗一次剑气的代价。"]},
+  "story":{
+    "throughline":"百年散修以为渡劫便得自由，却被接引官按工号催促入籍；没有接牌也被金链束腕，真正要不要入门仍由自己决定。",
+    "perspective":"first-person","povCharacterId":"shen",
+    "beats":[
+      {"shotId":"arrival","cause":"百年修行后刚渡过天劫","change":"终于抵达天门，期待接引却被叫作工号"},
+      {"shotId":"offer","cause":"接引者要我接下契牌","change":"我没有接，僵持而非自动完成飞升"},
+      {"shotId":"bind","cause":"递牌后我仍没伸手","change":"金链强行拘束红绳，入门并非自由的预期被打破"},
+      {"shotId":"turn","cause":"收腕受阻，仍未接牌","change":"对方收牌转身而我被留在门外，既未签契也未离开"},
+      {"shotId":"hold","cause":"束缚已发生，但签契仍未发生","change":"注意落在可追问的官员与可斩的链上，进入自己的行动"}
+    ],
+    "recall":[
+      {"topic":"who","answer":"我扮演沈砚，刚渡劫的百年散修，持断剑、戴红绳","factIds":["arrival"]},
+      {"topic":"relationship","answer":"面前是管接引的执籍官，要求我按工号接牌，不是同伴","factIds":["number"]},
+      {"topic":"event","answer":"我没有接牌，金链却缠住我的左腕","factIds":["chain","choice"]},
+      {"topic":"pressure","answer":"所谓飞升似乎并不自由，我已受物理拘束但不知道契约代价","factIds":["number","chain"]},
+      {"topic":"handoff","answer":"没有签字或进门，下一步是否追问、斩链或另寻去路由我决定","factIds":["choice"]}
+    ]
+  },
+  "audio":{"mode":"post","cues":[
+    {"start":0.2,"end":2.9,"speakerId":"registrar","kind":"dialogue","text":"工号九五二七。","delivery":"成年老者，干冷、不热情，迎面画外先声，明显不同于主角内心声"},
+    {"start":3,"end":5.8,"speakerId":"shen","kind":"narration","text":"百年修行，换来一个工号？","delivery":"成年青年内心声，先错愕后压住怒气；不拍主角嘴部"},
+    {"start":6.3,"end":9.8,"speakerId":"registrar","kind":"dialogue","text":"接牌入籍，别误了时辰。","delivery":"低沉短促，不解释整个天庭制度"},
+    {"start":12.8,"end":15.9,"speakerId":"shen","kind":"narration","text":"我没接，链却先缠上了。","delivery":"主角内心声，急吸气后压低，与收腕动作对应"},
+    {"start":18.3,"end":22.2,"speakerId":"shen","kind":"narration","text":"我还没签仙籍，也没进门。","delivery":"镇定下来，说清已发生的拘束不等于同意"},
+    {"start":23.3,"end":27.5,"speakerId":"shen","kind":"narration","text":"这把断剑，只剩三次剑气。","delivery":"轻声权衡，不喊出技能、不提前斩链；之后留半秒空间交给玩家"}
+  ]}
+}
