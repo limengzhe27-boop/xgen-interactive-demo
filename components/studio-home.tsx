@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/compone
 import { GalleryAtmosphere, GalleryMasonry, GalleryReveal } from '@/components/gallery-motion';
 import { mixGallery } from '@/lib/gallery-order';
 import { editorialCopy, featureHomeItems } from '@/lib/home-editorial';
+import { advanceComposerScroll } from '@/lib/composer-scroll';
 import { restoreGalleryPosition, type GalleryBrowseState, type GalleryPosition } from '@/lib/gallery-memory';
 
 export type StudioSection = 'home' | 'library' | 'characters' | 'personal' | 'profile';
@@ -73,6 +74,21 @@ export function StudioHome({ section, worlds, characters, recent, onCreate, onOp
   const anchor = useRef<HTMLDivElement>(null);
   const isHome = section === 'home';
   const docked = isHome && (focused ? pinnedWhileFocused : offscreen);
+  const [scrollHidden, setScrollHidden] = useState(false);
+  const composerHidden = docked && scrollHidden && !focused;
+  useEffect(() => {
+    if (!isHome) return;
+    let state = { y: Math.max(0, window.scrollY), travel: 0, hidden: false };
+    let frame = 0;
+    const update = () => {
+      frame = 0;
+      state = advanceComposerScroll(state, window.scrollY, focused);
+      setScrollHidden(state.hidden);
+    };
+    const scroll = () => { if (!frame) frame = requestAnimationFrame(update); };
+    window.addEventListener('scroll', scroll, { passive: true });
+    return () => { window.removeEventListener('scroll', scroll); cancelAnimationFrame(frame); };
+  }, [isHome, focused]);
   useEffect(() => {
     if (!isHome || !anchor.current) return;
     const observer = new IntersectionObserver(([entry]) => setOffscreen(entry.boundingClientRect.bottom < 0));
@@ -97,7 +113,7 @@ export function StudioHome({ section, worlds, characters, recent, onCreate, onOp
       <GalleryAtmosphere />
       <div className="gallery-hero-heading"><span className="studio-wordmark gallery-eyebrow">WORLDSTUDIO · 小世界</span><h1 id="studio-title"><span>下一段故事，</span><span>你来入戏。</span></h1><p className="gallery-eyebrow">成为故事里的人，也成为故事的作者。</p></div>
       <div className="gallery-composer-anchor" ref={anchor}>
-        <form className="gallery-composer" data-floating={docked} data-expanded={expanded} onSubmit={event => { event.preventDefault(); start(); }} onFocusCapture={() => { if (!focused) { setPinnedWhileFocused(docked); setFocused(true); } }} onBlurCapture={event => { if (!event.currentTarget.contains(event.relatedTarget)) { setFocused(false); setExpanded(false); } }}>
+        <form className="gallery-composer" data-floating={docked} data-expanded={expanded} data-scroll-hidden={composerHidden} inert={composerHidden} aria-hidden={composerHidden || undefined} onSubmit={event => { event.preventDefault(); start(); }} onFocusCapture={() => { if (!focused) { setScrollHidden(false); setPinnedWhileFocused(docked); setFocused(true); } }} onBlurCapture={event => { if (!event.currentTarget.contains(event.relatedTarget)) { setFocused(false); setExpanded(false); } }}>
           <MessageTextarea aria-label="你想创造怎样的世界" placeholder="一个念头，就能开启一个世界。想让谁，遇见什么？" value={seed} maxLength={2000} onChange={event => setSeed(event.target.value)} onFocus={() => setExpanded(true)} onSend={start} />
           <div className="gallery-composer-tools"><span><Sparkles />和 Agent 一起构思</span><small>Enter 发送 · Shift + Enter 换行</small><Button className="gallery-send" type="submit" aria-label="与 Agent 一起创作"><ArrowUp /></Button></div>
         </form>
