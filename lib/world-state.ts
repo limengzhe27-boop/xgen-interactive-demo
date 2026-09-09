@@ -1,4 +1,12 @@
-import type { WorldDefinition, WorldGoal } from '@/lib/ai-contracts';
+import type { WorldDefinition, WorldGoal, WorldTurnResponse } from '@/lib/ai-contracts';
+
+// Keep the words actually heard, not only the narrator's scenery. Hidden lines stay out.
+export function turnMemoryText(response: Pick<WorldTurnResponse, 'narrative' | 'dialogue'>, world: Pick<WorldDefinition, 'characters'>, roleId: string): string {
+  const names = new Map(world.characters.map(character => [character.id, character.name]));
+  const lines = response.dialogue.filter(line => names.has(line.characterId) && line.visibleToRoleIds.includes(roleId))
+    .map(line => `${names.get(line.characterId)}：${line.text}`);
+  return [response.narrative, ...lines].filter(Boolean).join('\n\n');
+}
 
 export function selectRoleGoal(world: WorldDefinition, roleId: string): WorldGoal | undefined {
   const explicit = world.goals.find((goal) => goal.scope === 'role' && goal.roleId === roleId)
@@ -35,6 +43,8 @@ export type WorldState = {
   taskNotes: Record<string, string>;
   characterStates: Record<string, { locationId?: string; status?: string; lastAction?: string }>;
   relationshipTrust: number;
+  /** Change since entry, per NPC; zero is no recorded change, not automatic trust. */
+  relationshipChanges?: Record<string, number>;
   eventLedger: EventRecord[];
 };
 
@@ -62,6 +72,7 @@ type CommitTurnInput = {
   reachedEndingId?: string;
   nextLocation: string;
   relationshipDelta: number;
+  relationshipDeltas?: Record<string, number>;
   incident?: WorldIncident | null;
   clock?: string;
   addInventory?: string[];
@@ -125,6 +136,7 @@ export function createInitialWorldState(
       lastAction: '等待世界开始',
     }])),
     relationshipTrust: 42,
+    relationshipChanges: {},
     eventLedger: [],
   };
 }
@@ -166,6 +178,12 @@ export function validateAction(action: string, state: WorldState, listedChoices:
 }
 
 export function commitTurn(state: WorldState, input: CommitTurnInput): WorldState {
+  const relationshipChanges = { ...state.relationshipChanges };
+  for (const [id, delta] of Object.entries(input.relationshipDeltas ?? {})) {
+    if (!Object.hasOwn(state.characterStates, id) || !Number.isFinite(delta)) continue;
+    const previous = Number.isFinite(relationshipChanges[id]) ? relationshipChanges[id] : 0;
+    relationshipChanges[id] = Math.max(-100, Math.min(100, previous + Math.max(-10, Math.min(10, delta))));
+  }
   const nextTurn = state.turn + 1;
   const clockMinutes = /^\d{2}:\d{2}$/.test(state.clock)
     ? (Number(state.clock.slice(0, 2)) * 60 + Number(state.clock.slice(3)) + 5) % 1440 : null;
@@ -204,6 +222,7 @@ export function commitTurn(state: WorldState, input: CommitTurnInput): WorldStat
       ])),
     },
     relationshipTrust: Math.max(12, Math.min(92, state.relationshipTrust + input.relationshipDelta + (input.incident?.relationshipDelta ?? 0))),
+    relationshipChanges,
     eventLedger: [...state.eventLedger, {
       id: `event-${nextTurn}-${state.eventLedger.length}`,
       turn: nextTurn,

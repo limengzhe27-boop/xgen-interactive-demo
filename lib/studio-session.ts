@@ -1,5 +1,6 @@
 import type { StudioWorld } from './studio-worlds';
 import type { WorldState } from './world-state';
+import { turnMemoryText } from './world-state.ts';
 import type { WorldTurnRequest, WorldTurnResponse } from './ai-contracts';
 
 export function upsertById<T extends { id: string }>(records: T[], next: T): T[] {
@@ -55,7 +56,7 @@ export function chatRequest(session: ChatSession, action: string): WorldTurnRequ
   return { contractVersion: '2026-09-04.v2', world: session.entry.world, selectedRoleId: session.playerRoleId,
     interaction: { mode: 'character-chat', targetCharacterId: session.targetCharacterId },
     userAction: action, state: session.state,
-    recentTurns: session.turns.slice(-4).map((turn) => ({ action: turn.action, result: turn.response.narrative })),
+    recentTurns: session.turns.slice(-4).map((turn) => ({ action: turn.action, result: turnMemoryText(turn.response, session.entry.world, session.playerRoleId) })),
     currentScene: { id: `chat-${session.state.turn}`, title: session.entry.title, narrative: session.narrative,
       speakerCharacterId: session.targetCharacterId, choices: session.turns.at(-1)?.response.nextChoices ?? [] },
   };

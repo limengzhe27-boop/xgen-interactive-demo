@@ -107,7 +107,11 @@ export function enforceWorldTurnGuardrails(input: WorldTurnRequest, output: Worl
     // Do not invent prose, dialogue, or off-screen actions to pass length/count tests.
     dialogue: output.dialogue.filter((line) => line.visibleToRoleIds.includes(input.selectedRoleId)),
     nextChoices,
-    statePatch: { ...output.statePatch, completeTaskIds: completions, failTaskIds: failures },
+    statePatch: { ...output.statePatch, completeTaskIds: completions, failTaskIds: failures,
+      relationshipDeltas: Object.fromEntries(Object.entries(output.statePatch.relationshipDeltas ?? {}).filter(([id, value]) =>
+        Number.isFinite(value) && (id === 'world' || (id !== input.selectedRoleId && input.world.characters.some(character => character.id === id))))
+        .map(([id, value]) => [id, Math.max(-10, Math.min(10, value))])),
+    },
     goalProgress: {
       activeTaskIds: activeTasks(input, completed, failed), completedTaskIds: [...completed],
       summary: ending ? ending.description : output.goalProgress.summary,
