@@ -47,6 +47,19 @@ const { admitPersona } = await import('../lib/player-persona.ts');
 const { makeEndingFixture } = await import('./ending-fixture.mjs');
 const worlds = studioWorlds.map((entry) => ({ ...entry, roleCount: entry.world.characters.length }));
 const noop = () => {};
+test('profile editor renders optional reference lookup before manual fields and never auto-queries', async () => {
+  const { PersonaEditor } = await import('../components/player-persona.tsx');
+  const html = renderToStaticMarkup(React.createElement(PersonaEditor, { value: null, accountScope: 'reference-test', onSave: () => true, expanded: true }));
+  assert.ok(html.includes('补全原作设定'));
+  assert.ok(html.indexOf('补全原作设定') < html.indexOf('身份名称'));
+  assert.ok(!html.includes('公开角色名称 / 作品')); // Optional tool starts closed.
+  assert.ok(html.includes('保存身份'));
+  const { POST: lookup } = await import('../app/api/persona-reference/route.ts');
+  const foreign = await lookup(new Request('https://xgen-interactive-demo.vercel.app/api/persona-reference', { method: 'POST', headers: { origin: 'https://other.test' }, body: '{}' }));
+  assert.equal(foreign.status, 403);
+  const guest = await lookup(new Request('https://xgen-interactive-demo.vercel.app/api/persona-reference', { method: 'POST', headers: { origin: 'https://xgen-interactive-demo.vercel.app', 'x-xgen-account': 'guest' }, body: JSON.stringify({ action: 'search', query: '女帝' }) }));
+  assert.equal(guest.status, 401);
+});
 const personalProps = { message: '', conversation: [], busy: false, error: '', recommendations: [], worlds,
   memories: [], onMessage: noop, onSubmit: noop, onRemoveMemory: noop, onOpenWorld: noop, onCreate: noop };
 

@@ -1,10 +1,11 @@
 import type { WorldDefinition } from './ai-contracts';
 import type { StudioWorld } from './studio-worlds';
 import { localPortrait } from './persona-upload.ts';
+import { readPersonaReference, type PersonaReference } from './persona-reference.ts';
 
 export type PlayerPersona = {
   version: 1; ownerId: string; name: string; identity: string; personality: string;
-  appearance: string; abilities: string; portraitUrl?: string; updatedAt: number;
+  appearance: string; abilities: string; portraitUrl?: string; updatedAt: number; reference?: PersonaReference;
 };
 export type EntryPolicy = {
   allowPersona: boolean; allowedRoleIds: string[]; abilityMode: 'role-only' | 'fixed' | 'agent-select' | 'agent-judge'; abilities: string[];
@@ -28,7 +29,8 @@ export function restorePlayerPersona(value: unknown, ownerId: string): PlayerPer
   // Allow bounded, raster-only local uploads and owned server assets, never tracking URLs.
   return { version: 1, ownerId, name: (value.name as string).trim(), identity: value.identity as string, personality: value.personality as string,
     appearance: value.appearance as string, abilities: value.abilities as string, updatedAt: value.updatedAt,
-    portraitUrl: typeof value.portraitUrl === 'string' && (localPortrait(value.portraitUrl) || /^\/api\/image\/asset\/[a-f0-9]{64}$/.test(value.portraitUrl)) ? value.portraitUrl : undefined };
+    portraitUrl: typeof value.portraitUrl === 'string' && (localPortrait(value.portraitUrl) || /^\/api\/image\/asset\/[a-f0-9]{64}$/.test(value.portraitUrl)) ? value.portraitUrl : undefined,
+    ...(readPersonaReference(value.reference) ? { reference: readPersonaReference(value.reference) } : {}) };
 }
 export function personaEntryProblem(world: WorldDefinition, roleId: string, persona: PlayerPersona | null): string {
   if (world.entryAdmission) return '此会话已适配身份。请从世界库重新打开原世界，再选择新的入场身份。';

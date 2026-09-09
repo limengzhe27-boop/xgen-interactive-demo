@@ -311,6 +311,24 @@
   .creator-settings-drawer .create-card-title { flex-direction: column; }
 }
 .persona-designer { padding: 16px 0; }
+.persona-reference { margin-block: 16px; min-width: 0; }
+.persona-reference-body, .persona-reference-result { display: grid; gap: 14px; min-width: 0; padding-block: 14px; }
+.persona-reference-body label:not(.persona-check) { display: grid; gap: 8px; min-width: 0; font-size: 1rem; }
+.persona-reference-body :is(input, textarea) { font-size: 1rem; line-height: 1.8; }
+.persona-reference-body textarea { min-height: 100px; }
+.persona-reference-body p { margin: 0; }
+.persona-reference-body .persona-reference-note { font-size: .875rem; }
+.persona-reference-candidates { display: grid; gap: 12px; }
+.persona-reference-candidates article { display: grid; gap: 8px; padding-block: 14px; border-bottom: 1px solid var(--color-border); overflow-wrap: anywhere; }
+.persona-reference-candidates small { color: var(--color-text-secondary); font-size: .875rem; }
+.persona-reference :is(a, button), .persona-reference-saved a { min-height: 44px; }
+.persona-reference a, .persona-reference-saved a { display: inline-flex; align-items: center; color: var(--color-primary); text-decoration: underline; text-underline-offset: 4px; overflow-wrap: anywhere; }
+.persona-reference a:hover, .persona-reference-saved a:hover { color: var(--color-primary-hover); }
+.persona-reference a:focus-visible, .persona-reference-saved a:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 3px; }
+.persona-reference [role=alert] { color: var(--color-danger); }
+.persona-reference .persona-check { align-items: start; line-height: 1.8; }
+.persona-reference input[type=checkbox] { flex-shrink: 0; margin-top: 7px; }
+.persona-reference button { white-space: normal; height: auto; }
 .persona-designer h3 { display: flex; align-items: center; gap: 8px; font: 600 1rem/1.8 var(--font-ui); }
 .persona-designer h3 svg { width: 20px; color: var(--color-primary); }
 .persona-designer :is(p, dd, textarea) { font-size: 1rem; line-height: 1.8; }

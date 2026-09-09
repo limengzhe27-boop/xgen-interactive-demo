@@ -13,6 +13,8 @@ import { generateSceneImage } from '@/lib/remote-image-service';
 import { joinWorldAsPersona, newcomerEntryProblem, VISITOR_ID, restoreEntryPolicy, requiresAbilityJudgment, type PlayerPersona, type EntryPolicy } from '@/lib/player-persona';
 import type { StudioWorld } from '@/lib/studio-worlds';
 import { PersonaDesigner } from '@/components/persona-designer';
+import { PersonaReferenceLookup } from '@/components/persona-reference';
+import { readPersonaReference, type PersonaReference } from '@/lib/persona-reference';
 import { localPortrait, readPersonaUpload } from '@/lib/persona-upload';
 
 type PersonaEditorProps = { value: PlayerPersona | null; accountScope: string; onSave: (value: PlayerPersona) => boolean };
@@ -23,7 +25,7 @@ export function PersonaControl(props: PersonaEditorProps) {
   </SheetTrigger><SheetContent className="flow-drawer persona-drawer" showCloseButton={false}>
     <div className="flow-drawer-heading"><SheetTitle>我的形象</SheetTitle><SheetClose className="flow-control" aria-label="关闭我的形象"><X /></SheetClose></div>
     <SheetDescription>设定故事里的名字、外观和性格。保存后关闭，即可回到刚才的页面。</SheetDescription>
-    <PersonaEditor {...props} expanded />
+    <PersonaEditor key={props.accountScope} {...props} expanded />
   </SheetContent></Sheet>;
 }
 
@@ -31,6 +33,8 @@ export function PersonaEditor({ value, accountScope, onSave, expanded = false }:
   const [draft, setDraft] = useState({ name: value?.name || '', identity: value?.identity || '', personality: value?.personality || '', appearance: value?.appearance || '', abilities: value?.abilities || '', portraitUrl: value?.portraitUrl });
   const [busy, setBusy] = useState(false); const [notice, setNotice] = useState('');
   const [designBusy, setDesignBusy] = useState(false);
+  const [referenceBusy, setReferenceBusy] = useState(false);
+  const [reference, setReference] = useState<PersonaReference | undefined>(readPersonaReference(value?.reference));
   const [editing, setEditing] = useState(true);
   const controller = useRef<AbortController | null>(null);
   const uploadSequence = useRef(0);
@@ -63,16 +67,18 @@ export function PersonaEditor({ value, accountScope, onSave, expanded = false }:
     <p>这是故事里的你，不是对真实你的记忆。身份按账号保存在本机；可在账号栏手动保存至私人云存档，进入世界前还需确认适配。</p>
     {!loggedIn && <output>请先通过页面上方登录账号，再保存身份。游客仍可使用原剧情角色试玩。</output>}
     <details className="persona-manual" open={editing} onToggle={event => setEditing(event.currentTarget.open)}><summary>编辑虚拟角色（仅用于世界探索）</summary>
-    <form onSubmit={event => { event.preventDefault(); if (!loggedIn || busy || designBusy || !draft.name.trim()) return; if (onSave({ ...draft, name: draft.name.trim(), version: 1, ownerId: accountScope, updatedAt: Date.now() })) setNotice('身份已保存在本机；已有探索和角色对话不会随之改变。'); else setNotice('身份保存失败，请保留页面并重试。'); }}>
+    <PersonaReferenceLookup key={accountScope} draft={draft} accountScope={accountScope} disabled={!loggedIn || busy || designBusy} onBusy={setReferenceBusy} onApply={(proposal, source) => { setDraft(current => ({ ...current, ...proposal })); setReference(source); setNotice('参考设定已填入，尚未保存。检查后点击“保存身份”；图片和世界规则没有改变。'); }} />
+    {reference && <details className="persona-reference-saved"><summary>身份参考来源</summary><a href={reference.url} target="_blank" rel="noopener noreferrer">{reference.title}</a><p>查询于 {new Date(reference.retrievedAt).toLocaleDateString('zh-CN')}。这是补全时的参考，当前内容可由你修改，不代表全部为原作事实。</p><Button type="button" variant="outline" disabled={busy || designBusy || referenceBusy} onClick={() => setReference(undefined)}>移除来源标记（保留文字）</Button></details>}
+    <form onSubmit={event => { event.preventDefault(); if (!loggedIn || busy || designBusy || referenceBusy || !draft.name.trim()) return; if (onSave({ ...draft, reference, name: draft.name.trim(), version: 1, ownerId: accountScope, updatedAt: Date.now() })) setNotice('身份已保存在本机；已有探索和角色对话不会随之改变。'); else setNotice('身份保存失败，请保留页面并重试。'); }}>
       <div className="persona-actions"><input ref={fileInput} type="file" accept="image/jpeg,image/png,image/webp" aria-label="选择形象图片" hidden onChange={e => { void upload(e.target.files?.[0]); e.target.value = ''; }} /><Button type="button" variant="outline" disabled={!loggedIn || busy || designBusy} onClick={() => fileInput.current?.click()}>{draft.portraitUrl ? '上传 / 更换图片' : '上传形象图片'}</Button>{draft.portraitUrl && <Button type="button" variant="outline" disabled={!loggedIn || busy || designBusy} onClick={() => { setDraft(current => ({ ...current, portraitUrl: undefined })); setNotice('已移除预览图片，保存身份后生效。'); }}>移除图片</Button>}</div>
       <p>支持 JPG、PNG、WebP，最大 8 MB。图片在本机压缩，不发送给模型；保存后可随私人云存档手动备份。仅上传你有权使用的图片。</p>
       <fieldset disabled={!loggedIn || busy || designBusy} className="persona-fields">
         {([['name', '身份名称'], ['identity', '你设想的身份背景'], ['personality', '性格与相处方式'], ['appearance', '固定外观'], ['abilities', '希望拥有的能力（入场时不自动生效）']] as const).map(([key, label]) => <label key={key} className={key === 'abilities' ? 'persona-full' : ''} htmlFor={`persona-${key}`}>{label}{key === 'name' ? <Input id={`persona-${key}`} maxLength={40} required value={draft[key]} onChange={e => setDraft({ ...draft, [key]: e.target.value })} /> : <Textarea id={`persona-${key}`} maxLength={1000} value={draft[key]} onChange={e => setDraft({ ...draft, [key]: e.target.value, ...(key === 'appearance' && !localPortrait(draft.portraitUrl) ? { portraitUrl: undefined } : {}) })} />}</label>)}
       </fieldset>
-      <div className="persona-actions">{draft.portraitUrl && <img src={draft.portraitUrl} alt={`${draft.name || '我的身份'}的形象`} />}<Button type="button" variant="outline" disabled={!loggedIn || busy || designBusy || !draft.appearance.trim()} onClick={portrait}>{busy ? '正在生成形象…' : draft.portraitUrl ? '重新生成形象' : '生成形象（可选）'}</Button><Button type="submit" disabled={!loggedIn || busy || designBusy || !draft.name.trim()}>保存身份</Button></div>
+      <div className="persona-actions">{draft.portraitUrl && <img src={draft.portraitUrl} alt={`${draft.name || '我的身份'}的形象`} />}<Button type="button" variant="outline" disabled={!loggedIn || busy || designBusy || referenceBusy || !draft.appearance.trim()} onClick={portrait}>{busy ? '正在生成形象…' : draft.portraitUrl ? '重新生成形象' : '生成形象（可选）'}</Button><Button type="submit" disabled={!loggedIn || busy || designBusy || referenceBusy || !draft.name.trim()}>保存身份</Button></div>
       <p>仅生成形象时调用生图；使用现有经济模型与缓存，不随打开页面重复生成。</p>{notice && <output>{notice}</output>}
     </form></details>
-    <details className="flow-disclosure"><summary>让 Agent 帮我设计角色</summary><PersonaDesigner draft={draft} accountScope={accountScope} disabled={!loggedIn || busy} onBusy={setDesignBusy} onApply={proposal => { setDraft(current => ({ ...proposal, portraitUrl: localPortrait(current.portraitUrl) || proposal.appearance === current.appearance ? current.portraitUrl : undefined })); setEditing(true); setNotice('草案已填入，尚未保存。'); }} /></details>
+    <details className="flow-disclosure"><summary>让 Agent 帮我设计角色</summary><PersonaDesigner draft={draft} accountScope={accountScope} disabled={!loggedIn || busy || referenceBusy} onBusy={setDesignBusy} onApply={proposal => { setDraft(current => ({ ...proposal, portraitUrl: localPortrait(current.portraitUrl) || proposal.appearance === current.appearance ? current.portraitUrl : undefined })); setEditing(true); setNotice('草案已填入，尚未保存。'); }} /></details>
   </details>;
 }
 
