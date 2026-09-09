@@ -4,6 +4,8 @@
 import { SyntheticEvent, useEffect, useEffectEvent, useRef, useState } from 'react';
 import { WorldSystemPanel } from '@/components/world-system-panel';
 import { WorldProloguePlayer } from '@/components/world-prologue';
+import { VideoExplorer } from '@/components/video-explorer';
+import './video-explore/video-explore.css';
 import { worldPrologue } from '@/lib/world-prologue';
 import { visibleSystem } from '@/lib/world-system';
 import { CreatorRequest } from '@/lib/creator-request';
@@ -951,6 +953,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
   const creatorRequest = useRef(new CreatorRequest());
   useEffect(() => () => creatorRequest.current.cancel(), []);
   const [view, setView] = useState<View>('home');
+  const [preferText, setPreferText] = useState(false);
   const creatorReturnView = useRef<View>('home');
   const [playerPersona, setPlayerPersona] = useState<PlayerPersona | null>(null);
   const [entryPolicy, setEntryPolicy] = useState<EntryPolicy>(closedEntryPolicy);
@@ -1122,7 +1125,8 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     const id = new URLSearchParams(window.location.search).get('world');
     const entry = studioWorlds.find(item => item.id === id);
     if (entry) {
-      linkedWorldStartPending.current = Boolean(entry.fixedRoleId && new URLSearchParams(window.location.search).get('intro') === 'seen');
+      setPreferText(new URLSearchParams(window.location.search).get('mode') === 'text');
+      linkedWorldStartPending.current = Boolean(entry.fixedRoleId && new URLSearchParams(window.location.search).get('mode') === 'text' && new URLSearchParams(window.location.search).get('intro') === 'seen');
       setActiveLibrary(entry); setActiveWorld('draft');
       setSelectedRole(entryRoles(entry).find(role => role.id === entry.fixedRoleId) || entryRoles(entry)[0]);
       setRuntimeBeat(null); setView('prologue');
@@ -1534,6 +1538,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
   }
 
   function openCatalogWorld(worldId: string) {
+    setPreferText(false);
     const libraryEntry = availableStudioWorlds.find((entry) => entry.id === worldId);
     if (libraryEntry) {
       if (!libraryEntry.world.characters.length) return false;
@@ -2369,6 +2374,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       if (memories.length >= 24) { setStorageError('记忆已满（24 条），请先删除不再需要的内容。'); return; }
       setMemories(current => [...new Set([...current, memory])]); setMemoryDetails(current => confirmMemoryDetail(current, memory)); setPendingPersonalMemories(current => current.filter(item => item !== memory));
     }} />;
+    if (view === 'prologue' && activeLibrary && !preferText && worldPrologue(activeLibrary.id, activeLibrary.premise, activeLibrary.cover).video) return <VideoExplorer key={`${accountScope}:${activeLibrary.id}`} entry={activeLibrary} onBack={returnToCatalog} onText={() => { setPreferText(true); if (activeLibrary.fixedRoleId) beginWorld(); else navigate('roles'); }} />;
     if (view === 'chat' && activeChat) return <CharacterChat key={`${accountScope}:${activeChat.id}`} accountScope={accountScope} initial={activeChat} onSave={saveChat} onBack={returnToCatalog} />;
     if (view === 'home' || view === 'library' || view === 'characters') return <StudioHome key={`${accountScope}:${view}`}
       initialBrowse={galleryRestore.browse} returnPosition={galleryRestore.position}

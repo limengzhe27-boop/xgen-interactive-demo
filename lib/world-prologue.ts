@@ -47,8 +47,13 @@ export const ascensionPrologue: WorldPrologue = {
   ],
   handoff: '你还站在桥上，金链已缠住红绳。问清规矩、检查链扣，或用一次剑气斩断它。',
 };
+export const ascensionNativePrologue: WorldPrologue = {
+  video:'/assets/prologues/ascension-native-v3/preview.mp4', hasAudio:true, audioOrigin:'native',
+  shots:[{poster:'/assets/prologues/ascension-native-v3/poster.webp',seconds:15,caption:'逃出的灰衣修士被锁链拖回门内。你尚未接牌，左腕也被束住；执籍官就在面前，断剑仍在右手。'}],
+  handoff:'你仍在天门外，未签契、未挥剑。追问逃亡者、检查锁链，或付出剑气斩链，由你决定。',
+};
 export function worldPrologue(worldId: string, publicPremise: string, cover: string): WorldPrologue {
-  return worldId === 'ascension-work-number' ? ascensionPrologue : worldId === 'yoga-lotus-boundary' ? yogaAudioPrologue : {
+  return worldId === 'ascension-work-number' ? ascensionNativePrologue : worldId === 'yoga-lotus-boundary' ? yogaAudioPrologue : {
     shots: [{ caption: publicPremise, poster: cover, seconds: 0 }],
     handoff: '先了解这场故事，再选择你要成为的人。',
   };

@@ -15,7 +15,7 @@ type Pending={input:FalVideoInput;response:WorldTurnResponse;action:string;id?:s
 type Session={version:1;id:string;roleId:string;state:WorldState|null;narrative:string;choices:VideoChoice[];clip:string;rounds:number;pending?:Pending;finished?:boolean};
 type Phase='intro'|'roles'|'choices'|'planning'|'generating'|'ready'|'playing'|'error';
 type MediaReply={id?:string;status:string;error?:string;assetUrl?:string};
-export function VideoExplorer({entry}:{entry:StudioWorld}){
+export function VideoExplorer({entry,onBack,onText}:{entry:StudioWorld;onBack?:()=>void;onText?:()=>void}){
   const prologue=worldPrologue(entry.id,entry.premise,entry.cover);
   const [session,setSession]=useState<Session>({version:1,id:'',roleId:'',state:null,narrative:entry.premise,choices:[],clip:prologue.video??'',rounds:0});
   const current=useRef(session);
@@ -24,7 +24,7 @@ export function VideoExplorer({entry}:{entry:StudioWorld}){
   const [enabled,setEnabled]=useState(false),[paused,setPaused]=useState(false),[seconds,setSeconds]=useState(15),[text,setText]=useState(''),[focused,setFocused]=useState(false);
   const [visible,setVisible]=useState(true),[error,setError]=useState(''),[loading,setLoading]=useState(true);
   const player=useRef<HTMLVideoElement>(null),frame=useRef<string|null>(null),busy=useRef(false),alive=useRef(true),controller=useRef<AbortController|null>(null);
-  const storageKey=scope?`xgen:video-pilot:v1:${scope}:${entry.id}`:null;
+  const storageKey=scope?`xgen:video-pilot:v2:${scope}:${entry.id}`:null;
   const save=(next:Session)=>{current.current=next;setSession(next);if(storageKey)try{sessionStorage.setItem(storageKey,JSON.stringify(next));}catch{/* Existing world saves are separate. */}};
   useEffect(()=>{
     alive.current=true;const stop=new AbortController();
@@ -37,7 +37,7 @@ export function VideoExplorer({entry}:{entry:StudioWorld}){
         const status=await r.json() as {configured?:boolean};if(stop.signal.aborted)return;
         setScope(id);setConfigured(status.configured===true);
         let restored:Session|null=null;
-        try{const candidate=JSON.parse(sessionStorage.getItem(`xgen:video-pilot:v1:${id}:${entry.id}`)??'null');
+        try{const candidate=JSON.parse(sessionStorage.getItem(`xgen:video-pilot:v2:${id}:${entry.id}`)??'null');
           if(candidate?.version===1&&typeof candidate.id==='string'&&candidate.state&&entry.world.characters.some(c=>c.id===candidate.roleId)&&Array.isArray(candidate.choices)
             &&typeof candidate.clip==='string'&&(candidate.clip.startsWith('/assets/prologues/')||/^\/api\/media\/asset\/[a-f0-9]{64}$/.test(candidate.clip)))restored=candidate;
         }catch{/* Invalid/old pilot data is ignored. */}
@@ -130,12 +130,12 @@ export function VideoExplorer({entry}:{entry:StudioWorld}){
   useEffect(()=>{if(seconds===0&&ticking){const timer=setTimeout(()=>{setSeconds(15);autoAction.current();},0);return()=>clearTimeout(timer);}},[seconds,ticking]);
   useEffect(()=>{if(phase==='ready')void player.current?.play().catch(()=>{/* User gesture required, keep visible controls. */});},[phase]);
   const active=phase==='roles'||phase==='choices'||phase==='error';
-  return <main className="video-explorer">
-    <header><Link href="/prologue-comparison"><ArrowLeft size={18}/> 返回对比</Link><h1>{entry.title}</h1><span>视频探索 · 试用</span></header>
+  return <section className="video-explorer">
+    <header>{onBack?<button onClick={onBack}><ArrowLeft size={18}/> 返回</button>:<Link href="/prologue-comparison"><ArrowLeft size={18}/> 返回对比</Link>}<h1>{entry.title}</h1><span>视频探索 · 试用</span></header>
     <div className="video-explorer-stage">
       {/* Actual native dialogue is unverified; don't invent a caption transcript. */}
       {/* oxlint-disable-next-line jsx-a11y/media-has-caption */}
-      {session.clip? <video ref={player} key={session.clip} src={session.clip} controls playsInline preload="metadata" poster={session.rounds===0?prologue.shots[0]?.poster:undefined}
+      {session.clip? <video ref={player} key={session.clip} src={session.clip} controls playsInline autoPlay preload="metadata" poster={session.rounds===0?prologue.shots[0]?.poster:undefined}
         onEnded={ended} onPlaying={playing} onError={()=>{setError('视频暂时无法播放，剧情不会继续。请检查连接后重播。');setPaused(true);}} aria-label="当前剧情视频">
         {/* Raw model dialogue is unverified: no invented subtitle track. Text alternative below. */}
       </video>:<Image src={entry.cover} alt={entry.title} width={1280} height={720} unoptimized/>}
@@ -145,21 +145,23 @@ export function VideoExplorer({entry}:{entry:StudioWorld}){
         <p>开启后，将本世界的可见剧情、角色外观与视频末帧交给 fal；不发送个人资料、私人聊天或角色秘密。视频存入本账号私人空间。</p>
         <button disabled={loading||!configured} onClick={()=>{setEnabled(true);setPaused(false);setSeconds(15);if(!session.clip)ended();else if(player.current?.ended)ended();}}>{loading?'检查连接中…':configured?'开启视频探索（会使用 fal 额度）':'fal 尚未就绪'}</button>
       </div>}
-      {enabled&&<>
+      {(enabled||active)&&<>
         <div className="video-explorer-status"><span>{phase==='planning'?'Agent 正在决定这次行动的后果…':phase==='generating'?'视频生成中，保留当前现场…':phase==='ready'?'新片就绪，点击播放继续':session.finished?'这一段故事已到达结局':session.rounds>=2?'本次两段试用已结束':active?`${phase==='roles'?'选择体验角色':'接下来怎么做'} · ${ticking?`${seconds}秒后自动选择第一项`:'自动选择已暂停'}`:'正在播放，结束后在这里选择'}</span>
           <button onClick={()=>{setPaused(!paused);setSeconds(15);}} aria-label={paused?'恢复自动选择':'暂停自动选择'}>{paused?<Play size={16}/>:<Pause size={16}/>} {paused?'恢复计时':'暂停计时'}</button>
         </div>
         {phase==='roles'&&<div className="video-explorer-choices">{roles.map((role,i)=><button key={role.id} onClick={()=>selectRole(role.id)}><strong>{role.name}{i===0?' · 默认':''}</strong><span>{role.identity}</span></button>)}</div>}
         {(phase==='choices'||phase==='error'&&!session.pending)&&session.state&&!session.finished&&session.rounds<2&&<>
-          <div className="video-explorer-choices">{session.choices.map((c,i)=><button key={c.id} onClick={()=>void act(c.label)}><small>{i===0?'默认行动':'另一种选择'}</small>{c.label}</button>)}</div>
-          <form onSubmit={e=>{e.preventDefault();void act(text);}}><label htmlFor="video-action">或自己行动</label><div><input id="video-action" maxLength={600} value={text} onChange={e=>setText(e.target.value)} onFocus={()=>setFocused(true)} onBlur={()=>setFocused(false)} placeholder="说一句话，或描述一个动作…"/><button disabled={!text.trim()} aria-label="提交自己的行动"><Send size={18}/></button></div></form>
+          {!enabled&&<p>先开启上方视频探索，再提交行动；未开启不会生成或计费。</p>}
+          <div className="video-explorer-choices">{session.choices.map((c,i)=><button disabled={!enabled} key={c.id} onClick={()=>void act(c.label)}><small>{i===0?'默认行动':'另一种选择'}</small>{c.label}</button>)}</div>
+          <form onSubmit={e=>{e.preventDefault();void act(text);}}><label htmlFor="video-action">或自己行动</label><div><input id="video-action" maxLength={600} value={text} onChange={e=>setText(e.target.value)} onFocus={()=>setFocused(true)} onBlur={()=>setFocused(false)} placeholder="说一句话，或描述一个动作…"/><button disabled={!enabled||!text.trim()} aria-label="提交自己的行动"><Send size={18}/></button></div></form>
         </>}
         {phase==='ready'&&<button onClick={()=>void player.current?.play()}>播放新片</button>}
       </>}
       {error&&<p role="alert">{error}</p>}
       {session.pending&&phase==='error'&&<button onClick={()=>void resume()}>恢复本回合查询（不重新购买）</button>}
-      {(session.rounds>=2||session.finished)&&<Link href={`/?world=${entry.id}`}>继续图文探索（另开图文体验）</Link>}
+      {onText&&<button onClick={onText}>改用图文 / 自带形象探索</button>}
+      {!onText&&(session.rounds>=2||session.finished)&&<Link href={`/?world=${entry.id}&mode=text`}>改用图文探索（另开体验）</Link>}
       <details><summary>查看当前剧情文字与试用说明</summary><p>{session.narrative}</p><p>多角色选角后的第一段重建对应视角，之后读取实际末帧续演。原生音轨会自动检查，但模型是否拍准动作、对白是否清晰，仍需实际观看。刷新后需重播/恢复查询；不会在后台无限生成。</p></details>
     </section>
-  </main>;
+  </section>;
 }

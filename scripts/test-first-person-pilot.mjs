@@ -3,16 +3,16 @@ import assert from 'node:assert/strict';
 import { stat, readFile } from 'node:fs/promises';
 import { firstPersonWorld } from '../lib/first-person-world.ts';
 import { studioWorlds, getRoleOpening } from '../lib/studio-worlds.ts';
-import { ascensionPrologue, yogaComparisonPrologue, yogaPrologue, yogaAudioPrologue, worldPrologue, prologueDuration } from '../lib/world-prologue.ts';
+import { ascensionPrologue, ascensionNativePrologue, yogaComparisonPrologue, yogaPrologue, yogaAudioPrologue, worldPrologue, prologueDuration } from '../lib/world-prologue.ts';
 
 test('first-person pilot has one fixed player, another active NPC and an open choice',()=>{
  assert.equal(firstPersonWorld.fixedRoleId,'shen');
  assert.equal(firstPersonWorld.world.characters.length,2);
  assert.equal(firstPersonWorld.world.entryPolicy.allowPersona,false);
  assert.equal(studioWorlds.filter(w=>w.id===firstPersonWorld.id).length,1);
- assert.equal(worldPrologue(firstPersonWorld.id,'',''),ascensionPrologue);
- assert.match(getRoleOpening(firstPersonWorld,'shen'),/金链.*左腕/);
- assert.match(getRoleOpening(firstPersonWorld,'shen'),/你还站在桥上/);
+ assert.equal(worldPrologue(firstPersonWorld.id,'',''),ascensionNativePrologue);
+ assert.match(getRoleOpening(firstPersonWorld,'shen'),/左腕.*金链/);
+ assert.match(getRoleOpening(firstPersonWorld,'shen'),/没有接牌，没有签契/);
  assert.match(firstPersonWorld.world.rules.find(r=>r.id==='first-person').description,/不代写我的回答与决定/);
  assert.match(firstPersonWorld.world.rules.find(r=>r.id==='physical').description,/一次护身剑气/);
  assert.equal(firstPersonWorld.roleChoices.shen.length,3);

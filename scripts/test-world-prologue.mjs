@@ -5,6 +5,17 @@ import { yogaPrologue, yogaAudioPrologue, worldPrologue, prologueDuration, prolo
 import { yogaWorld } from '../lib/yoga-world.ts';
 import { getRoleOpening } from '../lib/studio-worlds.ts';
 
+test('formal cultivation uses the latest native video, and both real entry points use VideoExplorer',async()=>{
+ const current=worldPrologue('ascension-work-number','','');
+ assert.match(current.video,/ascension-native-v3/);
+ assert.equal(current.audioOrigin,'native');assert.equal(prologueDuration(current),15);
+ const home=await readFile(new URL('../app/page.tsx',import.meta.url),'utf8');
+ assert.match(home,/view === 'prologue' && activeLibrary && !preferText/);
+ assert.match(home,/onBack=\{returnToCatalog\}/);
+ const preview=await readFile(new URL('../app/prologue-comparison/ascension-native/page.tsx',import.meta.url),'utf8');
+ assert.match(preview,/<VideoExplorer entry=\{entry\}/);
+});
+
 test('public prologue is 20 seconds, stops before decisions, and does not disclose private outcomes',()=>{
  assert.equal(prologueDuration(yogaPrologue),20);
  assert.deepEqual([0,4.9,5,10,15,20].map(t=>prologueShotAt(yogaPrologue,t)),[0,0,1,2,3,3]);

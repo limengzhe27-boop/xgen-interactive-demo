@@ -19,9 +19,13 @@ const base=createSerial({
 base.world.rules=base.world.rules.filter(r=>r.id!=='melodrama');
 // The released opening follows the actual film, not the rejected pre-generation blocking.
 base.world.characters=base.world.characters.map(role=>role.id==='shen'?{...role,privateKnowledge:['你没有签下仙籍；金链已强行缠住红绳，断剑可以消耗一次剑气斩断它，最多再用三次。'],secrets:['师父曾提醒接引时不要先报真名，你还不知道原因。']}:{...role,privateKnowledge:['锁链是拘束，不等于同意入籍；签契须本人决定，返尘阶有余雷。'],secrets:['自己受仙籍约束，不能擅离值守；可以指向碑文让对方自己读。'],imagePrompt:'白发老者，象牙白黑边长袍，青铜金色面具，持青铜契牌；取自视频的同一人物'});
-base.world.coreEvent='沈砚渡劫抵达天门，接引官叫他的工号，金链强行缠上左腕红绳。接引官已转身，沈砚仍在桥上，未签仙籍，也未踏入天门。';
-base.roleOpenings!.shen='你是沈砚，百年散修。刚才的拘束不是你的同意，你仍掌握接下来的行动。';
+base.world.coreEvent='沈砚渡劫抵达天门，亲眼看见灰衣修士从门内逃出，又被脚踝锁链拖回门内，去向与生死未知。执籍官走到面前，金链强行缠住沈砚左腕。沈砚仍在桥上，未接牌、未签仙籍、未入门，右手断剑未挥。';
+base.world.openingScene.narrative='灰衣修士刚从天门里冲出，喊着“别进来！快跑！”，又被锁链拖回门内。你还没弄清发生了什么，自己的左腕也被金链束住。\n\n执籍官停在面前，契牌仍在他手里。你是沈砚，右手断剑还剩三次护身剑气。没有接牌，没有签契，也没有人能替你决定入门。门内那个人的去向尚不清楚，眼前你可以追问、检查锁链，或付出剑气斩断它。';
+base.roleOpenings!.shen=base.world.openingScene.narrative;
+base.world.characters.find(c=>c.id==='shen')!.privateKnowledge.push('你刚亲眼见灰衣修士逃出又被脚踝锁链拖回；不知道他的名字、去向和生死，也未见门内完整制度。执籍官目前在面前。');
+base.world.locations[0].description='半开玉石天门外的云海石桥。灰衣修士刚被拖回门内，去向未知。执籍官停在沈砚面前持契牌；沈砚左腕受缚，右手断剑未挥，未跨门槛。';
 base.roleChoices!.shen=['叫住接引官：我没答应，凭什么锁住我？','稳住右手断剑，仔细观察红绳旁的链扣。','消耗一次护身剑气，斩断缠住红绳的金链。'];
 base.portraits.registrar='/assets/ascension-v1/registrar.webp';
 base.world.rules.push({id:'first-person',kind:'story',immutable:true,description:'整个体验固定沈砚第一人称。叙事只呈现我的感官、已知信息与我已提交动作的后果，不出现我从外面看自己、上帝镜头、配角内心或场外密谈。对话配角可称你；不代写我的回答与决定。画面提示严格POV，保留靛蓝破袖、红绳、右手断剑；不要变成主角背影或正脸。开场金链已缠住红绳但没有签契，接引官面向门内，玩家未入门。'});
+base.world.rules.find(r=>r.id==='first-person')!.description=base.world.rules.find(r=>r.id==='first-person')!.description.replace('接引官面向门内','接引官停在面前；灰衣修士已被拖回门内，不在现场自动插话');
 export const firstPersonWorld:StudioWorld={...base,fixedRoleId:'shen',openingImage:'/assets/ascension-v1/opening.webp',artNote:'原创第一人称样本；GPT生成封面，公司网关生成视频，配角图取自成片。固定沈砚身份。',world:{...base.world,surpriseLevel:2}};
