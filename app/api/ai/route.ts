@@ -1,5 +1,6 @@
 import { AI_CONTRACT_VERSION } from '@/lib/ai-contracts';
 import { creativeGuidance } from '@/lib/creative-guidance';
+import { prologueAgentInstructions, readPrologueAgentInput, readPrologueAgentReply } from '@/lib/prologue-agent';
 import { repairCreatorProposal } from '@/lib/creator-proposal-repair';
 import { requestAccount } from '@/lib/server-auth';
 import { companionInstructions, makeCompanionInput, restoreCompanionContext } from '@/lib/companion-context';
@@ -17,12 +18,13 @@ import { visibleSystem } from '@/lib/world-system';
 import { personaAdaptationInstructions, readPersonaAdaptationRequest, readPersonaAdaptationSuggestion } from '@/lib/persona-adaptation';
 import { personaDesignInstructions, readPersonaDesignInput, readPersonaDesignReply } from '@/lib/persona-design';
 
-type Operation = 'personal-agent' | 'co-create-world' | 'generate-world' | 'advance-world' | 'adapt-persona' | 'design-persona';
+type Operation = 'personal-agent' | 'co-create-world' | 'generate-world' | 'advance-world' | 'adapt-persona' | 'design-persona' | 'plan-prologue';
 import { companyGateway, companyModel } from '@/lib/company-gateway';
 type CompanyProvider = { apiKey: string; endpoint: string; model: string };
 export const maxDuration = 120;
 
 const operationInstructions: Record<Operation, string> = {
+  'plan-prologue': prologueAgentInstructions,
   'design-persona': personaDesignInstructions,
   'adapt-persona': personaAdaptationInstructions,
   'personal-agent': `你是用户的个人 AI 助理，也是可以自然聊天的伙伴。先回应用户当前真正关心的事：日常近况、感受、认识自己、整理计划、讨论问题、创作想法，或寻找故事。不要把每次聊天都转成剧情推荐或给用户贴心理标签。倾听时自然回应，做事时提供具体可执行的帮助，信息不足最多追问一个关键问题，不机械列清单。你是 AI，不假装真人、独占关系或声称执行了尚未具备的日历、提醒、搜索等外部工具操作。结合 conversation 和 currentMemories 接续交流；记忆可能过期，以用户最新说法为准。只从本轮用户明确自述的新信息提取至多四项值得长期记住的兴趣、目标、交流方式或普通个人背景，source=explicit、requiresConfirmation=true；不采集临时情绪、虚构角色资料或旧对话中已经删除的记忆，不推断性别、疾病等敏感特征，不提取联系方式、证件、财务、健康或公司机密。候选尚未保存，必须表述为等待用户确认，不能说已经记住。普通聊天或讨论创作时 recommendations=[]，不要强行导流。只有用户想找故事或明确要求推荐时，才阅读 availableWorlds 推荐最多两个真实匹配项，解释关系冲突与可争取的目标，不剧透秘密或结局，不凭空创造可玩世界。喜欢狗血时可匹配替身、追悔、抢功、复仇、争产、身份反转。候选不匹配就诚实说明。讨论创作时先一起想角色、关系、目标和困难；用户可主动把某一条消息带入创作，不要把个人记忆自动编入公开剧情。输出 JSON：
@@ -64,10 +66,11 @@ operationInstructions['advance-world'] += '\n任务的 prerequisiteTaskIds 是�
 operationInstructions['advance-world'] += '\nstate.relationshipChanges记录本次体验以来各NPC对体验者的关系变化（键为NPC id，0表示尚无变化，不是默认信任）。它不是全世界共享的好感；对甲帮忙不代表乙也喜欢你。relationshipDeltas仅填写本轮有实际依据的NPC变化，每人-10到10，不能靠数值授权秘密或强迫恋爱。recentTurns包含玩家实际听到的对白，继续兑现已说过的安排，不要忘掉姓名或重新进行第一次自我介绍。';
 
 function isOperation(value: unknown): value is Operation {
-  return value === 'personal-agent' || value === 'co-create-world' || value === 'generate-world' || value === 'advance-world' || value === 'adapt-persona' || value === 'design-persona';
+  return value === 'personal-agent' || value === 'co-create-world' || value === 'generate-world' || value === 'advance-world' || value === 'adapt-persona' || value === 'design-persona' || value === 'plan-prologue';
 }
 
 function isValidOutput(operation: Operation, value: unknown) {
+  if (operation === 'plan-prologue') return true; // Exact public-brief validation below.
   if (operation === 'design-persona') return !!readPersonaDesignReply(value);
   if (operation === 'adapt-persona') return true; // Validated against the exact request policy below.
   if (operation === 'personal-agent') return isPersonalAgentResponse(value);
@@ -108,7 +111,7 @@ async function callCompany(provider: CompanyProvider, operation: Operation, inpu
         thinking: { type: 'disabled' },
         stream: false,
         temperature: operation === 'advance-world' || operation === 'co-create-world' ? 0.7 : 0.5,
-        max_tokens: operation === 'adapt-persona' ? 900 : operation === 'generate-world' ? 5600 : operation === 'co-create-world' ? 6000 : 2800,
+        max_tokens: operation === 'plan-prologue' ? 10000 : operation === 'adapt-persona' ? 900 : operation === 'generate-world' ? 5600 : operation === 'co-create-world' ? 6000 : 2800,
       }),
       signal: controller.signal,
       redirect: 'error',
@@ -157,6 +160,12 @@ async function handlePost(request: Request) {
   const version = (body.input as { contractVersion?: unknown }).contractVersion;
   if (version !== AI_CONTRACT_VERSION) return Response.json({ error: 'contract_version_mismatch' }, { status: 409 });
 
+  const prologueInput = body.operation === 'plan-prologue' ? readPrologueAgentInput(body.input) : null;
+  if (body.operation === 'plan-prologue') {
+    if (!prologueInput) return Response.json({ error: 'invalid_prologue_brief' }, { status: 400 });
+    body.input = prologueInput;
+  }
+
   if (body.operation === 'co-create-world') {
     const input = body.input as Record<string, unknown>;
     const context = input.companionContext as Record<string, unknown> | undefined;
@@ -189,6 +198,11 @@ async function handlePost(request: Request) {
   const startedAt = Date.now();
   try {
     let output = await callCompany(provider, body.operation, body.input, body.operation === 'advance-world' ? 35_000 : body.operation === 'adapt-persona' || body.operation === 'design-persona' ? 25_000 : undefined);
+    if (body.operation === 'plan-prologue' && prologueInput) {
+      const plan = readPrologueAgentReply(output, prologueInput);
+      return Response.json(plan ?? { error: 'invalid_prologue_plan' }, { status: plan ? 200 : 502,
+        headers: { 'Cache-Control': 'no-store', 'X-AI-Provider': 'yibu' } });
+    }
     if (body.operation !== 'advance-world' && !isValidOutput(body.operation, output)) {
       return Response.json({ error: 'invalid_model_output' }, { status: 502 });
     }

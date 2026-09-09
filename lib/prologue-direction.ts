@@ -107,7 +107,7 @@ export function compileDirectedProloguePlan(value: unknown, direction: unknown) 
         ...(shot.id === plan.handoff.shotId ? [`保留未决现场：${plan.handoff.unresolved}；不演出选择结果。`] : []),
       ];
       // Editorial explanation stays in directorTimeline; the model gets actions, not review prose.
-      const ordered = d.beats.map((b, index) => `${index + 1}. ${b.blocking} 镜头：${b.camera}`);
+      const ordered = d.beats.map((b, index) => `${index + 1}. ${b.start}—${b.end}秒：${b.blocking} 镜头：${b.camera}`);
       const motion = [...common, ...ordered, ...ending].join('\n');
       return {
         id: shot.id, seconds: shot.end - shot.start,

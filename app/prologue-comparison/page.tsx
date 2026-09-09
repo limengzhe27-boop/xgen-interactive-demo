@@ -1,5 +1,6 @@
 'use client';
 import { useState } from 'react';
+import Link from 'next/link';
 import { WorldProloguePlayer } from '@/components/world-prologue';
 import { ascensionPrologue, yogaPrologue, yogaComparisonPrologue, yogaAudioPrologue } from '@/lib/world-prologue';
 import './samples.css';
@@ -16,7 +17,8 @@ export default function PrologueComparison() {
   const sample = samples.find(item => item.id === selected)!;
   return <main className="sample-comparison">
     <nav className="sample-tabs" aria-label="选择要观看的样片">
-      <a href="/">小世界</a>
+      <Link href="/">小世界</Link>
+      <Link href="/prologue-comparison/ascension-native">修仙 · 新原生有声试拍</Link>
       <div>{samples.map(item => <button type="button" key={item.id} aria-pressed={selected === item.id} onClick={() => setSelected(item.id)}>{item.label}</button>)}</div>
     </nav>
     <WorldProloguePlayer key={sample.id} title={sample.title} prologue={sample.prologue} fixedIdentity={sample.identity}
