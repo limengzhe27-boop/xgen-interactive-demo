@@ -7,6 +7,7 @@ import { MessageTextarea } from '@/components/message-textarea';
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { GalleryAtmosphere, GalleryMasonry, GalleryReveal } from '@/components/gallery-motion';
 import { mixGallery } from '@/lib/gallery-order';
+import { editorialCopy, featureHomeItems } from '@/lib/home-editorial';
 import { restoreGalleryPosition, type GalleryBrowseState, type GalleryPosition } from '@/lib/gallery-memory';
 
 export type StudioSection = 'home' | 'library' | 'characters' | 'personal' | 'profile';
@@ -83,10 +84,12 @@ export function StudioHome({ section, worlds, characters, recent, onCreate, onOp
   const matches = (text: string) => text.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase());
   const grouped: GalleryItem[] = [];
   orderedWorlds.filter(world => genre === '全部' || world.genre === genre).forEach(world => {
-    if (kind !== 'character' && matches(world.title + ' ' + world.genre + ' ' + world.premise)) grouped.push({ kind: 'world', value: world });
+    if (kind !== 'character' && matches(world.title + ' ' + (editorialCopy('world:' + world.id)?.title ?? '') + ' ' + world.genre + ' ' + world.premise)) grouped.push({ kind: 'world', value: world });
     if (kind !== 'world') characters.filter(character => character.worldId === world.id && matches(character.name + ' ' + character.identity + ' ' + character.worldTitle + ' ' + character.persona)).forEach(character => grouped.push({ kind: 'character', value: character }));
   });
-  const items=mixGallery(grouped,item=>item.kind+':'+(item.kind==='world'?item.value.id:item.value.worldId+':'+item.value.id),item=>item.kind==='world'?item.value.id:item.value.worldId);
+  const itemKey = (item: GalleryItem) => item.kind + ':' + (item.kind === 'world' ? item.value.id : item.value.worldId + ':' + item.value.id);
+  const mixed = mixGallery(grouped, itemKey, item => item.kind === 'world' ? item.value.id : item.value.worldId);
+  const items = isHome && genre === '全部' && kind === 'all' && !query.trim() ? featureHomeItems(mixed, itemKey) : mixed;
   const start = () => onCreate(seed);
 
   return <div className="studio-home">
@@ -116,12 +119,13 @@ export function StudioHome({ section, worlds, characters, recent, onCreate, onOp
         const world = item.kind === 'world' ? item.value : undefined;
         const character = item.kind === 'character' ? item.value : undefined;
         const id = world?.id || character!.worldId + ':' + character!.id;
-        const title = world?.title || character!.name;
+        const copy = editorialCopy(itemKey(item));
+        const title = world ? (copy?.title || world.title) : character!.name;
         const open = () => world ? onOpenWorld(world.id) : onChat(character!.worldId, character!.id);
         return <div className="gallery-cell" key={item.kind + ':' + id} data-gallery-id={item.kind + ':' + id}><GalleryReveal delay={(index % 4) * 60}><article className="gallery-card" data-kind={item.kind} aria-label={title}>
           <button className="gallery-art" onClick={open} type="button" aria-label={world ? '进入世界：' + title : '和' + title + '聊聊'}><Artwork src={world?.cover || character!.image} alt={world ? title + '的世界封面' : title + '的角色形象'} /></button>
           <span className="gallery-type">{world ? <Compass /> : <MessageCircleMore />}{world ? world.genre : '角色'}</span>
-          <div className="gallery-card-copy"><small>{world ? (world.fixedRoleId ? '第一人称 · 固定身份体验' : world.roleCount + ' 个可选身份') : character!.worldTitle}</small><h3>{title}</h3>{character && <p>{character.identity}</p>}<div className="gallery-card-actions">{world && <button type="button" className="gallery-detail-button" onClick={() => setDetail(world)} aria-label={'剧情简介：' + title}><BookOpen /></button>}<button type="button" className="gallery-enter" onClick={open}>{world ? '进入世界' : '和 TA 聊聊'}<ArrowRight /></button></div></div>
+          <div className="gallery-card-copy"><small>{world ? (world.fixedRoleId ? '第一人称 · 固定身份体验' : world.roleCount + ' 个可选身份') : character!.worldTitle}</small><h3>{title}</h3>{character && <p>{copy?.tagline || character.identity}</p>}<div className="gallery-card-actions">{world && <button type="button" className="gallery-detail-button" onClick={() => setDetail(world)} aria-label={'剧情简介：' + title}><BookOpen /></button>}<button type="button" className="gallery-enter" onClick={open}>{world ? '进入世界' : '和 TA 聊聊'}<ArrowRight /></button></div></div>
         </article></GalleryReveal></div>;
       })}</GalleryMasonry>
       {!items.length && <div className="gallery-no-results" aria-live="polite"><Search /><h3>暂时没有找到</h3><p>换一个词，或者和 Agent 一起创造它。</p><button className="studio-button" type="button" onClick={() => { setQuery(''); setGenre('全部'); setKind('all'); }}>清除筛选</button></div>}

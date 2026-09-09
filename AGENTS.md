@@ -3,6 +3,7 @@
 遵守上级项目说明。创作或修订内容时使用本仓库对应 Skill，先完整阅读其 SKILL.md 和要求的引用：
 
 - 新世界、爽文/狗血改写、角色目标：`.agents/skills/xgen-world-drama/SKILL.md`。
+- 世界命名、角色卡短句、首页选题：`.agents/skills/xgen-title-hooks/SKILL.md`。
 - 视频前情、分镜、生成提示：`.agents/skills/xgen-prologue-director/SKILL.md`。
 - 视频生成前预检、续镜、成片验收：`.agents/skills/xgen-video-review/SKILL.md`。
 
