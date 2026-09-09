@@ -2559,7 +2559,7 @@ function RoleSelection({ worldTitle, artNote, availableRoles, selected, onSelect
     <div className={`flow-page flow-selection-page${compact ? ' compact-role-selection' : ''}`}>
       <header className="flow-toolbar"><button className="back-link" type="button" onClick={onBack}><ArrowLeft />返回世界</button><p>{worldTitle}</p></header>
       {personaEntry && <div className="flow-role-switcher" aria-label="进入方式"><button className="flow-control" aria-pressed={ownEntry} onClick={() => setOwnEntry(true)}>用我的形象加入</button><button className="flow-control" aria-pressed={!ownEntry} onClick={() => setOwnEntry(false)}>扮演世界角色</button></div>}
-      {ownEntry && personaEntry ? <section className="flow-role-intro">{personaEntry}{identityControl}</section> :
+      {ownEntry && personaEntry ? <section className="flow-role-intro persona-entry-flow">{identityControl}{personaEntry}</section> :
       <div className="flow-selection">
         <div className="flow-role-art"><RolePortrait role={selected} />{artNote && <small>{artNote}</small>}</div>
         <section className="flow-role-intro">
