@@ -19,6 +19,7 @@ export type ChatSession = {
   savedAt: number;
   imageCacheKey?: string;
   greeting?: CharacterGreeting;
+  draftInput?: string;
 };
 
 // A neutral participant is transport state, not an imposed role or an account profile.

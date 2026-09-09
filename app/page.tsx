@@ -1121,6 +1121,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
   useEffect(() => {
     if (!storageReady || entryLinkOpened.current) return;
     entryLinkOpened.current = true;
+    if (activeChat) return; // A restored private chat takes priority over an old world link.
     // Public sample links only select a built-in world; never submit a model request.
     const id = new URLSearchParams(window.location.search).get('world');
     const entry = studioWorlds.find(item => item.id === id);
@@ -1261,6 +1262,12 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
             setChatSessions(Array.isArray(saved.chats) ? saved.chats.filter((chat) => chat?.id && chat.entry?.world?.characters && Array.isArray(chat.turns)) : []);
             setCreatorDocuments(Array.isArray(saved.documents) ? saved.documents.filter((doc) => doc?.id && doc.data && Array.isArray(doc.data.draftRoles)) : []);
             if (typeof saved.draftId === 'string') setDraftId(saved.draftId);
+            try {
+              const chatId = window.sessionStorage.getItem(studioStorageKey + ':active-chat');
+              const chat = saved.chats.find(item => item.id === chatId);
+              if (chat) { setActiveChat(chat); setView('chat'); }
+              else window.sessionStorage.removeItem(studioStorageKey + ':active-chat');
+            } catch { /* A blocked tab store must not invalidate saved conversations. */ }
           }
         }
       } catch { storageReadFailed.current = true; setStorageError('世界库记录读取失败，原始数据已保留，请勿清除浏览器数据。'); }
@@ -1317,6 +1324,14 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     try { window.localStorage.setItem(studioStorageKey, JSON.stringify({ version: 1, runs: savedRuns, chats: chatSessions, documents: creatorDocuments, draftId } satisfies StudioStorage)); }
     catch { window.setTimeout(() => setStorageError('世界库保存失败，当前修改尚未落盘。请保持页面打开，勿刷新。'), 0); }
   }, [storageReady, savedRuns, chatSessions, creatorDocuments, draftId]);
+
+  useEffect(() => {
+    if (!storageReady || storageReadFailed.current) return;
+    try {
+      if (view === 'chat' && activeChat) window.sessionStorage.setItem(studioStorageKey + ':active-chat', activeChat.id);
+      else window.sessionStorage.removeItem(studioStorageKey + ':active-chat');
+    } catch { /* Chat history remains saved; session routing is best-effort. */ }
+  }, [storageReady, studioStorageKey, view, activeChat]);
 
   useEffect(() => {
     if (!storageReady || !savedRun) return;

@@ -43,7 +43,7 @@ export function CharacterEntry({ entry, targetId, onStart }: { identityControl?:
 export function CharacterChat({ initial, accountScope, onSave, onBack }: { initial: ChatSession; accountScope: string; onSave: (session: ChatSession) => void; onBack: () => void }) {
   const remoteAIAdapter = useMemo(() => createRemoteAIAdapter(accountScope), [accountScope]);
   const [session, setSession] = useState(initial);
-  const [input, setInput] = useState('');
+  const [input, setInput] = useState(initial.draftInput ?? '');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [image, setImage] = useState(initial.entry.cover);
@@ -60,6 +60,12 @@ export function CharacterChat({ initial, accountScope, onSave, onBack }: { initi
   const [unread, setUnread] = useState(false);
   const player = session.entry.world.characters.find((role) => role.id === session.playerRoleId)!;
   const target = session.entry.world.characters.find((role) => role.id === session.targetCharacterId)!;
+  function editInput(value: string) {
+    setInput(value);
+    const next = { ...sessionRef.current, draftInput: value };
+    sessionRef.current = next;
+    saveRef.current(next);
+  }
 
   useEffect(() => {
     let live = true;
@@ -110,7 +116,7 @@ export function CharacterChat({ initial, accountScope, onSave, onBack }: { initi
       const state = commitTurn(sessionRef.current.state, { ...patch, action: action.trim(), result: turnMemoryText(response, world, session.playerRoleId), clue: '',
         nextLocation: world.locations.find((place) => place.id === patch.locationId)?.name || sessionRef.current.state.location,
         relationshipDelta: patch.relationshipDeltas?.[target.id] ?? 0, reachedEndingId: response.ending.reached ? response.ending.endingId : undefined });
-      const next = { ...sessionRef.current, state, narrative: response.narrative, turns: [...sessionRef.current.turns, { action: action.trim(), response }], savedAt: Date.now() };
+      const next = { ...sessionRef.current, state, draftInput: '', narrative: response.narrative, turns: [...sessionRef.current.turns, { action: action.trim(), response }], savedAt: Date.now() };
       sessionRef.current = next; setSession(next); onSave(next); setInput('');
       if (response.image.prompt && shouldGenerateImage(response.image, state.turn, lastImageAttemptTurn.current, true)) void makeImage(response.image.prompt, next);
     } catch { if (!aborter.signal.aborted) setError('真实模型暂时没有返回有效回应。你的输入和进度已保留，可以重试。'); }
@@ -137,9 +143,9 @@ export function CharacterChat({ initial, accountScope, onSave, onBack }: { initi
     </section>
       <form className="conversation-composer" onSubmit={(event) => { event.preventDefault(); void send(); }}>
         {unread && <button type="button" className="flow-control" onClick={() => { followLatest.current = true; setUnread(false); endRef.current?.scrollIntoView({ block: 'nearest' }); }}>查看新回复 ↓</button>}
-        {!!session.turns.at(-1)?.response.nextChoices.length && <details className="conversation-ideas"><summary>接下来怎么回应？</summary><div className="studio-chat-suggestions">{session.turns.at(-1)?.response.nextChoices.map((choice) => <button className="studio-filter" key={choice.id} type="button" disabled={busy} onClick={() => { setInput(choice.label); document.getElementById('chat-input')?.focus(); }}>{choice.label}</button>)}</div></details>}
+        {!!session.turns.at(-1)?.response.nextChoices.length && <details className="conversation-ideas"><summary>接下来怎么回应？</summary><div className="studio-chat-suggestions">{session.turns.at(-1)?.response.nextChoices.map((choice) => <button className="studio-filter" key={choice.id} type="button" disabled={busy} onClick={() => { editInput(choice.label); document.getElementById('chat-input')?.focus(); }}>{choice.label}</button>)}</div></details>}
         <label className="sr-only" htmlFor="chat-input">说一句话，或描述你的动作</label>
-        <div className="conversation-input"><MessageTextarea id="chat-input" value={input} onChange={(event) => setInput(event.target.value)} placeholder={`对${target.name}说一句话，或描述你的动作…`} disabled={busy} maxLength={3000} /><Button className="studio-button" type="submit" aria-label={busy ? '正在回应' : '发送'} disabled={busy || !input.trim()}>{busy ? <LoaderCircle className="spin" /> : <Send />}</Button></div>
+        <div className="conversation-input"><MessageTextarea id="chat-input" value={input} onChange={(event) => editInput(event.target.value)} placeholder={`对${target.name}说一句话，或描述你的动作…`} disabled={busy} maxLength={3000} /><Button className="studio-button" type="submit" aria-label={busy ? '正在回应' : '发送'} disabled={busy || !input.trim()}>{busy ? <LoaderCircle className="spin" /> : <Send />}</Button></div>
         {error && <p role="alert">{error}</p>}
         <small className="conversation-input-hint">Enter 发送 · Shift + Enter 换行</small>
       </form>
