@@ -329,6 +329,13 @@
 .persona-reference .persona-check { align-items: start; line-height: 1.8; }
 .persona-reference input[type=checkbox] { flex-shrink: 0; margin-top: 7px; }
 .persona-reference button { white-space: normal; height: auto; }
+.persona-reference-note-item { display: grid; gap: 8px; min-width: 0; padding-block: 14px; border-bottom: 1px solid var(--color-border); overflow-wrap: anywhere; }
+.persona-reference-note-item .persona-check { min-height: 44px; font-weight: 600; }
+.persona-reference-note-item .persona-reference-addition { white-space: pre-wrap; }
+.persona-reference summary { min-height: 44px; display: list-item; padding-block: 10px; cursor: pointer; color: var(--color-text-secondary); }
+.persona-reference summary:hover { color: var(--color-primary); }
+.persona-reference summary:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 3px; }
+.persona-reference blockquote { margin: 0; border-left: 2px solid var(--color-border); padding-inline: 12px; font-size: .875rem; overflow-wrap: anywhere; }
 .persona-designer h3 { display: flex; align-items: center; gap: 8px; font: 600 1rem/1.8 var(--font-ui); }
 .persona-designer h3 svg { width: 20px; color: var(--color-primary); }
 .persona-designer :is(p, dd, textarea) { font-size: 1rem; line-height: 1.8; }

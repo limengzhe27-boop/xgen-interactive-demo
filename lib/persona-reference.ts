@@ -45,3 +45,48 @@ export function groundedReferenceProposal(value: unknown, document: string): Per
   }
   return referenceFields.some(f => f !== 'name' && proposal[f]) ? proposal : null;
 }
+
+export type ReferenceNote = { field: ReferenceField; kind: 'addition' | 'conflict'; text: string; reason: string; evidence: string };
+export type ReferenceReview = { notes: ReferenceNote[]; reference: PersonaReference; rejectedCount: number };
+// Extract only fictional text fields; never forward a portrait, account, real profile or chat.
+export function referenceDraft(value: unknown): PersonaDraft | null { return readPersonaDraft(value); }
+export function readReferenceReview(value: unknown): ReferenceReview | null {
+  if (!record(value) || !Array.isArray(value.notes) || value.notes.length > 6) return null;
+  const reference = readPersonaReference(value.reference);
+  if (!reference || !Number.isInteger(value.rejectedCount) || Number(value.rejectedCount) < 0 || Number(value.rejectedCount) > 6) return null;
+  const notes: ReferenceNote[] = [];
+  for (const n of value.notes) {
+    if (!record(n) || !referenceFields.includes(n.field as ReferenceField) || !['addition', 'conflict'].includes(String(n.kind))
+      || typeof n.text !== 'string' || !n.text.trim() || n.text.length > 450
+      || typeof n.reason !== 'string' || n.reason.length > 200 || typeof n.evidence !== 'string' || n.evidence.trim().length < 2 || n.evidence.length > 200) return null;
+    notes.push({ field: n.field as ReferenceField, kind: n.kind as ReferenceNote['kind'], text: n.text.trim(), reason: n.reason.trim(), evidence: n.evidence.trim() });
+  }
+  return { notes, reference, rejectedCount: Number(value.rejectedCount) };
+}
+export function groundedReferenceNotes(value: unknown, document: string, draft: PersonaDraft): { notes: ReferenceNote[]; rejectedCount: number } | null {
+  if (!record(value) || !Array.isArray(value.notes) || value.notes.length > 6) return null;
+  const parsed = readReferenceReview({ notes: value.notes, rejectedCount: 0, reference: { title: '验证', url: 'https://zh.wikipedia.org/w/index.php?curid=1', retrievedAt: 1, fields: [] } });
+  if (!parsed) return null;
+  const normalize = (text: string) => text.replace(/\s+/g, '');
+  const notes: ReferenceNote[] = []; let rejectedCount = 0;
+  for (const note of parsed.notes) {
+    if (!normalize(document).includes(normalize(note.evidence))) { rejectedCount++; continue; }
+    // A name is an alias/custom choice, not a paragraph to append or replace.
+    if (note.field === 'name' && draft.name.trim()) continue;
+    if (normalize(draft[note.field]).includes(normalize(note.text)) || notes.some(n => n.field === note.field && n.text === note.text)) continue;
+    notes.push(note);
+  }
+  return { notes, rejectedCount };
+}
+export function appendReferenceNotes(draft: PersonaDraft, notes: ReferenceNote[]): PersonaDraft | null {
+  const next = { ...draft };
+  for (const note of notes) {
+    if (note.kind !== 'addition' || !note.text.trim()) continue;
+    if (next[note.field].replace(/\s+/g, '').includes(note.text.replace(/\s+/g, ''))) continue;
+    if (note.field === 'name' && next.name.trim()) continue;
+    const appended = next[note.field] ? `${next[note.field]}\n${note.text.trim()}` : note.text.trim();
+    if (appended.length > (note.field === 'name' ? 40 : 1000)) return null; // atomic: no silent truncation
+    next[note.field] = appended;
+  }
+  return next;
+}

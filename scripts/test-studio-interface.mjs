@@ -50,8 +50,8 @@ const noop = () => {};
 test('profile editor renders optional reference lookup before manual fields and never auto-queries', async () => {
   const { PersonaEditor } = await import('../components/player-persona.tsx');
   const html = renderToStaticMarkup(React.createElement(PersonaEditor, { value: null, accountScope: 'reference-test', onSave: () => true, expanded: true }));
-  assert.ok(html.includes('补全原作设定'));
-  assert.ok(html.indexOf('补全原作设定') < html.indexOf('身份名称'));
+  assert.ok(html.includes('查漏原作设定'));
+  assert.ok(html.indexOf('查漏原作设定') < html.indexOf('身份名称'));
   assert.ok(!html.includes('公开角色名称 / 作品')); // Optional tool starts closed.
   assert.ok(html.includes('保存身份'));
   const { POST: lookup } = await import('../app/api/persona-reference/route.ts');
