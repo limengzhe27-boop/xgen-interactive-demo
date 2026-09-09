@@ -1,8 +1,21 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { HOME_EDITORIAL, featureHomeItems, editorialCopy } from '../lib/home-editorial.ts';
+import { HOME_EDITORIAL, CHARACTER_INVITATIONS, featureHomeItems, editorialCopy } from '../lib/home-editorial.ts';
 import { creativeGuidance } from '../lib/creative-guidance.ts';
 import { studioWorlds } from '../lib/studio-worlds.ts';
+void test('reviewed invitations target real roles without changing first eight or character data', () => {
+  const snapshot = JSON.stringify(studioWorlds);
+  assert.equal(Object.keys(CHARACTER_INVITATIONS).length, 3);
+  for (const key of Object.keys(CHARACTER_INVITATIONS)) {
+    const [, id, role] = key.split(':');
+    assert.ok(studioWorlds.find(w => w.id === id)?.world.characters.some(r => r.id === role));
+    const copy = editorialCopy(key);
+    assert.ok(copy.tagline.length > 10 && copy.tagline.length <= 50);
+    assert.equal(copy.title, undefined);
+    assert.ok(!HOME_EDITORIAL.some(e => e.key === key));
+  }
+  assert.equal(JSON.stringify(studioWorlds), snapshot);
+});
 void test('all selected cards exist in the real catalogue', () => {
   for (const { key } of HOME_EDITORIAL) {
     const [, id, role] = key.split(':');

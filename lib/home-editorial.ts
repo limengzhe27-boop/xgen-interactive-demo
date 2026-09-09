@@ -11,8 +11,15 @@ export const HOME_EDITORIAL = [
 ] as const;
 
 export function editorialCopy(key: string): { title?: string; tagline?: string } | undefined {
-  return HOME_EDITORIAL.find(item => item.key === key);
+  return CHARACTER_INVITATIONS[key] ?? HOME_EDITORIAL.find(item => item.key === key);
 }
+
+/** Public, original card invitations — not canonical dialogue or private knowledge. */
+export const CHARACTER_INVITATIONS: Record<string, { tagline: string }> = {
+  'character:apocalypse-labels:r2': { tagline: '车钥匙在我手里。最后这箱物资，你到底带不带？' },
+  'character:ximen-red-ledger:r3': { tagline: '你想接近西门庆？先说说，你能帮我什么。' },
+  'character:banquet-creditor:yi': { tagline: '一边是家人的脸面，一边是丈夫——她会站在哪边？' },
+};
 
 export function featureHomeItems<T>(items: T[], key: (item: T) => string): T[] {
   const byKey = new Map(items.map(item => [key(item), item]));

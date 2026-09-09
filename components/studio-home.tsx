@@ -85,7 +85,7 @@ export function StudioHome({ section, worlds, characters, recent, onCreate, onOp
   const grouped: GalleryItem[] = [];
   orderedWorlds.filter(world => genre === '全部' || world.genre === genre).forEach(world => {
     if (kind !== 'character' && matches(world.title + ' ' + (editorialCopy('world:' + world.id)?.title ?? '') + ' ' + world.genre + ' ' + world.premise)) grouped.push({ kind: 'world', value: world });
-    if (kind !== 'world') characters.filter(character => character.worldId === world.id && matches(character.name + ' ' + character.identity + ' ' + character.worldTitle + ' ' + character.persona)).forEach(character => grouped.push({ kind: 'character', value: character }));
+    if (kind !== 'world') characters.filter(character => character.worldId === world.id && matches(character.name + ' ' + character.identity + ' ' + character.worldTitle + ' ' + character.persona + ' ' + (editorialCopy('character:' + character.worldId + ':' + character.id)?.tagline ?? ''))).forEach(character => grouped.push({ kind: 'character', value: character }));
   });
   const itemKey = (item: GalleryItem) => item.kind + ':' + (item.kind === 'world' ? item.value.id : item.value.worldId + ':' + item.value.id);
   const mixed = mixGallery(grouped, itemKey, item => item.kind === 'world' ? item.value.id : item.value.worldId);
