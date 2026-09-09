@@ -1,6 +1,7 @@
 export type PrologueShot = { caption: string; poster: string; seconds: number };
 export type WorldPrologue = {
   shots: PrologueShot[]; handoff: string; video?: string; captionsEmbedded?: boolean; hasAudio?: boolean;
+  audioOrigin?: 'native' | 'post';
   message?: { at: number; until: number; sender: string; text: string };
 };
 export const yogaPrologue: WorldPrologue = {

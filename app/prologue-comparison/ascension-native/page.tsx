@@ -2,7 +2,7 @@ import Link from 'next/link';
 
 export default function NativeAscensionPreview() {
   return <main style={{maxWidth:1200, margin:'0 auto',padding:'24px 20px 48px'}}>
-    <nav><Link href="/prologue-comparison">← 返回旧版对比</Link></nav>
+    <nav><Link href="/prologue-comparison">← 查看修仙三个版本</Link> · <Link href="/video-explore/ascension-work-number">试用视频探索</Link></nav>
     <h1 style={{fontSize:'clamp(22px,3vw,36px)',margin:'24px 0 12px'}}>飞升门开了 · 原生有声试拍</h1>
     <p>Seedance · 15 秒 · 模型返回原片，无后期配音</p>
     {/* Raw review sample: do not invent a subtitle transcript before listening verification. */}

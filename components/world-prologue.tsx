@@ -59,7 +59,7 @@ export function WorldProloguePlayer({ title, prologue, onBack, onContinue, conti
     }
   }
   return <section className="flow-page prologue-page cinema-page" data-choosing={choosing && Boolean(continuation)} data-has-video={hasVideo}>
-    <header className="flow-toolbar"><button className="flow-control" onClick={onBack}><ArrowLeft />返回</button><h1>{title}</h1><p>{hasVideo ? `${duration} 秒序章 · ${prologue.hasAudio ? '有声配音版' : '无声字幕版'}` : '故事前情'}</p></header>
+    <header className="flow-toolbar"><button className="flow-control" onClick={onBack}><ArrowLeft />返回</button><h1>{title}</h1><p>{hasVideo ? `${duration} 秒序章 · ${prologue.hasAudio ? prologue.audioOrigin==='native'?'原生有声':'后配音版' : '无声字幕版'}` : '故事前情'}</p></header>
     <div className="prologue-stage"><div className="prologue-film"><div className="prologue-screen">
       {hasVideo ? <video ref={ref} src={prologue.video} poster={prologue.shots[0].poster} muted={muted} autoPlay playsInline preload="metadata"
         aria-label={`${title}，序章第 ${index + 1} 段`} onEnded={advance} onError={() => { setError(true); setPlaying(false); }}
