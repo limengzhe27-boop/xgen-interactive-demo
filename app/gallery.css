@@ -120,9 +120,9 @@
 .gallery-type { pointer-events: none; position: absolute; inset: 12px auto auto 12px; display: flex; align-items: center; gap: 5px; padding: 4px 8px; border-radius: 8px; background: rgba(var(--color-art-shade-rgb), .62); color: var(--color-on-art); font-size: 11px; }
 .gallery-type svg { width: 13px; height: 13px; }
 .gallery-card-copy { position: absolute; inset: auto 0 0; padding: 66px 16px 12px; color: var(--color-on-art); pointer-events: none; background: linear-gradient(transparent, rgba(var(--color-art-shade-rgb), .86)); transform: translateY(52px); transition: transform .25s cubic-bezier(.15,.75,.3,1); }
-.gallery-card-copy small { display: block; opacity: .86; font-size: 11px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.gallery-card-copy small { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; opacity: .86; font-size: 11px; line-height: 1.5; overflow: hidden; }
 .gallery-card h3 { margin: 3px 0 0; font: 600 18px/1.7 var(--font-ui); overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: anywhere; }
-.gallery-card-copy > p { margin: 2px 0 0; font-size: 13px; opacity: .85; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; }
+.gallery-card-copy > p { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; margin: 2px 0 0; font-size: 13px; line-height: 1.5; opacity: .95; overflow: hidden; }
 .gallery-card-actions { display: flex; gap: 8px; margin-top: 8px; opacity: 0; transition: opacity .18s; }
 .gallery-card-actions button { pointer-events: auto; display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; border: 1px solid rgba(var(--color-surface-rgb), .25); border-radius: 10px; padding: 8px 12px; color: var(--color-on-art); background: rgba(var(--color-art-shade-rgb), .38); cursor: pointer; font-size: 13px; }
 .gallery-card-actions button svg { width: 16px; height: 16px; }
@@ -291,7 +291,7 @@
   .gallery-art { aspect-ratio: 1; }
   .gallery-card h3 { font-size: 16px; }
   .gallery-card-copy { padding: 48px 10px 10px; transform: none; }
-  .gallery-card-copy > p { display: none; }
+  .gallery-card-copy > p { font-size: 12px; }
   .gallery-card-copy small { font-size: 10px; }
   .gallery-card-actions { opacity: 1; gap: 5px; }
   .gallery-card-actions button { padding-inline: 6px; font-size: 12px; }

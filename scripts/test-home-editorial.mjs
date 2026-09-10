@@ -18,12 +18,13 @@ void test('every first-screen card has a versioned, readable portrait cover', as
 });
 void test('reviewed invitations target real roles without changing first eight or character data', () => {
   const snapshot = JSON.stringify(studioWorlds);
-  assert.equal(Object.keys(CHARACTER_INVITATIONS).length, 3);
+  assert.ok(Object.keys(CHARACTER_INVITATIONS).length >= 35);
   for (const key of Object.keys(CHARACTER_INVITATIONS)) {
     const [, id, role] = key.split(':');
     assert.ok(studioWorlds.find(w => w.id === id)?.world.characters.some(r => r.id === role));
     const copy = editorialCopy(key);
-    assert.ok(copy.tagline.length > 10 && copy.tagline.length <= 50);
+    assert.ok(copy.tagline.length >= 8 && copy.tagline.length <= 24);
+    assert.ok(!/\d+\s*岁|成年|／/.test(copy.tagline));
     assert.equal(copy.title, undefined);
     assert.ok(!HOME_EDITORIAL.some(e => e.key === key));
   }
