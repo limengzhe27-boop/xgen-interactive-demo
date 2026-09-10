@@ -7,3 +7,7 @@ export function characterHook(authored: string | undefined, editorial?: string):
   // Explicitly clearing the author's field must not resurrect an editorial hook.
   return authored !== undefined ? authored.trim() : editorial ?? '';
 }
+
+export function characterSearchText(character: { name: string; identity: string; worldTitle: string; persona: string; cardHook?: string }, editorial?: string, worldHeadline?: string): string {
+  return [character.name, character.identity, character.worldTitle, character.persona, characterHook(character.cardHook, editorial), worldHeadline ?? ''].join(' ');
+}

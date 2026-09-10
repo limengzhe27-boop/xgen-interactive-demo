@@ -15,7 +15,7 @@ test('eight original genres and 24 playable adult roles enter the real catalogue
   assert.equal(new Set(serialWorlds.map(w => w.genre)).size, 8);
   assert.equal(serialWorlds.flatMap(w => w.world.characters).length, 24);
   for (const entry of serialWorlds) {
-    assert.ok(studioWorlds.some(w => w.id === entry.id && w.title === entry.title));
+    assert.ok(studioWorlds.some(w => w.id === entry.id && w.originalTitle === entry.title));
     assert.deepEqual(publicationWorld(JSON.parse(JSON.stringify(entry.world))), entry.world);
     for (const role of entry.world.characters) {
       assert.ok(Number(role.identity.match(/^([0-9]+) 岁/)?.[1]) >= 18);

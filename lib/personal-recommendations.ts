@@ -16,7 +16,7 @@ export function restoreRecommendations(value: unknown): PersonalAgentResponse['r
 
 type Selection = { kind: 'chat' } | { kind: 'clarify'; reply: string } | { kind: 'open'; worldId: string };
 
-export function resolveWorldSelection(message: string, recommendations: PersonalAgentResponse['recommendations'], worlds: { id: string; title: string }[]): Selection {
+export function resolveWorldSelection(message: string, recommendations: PersonalAgentResponse['recommendations'], worlds: { id: string; title: string; originalTitle?: string }[]): Selection {
   const text = message.trim().replace(/[\s，。！!、]/g, '');
   const ordinal = text.match(/^(?:那|好|好的)?(?:我)?(?:就)?(?:请)?(?:帮我)?(?:选择|选|打开|进入|玩|来)?(?:推荐的)?第?([一二三四五六七八九十123456789])(?:个|本|部|项)?(?:世界|故事|剧本)?(?:吧|好了)?$/);
   const single = /^(?:就)?(?:选|打开|进入|玩)(?:这个|这本|它)(?:吧)?$/.test(text);
@@ -31,8 +31,10 @@ export function resolveWorldSelection(message: string, recommendations: Personal
   }
   // Full title plus explicit command; questions, negation and comparisons go to the model.
   const matches = worlds.filter((world) => {
-    const title = world.title.replace(/[\s，。！!、]/g, '');
-    return [`打开${title}`, `进入${title}`, `我选${title}`, `选${title}`, `玩${title}`, `打开《${title}》`, `进入《${title}》`, `我选《${title}》`].includes(text);
+    return [world.title, world.originalTitle].filter((value): value is string => !!value).some(value => {
+      const title = value.replace(/[\s，。！!、]/g, '');
+      return [`打开${title}`, `进入${title}`, `我选${title}`, `选${title}`, `玩${title}`, `打开《${title}》`, `进入《${title}》`, `我选《${title}》`].includes(text);
+    });
   });
   return matches.length === 1 ? { kind: 'open', worldId: matches[0].id } : { kind: 'chat' };
 }

@@ -14,6 +14,7 @@ import { legacyArt } from './legacy-art.ts';
 export type StudioWorld = {
   id: string;
   title: string;
+  originalTitle?: string;
   genre: string;
   premise: string;
   cover: string;
@@ -336,7 +337,7 @@ export const studioWorlds: StudioWorld[] = [...expansionWorlds, firstPersonWorld
   const art = libraryArt[entry.id] ?? legacyArt[entry.id];
   const title = editorialCopy('world:' + entry.id)?.title || entry.title;
   return {
-    ...entry, title, world: { ...entry.world, title }, cover: art?.cover ?? publicImage(entry.cover),
+    ...entry, originalTitle: entry.title, title, world: { ...entry.world, title }, cover: art?.cover ?? publicImage(entry.cover),
     portraits: { ...Object.fromEntries(Object.entries(entry.portraits).map(([id, path]) => [id, publicImage(path)])), ...art?.portraits },
     artNote: art ? (entry.id === 'monkey-pirate-avengers' ? '非官方同人演绎；封面与托尼暂用参考图，其余已更新。人物与世界观归各自权利人所有。' : undefined) : entry.artNote,
   };

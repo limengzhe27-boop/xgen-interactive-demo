@@ -62,3 +62,10 @@
 # 标题与入口补充（2026-09-09）
 
 新增 `.agents/skills/xgen-title-hooks/SKILL.md` 与公开研究记录。`lib/creative-guidance.ts` 的 `xgen-craft-3` 将命名规则接入新建/共创世界，普通聊天和推进剧情不受标题规则影响。首页八项展示策略与尚未重做的封面见 `docs/HOME_EDITORIAL.md`。结构接线测试不代表模型生成质量已通过真实用户评估。
+# 2026-09-10 发现卡一图一句（覆盖旧三层文案口径）
+
+Codex读取 `.agents/skills/xgen-title-hooks/SKILL.md` 后直接阅读 `lib/discovery-copy-guidance.ts`；创作/生成世界时同一常量由 `creativeGuidance` 注入。无需生产环境读本地Skill文件，不是两份各自维护的精简规则。
+
+内置47世界和所有角色文案统一在 `lib/discovery-headlines.ts`，只覆盖发现文案，不改变真实姓名、故事和存档；作者cardHook优先，包括明确清空。卡片无类型徽标、副标题、独立姓名和操作条，点击后仍走原世界/角色入口。原名、原世界标题、现标题均可搜索。旧三层参考已退役，不再指导Agent。
+
+本轮只改文案与展示，沿用旧图；确定性测试不证明真实模型产出必然高质量，也没有点击率数据。

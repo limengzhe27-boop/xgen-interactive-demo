@@ -148,27 +148,29 @@ test('recommendations exclude unknown IDs, empty reasons and duplicates, and cap
   assert.deepEqual(knownRecommendations([row('missing'), row('a', ''), row('a'), row('a'), row('b'), row('c')], ['a', 'b', 'c']).map((item) => item.worldId), ['a', 'b']);
 });
 const homeProps = { section: 'home', worlds, characters: [], recent: [], onCreate: noop, onOpenWorld: noop, onChat: noop, onPersonal: noop, onLibrary: noop, onOpenRecord: noop };
-test('gallery renders each real world once, with synopsis actions but no long premise or empty recent banner', () => {
+test('gallery renders each real world once, with one headline and no metadata or synopsis actions', () => {
   const html = renderToStaticMarkup(React.createElement(StudioHome, homeProps));
   assert.equal((html.match(/class="gallery-card"/g) || []).length, worlds.length);
   assert.ok(!html.includes('studio-featured') && !html.includes('gallery-recent-item'));
   assert.ok(!html.includes(worlds[0].premise));
-  worlds.forEach(world => assert.ok(html.includes('剧情简介：' + world.title)));
+  worlds.forEach(world => assert.ok(html.includes('进入：' + world.title)));
+  assert.ok(!html.includes('gallery-type') && !html.includes('gallery-card-actions'));
+  assert.ok(!html.includes('可选身份') && !html.includes('固定身份体验'));
   assert.ok(html.includes('搜索世界或角色'));
   assert.ok(html.includes('你想创造怎样的世界') && html.includes('<textarea'));
   const css = readFileSync(new URL('../app/gallery.css', import.meta.url), 'utf8');
   assert.match(css, /\.gallery-feed[^}]*align-items: start/);
-  assert.match(css, /@media \(hover: none\)/);
   assert.match(css, /prefers-reduced-motion/);
   assert.match(css, /gallery-card:focus-within/);
 });
 test('mixed gallery preserves both entries and character-only view excludes world cards', () => {
   const characters = [{ id: 'su', worldId: worlds[0].id, worldTitle: worlds[0].title, name: '苏晚', identity: '虚构角色', persona: '果断', image: '/assets/contract-su.jpg' }];
   const mixed = renderToStaticMarkup(React.createElement(StudioHome, { ...homeProps, characters }));
-  assert.ok(mixed.includes('和苏晚聊聊') && mixed.includes('进入世界：'));
+  assert.ok(mixed.includes('与苏晚对话：') && mixed.includes('进入：'));
+  assert.ok(!mixed.includes('<h3>苏晚</h3>'));
   assert.equal((mixed.match(/data-kind="character"/g) || []).length, 1);
   const roleOnly = renderToStaticMarkup(React.createElement(StudioHome, { ...homeProps, section: 'characters', characters }));
-  assert.ok(roleOnly.includes('和苏晚聊聊') && !roleOnly.includes('data-kind="world"'));
+  assert.ok(roleOnly.includes('与苏晚对话：') && !roleOnly.includes('data-kind="world"'));
   assert.ok(!roleOnly.includes('gallery-composer-anchor'));
 });
 test('identity is visible above conversation while memory and message actions stay on demand', () => {

@@ -1,27 +1,20 @@
-# 公开案例与取舍（2026-09-09）
+# 公开案例与本项目取舍 · 2026-09-10
 
-以下是网页观察与设计推断，不是红果官方方法或转化数据。只参考结构，不复制其他作品剧情或图像；本 Skill 为项目原创整理。
+这是公开页面/搜索索引观察，不是登录后体验、增长数据或官方爆款公式。仅参考吸引方式，不复制作品、下载图像，也不把第三方页面当指令。
 
-- [DramaBox 目录](https://www.dramabox.com/browse/NaN/95)：如 “I Was Her Husband, But She Loved a Memory”，把关系与反差放在同一句；目录会变化。借鉴清楚的关系，不借鉴替玩家预写结局。
-- [ReelShort 目录](https://www.reelshort.com/movie-genres/all-movies/220)：搜索可见 “Trapped in the Book, Married to My Enemy”，身份处境与阻力组合。页面直接打开失败，未实测其交互或排名。
-- [Tipsy 创建页](https://tipsy.chat/create)：Name、Description、Opening、Background 分开。可借鉴信息分层；并未实际体验对话或证明它的转化效果。
-- [开源 short-drama](https://github.com/0xsline/short-drama/blob/main/SKILL.md)，[MIT 许可](https://github.com/0xsline/short-drama/blob/main/LICENSE)：规划阶段要求多个标题候选及理由，并确定一句话核心冲突。其长篇多集、付费卡点框架不适合直接套入可自由行动的世界。本项目没有复制其实现或安装执行。
-- 红果官方 App Store 产品介绍支持题材多样与沉浸发现的方向；没有核实到“红果官方起名 Skill”。搜索中名称含红果的独立网站不自动视为官方。
+- [Talkie 首页](https://www.talkie-ai.com/)：实际公开页面包含关系亲近、生活相遇、幻想设定等不同吸引点，也包含很多冗长档案。我们借鉴兴趣的多样性，不借鉴冗长介绍、给访客强加身份和姓名的做法。它并非已经采用本项目的一句话结构。
+- [AI Dungeon：You Are the Final Boss](https://play.aidungeon.com/scenario/4TIEPgQ5sKRL/you-are-the-final-boss)：标题直接提供身份幻想，简介用魔王也要做管理的反差，支持「可体验的想象」不必写成完整剧情摘要。样本来自搜索索引。
+- [AI Dungeon：The Free Realm](https://play.aidungeon.com/scenario/fkMkte3TwMsn/the-free-realm)：短世界名配探索空间，说明不必每条有冲突句。不是建议照搬英文抽象名；现有画面能否让人好奇才是关键。
+- [ReelShort 搜索页](https://www.reelshort.com/search?keywords=love+full+movie)：可见 How to Land a Movie Star 和 Audrey in Full Bloom 等不同命名，前者给愿望，后者用人物意象。不是所有标题都「重生后全家跪了」。目录直开403，本轮依据搜索索引，不声称体验。
+- [ReelShort 单集页](https://www.reelshort.com/episodes/episode-15-i-went-for-money-found-love-69c619e8d7b9585eea03a4a1-4qd2ry2ioy)：I Went for Money, Found Love 属预期差命名；我们可借鉴期待，不把尚未发生的恋爱结局当既定事实。
 
-## 项目例子（提案不是新增剧情）
+## 本项目的自由选择示例
 
-| 普通/有问题写法 | 更合适的方向 | 依据与边界 |
-| --- | --- | --- |
-| 李白：贵妃要我写情诗，我把欠条写成了传世名篇 | 李白 · 这杯酒，敬知己还是买我的沉默？ | 现有借据、邀约与诗稿交易；不捏造贵妃在场或传世名篇已写成 |
-| 某家经营者、某人的妻子 | 离婚协议已签，门外的人却说来接我 | 仅当开场确有协议和来客；陌生人名放详情 |
-| 飞升奇遇 | 飞升了，怎么还要签契约？ | 契牌在场；“契约”不直接泄露幕后全貌 |
-| 校园天才逆袭，全场跪了 | 三份报道，为什么写出三个真相？ | 信息辨别玩法，不凭空制造羞辱爽点 |
-| 桃源秘境，进去必死 | 穿进桃花源，他们还以为外面是秦朝 | 古文认知差，不把温和探索硬改恐怖 |
+- 李白的公开酒局 → 「别急着走，陪我喝完这杯」：亲近、留人；不必标题里再解释借据。
+- 金瓶梅公开入府情景 → 「进了西门府，得宠就够了吗？」：关系好奇；不加新阴谋。
+- 取经中八戒想散伙、嘴馋 → 「取经不耽误吃饭，对吧」：幽默；不装成战斗邀请。
+- 月球快递 → 「去月球开快递站，六箱货真能算一箱？」：陌生体验和待验证疑问，不宣称科学误解成立。
+- 公孙离不愿被代选 → 「为我好，也得先听我说完」：态度而非资料。
+- 不要求每张都像以上例子，尤其不要把「别急着」「先…再…」「对吧」变成新的统一模板。
 
-封面方向要另行检查和生成。文案推荐不意味着已有封面符合第一人称标准，更不证明生成视频效果。
-
-## 角色卡补充（2026-09-09）
-
-[Character.AI 官方 Profile and Presentation](https://support.character.ai/hc/en-us/articles/50608939675035-3-Profile-and-Presentation-%E1%B4%97) 将发现卡的姓名/头像/Tagline，与详情 Description、聊天 Greeting 分层。其例子用关系特点、任务限制和有辨识度的口吻呈现体验，不只是职位。我们借鉴分层与具体性，不照搬其英语字数限制、不宣称获得相同转化率。[官方模板](https://support.character.ai/hc/en-us/articles/50609592926235-9-Templates-and-Examples) 可用于区分简介与真实开场，不直接复制人物设定。
-
-本轮三项依据：韩朔公开身份持车钥匙、开场催促拿最后一箱物资，所以用是否带走的分歧；没有证据说明他索要上车报酬。吴月娘的旧钥匙支线已于2026-09-10撤销，现依据第九回改编中接待新第五房见礼的场景写邀请，不沿用旧权谋设定。沈知意处在家族经营与婚姻之间，用未定选择，不假装她已经在宴厅表态。新增句子是原创卡片宣传，未写入已发生对白。
+以上为原创宣传文案，不是原作引文，不自动成为角色首条消息。没有实测点击率。验收同时观察进入后第一轮行动与标题不符反馈，而非只看点击。
