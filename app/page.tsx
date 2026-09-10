@@ -2543,6 +2543,9 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     );
   }
 
+  // Resolve the account-scoped saved destination before mounting any screen.
+  // Otherwise the default catalogue flashes and downloads artwork before chat restores.
+  if (!storageReady) return <output className="account-bar" role="status">正在恢复上次的位置…</output>;
   const screen = renderScreen();
 
   return (
