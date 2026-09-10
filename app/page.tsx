@@ -9,6 +9,8 @@ import './video-explore/video-explore.css';
 import { worldPrologue } from '@/lib/world-prologue';
 import { playableCharacters, characterRecap, applyCharacterEntry } from '@/lib/character-entry';
 import { switchRole } from '@/lib/role-switch';
+import { applyStoryUpgrade } from '@/lib/story-upgrade';
+import { StoryUpdateNotice } from '@/components/story-update-notice';
 import { visibleSystem } from '@/lib/world-system';
 import { CreatorRequest } from '@/lib/creator-request';
 import { STORY_CATEGORIES, validDiscoveryGenre } from '@/lib/discovery-category';
@@ -1775,6 +1777,21 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     } catch (error) { setActionFeedback({ allowed: false, reason: error instanceof Error ? error.message : '暂时无法切换角色' }); }
   }
 
+  function attachStoryUpdate(latest: StudioWorld) {
+    if (!activeLibrary || isThinking) return;
+    try {
+      const state = applyStoryUpgrade(activeLibrary, latest, worldState);
+      const backup = { ...JSON.parse(runSnapshotJSON), id: `${runId}-before-update-${Date.now()}`, savedAt: Date.now() } as SavedRun & { id: string };
+      // Persist the fallback before touching the running world. Quota errors leave it untouched.
+      const backups = [...savedRuns, backup];
+      window.localStorage.setItem(studioStorageKey, JSON.stringify({ version: 1, runs: backups, chats: chatSessions, documents: creatorDocuments, draftId } satisfies StudioStorage));
+      setSavedRuns(backups); setActiveLibrary(latest); setWorldState(state);
+      setEndingDecision(''); setActionFeedback(null);
+      setRuntimeBeat({ ...currentBeat, choices: ['观察眼前有什么变化', '与身边的人交谈', '继续当前的探索'].map(label=>({label,result:'',clue:'',relationDelta:0})) });
+      navigate('play');
+    } catch(error) { setActionFeedback({ allowed:false, reason:error instanceof Error?error.message:'暂时无法接入新剧情，原存档未改变。' }); }
+  }
+
   function continueWorld() {
     cancelImageTask();
     // Returning to play does not advance time, reset tasks, or invent a new event.
@@ -2518,7 +2535,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       characters={availableStudioWorlds.filter(entry=>!entry.fixedRoleId).flatMap((entry) => entry.world.characters.map((role) => ({ id: role.id, worldId: entry.id, worldTitle: entry.title, name: role.name, cardHook: role.cardHook, identity: role.identity, persona: role.persona, image: entry.portraits[role.id] || entry.cover })))}
       recent={[
         ...creatorDocuments.map((doc) => ({ id: `doc-${doc.id}`, savedAt: doc.savedAt, title: doc.data.worldTitle || '未命名世界', subtitle: '继续编辑角色与故事框架', label: doc.data.publishedWorld ? '可试玩 · 本机作品' : '创作草稿', cover: legacyArt['storm-manor'].cover })),
-        ...savedRuns.map((run) => ({ id: `run-${run.id}`, savedAt: run.savedAt, title: run.worldTitle, subtitle: `${run.worldSnapshot?.world.characters.find((role) => role.id === run.roleId)?.name ?? run.roleId} · ${run.worldState.location}`, label: run.status === 'ending' ? '阶段结局' : '探索记录', cover: run.worldSnapshot?.cover || legacyArt['storm-manor'].cover })),
+        ...savedRuns.map((run) => ({ id: `run-${run.id}`, savedAt: run.savedAt, title: run.worldTitle, subtitle: `${run.worldSnapshot?.world.characters.find((role) => role.id === run.roleId)?.name ?? run.roleId} · ${run.worldState.location}`, label: run.id.includes('-before-update-') ? '接续前备份' : run.status === 'ending' ? '当前剧情' : '探索记录', cover: run.worldSnapshot?.cover || legacyArt['storm-manor'].cover })),
         ...chatSessions.map((chat) => ({ id: `chat-${chat.id}`, savedAt: chat.savedAt, title: `与 ${chat.entry.world.characters.find((role) => role.id === chat.targetCharacterId)?.name} 的对话`, subtitle: `你是 ${chat.entry.world.characters.find((role) => role.id === chat.playerRoleId)?.name} · ${chat.entry.title}`, label: '角色对话', cover: chat.entry.portraits[chat.targetCharacterId] || chat.entry.cover })),
       ].sort((a, b) => b.savedAt - a.savedAt)}
       onCreate={newCreator} onOpenWorld={openCatalogWorld} onChat={(worldId, targetId) => { const entry = availableStudioWorlds.find((item) => item.id === worldId); if (entry) setChatEntry({ entry, targetId }); }} onPersonal={() => navigate('personal')} onLibrary={() => navigate('library')} onOpenRecord={openRecord}
@@ -2534,6 +2551,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
           role={selectedRole}
           roleSwitcher={selectableRoles.length > 1 && !activeWorldDefinition.entryAdmission ? <label>切换角色 <select aria-label="同一存档切换角色" value={selectedRole.id} disabled={isThinking} onChange={e => switchCurrentRole(e.target.value)}>{selectableRoles.map(role => <option key={role.id} value={role.id}>{role.name}</option>)}</select></label> : undefined}
           knownSecrets={worldState.knownSecrets}
+          storyUpdate={activeLibrary ? <StoryUpdateNotice current={activeLibrary} latest={availableStudioWorlds.find(entry=>entry.id===activeLibrary.id)} disabled={isThinking} onApply={attachStoryUpdate} /> : undefined}
           worldTitle={activeWorldTitle}
           availableRoles={currentRoles}
           presentRoleIds={currentRoles.filter((role) => {
@@ -2627,7 +2645,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
         />
       );
     }
-    if (view === 'ending') return <Ending worldTitle={activeWorldTitle} role={selectedRole} decision={endingDecision} state={worldState} world={activeWorldDefinition} imageUrl={imageTask.assetUrl} onContinue={continueWorld} onReplay={() => { if (activeLibrary?.world.entryAdmission) { if (!openCatalogWorld(activeLibrary.id)) navigate('home'); } else navigate('roles'); }} onHome={returnToCatalog} />;
+    if (view === 'ending') return <Ending storyUpdate={activeLibrary ? <StoryUpdateNotice current={activeLibrary} latest={availableStudioWorlds.find(entry=>entry.id===activeLibrary.id)} onApply={attachStoryUpdate} /> : undefined} error={actionFeedback?.allowed===false?actionFeedback.reason:undefined} worldTitle={activeWorldTitle} role={selectedRole} decision={endingDecision} state={worldState} world={activeWorldDefinition} imageUrl={imageTask.assetUrl} onContinue={continueWorld} onReplay={() => { if (activeLibrary?.world.entryAdmission) { if (!openCatalogWorld(activeLibrary.id)) navigate('home'); } else navigate('roles'); }} onHome={returnToCatalog} />;
     return (
       <PersonalAgent
         accountScope={accountScope}
@@ -2724,6 +2742,7 @@ function RoleSelection({ worldTitle, artNote, availableRoles, selected, onSelect
 }
 
 function PlayWorld({
+  storyUpdate,
   roleSwitcher,
   knownSecrets,
   accountScope,
@@ -2761,6 +2780,7 @@ function PlayWorld({
   onBack,
 }: {
   roleSwitcher?: React.ReactNode;
+  storyUpdate?: React.ReactNode;
   knownSecrets: string[];
   artNote?: string;
   backLabel: string;
@@ -2815,6 +2835,7 @@ function PlayWorld({
         {roleSwitcher}
         <SheetTrigger className="flow-control" onClick={() => setCategory('tasks')}>故事资料</SheetTrigger>
       </header>
+      {storyUpdate}
       <SheetContent className="flow-drawer" showCloseButton={false} finalFocus={() => {
         if (preparedAction.current) { preparedAction.current = false; return composerRef.current; }
         return true;
@@ -3111,7 +3132,7 @@ function CreateWorld({
   );
 }
 
-function Ending({ worldTitle, role, decision, state, world, imageUrl, onContinue, onReplay, onHome }: { worldTitle: string; role: Role; decision: string; state: WorldState; world: WorldDefinition; imageUrl: string; onContinue: () => void; onReplay: () => void; onHome: () => void }) {
+function Ending({ storyUpdate, error, worldTitle, role, decision, state, world, imageUrl, onContinue, onReplay, onHome }: { storyUpdate?: React.ReactNode; error?: string; worldTitle: string; role: Role; decision: string; state: WorldState; world: WorldDefinition; imageUrl: string; onContinue: () => void; onReplay: () => void; onHome: () => void }) {
   const ending = world.endingConditions.find((condition) => condition.id === state.reachedEndingIds?.at(-1));
   const roleEndings = world.endingConditions.filter((condition) => condition.applicableRoleIds === undefined || condition.applicableRoleIds.includes(role.id));
   const seenEndings = roleEndings.filter((condition) => state.reachedEndingIds?.includes(condition.id)).length;
@@ -3121,12 +3142,14 @@ function Ending({ worldTitle, role, decision, state, world, imageUrl, onContinue
       <div className="ending-image"><img src={imageUrl} alt={`${worldTitle}的当前场景`} /><div /></div>
       <section className="ending-card title-reveal">
         <span className="ending-mark"><Check /></span>
-        <p className="eyebrow">{worldTitle} · 一条世界线已经抵达结局</p>
-        <h1>{ending?.outcome === 'failure' ? '目标未能达成，故事仍有余波' : '这条世界线，由你的选择抵达此刻'}</h1>
-        <p>你以 {role.name} 的身份走到这条世界线的阶段结局。{decision || ending?.description}</p>
+        <p className="eyebrow">{worldTitle} · 当前剧情</p>
+        <h1>{ending?.outcome === 'failure' ? '这次目标未能达成' : '当前剧情已体验完'}</h1>
+        <p>你以 {role.name} 的身份走到了这里。{decision || ending?.description}</p>
         <div className="ending-stats"><span><strong>{state.turn}</strong><small>行动回合</small></span><span><strong>{completedTasks}</strong><small>完成角色任务</small></span><span><strong>{seenEndings} / {roleEndings.length}</strong><small>该角色已见结局</small></span></div>
-        <div className="agent-afterword"><Sparkles /><span><small>个人 Agent 记下了</small>你在{worldTitle}选择了{role.name}。你可以回到 Agent，告诉它这次体验中喜欢和不喜欢的部分。</span></div>
-        <div className="ending-actions"><Button className="primary-action" onClick={onContinue}>继续这个世界<ArrowRight /></Button><Button variant="outline" onClick={onReplay}><RefreshCw />换一个角色重玩</Button><Button variant="ghost" onClick={onHome}>回到 Agent</Button></div>
+        <p>可以保留当前进度自由探索；有兼容的新剧情时，可在这里接上。</p>
+        {storyUpdate}
+        {error && <p role="alert">{error}</p>}
+        <div className="ending-actions"><Button className="primary-action" onClick={onContinue}>留在这个世界<ArrowRight /></Button><Button variant="outline" onClick={onReplay}><RefreshCw />重新开始体验</Button><Button variant="ghost" onClick={onHome}>返回作品列表</Button></div>
       </section>
     </div>
   );

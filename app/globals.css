@@ -1217,3 +1217,6 @@ button:focus-visible, a:focus-visible, input:focus-visible {
 .company-media-consent input { flex: 0 0 16px; margin-top: 3px; }
 .company-media audio, .company-media video { width: 100%; max-width: 100%; margin-block: 12px; border-radius: 12px; }
 .company-media video { max-height: 480px; background: #111; }
+/* A compact continuation action, shared by text and video exploration. */
+.story-update-notice { display:flex; align-items:center; justify-content:space-between; gap:1rem; flex-wrap:wrap; padding:1rem; margin-block:.75rem; border:1px solid currentColor; border-radius:1rem; }
+.story-update-notice p { margin:.25rem 0 0; font-size:.875rem; }

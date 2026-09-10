@@ -11,13 +11,17 @@ import { createRemoteAIAdapter } from '@/lib/remote-ai-adapter';
 import { worldPrologue } from '@/lib/world-prologue';
 import { playableCharacters, characterRecap } from '@/lib/character-entry';
 import { switchRole } from '@/lib/role-switch';
+import { applyStoryUpgrade } from '@/lib/story-upgrade';
+import { StoryUpdateNotice } from '@/components/story-update-notice';
+import { publicationWorld } from '@/lib/publication';
 import { commitVideoTurn, initialVideoRole, threeChoices, videoErrors, videoMotionPrompt, videoTurnRequest, type VideoChoice } from '@/lib/video-exploration';
 
 type Pending={input:FalVideoInput;response:WorldTurnResponse;action:string;id?:string;assetUrl?:string};
-type Session={version:1;id:string;roleId:string;state:WorldState|null;narrative:string;choices:VideoChoice[];clip:string;rounds:number;pending?:Pending;finished?:boolean;clips?:{url:string;action:string}[]};
+type Session={version:1;id:string;roleId:string;state:WorldState|null;narrative:string;choices:VideoChoice[];clip:string;rounds:number;worldSnapshot?:StudioWorld;pending?:Pending;finished?:boolean;clips?:{url:string;action:string}[]};
 type Phase='intro'|'roles'|'choices'|'planning'|'generating'|'ready'|'playing'|'error';
 type MediaReply={id?:string;status:string;error?:string;assetUrl?:string};
-export function VideoExplorer({entry,onBack,onText}:{entry:StudioWorld;onBack?:()=>void;onText?:()=>void}){
+export function VideoExplorer({entry:latestEntry,onBack,onText}:{entry:StudioWorld;onBack?:()=>void;onText?:()=>void}){
+  const [entry,setEntry]=useState(latestEntry);
   const prologue=worldPrologue(entry.id,entry.premise,entry.cover);
   const roles=playableCharacters(entry.world,entry.fixedRoleId);
   const [session,setSession]=useState<Session>({version:1,id:'',roleId:'',state:null,narrative:entry.world.storyHook||entry.title,choices:[],clip:roles.length===1?(prologue.video??''):'',rounds:0});
@@ -61,7 +65,7 @@ export function VideoExplorer({entry,onBack,onText}:{entry:StudioWorld;onBack?:(
     return()=>{observer.disconnect();window.removeEventListener('resize',resize);};
   },[]);
   const storageKey=scope?`xgen:video-pilot:v2:${scope}:${entry.id}`:null;
-  const save=(next:Session)=>{current.current=next;setSession(next);if(storageKey)try{sessionStorage.setItem(storageKey,JSON.stringify(next));setSaveError('');}catch{setSaveError('浏览器未能保存本次进度，请暂勿刷新或关闭此标签页。已生成的视频未被删除。');}};
+  const save=(input:Session)=>{const next={...input,worldSnapshot:input.worldSnapshot??entry};current.current=next;setSession(next);if(storageKey)try{sessionStorage.setItem(storageKey,JSON.stringify(next));setSaveError('');}catch{setSaveError('浏览器未能保存本次进度，请暂勿刷新或关闭此标签页。已生成的视频未被删除。');}};
   useEffect(()=>{
     alive.current=true;const stop=new AbortController();
     void(async()=>{
@@ -72,10 +76,12 @@ export function VideoExplorer({entry,onBack,onText}:{entry:StudioWorld;onBack?:(
         setScope(id);
         let restored:Session|null=null;
         try{const candidate=JSON.parse(sessionStorage.getItem(`xgen:video-pilot:v2:${id}:${entry.id}`)??'null');
-          if(candidate?.version===1&&typeof candidate.id==='string'&&candidate.state&&entry.world.characters.some(c=>c.id===candidate.roleId)&&Array.isArray(candidate.choices)
-            &&typeof candidate.clip==='string'&&(candidate.clip===''||candidate.clip.startsWith('/assets/prologues/')||/^\/api\/media\/asset\/[a-f0-9]{64}$/.test(candidate.clip)))restored=candidate;
+          const savedEntry=candidate?.worldSnapshot?.id===latestEntry.id ? {...candidate.worldSnapshot,world:publicationWorld(candidate.worldSnapshot.world)} as StudioWorld : latestEntry;
+          if(candidate?.version===1&&typeof candidate.id==='string'&&candidate.state&&savedEntry.world.characters.some(c=>c.id===candidate.roleId)&&Array.isArray(candidate.choices)
+            &&typeof candidate.clip==='string'&&(candidate.clip===''||candidate.clip.startsWith('/assets/prologues/')||/^\/api\/media\/asset\/[a-f0-9]{64}$/.test(candidate.clip)))restored={...candidate,worldSnapshot:savedEntry};
         }catch{/* Invalid/old pilot data is ignored. */}
         if(restored){
+          if(restored.worldSnapshot?.id===latestEntry.id)setEntry(restored.worldSnapshot);
           // An old unplayed universal intro is not valid for another character.
           if(entry.id==='yoga-lotus-boundary'&&restored.roleId!=='lin'&&restored.rounds===0&&restored.clip===prologue.video)restored={...restored,clip:''};
           current.current=restored;setSession(restored);setPhase(restored.pending?'error':restored.clip?'playing':'choices');setPaused(true);if(restored.pending)setError('已恢复尚未完成的回合。点击恢复查询，不会重新购买视频。');}
@@ -88,7 +94,7 @@ export function VideoExplorer({entry,onBack,onText}:{entry:StudioWorld;onBack?:(
       finally{if(!stop.signal.aborted)setLoading(false);}
     })();
     return()=>{alive.current=false;stop.abort();controller.current?.abort();};
-  },[entry.id,entry.world.characters]);
+  },[latestEntry.id,latestEntry.world.characters]);
   useEffect(()=>{
     const update=()=>setVisible(document.visibilityState==='visible'&&document.hasFocus());
     update();document.addEventListener('visibilitychange',update);window.addEventListener('focus',update);window.addEventListener('blur',update);
@@ -112,6 +118,17 @@ export function VideoExplorer({entry,onBack,onText}:{entry:StudioWorld;onBack?:(
       save({...s,...changed,roleId,clip:'',choices:['观察眼前的环境','确认身边有哪些人','查看自己随身的物品'].map((label,i)=>({id:`switch-${i}`,label,intent:label}))});
       setPhase('choices');
     }catch(e){setError(e instanceof Error?e.message:'暂时无法切换角色');}
+  }
+  function attachUpdate(latest:StudioWorld){
+    const s=current.current;
+    if(busy.current||s.pending||!s.state||!storageKey||!['choices','error'].includes(phase))return;
+    try{
+      const state=applyStoryUpgrade(entry,latest,s.state);
+      const next={...s,state,worldSnapshot:latest,finished:false,choices:threeChoices([])};
+      sessionStorage.setItem(`${storageKey}:before-update`,JSON.stringify(s));
+      sessionStorage.setItem(storageKey,JSON.stringify(next));
+      setEntry(latest);save(next);setPaused(true);setError('');setPhase('choices');
+    }catch(e){setError(e instanceof Error?e.message:'接续失败，原进度保持不变。');}
   }
   function ended(){
     if(current.current.pending){setPhase('error');setPaused(true);return;}
@@ -151,7 +168,7 @@ export function VideoExplorer({entry,onBack,onText}:{entry:StudioWorld;onBack?:(
     const s=current.current;
     if(busy.current||!enabled||!scope||!s.state||!action.trim()||s.finished||s.pending)return;
     // Fresh first-person continuations require a real decoded last frame, never a poster fallback.
-    if((s.rounds>0||entry.fixedRoleId&&s.clip)&&!frame.current){setError('未能读取末帧，请完整重播当前片段后再选择。没有提交生成。');setPaused(true);return;}
+    if(s.clip&&(s.rounds>0||entry.fixedRoleId)&&!frame.current){setError('未能读取末帧，请完整重播当前片段后再选择。没有提交生成。');setPaused(true);return;}
     busy.current=true;setError('');setWaitSeconds(0);setPhase('planning');const abort=new AbortController();controller.current=abort;
     try{
       const response=await createRemoteAIAdapter(scope).advanceWorld(videoTurnRequest(entry,s.roleId,s.state,s.narrative,s.choices,action),abort.signal);
@@ -194,6 +211,8 @@ export function VideoExplorer({entry,onBack,onText}:{entry:StudioWorld;onBack?:(
       </video>:<Image src={entry.cover} alt={entry.title} width={1280} height={720} unoptimized/>}
     </div>
     <section ref={controls} className="video-explorer-controls" aria-label="接下来的行动">
+      {session.state&&<StoryUpdateNotice current={entry} latest={latestEntry} disabled={!!session.pending||!['choices','error'].includes(phase)} onApply={attachUpdate}/>}
+      {session.finished&&phase==='choices'&&<div><h2>当前剧情已体验完</h2><p>进度和已生成片段已保留，可以接入新增剧情，或留在当前世界自由探索。</p><button onClick={()=>{save({...current.current,finished:false,choices:threeChoices([])});setPaused(true);}}>留在这个世界</button></div>}
       {session.state&&roles.length>1&&!entry.world.entryAdmission&&<label>切换角色 <select aria-label="同一存档切换角色" value={session.roleId} disabled={!!session.pending||!['choices','error'].includes(phase)} onChange={e=>switchViewpoint(e.target.value)}>{roles.map(role=><option key={role.id} value={role.id}>{role.name}</option>)}</select></label>}
       {session.state&&!session.clip&&<p>{session.narrative}</p>}
       {!enabled&&<div className="video-explorer-start"><p>先选择体验角色，再从对应场景行动。续片由 fal H3 Max 生成，要求原生声音。每段15秒，不设体验段数上限，会持续消耗额度；配置就绪不代表账户余额充足。</p>
@@ -201,7 +220,7 @@ export function VideoExplorer({entry,onBack,onText}:{entry:StudioWorld;onBack?:(
         <button disabled={loading||!configured} onClick={()=>{setEnabled(true);setPaused(false);setSeconds(15);if(!session.clip)ended();else if(player.current?.ended)ended();}}>{loading?'检查连接中…':configured?'开启视频探索（会使用 fal 额度）':'fal 尚未就绪'}</button>
       </div>}
       {(enabled||active)&&<>
-        <div className="video-explorer-status"><span>{phase==='planning'?`正在编排剧情 · 已等待 ${waitSeconds} 秒`:phase==='generating'?`正在生成并检查视频 · 已等待 ${waitSeconds} 秒`:phase==='ready'?'新片就绪，点击播放继续':session.finished?'这一段故事已到达结局':active?`${phase==='roles'?'选择体验角色':'接下来怎么做'} · ${ticking?`${seconds}秒后自动选择第一项`:'自动选择已暂停'}`:'正在播放，结束后在这里选择'}</span>
+        <div className="video-explorer-status"><span>{phase==='planning'?`正在编排剧情 · 已等待 ${waitSeconds} 秒`:phase==='generating'?`正在生成并检查视频 · 已等待 ${waitSeconds} 秒`:phase==='ready'?'新片就绪，点击播放继续':session.finished?'当前剧情已体验完':active?`${phase==='roles'?'选择体验角色':'接下来怎么做'} · ${ticking?`${seconds}秒后自动选择第一项`:'自动选择已暂停'}`:'正在播放，结束后在这里选择'}</span>
           {active&&enabled&&!session.pending&&!session.finished&&<button onClick={()=>{setPaused(!paused);setSeconds(15);}} aria-label={paused?'恢复自动选择':'暂停自动选择'}>{paused?<Play size={16}/>:<Pause size={16}/>} {paused?'恢复计时':'暂停计时'}</button>}
         </div>
         {phase==='roles'&&<div className="video-explorer-choices">{roles.map((role,i)=><button disabled={loading} key={role.id} onClick={()=>selectRole(role.id)}><strong>{role.name}{i===0?' · 默认':''}</strong><span>{role.identity}</span></button>)}</div>}

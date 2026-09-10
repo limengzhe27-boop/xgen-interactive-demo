@@ -38,6 +38,7 @@ export type WorldState = {
   knownSecrets: string[];
   committedFacts?: string[];
   reachedEndingIds?: string[];
+  archivedEndingIds?: string[];
   activeGoalId?: string;
   completedTaskIds: string[];
   failedTaskIds: string[];
