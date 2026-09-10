@@ -1,4 +1,5 @@
 import type { WorldDefinition } from './ai-contracts';
+import { editorialCopy } from './home-editorial.ts';
 import { expansionWorlds } from './expansion-worlds.ts';
 import publicImages from './public-image-manifest.json' with { type: 'json' };
 import { serialWorlds } from './serial-worlds.ts';
@@ -333,8 +334,9 @@ const publicImage = (path: string) => {
 };
 export const studioWorlds: StudioWorld[] = [...expansionWorlds, firstPersonWorld, yogaWorld, conquestWorld, ...memeWorlds, contractWorld, workplaceWorld, inheritanceWorld, ...serialWorlds, ...wildWorlds].map((entry) => {
   const art = libraryArt[entry.id] ?? legacyArt[entry.id];
+  const title = editorialCopy('world:' + entry.id)?.title || entry.title;
   return {
-    ...entry, cover: art?.cover ?? publicImage(entry.cover),
+    ...entry, title, world: { ...entry.world, title }, cover: art?.cover ?? publicImage(entry.cover),
     portraits: { ...Object.fromEntries(Object.entries(entry.portraits).map(([id, path]) => [id, publicImage(path)])), ...art?.portraits },
     artNote: art ? (entry.id === 'monkey-pirate-avengers' ? '非官方同人演绎；封面与托尼暂用参考图，其余已更新。人物与世界观归各自权利人所有。' : undefined) : entry.artNote,
   };

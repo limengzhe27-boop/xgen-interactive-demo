@@ -9,6 +9,7 @@ import {
 
 import { validEntryPolicy, validPersonaAdmission } from './player-persona.ts';
 import { validWorldSystem } from './world-system.ts';
+import { validDiscoveryGenre } from './discovery-category.ts';
 
 function validOptionalSystem(world: Record<string, unknown>) {
   if (world.system === undefined) return true;
@@ -24,6 +25,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function isCreatorBrief(value: unknown) {
   if (!isRecord(value)
+    || (value.discoveryGenre !== undefined && !validDiscoveryGenre(value.discoveryGenre))
     || typeof value.coreGoal !== 'string'
     || typeof value.successCondition !== 'string'
     || typeof value.failureCondition !== 'string'
@@ -105,6 +107,7 @@ export function isWorldGenerationResponse(value: unknown): value is WorldGenerat
     || !isStringArray(value.unresolvedQuestions)) return false;
   const world = value.world;
   return validOptionalSystem(world) && typeof world.id === 'string'
+    && (world.discoveryGenre === undefined || validDiscoveryGenre(world.discoveryGenre))
     && typeof world.title === 'string'
     && typeof world.premise === 'string'
     && typeof world.timeSetting === 'string'

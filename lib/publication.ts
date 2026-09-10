@@ -1,10 +1,12 @@
 import type { WorldDefinition } from './ai-contracts';
 import { validEntryPolicy } from './player-persona.ts';
 import { validWorldSystem } from './world-system.ts';
+import { validDiscoveryGenre } from './discovery-category.ts';
 
 type Shape = 'string' | 'number' | 'boolean' | { [key: string]: Shape } | [Shape];
 const texts: Shape = ['string'];
 const schema: Shape = {
+  'discoveryGenre?': 'string',
   id: 'string', title: 'string', premise: 'string', timeSetting: 'string', coreEvent: 'string', surpriseLevel: 'number',
   'system?': { name: 'string', premise: 'string', entries: [{ id: 'string', title: 'string', description: 'string', roleIds: texts, requiredTaskIds: texts, action: 'string' }] },
   'entryPolicy?': { allowPersona: 'boolean', allowedRoleIds: texts, abilityMode: 'string', abilities: texts, 'visitorGoal?': 'string' },
@@ -41,6 +43,7 @@ export function publicationWorld(value: unknown): WorldDefinition {
   if (value && typeof value === 'object' && 'entryAdmission' in value) throw new Error('private_session_cannot_be_published');
   // Whitelist every nested field: saved chats, Agent memory and unknown metadata cannot hitchhike.
   const world = select(value, schema) as WorldDefinition;
+  if (world.discoveryGenre !== undefined && !validDiscoveryGenre(world.discoveryGenre)) throw new Error('invalid_discovery_genre');
   const ids = (items: { id: string }[]) => {
     const result = new Set(items.map(item => item.id));
     if (result.size !== items.length || [...result].some(id => !id.trim() || id.length > 120)) throw new Error('invalid_ids');

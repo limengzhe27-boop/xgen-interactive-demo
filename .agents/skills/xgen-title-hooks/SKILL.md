@@ -5,7 +5,7 @@ description: 为 XGEN 世界、角色卡和首页精选写标题与入口文案�
 
 # 标题是体验邀请，不是人物档案
 
-先读 `references/research-and-examples.md`。涉及新剧情时同时使用世界编剧 Skill。网站不读取本文件，创作 Agent 的精简规则位于 `lib/creative-guidance.ts`。
+先读 `references/research-and-examples.md`。本轮命名或分类还需读 `references/title-selection.md`。涉及新剧情时同时使用世界编剧 Skill。网站不读取本文件，创作 Agent 的精简规则位于 `lib/creative-guidance.ts`。
 
 ## 先找实际承诺
 
@@ -43,7 +43,11 @@ description: 为 XGEN 世界、角色卡和首页精选写标题与入口文案�
 
 八项精选可先试六个世界、两个角色，但不是长期固定比例。检查题材、情绪、参与方式和画面主体差异；不要同一世界的封面和角色同时占多个首位。精选外仍让新增内容参与混排，筛选/搜索不得被精选强行覆盖。返回列表维持顺序和位置。
 
-## 自检与交付
+## 分类不等于标题
+
+使用 `lib/discovery-category.ts` 的固定主类，不按作品名、角色IP或视角生成新栏目。创作讨论阶段在 `proposal.brief.discoveryGenre` 建议分类，作者采纳后写入；生成世界时进入 `world.discoveryGenre`。主类按主要可体验内容选择，明确整活或名场面可追加「 · 热梗名场面」。不了解内容时留空等待，不因为标题夸张就认定热梗，不声称实时热门。手改优先，旧建议不得覆盖新修改。分类只是发现元数据，不改变人物能力、任务和剧情规则。
+
+## 自检与交付清单
 
 对每项回答：陌生用户知道在体验什么吗？产生了哪个具体疑问？进去能回应吗？去掉夸张词还成立吗？会不会误导身份、史实或结局？
 

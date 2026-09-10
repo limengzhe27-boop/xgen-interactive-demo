@@ -9,6 +9,7 @@ import './video-explore/video-explore.css';
 import { worldPrologue } from '@/lib/world-prologue';
 import { visibleSystem } from '@/lib/world-system';
 import { CreatorRequest } from '@/lib/creator-request';
+import { STORY_CATEGORIES, validDiscoveryGenre } from '@/lib/discovery-category';
 import { restoreCreatorSession, type CreatorSession } from '@/lib/creator-session';
 import { currentPlayableTask, taskDisplayStatus } from '@/lib/experience-flow';
 import { Sheet, SheetTrigger, SheetContent, SheetTitle, SheetDescription, SheetClose } from '@/components/ui/sheet';
@@ -684,6 +685,7 @@ function briefTasksToWorldTasks(tasks: CreatorTaskDraft[], roleIds: string[]): W
 
 function normalizeCreatorBrief(brief: CreatorBrief): CreatorBrief {
   return {
+    discoveryGenre: validDiscoveryGenre(brief.discoveryGenre) ? brief.discoveryGenre : '',
     coreGoal: brief.coreGoal?.trim() || '',
     successCondition: brief.successCondition?.trim() || '',
     failureCondition: brief.failureCondition?.trim() || '',
@@ -831,6 +833,7 @@ function buildCreatorWorld(
   return {
     ...nextWorld,
     id: baseWorld?.id || 'draft-generated-world',
+    discoveryGenre: creatorBrief.discoveryGenre === undefined ? baseWorld?.discoveryGenre : normalizedBrief.discoveryGenre,
     title: safeTitle,
     premise: safeSeed,
     timeSetting: baseWorld?.timeSetting || '故事开始的当下；具体时间以创作者设定为准',
@@ -2027,10 +2030,10 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       if (!creatorRequest.current.current(signal) || revision !== navigationRevision.current) return;
       setCreatorMessages((current) => [...current, { role: 'agent', content: response.reply } satisfies CreatorChatMessage].slice(-12));
       setCreatorProposal(response.proposal);
-      const brief = normalizeCreatorBrief(response.proposal.brief);
+      const brief = normalizeCreatorBrief({ ...response.proposal.brief, discoveryGenre: response.proposal.brief.discoveryGenre ?? creatorBrief.discoveryGenre });
       const nextRoles = response.proposal.characters?.length ? identifyProposedRoles(draftRoles, response.proposal.characters.map((role, index) => ({ name: role.name, identity: role.identity, personality: role.persona, relationship: role.relationship, appearance: role.appearance, goal: role.goal ?? draftRoles[index]?.goal ?? '' }))) : draftRoles;
       const nextChanges = creatorChanges(baseline, { ...brief, entryPolicy: response.proposal.entryPolicy ?? entryPolicy, surpriseLevel: response.proposal.surpriseLevel ?? surprise, title: response.proposal.title, premise: response.proposal.premise, castAndTasks: { roles: nextRoles, tasks: brief.tasks } }, {
-        entryPolicy: '身份入场与能力规则',
+        discoveryGenre: '剧情分类', entryPolicy: '身份入场与能力规则',
         surpriseLevel: '意外程度',
         title: '世界名称', premise: '背景与冲突', castAndTasks: '角色目标与任务编排', coreGoal: '世界核心目标', successCondition: '成功条件', failureCondition: '失败条件', complexityLevel: '世界复杂度', difficulties: '世界级困难', scheduledEvents: '预设事件',
       }).map(change => change.key === 'entryPolicy' ? { ...change, roleOrder: draftRoles.map(role => role.editorId!), referenceLabels: Object.fromEntries(draftRoles.map((role, index) => [`draft-role-${index}`, role.name || `角色 ${index + 1}`])) } : change);
@@ -2113,7 +2116,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     if (change.key === '__all') {
       setWorldTitle(next.title as string); setWorldSeed(next.premise as string);
       setSurprise(next.surpriseLevel as number); setEntryPolicy(restoreEntryPolicy(next.entryPolicy));
-      setCreatorBrief({...creatorBrief, coreGoal: next.coreGoal as string, successCondition: next.successCondition as string, failureCondition: next.failureCondition as string, complexityLevel: next.complexityLevel as CreatorBrief['complexityLevel'], difficulties: next.difficulties as string[], scheduledEvents: next.scheduledEvents as CreatorBrief['scheduledEvents'], tasks: (next.castAndTasks as {tasks: CreatorTaskDraft[]}).tasks});
+      setCreatorBrief({...creatorBrief, discoveryGenre: next.discoveryGenre as string, coreGoal: next.coreGoal as string, successCondition: next.successCondition as string, failureCondition: next.failureCondition as string, complexityLevel: next.complexityLevel as CreatorBrief['complexityLevel'], difficulties: next.difficulties as string[], scheduledEvents: next.scheduledEvents as CreatorBrief['scheduledEvents'], tasks: (next.castAndTasks as {tasks: CreatorTaskDraft[]}).tasks});
     }
     if (change.key === 'title') setWorldTitle(next.title as string);
     else if (change.key === 'entryPolicy') setEntryPolicy(restoreEntryPolicy(next.entryPolicy));
@@ -2144,7 +2147,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     setCreatorChangeNotice(`${undo ? '已撤销' : '已采纳'}「${change.label}」，其他设定保持不变。`);
   }
 
-  function updateCreatorBriefField(key: keyof Pick<CreatorBrief, 'coreGoal' | 'successCondition' | 'failureCondition'>, value: string) {
+  function updateCreatorBriefField(key: keyof Pick<CreatorBrief, 'discoveryGenre' | 'coreGoal' | 'successCondition' | 'failureCondition'>, value: string) {
     setCreatorBrief((current) => ({ ...current, [key]: value }));
   }
 
@@ -2192,7 +2195,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       const fallbackOutline = generatedStoryOutline.length >= 3 ? generatedStoryOutline : makeEditableOutline(worldSeed, draftRoles);
       const effectiveBrief = creatorBrief.tasks.length > 0
         ? normalizeCreatorBrief(creatorBrief)
-        : briefFromOutline(fallbackOutline, worldSeed || '完成所选角色的核心目标', normalizeSurpriseLevel(creatorBrief.complexityLevel || 2));
+        : { ...briefFromOutline(fallbackOutline, worldSeed || '完成所选角色的核心目标', normalizeSurpriseLevel(creatorBrief.complexityLevel || 2)), discoveryGenre: creatorBrief.discoveryGenre };
       const response = await runAI((adapter) => adapter.generateWorld({
         contractVersion: AI_CONTRACT_VERSION,
         creatorIntent: worldTitle,
@@ -2211,10 +2214,11 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       const normalizedWorld = normalizeGeneratedWorld(response.world, draftRoles);
       const generatedDraftRoles = draftRoles.map((role, index) => ({ ...role, goal: role.goal || normalizedWorld.characters[index]?.goal || '', appearance: role.appearance || normalizedWorld.characters[index]?.imagePrompt || '' }));
       setCreatorDetailBaseline({ roles: generatedDraftRoles, outline: response.storyOutline });
-      setGeneratedWorld({ ...normalizedWorld, entryPolicy: restoreEntryPolicy(entryPolicy) });
+      setGeneratedWorld({ ...normalizedWorld, discoveryGenre: effectiveBrief.discoveryGenre || normalizedWorld.discoveryGenre, entryPolicy: restoreEntryPolicy(entryPolicy) });
       setGeneratedStoryOutline(response.storyOutline);
       setCreatorBrief({
         ...effectiveBrief,
+        discoveryGenre: effectiveBrief.discoveryGenre || normalizedWorld.discoveryGenre || '',
         coreGoal: (response.world.goals.find((goal) => goal.scope === 'world') ?? response.world.goals[0])?.title || effectiveBrief.coreGoal,
         successCondition: response.world.endingConditions.find((ending) => (ending.outcome ?? 'success') === 'success')?.description || effectiveBrief.successCondition,
         failureCondition: response.world.endingConditions.find((ending) => ending.outcome === 'failure')?.description || '',
@@ -2824,7 +2828,7 @@ function CreateWorld({
   onEditCreatorProposal: (change: CreatorChange, value: unknown) => void;
   onDismissCreatorProposal: (change?: CreatorChange) => void;
   onCreatorProposalProblem: (change: CreatorChange, undo?: boolean) => string;
-  onUpdateCreatorBrief: (key: keyof Pick<CreatorBrief, 'coreGoal' | 'successCondition' | 'failureCondition'>, value: string) => void;
+  onUpdateCreatorBrief: (key: keyof Pick<CreatorBrief, 'discoveryGenre' | 'coreGoal' | 'successCondition' | 'failureCondition'>, value: string) => void;
   onComplexity: (value: number) => void;
   onAddCreatorTask: () => void;
   onRemoveCreatorTask: (index: number) => void;
@@ -2922,6 +2926,11 @@ function CreateWorld({
             <section className="creator-framework-panel" aria-label="可编辑的世界框架">
               <div className="framework-heading"><div><small>随时手动修改</small><strong>世界框架</strong></div><span>{creatorBrief.tasks.filter((task) => task.kind === 'main').length} 个主线条件</span></div>
               <label htmlFor="world-title">世界名称</label><Input id="world-title" value={worldTitle} onChange={(event) => onWorldTitle(event.target.value)} placeholder="可以暂时不填" />
+              <label htmlFor="discovery-genre">剧情分类 · Agent 可建议，你也可以修改</label>
+              <select id="discovery-genre" value={(creatorBrief.discoveryGenre || '').split(' · ')[0]} onChange={event => onUpdateCreatorBrief('discoveryGenre', event.target.value + (event.target.value && creatorBrief.discoveryGenre?.includes('热梗名场面') ? ' · 热梗名场面' : ''))}>
+                <option value="">尚未确定</option>{STORY_CATEGORIES.map(category => <option key={category}>{category}</option>)}
+              </select>
+              <label><input type="checkbox" disabled={!creatorBrief.discoveryGenre} checked={!!creatorBrief.discoveryGenre?.includes('热梗名场面')} onChange={event => onUpdateCreatorBrief('discoveryGenre', (creatorBrief.discoveryGenre || '').split(' · ')[0] + (event.target.checked ? ' · 热梗名场面' : ''))} /> 同时收录到热梗名场面</label>
               <label htmlFor="world-seed">世界背景与当下冲突</label><Textarea id="world-seed" value={worldSeed} onChange={(event) => onWorldSeed(event.target.value)} placeholder="写清之前发生了什么，角色们现在面对什么。" />
               <label htmlFor="creator-goal">核心目标</label><Textarea id="creator-goal" value={creatorBrief.coreGoal} onChange={(event) => onUpdateCreatorBrief('coreGoal', event.target.value)} placeholder="体验者最终要做成什么？" />
               <div className="condition-grid"><label htmlFor="success-condition">成功条件<Input id="success-condition" value={creatorBrief.successCondition} onChange={(event) => onUpdateCreatorBrief('successCondition', event.target.value)} placeholder="什么状态才算成功" /></label><label htmlFor="failure-condition">失败条件<Input id="failure-condition" value={creatorBrief.failureCondition} onChange={(event) => onUpdateCreatorBrief('failureCondition', event.target.value)} placeholder="什么时候进入失败结局" /></label></div>

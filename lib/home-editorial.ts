@@ -2,11 +2,11 @@
 export const HOME_EDITORIAL = [
   { key: 'world:emperor-last-decree', title: '刚当上皇帝，百官就请我赴死' },
   { key: 'character:libai-moon-debt:r1', tagline: '这杯酒，敬知己还是买我的沉默？' },
-  { key: 'world:spider-under-table', title: '变成蜘蛛后，我的家在人类桌底' },
+  { key: 'world:spider-under-table', title: '我成了桌底蜘蛛，清洁刷正逼近我的卵' },
   { key: 'world:surrounded-by-beauties', title: '完蛋！我被美女包围了！' },
   { key: 'world:ascension-work-number', title: '飞升了，怎么还要签契约？' },
   { key: 'character:conquest-watermelon:liu', tagline: '瓜摊就在眼前，你打算怎么开口？' },
-  { key: 'world:peach-source', title: '穿进桃花源，他们还以为外面是秦朝' },
+  { key: 'world:peach-source', title: '误入桃花源，第一句话该告诉他们什么？' },
   { key: 'world:rome-three-percent', title: '行李在巴黎，我在罗马，手机只剩 3%' },
 ] as const;
 
@@ -23,8 +23,17 @@ export const HOME_ARTWORK: Record<string, string> = {
 };
 
 export function editorialCopy(key: string): { title?: string; tagline?: string } | undefined {
-  return CHARACTER_INVITATIONS[key] ?? HOME_EDITORIAL.find(item => item.key === key);
+  return CHARACTER_INVITATIONS[key] ?? WORLD_INVITATIONS[key] ?? HOME_EDITORIAL.find(item => item.key === key);
 }
+
+/** Reviewed against public openings; never reveal a private answer or promise an ending. */
+export const WORLD_INVITATIONS: Record<string, { title: string }> = {
+  'world:libai-moon-debt': { title: '李白的酒局：写一首诗，还是卖一次沉默？' },
+  'world:inheritance-night': { title: '遗嘱还没宣读，谁已经坐不住了？' },
+  'world:borrow-arrows': { title: '诸葛亮借二十条船，却不许我告诉周瑜' },
+  'world:campus-three-truths': { title: '同一件事，三份报道：你敢发哪一份？' },
+  'world:moon-parcel': { title: '月球包裹变轻了，同事说质量也少了' },
+};
 
 /** Public, original card invitations — not canonical dialogue or private knowledge. */
 export const CHARACTER_INVITATIONS: Record<string, { tagline: string }> = {

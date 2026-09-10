@@ -126,6 +126,7 @@ export type ScheduledWorldEvent = {
 };
 
 export type WorldDefinition = {
+  discoveryGenre?: string;
   system?: import('./world-system').WorldSystem;
   entryPolicy?: import('./player-persona').EntryPolicy;
   /** Private runtime adaptation; never publish a player's session as the original world. */
@@ -174,6 +175,7 @@ export type CreatorTaskDraft = {
 };
 
 export type CreatorBrief = {
+  discoveryGenre?: string;
   coreGoal: string;
   successCondition: string;
   failureCondition: string;

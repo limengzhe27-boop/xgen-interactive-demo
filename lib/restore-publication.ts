@@ -12,6 +12,7 @@ export function publicationDraft(entry: StudioWorld & { sourceId?: string }) {
       objective: index === 0 ? world.openingScene.narrative : location.description, turningPoint: '' };
   });
   const brief: CreatorBrief = {
+    discoveryGenre: world.discoveryGenre,
     coreGoal: (world.goals.find(goal => goal.scope === 'world') ?? world.goals[0])?.title ?? world.coreEvent,
     successCondition: world.endingConditions.find(ending => (ending.outcome ?? 'success') === 'success')?.description ?? '',
     failureCondition: world.endingConditions.find(ending => ending.outcome === 'failure')?.description ?? '',
