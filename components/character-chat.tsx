@@ -1,13 +1,12 @@
 'use client';
 /* oxlint-disable next/no-img-element -- generated portrait and scene assets */
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, LoaderCircle, RefreshCw, Send, X } from 'lucide-react';
+import { ArrowLeft, LoaderCircle, RefreshCw, Send } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { MessageTextarea } from '@/components/message-textarea';
 import { LocalSpeech } from '@/components/local-speech';
 import { SpeechSequence } from '@/components/speech-sequence';
 import { speechSegments } from '@/lib/speech-sequence';
-import { Sheet, SheetTrigger, SheetContent, SheetTitle, SheetDescription, SheetClose } from '@/components/ui/sheet';
 import { createRemoteAIAdapter } from '@/lib/remote-ai-adapter';
 import { generateSceneImage } from '@/lib/remote-image-service';
 import { shouldGenerateImage } from '@/lib/image-policy';
@@ -80,6 +79,7 @@ export function CharacterChat({ initial, accountScope, onSave, onBack }: { initi
     return () => { live = false; controller.current?.abort(); imageController.current?.abort(); };
   }, [initial.id, initial.imageCacheKey, accountScope]);
   useEffect(() => {
+    if (!session.turns.length) return;
     if (followLatest.current) endRef.current?.scrollIntoView({ behavior: 'auto', block: 'nearest' });
     else setUnread(true);
   }, [session.turns.length]);
@@ -130,11 +130,12 @@ export function CharacterChat({ initial, accountScope, onSave, onBack }: { initi
     finally { if (!aborter.signal.aborted) { setBusy(false); controller.current = null; } }
   }
 
-  return <div className="flow-page meeting-chat conversation-shell"><Sheet>
-    <header className="conversation-header"><button className="flow-control" onClick={onBack} type="button" aria-label="返回"><ArrowLeft /></button><SheetTrigger className="conversation-heading" aria-label={`查看${target.name}的人物与场景`}><img src={session.entry.portraits[target.id] || session.entry.cover} alt="" /><span><strong>{target.name}</strong><small>{session.state.location}</small></span></SheetTrigger><SheetTrigger className="flow-control">人物与场景</SheetTrigger></header>
-    <SheetContent className="flow-drawer" showCloseButton={false}><div className="flow-drawer-heading"><SheetTitle>人物与场景</SheetTitle><SheetClose className="flow-control" aria-label="关闭人物与场景"><X /></SheetClose></div><SheetDescription>与右侧相同的人物资料；这是独立交谈，不要求你完成故事主线。</SheetDescription><div className="conversation-profile-detail">{profile}</div><details><summary>场景插图与生成</summary><img className="meeting-scene" src={image} alt="会面参考插图，不代表实时场景" /><p>当前地点：{session.state.location}</p><small>{imageState || '普通对话复用图片，插图不代表实时场景。'}</small><button className="flow-control" type="button" onClick={() => void makeImage(`${session.entry.world.title}。${session.narrative}。${target.imagePrompt}。电影感场景，无文字，无水印。`, session)} disabled={busy || imageState.startsWith('正在')}><RefreshCw />{imageState.includes('失败') ? '重试场景图' : '生成场景图（可选）'}</button><p>手动生成会调用生图服务并产生费用，打开资料不会生成图片。</p></details></SheetContent>
+  const sceneTools = <section className="conversation-scene-tools"><h3>场景插图</h3><img src={image} alt="会面参考插图，不代表实时场景" /><small>{imageState || '插图为参考，不代表实时场景。'}</small><button className="flow-control" type="button" onClick={() => void makeImage(`${session.entry.world.title}。${session.narrative}。${target.imagePrompt}。电影感场景，无文字，无水印。`, session)} disabled={busy || imageState.startsWith('正在')}><RefreshCw />{imageState.includes('失败') ? '重试场景图' : '生成场景图（可选）'}</button><small>点击生成会调用生图服务并产生费用。</small></section>;
+  return <div className="flow-page meeting-chat conversation-shell">
+    <header className="conversation-header"><button className="flow-control" onClick={onBack} type="button" aria-label="返回"><ArrowLeft /></button><div className="conversation-heading"><img src={session.entry.portraits[target.id] || session.entry.cover} alt="" /><span><strong>{target.name}</strong><small>{session.state.location}</small></span></div></header>
     <div className="conversation-layout"><div className="conversation-main">
     <section ref={messagesRef} className="conversation-messages" aria-label={`与${target.name}的对话记录`} tabIndex={0} onScroll={() => { const area = messagesRef.current; if (area) { followLatest.current = area.scrollHeight - area.scrollTop - area.clientHeight < 80; if (followLatest.current) setUnread(false); } }}>
+      <section className="conversation-inline-profile" aria-label="人物与场景">{profile}{sceneTools}</section>
       <div className="conversation-opening"><div className="conversation-opening-context">{target.name} · {target.identity}<br />{place?.name}：{place?.description}</div>{session.greeting ? <><small>{session.greeting.scene}</small><div className="conversation-line"><img src={session.entry.portraits[target.id] || session.entry.cover} alt="" /><div><strong>{target.name}</strong><p>{session.greeting.text}</p></div></div><LocalSpeech accountScope={accountScope} text={session.greeting.text} /></> : <><small>会面开始</small><p>{session.entry.world.openingScene.narrative}</p><LocalSpeech accountScope={accountScope} text={session.entry.world.openingScene.narrative} /></>}</div>
       {session.turns.map((turn, index) => <article className="studio-chat-turn" key={index}>
         <div className="studio-chat-user" aria-label="你发送的消息"><p>{turn.action}</p></div>
@@ -156,6 +157,6 @@ export function CharacterChat({ initial, accountScope, onSave, onBack }: { initi
         {error && <p role="alert">{error}</p>}
         <small className="conversation-input-hint">Enter 发送 · Shift + Enter 换行</small>
       </form>
-    </div><aside className="conversation-profile" aria-label="人物资料"><img src={session.entry.portraits[target.id] || session.entry.cover} alt={target.name} />{profile}</aside></div></Sheet>
+    </div><aside className="conversation-profile" aria-label="人物资料"><img src={session.entry.portraits[target.id] || session.entry.cover} alt={target.name} />{profile}{sceneTools}</aside></div>
   </div>;
 }

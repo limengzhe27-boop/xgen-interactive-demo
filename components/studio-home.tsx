@@ -161,8 +161,8 @@ export function StudioHome({ section, worlds, characters, recent, onCreate, onOp
         const title = world ? (copy?.title || world.title) : character!.name;
         const open = () => world ? onOpenWorld(world.id) : onChat(character!.worldId, character!.id);
         return <div className="gallery-cell" key={item.kind + ':' + id} data-gallery-id={item.kind + ':' + id}><GalleryReveal delay={(index % 4) * 60}><article className="gallery-card" data-kind={item.kind} aria-label={title}>
-          <button className="gallery-art" style={HOME_ARTWORK[itemKey(item)] ? { aspectRatio: '2 / 3' } : undefined} onClick={open} type="button" aria-label={world ? '进入世界：' + title : '和' + title + '聊聊'}><Artwork src={HOME_ARTWORK[itemKey(item)] || world?.cover || character!.image} alt={world ? title + '的世界封面' : title + '的角色形象'} /></button>
-          <span className="gallery-type">{world ? <Compass /> : <MessageCircleMore />}{world ? world.genre : '角色'}</span>
+          <button className="gallery-art" onClick={open} type="button" aria-label={world ? '进入世界：' + title : '和' + title + '聊聊'}><Artwork src={HOME_ARTWORK[itemKey(item)] || world?.cover || character!.image} alt={world ? title + '的世界封面' : title + '的角色形象'} /></button>
+          <span className="gallery-type">{world ? <Compass /> : <MessageCircleMore />}{world ? '世界 · ' + world.genre : '角色'}</span>
           <div className="gallery-card-copy"><small>{world ? (world.fixedRoleId ? '第一人称 · 固定身份体验' : world.roleCount + ' 个可选身份') : character!.worldTitle}</small><h3>{title}</h3>{character && <p>{copy?.tagline || character.identity}</p>}<div className="gallery-card-actions">{world && <button type="button" className="gallery-detail-button" onClick={() => setDetail(world)} aria-label={'剧情简介：' + title}><BookOpen /></button>}<button type="button" className="gallery-enter" onClick={open}>{world ? '进入世界' : '和 TA 聊聊'}<ArrowRight /></button></div></div>
         </article></GalleryReveal></div>;
       })}</GalleryMasonry>

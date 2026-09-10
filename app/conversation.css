@@ -1,6 +1,10 @@
 .conversation-shell.flow-page { max-width: none; margin: 0; padding: 0; height: 100dvh; min-height: 440px; display: flex; flex-direction: column; background: var(--color-bg); font-family: var(--font-ui); }
 .conversation-header { display: flex; align-items: center; gap: 12px; padding: 12px 24px; border-bottom: 1px solid var(--color-border-soft); flex-shrink: 0; }
-.conversation-header > :last-child { margin-left: auto; }
+.conversation-header .conversation-heading { cursor: default; }
+.conversation-inline-profile { display: none; }
+.conversation-scene-tools { border-top: 1px solid var(--color-border-soft); padding-top: 12px; }
+.conversation-scene-tools img { width: 100%; max-height: 160px; object-fit: cover; border-radius: 8px; }
+.conversation-scene-tools small { display: block; font-size: 12px; color: var(--color-text-muted); }
 .conversation-heading { display: flex; gap: 12px; align-items: center; min-width: 0; text-align: left; border: 0; background: transparent; border-radius: 10px; padding: 0 8px; min-height: 44px; cursor: pointer; }
 .conversation-heading img { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; }
 .conversation-heading span { display: grid; min-width: 0; }
@@ -53,6 +57,13 @@
 .conversation-wait svg { width: 16px; }
 @keyframes conversation-in { from { opacity: 0; } to { opacity: 1; } }
 @media (max-width: 1099px) { .conversation-layout { grid-template-columns: minmax(0, 1fr); } .conversation-profile { display: none; } }
+@media (max-width: 1099px) {
+  .conversation-inline-profile { display: block; border-bottom: 1px solid var(--color-border-soft); padding-bottom: 20px; margin-bottom: 24px; }
+  .conversation-inline-profile h2 { font-size: 18px; margin: 0; }
+  .conversation-inline-profile h3 { font-size: 14px; color: var(--color-text-muted); margin-bottom: 4px; }
+  .conversation-inline-profile p { font-size: 15px; line-height: 1.8; margin-top: 4px; }
+  .conversation-opening-context { display: none; }
+}
 @media (max-width: 600px) {
   .conversation-shell.flow-page { padding: 0; }
   .conversation-header { padding: 8px 12px; gap: 4px; }
