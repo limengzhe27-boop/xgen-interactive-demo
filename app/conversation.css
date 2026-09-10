@@ -79,7 +79,8 @@
 /* Personal Agent reuses the character conversation viewport and composer. */
 .companion-chat-turn { margin: 0 0 24px; min-width: 0; }
 .companion-chat-turn p { margin: 0; font: 16px/1.8 var(--font-ui); white-space: pre-wrap; overflow-wrap: anywhere; }
-.companion-chat .studio-chat-user { margin-bottom: 0; background: var(--color-surface-hover); }
+.companion-chat .studio-chat-user { max-width: 70%; margin-bottom: 0; background: var(--color-surface-hover); }
+.companion-answer { width: fit-content; max-width: 70%; padding: 10px 16px; border-radius: 4px 16px 16px 16px; background: var(--color-bg-elevated); }
 .companion-speaker { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--color-primary); margin-bottom: 8px; }
 .companion-speaker svg { width: 24px; height: 24px; }
 .companion-turn-tools { display: flex; align-items: center; gap: 4px; min-height: 44px; }
@@ -100,8 +101,8 @@
 .companion-persona-heading img { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; }
 .companion-profile .personal-privacy { margin-top: 16px; }
 .companion-chat .conversation-heading > svg { color: var(--color-primary); }
-.companion-chat .conversation-messages { padding-inline: clamp(20px, 3vw, 56px); }
-.companion-chat .conversation-composer { padding-inline: clamp(20px, 3vw, 56px); }
+.companion-chat .conversation-messages { padding-inline: max(24px, calc((100% - 920px) / 2)); }
+.companion-chat .conversation-composer { padding-inline: max(24px, calc((100% - 920px) / 2)); }
 .companion-profile-fields { margin-top: 12px; }
 .companion-profile .companion-profile-field { display: flex; gap: 2px; margin: 8px 0; min-width: 0; font-size: 14px; }
 .companion-profile-field > span:first-child { flex-shrink: 0; color: var(--color-text-muted); }
@@ -110,4 +111,5 @@
 @media (max-width: 600px) {
   .companion-chat .conversation-messages { padding-inline: 16px; }
   .companion-chat .conversation-composer { padding-inline: 12px; }
+  .companion-chat .studio-chat-user, .companion-answer { max-width: 85%; }
 }

@@ -246,13 +246,13 @@
 .creation-flow.flow-page { height: 100dvh; min-height: 440px; max-width: none; margin: 0; padding: 0 32px; display: flex; flex-direction: column; }
 .studio-frame:has(.creation-flow) > .account-bar { display: none; }
 .creation-flow .flow-toolbar { flex-shrink: 0; padding: 12px 0; margin: 0; }
-.creation-flow .creator-agent-panel { position: static; width: min(100%, 1200px); flex: 1; min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; padding: 0; background: transparent; border: 0; box-shadow: none; }
+.creation-flow .creator-agent-panel { position: static; width: min(100%, 920px); flex: 1; min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; padding: 0; background: transparent; border: 0; box-shadow: none; }
 .creation-flow .creator-agent-heading { margin: 0; padding: 8px 8px 12px; }
 .creation-flow .creator-agent-heading strong { font: 500 1.2rem/1.7 var(--font-ui); overflow-wrap: anywhere; }
 .creation-flow .creator-conversation { display: block; min-height: 0; max-height: none; margin: 0; padding: 20px 8px; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
-.creation-flow .creator-conversation > p { max-width: 100%; display: block; margin: 0 0 24px; padding: 0; border: 0; background: transparent; font: 16px/1.8 var(--font-ui); white-space: pre-wrap; overflow-wrap: anywhere; }
+.creation-flow .creator-conversation > p { width: fit-content; max-width: 70%; display: block; margin: 0 0 24px; padding: 10px 16px; border: 0; border-radius: 4px 18px 18px 18px; background: var(--color-bg-elevated); font: 16px/1.8 var(--font-ui); white-space: pre-wrap; overflow-wrap: anywhere; }
 .creation-flow .creator-conversation > p small { display: block; font-size: 13px; margin-bottom: 8px; }
-.creation-flow .creator-conversation > p[data-role=creator] { width: fit-content; max-width: 88%; margin-left: auto; padding: 10px 16px; background: var(--color-surface-hover); border-radius: 18px 18px 4px 18px; }
+.creation-flow .creator-conversation > p[data-role=creator] { margin-left: auto; background: var(--color-surface-hover); border-radius: 18px 18px 4px 18px; }
 .creation-flow .creator-question-chips { margin: 8px 0; }
 .creation-compose-area { padding: 8px 8px calc(32px + env(safe-area-inset-bottom)); max-height: 45dvh; overflow-y: auto; }
 .creation-flow .creator-composer { position: static; display: flex; align-items: end; gap: 8px; padding: 8px; margin: 0; border: 1px solid var(--color-border); border-radius: 18px; background: var(--color-bg-elevated); box-shadow: none; }
@@ -308,6 +308,7 @@
   .creation-flow .creator-agent-heading strong { font-size: 1.25rem; }
   .creation-flow.flow-page { padding: 0 12px; }
   .creation-flow .creator-conversation { padding-inline: 4px; }
+  .creation-flow .creator-conversation > p { max-width: 85%; }
   .creation-compose-area { padding: 8px 0 calc(22px + env(safe-area-inset-bottom)); }
   .creation-next { flex-wrap: wrap; }
   .creator-settings-drawer .draft-role { grid-template-columns: minmax(0, 1fr); }
