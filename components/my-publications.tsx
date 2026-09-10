@@ -7,8 +7,9 @@ import type { StudioWorld } from '@/lib/studio-worlds';
 import { PublicationActivity } from '@/components/publication-activity';
 
 type Publication = { id: string; document: StudioWorld & { sourceId?: string }; published: boolean; updated_at: string };
-export function MyPublications({ accountScope, drafts, onEdit, onDelete, onRestore, onChanged }: {
+export function MyPublications({ accountScope, drafts, onEdit, onDelete, onRestore, onRestoreEdition, onChanged }: {
   accountScope: string; drafts: { id: string; title: string }[]; onEdit: (id: string) => void; onDelete: (id: string) => void; onRestore: (entry: StudioWorld & { sourceId?: string }) => void; onChanged: () => void;
+  onRestoreEdition: (entry: StudioWorld, edition: number) => void;
 }) {
   const [rows, setRows] = useState<Publication[]>([]);
   const [loading, setLoading] = useState(true);
@@ -60,7 +61,7 @@ export function MyPublications({ accountScope, drafts, onEdit, onDelete, onResto
         {drafts.some(draft => draft.id === (row.document.sourceId || row.document.id)) ? <Button variant="outline" disabled={!!busy} onClick={() => onEdit(row.document.sourceId || row.document.id)}>编辑草稿</Button>
           : <Button variant="outline" disabled={!!busy} onClick={() => { if (window.confirm('从公开版本恢复一份本机草稿，不包含原来的私人讨论。不会立即修改公开作品，继续？')) onRestore(row.document); }}>恢复并编辑</Button>}
         <Button variant="outline" disabled={!!busy || (!row.published && !canPublish)} onClick={() => void change(row)}>{busy === row.id ? '处理中…' : row.published ? '下架' : '重新发布'}</Button>
-      </div><PublicationActivity key={`${accountScope}:${row.id}:${row.updated_at}`} id={row.id} accountScope={accountScope}/></article>)}
+      </div><PublicationActivity key={`${accountScope}:${row.id}:${row.updated_at}`} id={row.id} accountScope={accountScope} onRestore={onRestoreEdition}/></article>)}
       {!canPublish && accountScope !== 'guest' && !loading && <p>新增发布与重新发布仍在验收；已有作品可以下架。</p>}
       {error && <p role="alert">{error}</p>}
       {accountScope !== 'guest' && <Button variant="ghost" disabled={loading || !!busy} onClick={() => setRevision(value => value + 1)}>刷新公开版本</Button>}

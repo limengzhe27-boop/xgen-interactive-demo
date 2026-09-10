@@ -47,7 +47,7 @@ import { captureGalleryPosition, type GalleryBrowseState, type GalleryPosition }
 import { AccountBar, PublishWorldDialog } from '@/components/account-publication';
 import { MyPublications } from '@/components/my-publications';
 import { RequestStoryUpdate } from '@/components/request-story-update';
-import { publicationDraft } from '@/lib/restore-publication';
+import { publicationDraft, historicalPublicationDraft } from '@/lib/restore-publication';
 import { appendStory, continuationSummary, type ContinuationDraft } from '@/lib/story-continuation';
 import { AccountBoundary } from '@/components/account-boundary';
 import { CloudWorkspace } from '@/components/cloud-workspace';
@@ -2540,6 +2540,16 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     }catch(error){setCreatorChangeNotice(error instanceof Error?error.message:'另存失败，原草稿未改变。');}
   }
 
+  function restorePublishedEdition(entry: StudioWorld, edition: number) {
+    if (!storageReady || storageReadFailed.current) throw new Error('本机存档尚未就绪，请稍后重试。');
+    const doc: CreatorDocument = historicalPublicationDraft(entry, edition);
+    const documents = upsertById(creatorDocuments, doc);
+    // Persist before navigating, so quota/storage failure cannot report success.
+    persistStudioSnapshot({ version: 1, runs: savedRuns, chats: chatSessions, documents, draftId: doc.id });
+    setCreatorDocuments(documents);
+    editCreator(doc);
+  }
+
   function restorePendingCreator(value: unknown) {
     const session = restoreCreatorSession(value);
     setContinuation(session.continuation);
@@ -2764,7 +2774,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       }} />}
       {storageError && <p className="studio-storage-error" role="alert">{storageError}</p>}
       {(view === 'play' || view === 'ending') && activeLibrary?.world.entryAdmission && <p className="persona-runtime">{activeLibrary.world.entryAdmission.mode === 'newcomer' ? `你是新加入的 ${selectedRole.name}，原角色仍在这个世界中` : `旧会话：${selectedRole.name} 代入 ${activeLibrary.world.entryAdmission.originalName}`} · 额外能力：{activeLibrary.world.entryAdmission.grantedAbilities.join('；') || '无'}。这是独立会话，原世界未改变。</p>}
-      {view === 'library' && <MyPublications key={accountScope} accountScope={accountScope} drafts={creatorDocuments.map(doc => ({ id: doc.id, title: doc.data.worldTitle }))} onDelete={deleteCreator} onEdit={id => { const doc = creatorDocuments.find(item => item.id === id); if (doc) editCreator(doc); }} onRestore={entry => { const doc = publicationDraft(entry); setCreatorDocuments(current => upsertById(current, doc)); editCreator(doc); }} onChanged={() => setCatalogRevision(value => value + 1)} />}
+      {view === 'library' && <MyPublications key={accountScope} accountScope={accountScope} drafts={creatorDocuments.map(doc => ({ id: doc.id, title: doc.data.worldTitle }))} onDelete={deleteCreator} onEdit={id => { const doc = creatorDocuments.find(item => item.id === id); if (doc) editCreator(doc); }} onRestore={entry => { const doc = publicationDraft(entry); setCreatorDocuments(current => upsertById(current, doc)); editCreator(doc); }} onRestoreEdition={restorePublishedEdition} onChanged={() => setCatalogRevision(value => value + 1)} />}
       {screen}
       {publicationNotice && <p className="account-bar" role="status">{publicationNotice}</p>}
       {publicationEntry && <PublishWorldDialog accountScope={accountScope} entry={publicationEntry} onClose={() => setPublicationEntry(null)} onPublished={acceptPublicEdition} />}

@@ -1,6 +1,15 @@
 import type { CreatorBrief, CreatorChatMessage, StoryOutlineBeat } from './ai-contracts';
 import type { StudioWorld } from './studio-worlds';
 
+// A historical revision becomes an independent draft, never an implicit rollback
+// or a replacement for the author's current work. Do not retain sourceId.
+export function historicalPublicationDraft(entry: StudioWorld, edition: number, id = crypto.randomUUID()) {
+  const copy = structuredClone(entry);
+  const draft = publicationDraft({ ...copy, sourceId: undefined, id, edition: undefined, world: { ...copy.world, id } });
+  return { ...draft, data: { ...draft.data, publishedWorld: false, releasedEntry: undefined, releaseHistory: [],
+    creatorMessages: [{ role: 'agent', content: `已将发布版 ${edition} 恢复为新草稿。可以继续修改或追加剧情；原草稿、公开版本和玩家存档都没有改变。` }] as CreatorChatMessage[] } };
+}
+
 // Restore only the published fiction, never invent the author's original discussion.
 export function publicationDraft(entry: StudioWorld & { sourceId?: string }) {
   const world = structuredClone(entry.world);

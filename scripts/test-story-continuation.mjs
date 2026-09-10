@@ -2,11 +2,25 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { appendStory, continuationSummary } from '../lib/story-continuation.ts';
 import { publicationWorld } from '../lib/publication.ts';
-import { publicationDraft } from '../lib/restore-publication.ts';
+import { publicationDraft, historicalPublicationDraft } from '../lib/restore-publication.ts';
 import { restoreCreatorSession } from '../lib/creator-session.ts';
 import { studioWorlds } from '../lib/studio-worlds.ts';
 
 const base = publicationWorld(studioWorlds[0].world);
+test('historical published revision restores independently without overwriting source or exposing old chat', () => {
+  const original = { ...structuredClone(studioWorlds[0]), sourceId: 'current-draft' };
+  const snapshot = structuredClone(original);
+  const draft = historicalPublicationDraft(original, 2, 'separate-draft');
+  assert.deepEqual(original, snapshot);
+  assert.equal(draft.id, 'separate-draft');
+  assert.equal(draft.data.generatedWorld.id, 'separate-draft');
+  assert.equal(draft.data.publishedWorld, false);
+  assert.equal(draft.data.releasedEntry, undefined);
+  assert.deepEqual(draft.data.releaseHistory, []);
+  assert.deepEqual(draft.data.generatedWorld.characters, original.world.characters);
+  assert.equal(draft.data.creatorMessages.length, 1);
+  assert.match(draft.data.creatorMessages[0].content, /发布版 2/);
+});
 const proposal = () => {
   const next = structuredClone(base);
   next.tasks.push({ ...next.tasks[0], id: 'sequel-task', title: '后续线索', prerequisiteTaskIds: [next.tasks.at(-1).id] });

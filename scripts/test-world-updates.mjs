@@ -21,7 +21,14 @@ test('update requests require authenticated scope, enforce ownership for history
     assert.equal(JSON.parse(state.calls.at(-1).init.body).p_requester, 'reader');
     assert.equal((await route.GET(req('GET', null, 'reader', `?id=${id}`))).status, 404);
     assert.ok(!state.calls.some(call => call.path.includes('demo_world_editions')));
+    assert.equal((await route.GET(req('GET', null, 'reader', `?id=${id}&edition=1`))).status, 404);
+    assert.ok(!state.calls.some(call => call.path.includes('demo_world_editions')));
     state.user = { id: 'author' };
+    const history = await route.GET(req('GET', null, 'author', `?id=${id}&edition=1`));
+    assert.equal(history.status, 200);
+    assert.equal((await history.json()).edition.edition, 1);
+    assert.match(state.calls.at(-1).path, /edition=eq.1&select=edition,saved_at,document&limit=1/);
+    assert.equal((await route.GET(req('GET', null, 'author', `?id=${id}&edition=1%26select=*`))).status, 400);
     assert.equal((await route.GET(req('GET', null, 'author', `?id=${id}&before=10`))).status, 200);
     assert.match(state.calls.at(-1).path, /edition=lt.10/);
     assert.equal((await route.GET(req('GET', null, 'author', `?id=${id}&before=1%26select=*`))).status, 400);

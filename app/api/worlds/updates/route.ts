@@ -31,6 +31,13 @@ async function handle(request: Request, write: boolean) {
       if (!/^[a-f0-9]{64}$/.test(id)) return reply({ error: 'invalid_request' }, 400);
       const owned = await storageFetch(`/rest/v1/demo_world_publications?id=eq.${id}&owner_id=eq.${encodeURIComponent(user.id)}&select=id`);
       if (!(await owned.json() as unknown[]).length) return reply({ error: 'not_found' }, 404);
+      const edition = query.get('edition');
+      if (edition !== null) {
+        if (!/^[1-9][0-9]{0,8}$/.test(edition)) return reply({ error: 'invalid_request' }, 400);
+        const response = await storageFetch(`/rest/v1/demo_world_editions?publication_id=eq.${id}&edition=eq.${edition}&select=edition,saved_at,document&limit=1`);
+        const rows = await response.json() as unknown[];
+        return rows.length ? reply({ edition: rows[0] }) : reply({ error: 'not_found' }, 404);
+      }
       const before = query.get('before');
       if (before && !/^[1-9][0-9]{0,8}$/.test(before)) return reply({ error: 'invalid_request' }, 400);
       const response = await storageFetch(`/rest/v1/demo_world_editions?publication_id=eq.${id}&select=edition,saved_at,document->>title&order=edition.desc&limit=10${before ? `&edition=lt.${before}` : ''}`);
