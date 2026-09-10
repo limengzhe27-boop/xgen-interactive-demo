@@ -1,6 +1,7 @@
 import type { StudioWorld } from './studio-worlds';
 import type { WorldState } from './world-state';
 import { appendStory } from './story-continuation.ts';
+import { migrateWorldState } from './world-state-migration';
 
 function canonical(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
@@ -22,6 +23,7 @@ export function storyUpgrade(current: StudioWorld, latest?: StudioWorld) {
 export function applyStoryUpgrade(current: StudioWorld, latest: StudioWorld, state: WorldState): WorldState {
   const upgrade = storyUpgrade(current, latest);
   if (!upgrade) throw Error('这版内容改动了原有设定，暂不能直接接入旧存档。原进度保持不变。');
+  state = migrateWorldState(state, current.world);
   const changedEndings = new Set(current.world.endingConditions.filter(old => {
     const next = upgrade.entry.world.endingConditions.find(e=>e.id===old.id);
     return next && canonical(old)!==canonical(next);

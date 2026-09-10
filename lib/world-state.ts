@@ -29,6 +29,8 @@ export type EventRecord = {
 };
 
 export type WorldState = {
+  schemaVersion?: 2;
+  stalledTurns?: number;
   rolePerspectives?: Record<string, Pick<WorldState, 'inventory' | 'clues' | 'knownSecrets' | 'relationshipTrust' | 'relationshipChanges' | 'eventLedger'>>;
   turn: number;
   clock: string;
@@ -43,7 +45,7 @@ export type WorldState = {
   completedTaskIds: string[];
   failedTaskIds: string[];
   taskNotes: Record<string, string>;
-  characterStates: Record<string, { locationId?: string; status?: string; lastAction?: string }>;
+  characterStates: Record<string, { locationId?: string; status?: string; lastAction?: string; lastUpdatedTurn?: number }>;
   relationshipTrust: number;
   /** Change since entry, per NPC; zero is no recorded change, not automatic trust. */
   relationshipChanges?: Record<string, number>;
@@ -180,6 +182,9 @@ export function validateAction(action: string, state: WorldState, listedChoices:
 }
 
 export function commitTurn(state: WorldState, input: CommitTurnInput): WorldState {
+  const progressed = (input.committedFacts??[]).some(f => !(state.committedFacts??[]).includes(f))
+    || (input.completeTaskIds??[]).some(id => !state.completedTaskIds.includes(id))
+    || (input.failTaskIds??[]).some(id => !state.failedTaskIds.includes(id));
   const relationshipChanges = { ...state.relationshipChanges };
   for (const [id, delta] of Object.entries(input.relationshipDeltas ?? {})) {
     if (!Object.hasOwn(state.characterStates, id) || !Number.isFinite(delta)) continue;
@@ -199,6 +204,8 @@ export function commitTurn(state: WorldState, input: CommitTurnInput): WorldStat
   }] : [];
   return {
     ...state,
+    schemaVersion: 2,
+    stalledTurns: progressed ? 0 : (state.stalledTurns??0) + 1,
     turn: nextTurn,
     clock: input.clock || (clockMinutes !== null
       ? `${Math.floor(clockMinutes / 60).toString().padStart(2, '0')}:${(clockMinutes % 60).toString().padStart(2, '0')}`
@@ -220,7 +227,7 @@ export function commitTurn(state: WorldState, input: CommitTurnInput): WorldStat
       ...state.characterStates,
       ...Object.fromEntries(Object.entries(input.characterUpdates ?? {}).map(([characterId, update]) => [
         characterId,
-        { ...state.characterStates?.[characterId], ...update },
+        { ...state.characterStates?.[characterId], ...update, lastUpdatedTurn: nextTurn },
       ])),
     },
     relationshipTrust: Math.max(12, Math.min(92, state.relationshipTrust + input.relationshipDelta + (input.incident?.relationshipDelta ?? 0))),

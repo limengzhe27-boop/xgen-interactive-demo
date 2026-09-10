@@ -16,10 +16,11 @@ import { StoryUpdateNotice } from '@/components/story-update-notice';
 import { RequestStoryUpdate } from '@/components/request-story-update';
 import { useRecordPlay } from '@/components/play-counts';
 import { publicationWorld } from '@/lib/publication';
+import { migrateWorldState } from '@/lib/world-state-migration';
 import { commitVideoTurn, initialVideoRole, threeChoices, videoErrors, videoMotionPrompt, videoTurnRequest, type VideoChoice } from '@/lib/video-exploration';
 
-type Pending={input:FalVideoInput;response:WorldTurnResponse;action:string;id?:string;assetUrl?:string};
-type Session={version:1;id:string;roleId:string;state:WorldState|null;narrative:string;choices:VideoChoice[];clip:string;rounds:number;worldSnapshot?:StudioWorld;pending?:Pending;finished?:boolean;clips?:{url:string;action:string}[]};
+type Pending={input:FalVideoInput;response:WorldTurnResponse;action:string;id?:string;assetUrl?:string;startedAt?:number};
+type Session={version:1;id:string;roleId:string;state:WorldState|null;narrative:string;choices:VideoChoice[];clip:string;rounds:number;worldSnapshot?:StudioWorld;pending?:Pending;draftAction?:string;finished?:boolean;clips?:{url:string;action:string}[]};
 type Phase='intro'|'roles'|'choices'|'planning'|'generating'|'ready'|'playing'|'error';
 type MediaReply={id?:string;status:string;error?:string;assetUrl?:string};
 export function VideoExplorer({entry:latestEntry,onBack,onText}:{entry:StudioWorld;onBack?:()=>void;onText?:()=>void}){
@@ -34,6 +35,8 @@ export function VideoExplorer({entry:latestEntry,onBack,onText}:{entry:StudioWor
   const [enabled,setEnabled]=useState(false),[paused,setPaused]=useState(false),[seconds,setSeconds]=useState(15),[text,setText]=useState(''),[focused,setFocused]=useState(false);
   const [visible,setVisible]=useState(true),[error,setError]=useState(''),[loading,setLoading]=useState(true);
   const [saveError,setSaveError]=useState(''),[waitSeconds,setWaitSeconds]=useState(0);
+  const [waitingNote,setWaitingNote]=useState(''),[online,setOnline]=useState(true);
+  const startedAt=useRef(0);
   const embedded=Boolean(onBack);
   useEffect(()=>{
     if(!embedded)return;
@@ -49,7 +52,9 @@ export function VideoExplorer({entry:latestEntry,onBack,onText}:{entry:StudioWor
   },[entry.id,embedded]);
   useEffect(()=>{
     if(phase!=='planning'&&phase!=='generating')return;
-    const start=Date.now();const timer=setInterval(()=>setWaitSeconds(Math.floor((Date.now()-start)/1000)),1000);
+    const start=current.current.pending?.startedAt||startedAt.current||Date.now();
+    const update=()=>setWaitSeconds(Math.max(0,Math.floor((Date.now()-start)/1000)));
+    update();const timer=setInterval(update,1000);
     return()=>clearInterval(timer);
   },[phase]);
   const player=useRef<HTMLVideoElement>(null),frame=useRef<string|null>(null),busy=useRef(false),alive=useRef(true),controller=useRef<AbortController|null>(null);
@@ -84,10 +89,13 @@ export function VideoExplorer({entry:latestEntry,onBack,onText}:{entry:StudioWor
             &&typeof candidate.clip==='string'&&(candidate.clip===''||candidate.clip.startsWith('/assets/prologues/')||/^\/api\/media\/asset\/[a-f0-9]{64}$/.test(candidate.clip)))restored={...candidate,worldSnapshot:savedEntry};
         }catch{/* Invalid/old pilot data is ignored. */}
         if(restored){
+          restored={...restored,state:migrateWorldState(restored.state!,restored.worldSnapshot?.world)};
+          setText(restored.draftAction??restored.pending?.action??'');
           if(restored.worldSnapshot?.id===latestEntry.id)setEntry(restored.worldSnapshot);
           // An old unplayed universal intro is not valid for another character.
           if(entry.id==='yoga-lotus-boundary'&&restored.roleId!=='lin'&&restored.rounds===0&&restored.clip===prologue.video)restored={...restored,clip:''};
-          current.current=restored;setSession(restored);setPhase(restored.pending?'error':restored.clip?'playing':'choices');setPaused(true);if(restored.pending)setError('已恢复尚未完成的回合。点击恢复查询，不会重新购买视频。');}
+          current.current=restored;setSession(restored);setPhase(restored.pending?'error':restored.clip?'playing':'choices');setPaused(true);
+          if(restored.pending)setError(restored.pending.assetUrl?'视频已保存，点击播放即可继续，无需重新生成。':'已找回未完成的回合。恢复将复用原回合编号，不另建视频任务。');}
         else{setSession(s=>({...s,id:crypto.randomUUID()}));}
         const r=await fetch('/api/fal-video',{headers:{'x-xgen-account':id},cache:'no-store',signal:stop.signal});
         if(!r.ok)throw Error('已读取本机进度，但视频服务状态暂时无法查询');
@@ -98,6 +106,11 @@ export function VideoExplorer({entry:latestEntry,onBack,onText}:{entry:StudioWor
     })();
     return()=>{alive.current=false;stop.abort();controller.current?.abort();};
   },[latestEntry.id,latestEntry.world.characters]);
+  useEffect(()=>{
+    const update=()=>setOnline(navigator.onLine);
+    update();window.addEventListener('online',update);window.addEventListener('offline',update);
+    return()=>{window.removeEventListener('online',update);window.removeEventListener('offline',update);};
+  },[]);
   useEffect(()=>{
     const update=()=>setVisible(document.visibilityState==='visible'&&document.hasFocus());
     update();document.addEventListener('visibilitychange',update);window.addEventListener('focus',update);window.addEventListener('blur',update);
@@ -147,6 +160,8 @@ export function VideoExplorer({entry:latestEntry,onBack,onText}:{entry:StudioWor
     if(!pending.id)throw Error('没有可查询的任务编号');
     const deadline=Date.now()+300_000;
     while(Date.now()<deadline){
+      if(!navigator.onLine)throw Error('网络已断开。任务与原进度已保留，联网后可恢复查询。');
+      setWaitingNote('正在查询原任务；离开等待不会取消已提交的生成。');
       const r=await fetch(`/api/fal-video?id=${pending.id}`,{headers:{'x-xgen-account':scope!},signal,cache:'no-store'});
       const body=await r.json() as MediaReply;if(!r.ok)throw Error(videoErrors[body.error??'']??'任务查询暂时失败，可以恢复查询，不能重复购买。');
       if(body.status==='ready'){
@@ -154,12 +169,15 @@ export function VideoExplorer({entry:latestEntry,onBack,onText}:{entry:StudioWor
         save({...current.current,clip:body.assetUrl,pending:{...pending,assetUrl:body.assetUrl}});setPhase('ready');return;
       }
       if(body.status==='failed'||body.status==='reserved')throw Error(videoErrors[body.error??body.status]??videoErrors.failed);
+      setWaitingNote('服务端尚未返回成片，正在排队或生成。暂无可靠的剩余时间。');
       await new Promise<void>((resolve,reject)=>{const abort=()=>{clearTimeout(timer);reject(new DOMException('Aborted','AbortError'));};const timer=setTimeout(()=>{signal.removeEventListener('abort',abort);resolve();},2000);signal.addEventListener('abort',abort,{once:true});});
     }
     throw Error('生成仍未完成，已暂停查询。可稍后恢复，不会重复购买。');
   }
   async function submit(pending:Pending,signal:AbortSignal){
+    if(pending.assetUrl){save({...current.current,clip:pending.assetUrl});setPhase('ready');return;}
     if(!pending.id){
+      setWaitingNote('正在确认本回合任务，恢复时复用同一编号。');
       const r=await fetch('/api/fal-video',{method:'POST',headers:{'Content-Type':'application/json','x-xgen-account':scope!},body:JSON.stringify(pending.input),signal});
       const body=await r.json() as MediaReply;
       if(body.id){pending={...pending,id:body.id};save({...current.current,pending});}
@@ -172,25 +190,34 @@ export function VideoExplorer({entry:latestEntry,onBack,onText}:{entry:StudioWor
     if(busy.current||!enabled||!scope||!s.state||!action.trim()||s.finished||s.pending)return;
     // Fresh first-person continuations require a real decoded last frame, never a poster fallback.
     if(s.clip&&(s.rounds>0||entry.fixedRoleId)&&!frame.current){setError('未能读取末帧，请完整重播当前片段后再选择。没有提交生成。');setPaused(true);return;}
-    busy.current=true;setError('');setWaitSeconds(0);setPhase('planning');const abort=new AbortController();controller.current=abort;
+    busy.current=true;setText(action);setError('');startedAt.current=Date.now();setWaitSeconds(0);setWaitingNote('正在根据你的行动编排下一段；此时尚未提交视频。');setPhase('planning');const abort=new AbortController();controller.current=abort;
+    save({...s,draftAction:action});
     try{
       const response=await createRemoteAIAdapter(scope).advanceWorld(videoTurnRequest(entry,s.roleId,s.state,s.narrative,s.choices,action),abort.signal);
       if(!alive.current||abort.signal.aborted)return;
       const prompt=videoMotionPrompt(entry,s.roleId,s.state,response,!!frame.current);
-      const pending:Pending={input:{confirmed:true,turnKey:`${s.id}:${s.state.turn}`,prompt,frame:frame.current},response,action};
-      save({...s,pending});setWaitSeconds(0);setPhase('generating');await submit(pending,abort.signal);setText('');
+      const pending:Pending={input:{confirmed:true,turnKey:`${s.id}:${s.state.turn}`,prompt,frame:frame.current},response,action,startedAt:startedAt.current};
+      // Persist the exact request BEFORE any potentially billable submission.
+      if(!storageKey)throw Error('未能确定保存位置，尚未提交视频。');
+      const next={...s,pending,draftAction:action,worldSnapshot:s.worldSnapshot??entry};
+      sessionStorage.setItem(storageKey,JSON.stringify(next));
+      save(next);setWaitSeconds(0);setPhase('generating');await submit(pending,abort.signal);setText('');
     }catch(e){if(alive.current&&!abort.signal.aborted){setError(e instanceof Error?e.message:'生成失败');setPhase('error');setPaused(true);}}
     finally{busy.current=false;}
   }
   async function resume(){
-    if(busy.current||!current.current.pending||!scope)return;
+    if(busy.current||!current.current.pending||!scope||!online)return;
     busy.current=true;setError('');setPhase('generating');const abort=new AbortController();controller.current=abort;
     try{await submit(current.current.pending,abort.signal);}catch(e){if(alive.current&&!abort.signal.aborted){setError(e instanceof Error?e.message:'查询失败');setPhase('error');}}finally{busy.current=false;}
+  }
+  function pauseWaiting(){
+    controller.current?.abort();setPaused(true);setPhase('error');
+    setError(current.current.pending?'已暂停本页查询，后台任务未取消。可稍后恢复同一回合。':'已停止等待剧情编排，尚未提交视频。行动文字已保留，可重新提交。');
   }
   function playing(){
     const s=current.current,p=s.pending;
     if(p?.assetUrl&&s.state){save({...s,state:commitVideoTurn(entry,s.roleId,s.state,p.action,p.response),narrative:p.response.narrative,choices:threeChoices(p.response.nextChoices),
-      rounds:s.rounds+1,clips:[...(s.clips??[]),{url:p.assetUrl,action:p.action}],pending:undefined,finished:p.response.ending.reached});}
+      rounds:s.rounds+1,clips:[...(s.clips??[]),{url:p.assetUrl,action:p.action}],pending:undefined,draftAction:undefined,finished:p.response.ending.reached});setText('');}
     setPhase('playing');
   }
   const autoAction=useRef(()=>{});
@@ -222,10 +249,11 @@ export function VideoExplorer({entry:latestEntry,onBack,onText}:{entry:StudioWor
         <p>开启后，将本世界的可见剧情、角色外观与视频末帧交给 fal；不发送个人资料、私人聊天或角色秘密。视频存入本账号私人空间。</p>
         <button disabled={loading||!configured} onClick={()=>{setEnabled(true);setPaused(false);setSeconds(15);if(!session.clip)ended();else if(player.current?.ended)ended();}}>{loading?'检查连接中…':configured?'开启视频探索（会使用 fal 额度）':'fal 尚未就绪'}</button>
       </div>}
-      {(enabled||active)&&<>
-        <div className="video-explorer-status"><span>{phase==='planning'?`正在编排剧情 · 已等待 ${waitSeconds} 秒`:phase==='generating'?`正在生成并检查视频 · 已等待 ${waitSeconds} 秒`:phase==='ready'?'新片就绪，点击播放继续':session.finished?'当前剧情已体验完':active?`${phase==='roles'?'选择体验角色':'接下来怎么做'} · ${ticking?`${seconds}秒后自动选择第一项`:'自动选择已暂停'}`:'正在播放，结束后在这里选择'}</span>
+      {(enabled||active||phase==='generating'||phase==='ready')&&<>
+        <div className="video-explorer-status"><span>{phase==='planning'?`正在编排剧情 · 已等待 ${waitSeconds} 秒`:phase==='generating'?`等待成片 · 本回合已用 ${waitSeconds} 秒`:phase==='ready'?'新片就绪，点击播放继续':session.finished?'当前剧情已体验完':active?`${phase==='roles'?'选择体验角色':'接下来怎么做'} · ${ticking?`${seconds}秒后自动选择第一项`:'自动选择已暂停'}`:'正在播放，结束后在这里选择'}</span>
           {active&&enabled&&!session.pending&&!session.finished&&<button onClick={()=>{setPaused(!paused);setSeconds(15);}} aria-label={paused?'恢复自动选择':'暂停自动选择'}>{paused?<Play size={16}/>:<Pause size={16}/>} {paused?'恢复计时':'暂停计时'}</button>}
         </div>
+        {(phase==='planning'||phase==='generating')&&<div aria-live="polite"><p>{waitingNote}</p><button onClick={pauseWaiting}>暂时停止等待</button></div>}
         {phase==='roles'&&<div className="video-explorer-choices">{roles.map((role,i)=><button disabled={loading} key={role.id} onClick={()=>selectRole(role.id)}><strong>{role.name}{i===0?' · 默认':''}</strong><span>{role.identity}</span></button>)}</div>}
         {session.roleId&&session.rounds===0&&!session.state?.rolePerspectives&&characterRecap(entry.world,session.roleId).length>0&&<div aria-label="角色专属前情">{characterRecap(entry.world,session.roleId).map((fact,i)=><p key={i}>{fact}</p>)}</div>}
         {(phase==='choices'||phase==='error'&&!session.pending)&&session.state&&!session.finished&&<>
@@ -238,7 +266,8 @@ export function VideoExplorer({entry:latestEntry,onBack,onText}:{entry:StudioWor
       {error&&<p role="alert">{error}</p>}
       {session.finished&&<RequestStoryUpdate key={`${scope}:${entry.id}`} worldId={entry.id} accountScope={scope??'pending'}/>}
       {saveError&&<p role="alert">{saveError}</p>}
-      {session.pending&&phase==='error'&&<button onClick={()=>void resume()}>恢复本回合查询（不重新购买）</button>}
+      {!online&&<p role="status">当前离线，联网后可继续；不会自动提交新视频。</p>}
+      {session.pending&&phase==='error'&&<button disabled={!online} onClick={()=>void resume()}>{session.pending.assetUrl?'播放已保存的视频':'恢复本回合（复用原任务）'}</button>}
       <details onToggle={e=>{if(e.currentTarget.open)setPaused(true);}}><summary>更多 · 剧情与探索方式</summary>
         <p>进度保存在当前浏览器标签页，刷新可恢复；不是跨设备云同步。刷新后需重新开启生成，避免自动扣费。</p>
         {!!session.clips?.length&&<nav aria-label="已生成片段">{session.clips.filter(c=>/^\/api\/media\/asset\/[a-f0-9]{64}$/.test(c.url)).map((c,i)=><p key={c.url}><a href={c.url} target="_blank" rel="noreferrer">回看第 {i+1} 段 · {c.action}</a></p>)}</nav>}

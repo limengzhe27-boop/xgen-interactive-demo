@@ -116,6 +116,7 @@ import type {
 import type { ImageTask } from '@/lib/image-task';
 import type { ActionValidation, EventRecord, WorldIncident, WorldState } from '@/lib/world-state';
 import { turnMemoryText } from '@/lib/world-state';
+import { migrateWorldState } from '@/lib/world-state-migration';
 
 type View = 'home' | 'library' | 'characters' | 'personal' | 'profile' | 'chat' | 'prologue' | 'roles' | 'play' | 'create' | 'ending';
 type WorldKind = 'storm' | 'suggestion' | 'draft';
@@ -1650,7 +1651,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     setNarrative(savedRun.narrative);
     setLastAction(savedRun.lastAction);
     setEndingDecision(savedRun.endingDecision);
-    setWorldState(savedRun.worldState);
+    setWorldState(migrateWorldState(savedRun.worldState, savedRun.worldSnapshot?.world));
     setActionFeedback(null);
     setLastIncident(savedRun.lastIncident);
     const restoredSceneId = `scene-${savedRun.turn + 1}`;

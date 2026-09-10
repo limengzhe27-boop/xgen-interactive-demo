@@ -48,6 +48,16 @@ export function enforceWorldTurnGuardrails(input: WorldTurnRequest, output: Worl
     throw new Error('repeated_narrative');
   }
   const completed = new Set(input.state.completedTaskIds ?? []);
+  for (const [id, update] of Object.entries(output.statePatch.characterUpdates??{})) {
+    if (!input.world.characters.some(c=>c.id===id) || !update || typeof update!=='object'
+      || (update.locationId!==undefined && !input.world.locations.some(l=>l.id===update.locationId)))
+      throw new Error('invalid_character_transition');
+  }
+  for (const fact of output.statePatch.committedFacts.filter(f=>f.startsWith('scheduled-event:'))) {
+    const event=input.world.scheduledEvents.find(e=>`scheduled-event:${e.id}`===fact);
+    if (!event || event.earliestTurn>input.state.turn+1 || input.state.committedFacts?.includes(fact))
+      throw new Error('invalid_scheduled_event_transition');
+  }
   if (input.userAction.includes('留在当前地点') && output.statePatch.locationId) {
     const currentLocation = input.world.locations.find((location) => location.id === input.state.location || location.name === input.state.location);
     const sameLocation = [input.state.location, currentLocation?.id, currentLocation?.name].includes(output.statePatch.locationId);

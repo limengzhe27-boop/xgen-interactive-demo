@@ -1,8 +1,10 @@
 import type { WorldDefinition } from './ai-contracts';
 import type { WorldState } from './world-state';
+import { migrateWorldState } from './world-state-migration';
 
 /** Switch a viewpoint, never apply an authored entry anchor to a running save. */
 export function switchRole(world: WorldDefinition, state: WorldState, fromId: string, toId: string, fixedRoleId?: string) {
+  state = migrateWorldState(state, world);
   const role = world.characters.find(c => c.id === toId);
   if (!role || role.playable === false || (fixedRoleId && fixedRoleId !== toId) || world.entryAdmission)
     throw Error('这个角色当前不可切换。');
