@@ -1,7 +1,7 @@
 import type { StoryOutlineBeat, WorldDefinition } from '@/lib/ai-contracts';
 
 export type CreatorDetailBaseline = {
-  roles: { name: string; identity: string; personality: string; appearance: string; relationship: string; goal?: string }[];
+  roles: { name: string; identity: string; personality: string; appearance: string; relationship: string; goal?: string; cardHook?: string }[];
   outline: StoryOutlineBeat[];
 };
 
@@ -31,6 +31,7 @@ export function preserveCreatorDetails(base: WorldDefinition, edited: WorldDefin
     if (!previous || !next) return character;
     return { ...character,
       name: next.name !== previous.name ? next.name : character.name,
+      cardHook: next.cardHook !== previous.cardHook ? next.cardHook : character.cardHook,
       identity: next.identity !== previous.identity ? next.identity : character.identity,
       persona: next.personality !== previous.personality ? next.personality : character.persona,
       goal: next.goal !== previous.goal ? (next.goal?.trim() || edited.characters[index]?.goal || character.goal) : character.goal,

@@ -4,7 +4,7 @@ import type { CreatorChange } from '@/lib/creator-changes';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 
-const labels: Record<string, string> = { roles: '角色', tasks: '任务', name: '姓名', identity: '身份', personality: '性格', persona: '性格', relationship: '关系', appearance: '外观', goal: '目标', title: '名称', description: '内容', kind: '类型', assignedRoleIds: '任务归属', prerequisiteTaskIds: '前置任务', successCondition: '完成条件', difficulty: '困难', trigger: '触发条件', effect: '影响' };
+const labels: Record<string, string> = { roles: '角色', tasks: '任务', name: '姓名', cardHook: '卡片介绍', identity: '身份', personality: '性格', persona: '性格', relationship: '关系', appearance: '外观', goal: '目标', title: '名称', description: '内容', kind: '类型', assignedRoleIds: '任务归属', prerequisiteTaskIds: '前置任务', successCondition: '完成条件', difficulty: '困难', trigger: '触发条件', effect: '影响' };
 function describe(value: unknown, references: Record<string, string> = {}, field = ''): string {
   if (Array.isArray(value)) return value.length ? value.map((item) => describe(item, references)).join('、\n') : field === 'assignedRoleIds' ? '所有角色' : field === 'prerequisiteTaskIds' ? '无前置任务' : '未设置';
   if (value && typeof value === 'object') return Object.entries(value).filter(([key]) => key !== 'id' && key !== 'editorId').map(([key, item]) => `${labels[key] || key}：${describe(item, references, key)}`).join('\n');

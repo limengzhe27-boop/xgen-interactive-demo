@@ -113,6 +113,7 @@ type WorldKind = 'storm' | 'suggestion' | 'draft';
 type ModelMode = 'checking' | 'real' | 'mock' | 'fallback';
 type ImageModelMode = 'checking' | 'real' | 'off' | 'fallback';
 type Role = {
+  cardHook?: string;
   id: string;
   name: string;
   identity: string;
@@ -144,6 +145,7 @@ type StoryBeat = {
 };
 
 type DraftRole = {
+  cardHook?: string;
   editorId?: string;
   goal?: string;
   name: string;
@@ -461,6 +463,7 @@ function makePlayableDraftRoles(drafts: DraftRole[]): Role[] {
   return drafts.map((draft, index) => ({
     id: `draft-role-${index}`,
     name: draft.name.trim() || `角色 ${index + 1}`,
+    cardHook: draft.cardHook,
     identity: draft.identity.trim() || '身份待定',
     personality: draft.personality.trim() || '性格待定',
     publicStory: draft.relationship.trim() || '人物背景尚待创作者补充。',
@@ -571,6 +574,7 @@ function normalizeGeneratedWorld(world: WorldDefinition, drafts: DraftRole[]): W
       ...character,
       id: `draft-role-${index}`,
       name: drafts[index]?.name.trim() || character.name,
+      cardHook: drafts[index]?.cardHook ?? character.cardHook,
       identity: drafts[index]?.identity.trim() || character.identity,
       persona: drafts[index]?.personality.trim() || character.persona,
       goal: drafts[index]?.goal?.trim() || character.goal,
@@ -891,6 +895,7 @@ function buildCreatorWorld(
         name: role.name,
         identity: role.identity,
         persona: role.personality,
+        cardHook: role.cardHook,
         publicBackground: role.publicStory,
         privateKnowledge: existing?.privateKnowledge ?? [role.secret],
         secrets: existing?.secrets ?? [role.secret],
@@ -2015,6 +2020,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
           name: role.name,
           identity: role.identity,
           persona: role.personality,
+          cardHook: role.cardHook,
           relationship: role.relationship,
           appearance: role.appearance,
         })),
@@ -2031,7 +2037,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       setCreatorMessages((current) => [...current, { role: 'agent', content: response.reply } satisfies CreatorChatMessage].slice(-12));
       setCreatorProposal(response.proposal);
       const brief = normalizeCreatorBrief({ ...response.proposal.brief, discoveryGenre: response.proposal.brief.discoveryGenre ?? creatorBrief.discoveryGenre });
-      const nextRoles = response.proposal.characters?.length ? identifyProposedRoles(draftRoles, response.proposal.characters.map((role, index) => ({ name: role.name, identity: role.identity, personality: role.persona, relationship: role.relationship, appearance: role.appearance, goal: role.goal ?? draftRoles[index]?.goal ?? '' }))) : draftRoles;
+      const nextRoles = response.proposal.characters?.length ? identifyProposedRoles(draftRoles, response.proposal.characters.map((role, index) => ({ name: role.name, cardHook: role.cardHook, identity: role.identity, personality: role.persona, relationship: role.relationship, appearance: role.appearance, goal: role.goal ?? draftRoles[index]?.goal ?? '' }))) : draftRoles;
       const nextChanges = creatorChanges(baseline, { ...brief, entryPolicy: response.proposal.entryPolicy ?? entryPolicy, surpriseLevel: response.proposal.surpriseLevel ?? surprise, title: response.proposal.title, premise: response.proposal.premise, castAndTasks: { roles: nextRoles, tasks: brief.tasks } }, {
         discoveryGenre: '剧情分类', entryPolicy: '身份入场与能力规则',
         surpriseLevel: '意外程度',
@@ -2204,6 +2210,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
           name: role.name,
           identity: role.identity,
           persona: `${role.personality}${role.appearance ? `；固定外观：${role.appearance}` : ''}`,
+          cardHook: role.cardHook,
         })),
         relationshipNotes: draftRoles.map((role) => role.relationship).filter(Boolean),
         storySeed: worldSeed,
@@ -2212,7 +2219,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       }, signal));
       if (!creatorRequest.current.current(signal)) return;
       const normalizedWorld = normalizeGeneratedWorld(response.world, draftRoles);
-      const generatedDraftRoles = draftRoles.map((role, index) => ({ ...role, goal: role.goal || normalizedWorld.characters[index]?.goal || '', appearance: role.appearance || normalizedWorld.characters[index]?.imagePrompt || '' }));
+      const generatedDraftRoles = draftRoles.map((role, index) => ({ ...role, cardHook: role.cardHook ?? normalizedWorld.characters[index]?.cardHook, goal: role.goal || normalizedWorld.characters[index]?.goal || '', appearance: role.appearance || normalizedWorld.characters[index]?.imagePrompt || '' }));
       setCreatorDetailBaseline({ roles: generatedDraftRoles, outline: response.storyOutline });
       setGeneratedWorld({ ...normalizedWorld, discoveryGenre: effectiveBrief.discoveryGenre || normalizedWorld.discoveryGenre, entryPolicy: restoreEntryPolicy(entryPolicy) });
       setGeneratedStoryOutline(response.storyOutline);
@@ -2238,6 +2245,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       setWorldTitle(normalizedWorld.title);
       setWorldSeed(normalizedWorld.premise);
       setDraftRoles((current) => current.map((role, index) => ({ ...role,
+        cardHook: role.cardHook ?? normalizedWorld.characters[index]?.cardHook,
         goal: role.goal || normalizedWorld.characters[index]?.goal || '',
         appearance: role.appearance || normalizedWorld.characters[index]?.imagePrompt || '',
       })));
@@ -2401,7 +2409,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       section={view} worlds={[
         ...availableStudioWorlds.map((entry) => ({ ...entry, roleCount: entry.fixedRoleId ? 1 : entry.world.characters.length })),
         ...worldCatalog.map((world) => ({ ...world, roleCount: world.id === 'storm-manor' ? roles.length : presetWorlds.find((preset) => preset.id === world.id)?.roles.length ?? 0, cover: world.id === 'storm-manor' ? legacyArt['storm-manor'].cover : world.id === 'sea-train' ? legacyArt['sea-train'].cover : legacyArt['sixth-roommate'].cover }))]}
-      characters={availableStudioWorlds.filter(entry=>!entry.fixedRoleId).flatMap((entry) => entry.world.characters.map((role) => ({ id: role.id, worldId: entry.id, worldTitle: entry.title, name: role.name, identity: role.identity, persona: role.persona, image: entry.portraits[role.id] || entry.cover })))}
+      characters={availableStudioWorlds.filter(entry=>!entry.fixedRoleId).flatMap((entry) => entry.world.characters.map((role) => ({ id: role.id, worldId: entry.id, worldTitle: entry.title, name: role.name, cardHook: role.cardHook, identity: role.identity, persona: role.persona, image: entry.portraits[role.id] || entry.cover })))}
       recent={[
         ...creatorDocuments.map((doc) => ({ id: `doc-${doc.id}`, savedAt: doc.savedAt, title: doc.data.worldTitle || '未命名世界', subtitle: '继续编辑角色与故事框架', label: doc.data.publishedWorld ? '可试玩 · 本机作品' : '创作草稿', cover: legacyArt['storm-manor'].cover })),
         ...savedRuns.map((run) => ({ id: `run-${run.id}`, savedAt: run.savedAt, title: run.worldTitle, subtitle: `${run.worldSnapshot?.world.characters.find((role) => role.id === run.roleId)?.name ?? run.roleId} · ${run.worldState.location}`, label: run.status === 'ending' ? '阶段结局' : '探索记录', cover: run.worldSnapshot?.cover || legacyArt['storm-manor'].cover })),
@@ -2903,6 +2911,7 @@ function CreateWorld({
                 </div>
                 <div className="draft-fields">
                   <div className="draft-field"><label htmlFor={`role-name-${index}`}>角色名称</label><Input id={`role-name-${index}`} value={role.name} onChange={(event) => onUpdateRole(index, 'name', event.target.value)} placeholder="例如：许知遥" /></div>
+                  <div className="draft-field full-field"><label htmlFor={`role-hook-${index}`}>卡片介绍 · 让人想接话的一句</label><Input id={`role-hook-${index}`} maxLength={60} value={role.cardHook ?? ''} onChange={(event) => onUpdateRole(index, 'cardHook', event.target.value)} placeholder="例如：这杯酒，敬知己还是买我的沉默？" /><small>建议 8—20 字；可直接修改或让 Agent 建议。清空后不展示，不改变角色身份或开场白。</small></div>
                   <div className="draft-field"><label htmlFor={`role-identity-${index}`}>身份</label><Input id={`role-identity-${index}`} value={role.identity} onChange={(event) => onUpdateRole(index, 'identity', event.target.value)} placeholder="例如：民俗学研究生" /></div>
                   <div className="draft-field full-field"><label htmlFor={`role-personality-${index}`}>性格与行为倾向</label><Input id={`role-personality-${index}`} value={role.personality} onChange={(event) => onUpdateRole(index, 'personality', event.target.value)} placeholder="例如：理性、好奇，但害怕欠人情" /></div>
                   <div className="draft-field full-field"><label htmlFor={`role-appearance-${index}`}>固定外观（用于保持连续）</label><Input id={`role-appearance-${index}`} value={role.appearance} onChange={(event) => onUpdateRole(index, 'appearance', event.target.value)} placeholder="例如：齐肩黑发、墨绿色防风外套、随身携带旧笔记本" /></div>

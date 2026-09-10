@@ -2,7 +2,7 @@
 // edit wins over an old model response or an old undo record.
 import type { CreatorTaskDraft } from '@/lib/ai-contracts';
 
-export type CreatorRoleDraft = { editorId?: string; name: string; identity: string; personality: string; relationship: string; appearance: string; goal?: string };
+export type CreatorRoleDraft = { editorId?: string; name: string; identity: string; personality: string; relationship: string; appearance: string; goal?: string; cardHook?: string };
 export type CreatorCast = { roles: CreatorRoleDraft[]; tasks: CreatorTaskDraft[] };
 export type CreatorChange = {
   key: string; label: string; before: unknown; after: unknown;
@@ -30,11 +30,11 @@ export function identifyProposedRoles(before: CreatorRoleDraft[], proposed: Crea
       && !proposed.some((other, otherIndex) => otherIndex !== index && other.name && other.name === positional.name) ? positional : undefined;
     const editorId = (sameName ?? renamed)?.editorId;
     if (editorId) used.add(editorId);
-    return { ...role, editorId };
+    return { ...role, cardHook: role.cardHook ?? (sameName ?? renamed)?.cardHook, editorId };
   }));
 }
 
-const roleFields = { name: '姓名', identity: '身份', personality: '性格', relationship: '关系', appearance: '外观', goal: '目标' } as const;
+const roleFields = { name: '姓名', cardHook: '卡片介绍', identity: '身份', personality: '性格', relationship: '关系', appearance: '外观', goal: '目标' } as const;
 const equal = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 const castFrom = (value: unknown) => value as CreatorCast | undefined;
 

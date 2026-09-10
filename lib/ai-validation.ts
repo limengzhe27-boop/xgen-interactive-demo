@@ -8,6 +8,7 @@ import {
 } from './ai-contracts.ts';
 
 import { validEntryPolicy, validPersonaAdmission } from './player-persona.ts';
+import { validCardHook } from './character-card.ts';
 import { validWorldSystem } from './world-system.ts';
 import { validDiscoveryGenre } from './discovery-category.ts';
 
@@ -92,7 +93,7 @@ export function isCreatorAgentResponse(value: unknown): value is CreatorAgentRes
     && typeof value.proposal.premise === 'string'
     && (value.proposal.characters === undefined || (Array.isArray(value.proposal.characters)
       && value.proposal.characters.length <= 5
-      && value.proposal.characters.every((role) => isRecord(role) && (role.goal === undefined || typeof role.goal === 'string') && ['name', 'identity', 'persona', 'relationship', 'appearance'].every((key) => typeof role[key] === 'string'))))
+      && value.proposal.characters.every((role) => isRecord(role) && validCardHook(role.cardHook) && (role.goal === undefined || typeof role.goal === 'string') && ['name', 'identity', 'persona', 'relationship', 'appearance'].every((key) => typeof role[key] === 'string'))))
     && isCreatorBrief(value.proposal.brief)
     && isStringArray(value.nextQuestions)
     && (value.readiness === 'needs_detail' || value.readiness === 'ready');
@@ -114,6 +115,7 @@ export function isWorldGenerationResponse(value: unknown): value is WorldGenerat
     && Array.isArray(world.locations)
     && Array.isArray(world.characters)
     && world.characters.length >= 1
+    && world.characters.every(role => isRecord(role) && validCardHook(role.cardHook))
     && Array.isArray(world.relationships)
     && Array.isArray(world.rules)
     && typeof world.coreEvent === 'string'

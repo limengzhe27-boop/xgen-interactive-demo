@@ -50,6 +50,7 @@ export type PersonalAgentResponse = {
 };
 
 export type CharacterDefinition = {
+  cardHook?: string;
   id: string;
   name: string;
   identity: string;
@@ -196,7 +197,7 @@ export type CreatorAgentRequest = {
   contractVersion: typeof AI_CONTRACT_VERSION;
   userMessage: string;
   conversation: CreatorChatMessage[];
-  characters: (Pick<CharacterDefinition, 'name' | 'identity' | 'persona'> & { id?: string; goal?: string; relationship?: string; appearance?: string })[];
+  characters: (Pick<CharacterDefinition, 'name' | 'identity' | 'persona' | 'cardHook'> & { id?: string; goal?: string; relationship?: string; appearance?: string })[];
   editingContext?: { step: number; section: string; focusedField?: string };
   relationshipNotes: string[];
   currentDraft: {
@@ -215,7 +216,7 @@ export type CreatorAgentResponse = {
     surpriseLevel?: 1 | 2 | 3 | 4;
     title: string;
     premise: string;
-    characters?: { name: string; identity: string; persona: string; relationship: string; appearance: string; goal?: string }[];
+    characters?: { name: string; identity: string; persona: string; relationship: string; appearance: string; goal?: string; cardHook?: string }[];
     brief: CreatorBrief;
   };
   nextQuestions: string[];
@@ -225,7 +226,7 @@ export type CreatorAgentResponse = {
 export type WorldGenerationRequest = {
   contractVersion: typeof AI_CONTRACT_VERSION;
   creatorIntent?: string;
-  characters: (Pick<CharacterDefinition, 'name' | 'identity' | 'persona'> & { id?: string; goal?: string })[];
+  characters: (Pick<CharacterDefinition, 'name' | 'identity' | 'persona' | 'cardHook'> & { id?: string; goal?: string })[];
   relationshipNotes: string[];
   storySeed?: string;
   surpriseLevel: 1 | 2 | 3 | 4;
