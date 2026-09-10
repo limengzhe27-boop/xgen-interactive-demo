@@ -1220,3 +1220,9 @@ button:focus-visible, a:focus-visible, input:focus-visible {
 /* A compact continuation action, shared by text and video exploration. */
 .story-update-notice { display:flex; align-items:center; justify-content:space-between; gap:1rem; flex-wrap:wrap; padding:1rem; margin-block:.75rem; border:1px solid currentColor; border-radius:1rem; }
 .story-update-notice p { margin:.25rem 0 0; font-size:.875rem; }
+.story-edition-label { font-size:.875rem; opacity:.75; margin:.5rem 1rem; }
+.story-edition-history { font-size:.875rem; padding:.75rem 1rem; }
+.story-edition-history > p { margin:.75rem 0; }
+.story-edition-history article { padding:1rem 0; border-top:1px solid #bfc9c2; }
+.story-edition-history article p { margin:.4rem 0; }
+.story-edition-history article > details { margin:.75rem 0; }

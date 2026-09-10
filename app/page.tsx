@@ -11,6 +11,8 @@ import { playableCharacters, characterRecap, applyCharacterEntry } from '@/lib/c
 import { switchRole } from '@/lib/role-switch';
 import { applyStoryUpgrade } from '@/lib/story-upgrade';
 import { StoryUpdateNotice } from '@/components/story-update-notice';
+import { readStoryEditions, recordStoryEdition, assertEditionHistory, type StoryEdition } from '@/lib/story-editions';
+import { StoryEditionHistory } from '@/components/story-edition-history';
 import { visibleSystem } from '@/lib/world-system';
 import { CreatorRequest } from '@/lib/creator-request';
 import { STORY_CATEGORIES, validDiscoveryGenre } from '@/lib/discovery-category';
@@ -211,6 +213,7 @@ type PersistedDemoState = {
   draftRoles: DraftRole[];
   generatedWorld?: WorldDefinition;
   releasedEntry?: StudioWorld;
+  releaseHistory?: StoryEdition[];
   creatorAssets?: { cover: string; portraits: Record<string, string> };
   creatorDetailBaseline?: CreatorDetailBaseline;
   generatedStoryOutline?: StoryOutlineBeat[];
@@ -222,7 +225,7 @@ type PersistedDemoState = {
 
 type CreatorDocument = {
   id: string; savedAt: number;
-  data: Pick<PersistedDemoState, 'releasedEntry' | 'creatorSession' | 'creatorAssets' | 'companionContext' | 'entryPolicy' | 'worldTitle' | 'worldSeed' | 'surprise' | 'draftRoles' | 'generated' | 'generatedWorld' | 'creatorDetailBaseline' | 'generatedStoryOutline' | 'creatorBrief' | 'creatorMessages' | 'publishedWorld'>;
+  data: Pick<PersistedDemoState, 'releaseHistory' | 'releasedEntry' | 'creatorSession' | 'creatorAssets' | 'companionContext' | 'entryPolicy' | 'worldTitle' | 'worldSeed' | 'surprise' | 'draftRoles' | 'generated' | 'generatedWorld' | 'creatorDetailBaseline' | 'generatedStoryOutline' | 'creatorBrief' | 'creatorMessages' | 'publishedWorld'>;
 };
 type StudioStorage = { version: 1; runs: (SavedRun & { id: string })[]; chats: ChatSession[]; documents: CreatorDocument[]; draftId: string };
 
@@ -1033,6 +1036,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
   const [roleImageStates, setRoleImageStates] = useState<Record<string, 'idle' | 'generating' | 'ready' | 'error'>>({});
   const [publishedWorld, setPublishedWorld] = useState(false);
   const [releasedEntry, setReleasedEntry] = useState<StudioWorld | undefined>();
+  const [releaseHistory, setReleaseHistory] = useState<StoryEdition[]>([]);
   const [continuation, setContinuation] = useState<ContinuationDraft | undefined>();
   const [communityWorlds, setCommunityWorlds] = useState<StudioWorld[]>([]);
   const [catalogRevision, setCatalogRevision] = useState(0);
@@ -1233,6 +1237,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
           if (typeof saved.generated === 'boolean') setGenerated(saved.generated);
           if (typeof saved.publishedWorld === 'boolean') setPublishedWorld(saved.publishedWorld);
           setReleasedEntry(saved.releasedEntry);
+          setReleaseHistory(readStoryEditions(saved.releaseHistory, saved.releasedEntry?.id ?? saved.generatedWorld?.id ?? ''));
           if (saved.generatedWorld
             && typeof saved.generatedWorld.title === 'string'
             && Array.isArray(saved.generatedWorld.characters)
@@ -1280,6 +1285,8 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
             setChatSessions(Array.isArray(saved.chats) ? saved.chats.filter((chat) => chat?.id && chat.entry?.world?.characters && Array.isArray(chat.turns)) : []);
             setCreatorDocuments(Array.isArray(saved.documents) ? saved.documents.filter((doc) => doc?.id && doc.data && Array.isArray(doc.data.draftRoles)) : []);
             if (typeof saved.draftId === 'string') setDraftId(saved.draftId);
+            const activeDocument=saved.documents.find(doc=>doc.id===saved.draftId);
+            if(activeDocument){setReleaseHistory(readStoryEditions(activeDocument.data.releaseHistory,activeDocument.id));setReleasedEntry(activeDocument.data.releasedEntry);}
             try {
               const chatId = window.sessionStorage.getItem(studioStorageKey + ':active-chat');
               const chat = saved.chats.find(item => item.id === chatId);
@@ -1315,6 +1322,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       generated,
       publishedWorld,
       releasedEntry,
+      releaseHistory,
       draftRoles,
       generatedWorld: generatedWorld ?? undefined,
       creatorAssets,
@@ -1324,11 +1332,11 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     };
     try { window.localStorage.setItem(demoStorageKey, JSON.stringify(snapshot)); }
     catch { window.setTimeout(() => setStorageError('浏览器空间不足，最新修改还没有保存。请保持页面打开，勿刷新。'), 0); }
-  }, [continuation, releasedEntry, creatorProposal, proposalChanges, creatorMessage, creatorQuestions, memoryDetails, creatorAssets, userProfile, companionContext, playerPersona, entryPolicy, agentConversation, personalRecommendations, creatorBrief, creatorDetailBaseline, creatorMessages, draftRoles, generated, generatedStoryOutline, generatedWorld, liveMode, memories, publishedWorld, savedRun, storageReady, surprise, worldSeed, worldTitle]);
+  }, [releaseHistory, continuation, releasedEntry, creatorProposal, proposalChanges, creatorMessage, creatorQuestions, memoryDetails, creatorAssets, userProfile, companionContext, playerPersona, entryPolicy, agentConversation, personalRecommendations, creatorBrief, creatorDetailBaseline, creatorMessages, draftRoles, generated, generatedStoryOutline, generatedWorld, liveMode, memories, publishedWorld, savedRun, storageReady, surprise, worldSeed, worldTitle]);
 
   const hasCreation = Boolean(worldTitle.trim() || worldSeed.trim() || generatedWorld || creatorMessages.some(turn => turn.role === 'creator') || companionContext.conversation.length);
   const creatorDocumentJSON = JSON.stringify({ creatorAssets, companionContext, entryPolicy, worldTitle, worldSeed, surprise, draftRoles, generated, generatedWorld: generatedWorld ?? undefined,
-    creatorDetailBaseline: creatorDetailBaseline ?? undefined, generatedStoryOutline, creatorBrief, creatorMessages, publishedWorld, releasedEntry,
+    creatorDetailBaseline: creatorDetailBaseline ?? undefined, generatedStoryOutline, creatorBrief, creatorMessages, publishedWorld, releasedEntry, releaseHistory,
     creatorSession: { proposal: creatorProposal, changes: proposalChanges, input: creatorMessage, questions: creatorQuestions, continuation } });
   useEffect(() => {
     if (!storageReady) return;
@@ -1338,10 +1346,22 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     return () => window.clearTimeout(timer);
   }, [creatorDocumentJSON, draftId, storageReady]);
 
+  function persistStudioSnapshot(snapshot:StudioStorage) {
+    if(!storageReady || storageReadFailed.current)throw Error('本机记录当前不可写，请先处理保存提示。');
+      const stored=JSON.parse(window.localStorage.getItem(studioStorageKey)||'null') as StudioStorage|null;
+      for(const old of stored?.documents??[]){
+        if(deletedDraftIds.current.has(old.id))continue;
+        const next=snapshot.documents.find(doc=>doc.id===old.id);
+        assertEditionHistory(readStoryEditions(old.data.releaseHistory,old.id),readStoryEditions(next?.data.releaseHistory,old.id));
+      }
+      window.localStorage.setItem(studioStorageKey,JSON.stringify(snapshot));
+  }
+
   useEffect(() => {
     if (!storageReady || storageReadFailed.current) return;
-    try { window.localStorage.setItem(studioStorageKey, JSON.stringify({ version: 1, runs: savedRuns, chats: chatSessions, documents: creatorDocuments, draftId } satisfies StudioStorage)); }
-    catch { window.setTimeout(() => setStorageError('世界库保存失败，当前修改尚未落盘。请保持页面打开，勿刷新。'), 0); }
+    try {
+      persistStudioSnapshot({ version: 1, runs: savedRuns, chats: chatSessions, documents: creatorDocuments, draftId });
+    } catch(error) { storageReadFailed.current=true;window.setTimeout(() => setStorageError(error instanceof Error?error.message:'世界库保存失败，原记录未覆盖。'), 0); }
   }, [storageReady, savedRuns, chatSessions, creatorDocuments, draftId]);
 
   useEffect(() => {
@@ -1784,7 +1804,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       const backup = { ...JSON.parse(runSnapshotJSON), id: `${runId}-before-update-${Date.now()}`, savedAt: Date.now() } as SavedRun & { id: string };
       // Persist the fallback before touching the running world. Quota errors leave it untouched.
       const backups = [...savedRuns, backup];
-      window.localStorage.setItem(studioStorageKey, JSON.stringify({ version: 1, runs: backups, chats: chatSessions, documents: creatorDocuments, draftId } satisfies StudioStorage));
+      persistStudioSnapshot({ version: 1, runs: backups, chats: chatSessions, documents: creatorDocuments, draftId });
       setSavedRuns(backups); setActiveLibrary(latest); setWorldState(state);
       setEndingDecision(''); setActionFeedback(null);
       setRuntimeBeat({ ...currentBeat, choices: ['观察眼前有什么变化', '与身边的人交谈', '继续当前的探索'].map(label=>({label,result:'',clue:'',relationDelta:0})) });
@@ -2418,14 +2438,39 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
 
   function publishCreatorWorld() {
     if (continuation?.proposal) { setCreatorChangeNotice('请先确认或放弃后续提案，再保存。'); return; }
+    if (!storageReady || storageReadFailed.current) { setCreatorChangeNotice('本机记录尚不可写，暂时不能保存新版本。'); return; }
+    try {
     const world = materializeCreatorWorld();
     const published = { ...world, id: draftId };
-    setGeneratedWorld(published);
-    setPublishedWorld(true);
     const entry: StudioWorld = { id: draftId, title: published.title, genre: '我的创作', premise: published.premise, cover: creatorAssets?.cover || legacyArt['storm-manor'].cover, portraits: creatorAssets?.portraits || {}, world: published,
       portraitCacheKeys: Object.fromEntries(draftRoles.map((role, index) => [published.characters[index]?.id ?? `draft-role-${index}`, portraitCacheKey(role)])) };
-    setReleasedEntry(structuredClone(entry));
-    setActiveLibrary(entry); setActiveWorld('draft'); setSelectedRole(entryRoles(entry).find(role => role.id === playableCharacters(entry.world)[0]?.id) || entryRoles(entry)[0]); setRuntimeBeat(null); navigate('prologue');
+    const stored=JSON.parse(window.localStorage.getItem(studioStorageKey)||'null') as StudioStorage|null;
+    const storedHistory=readStoryEditions(stored?.documents.find(doc=>doc.id===draftId)?.data.releaseHistory,draftId);
+    if(storedHistory.at(-1)?.id!==releaseHistory.at(-1)?.id)throw Error('另一个页面保存了新版本，请先刷新再继续，避免覆盖版本记录。');
+    const recorded=recordStoryEdition(releaseHistory,entry,releasedEntry);
+    const data={...JSON.parse(creatorDocumentJSON),generatedWorld:published,publishedWorld:true,releasedEntry:recorded.entry,releaseHistory:recorded.history} as CreatorDocument['data'];
+    const documents=upsertById(creatorDocuments,{id:draftId,savedAt:Date.now(),data});
+    persistStudioSnapshot({version:1,runs:savedRuns,chats:chatSessions,documents,draftId});
+    setCreatorDocuments(documents);setReleaseHistory(recorded.history);setReleasedEntry(recorded.entry);setGeneratedWorld(published);setPublishedWorld(true);
+    setActiveLibrary(recorded.entry); setActiveWorld('draft'); setSelectedRole(entryRoles(recorded.entry).find(role => role.id === playableCharacters(recorded.entry.world)[0]?.id) || entryRoles(recorded.entry)[0]); setRuntimeBeat(null); navigate('prologue');
+    } catch(error) {setCreatorChangeNotice(error instanceof Error?error.message:'保存版本失败，原版本保持不变。');}
+  }
+
+  function acceptPublicEdition(entry:StudioWorld) {
+    setCommunityWorlds(current=>upsertById(current,entry));setPublicationEntry(null);
+    try{
+      const local={...entry,id:draftId,world:{...entry.world,id:draftId}};
+      const stored=JSON.parse(window.localStorage.getItem(studioStorageKey)||'null') as StudioStorage|null;
+      const previous=readStoryEditions(stored?.documents.find(doc=>doc.id===draftId)?.data.releaseHistory,draftId);
+      if(previous.at(-1)?.id!==releaseHistory.at(-1)?.id)throw Error('公开发布已成功，但本机出现版本冲突，请刷新后恢复公开版本。');
+      const recorded=recordStoryEdition(releaseHistory,local,releasedEntry);
+      const data={...JSON.parse(creatorDocumentJSON),releaseHistory:recorded.history,releasedEntry:recorded.entry,publishedWorld:true} as CreatorDocument['data'];
+      const documents=upsertById(creatorDocuments,{id:draftId,savedAt:Date.now(),data});
+      persistStudioSnapshot({version:1,runs:savedRuns,chats:chatSessions,documents,draftId});
+      setCreatorDocuments(documents);setReleaseHistory(recorded.history);setReleasedEntry(recorded.entry);setPublishedWorld(true);
+      setPublicationNotice('世界已公开发布，本次内容已记入保存版本。');
+    }catch(error){setPublicationNotice(error instanceof Error?`公开发布已成功；本机版本记录未保存：${error.message}`:'公开发布已成功，但本机版本记录保存失败。');}
+    navigate('home');
   }
 
   function preparePublicWorld() {
@@ -2445,7 +2490,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     setActiveLibrary(null); setActiveWorld('storm'); setSelectedRole(roles[0]); setRuntimeBeat(null);
     setDraftId(crypto.randomUUID());
     setCreatorAssets(undefined);
-    setReleasedEntry(undefined); setContinuation(undefined);
+    setReleasedEntry(undefined); setReleaseHistory([]); setContinuation(undefined);
     setEntryPolicy(restoreEntryPolicy(undefined));
     setWorldTitle(''); setWorldSeed(context ? '' : seed); setSurprise(2); setGenerated(false); setGeneratedWorld(null); setPublishedWorld(false);
     setGeneratedStoryOutline([]); setCreatorDetailBaseline(null); setCreatorBrief(emptyCreatorBrief); setCreatorProposal(null);
@@ -2458,6 +2503,8 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
   }
 
   function editCreator(doc: CreatorDocument) {
+    let history:StoryEdition[];
+    try{history=readStoryEditions(doc.data.releaseHistory,doc.id);}catch(error){setStorageError(error instanceof Error?error.message:'版本记录无法读取');return;}
     cancelCreatorRequest();
     setCreatorMessage('');
     deletedDraftIds.current.delete(doc.id);
@@ -2465,6 +2512,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     const data = doc.data;
     // Freeze legacy locally published drafts before any edits are made.
     setReleasedEntry(data.releasedEntry ?? userWorlds.find(entry => entry.id === doc.id));
+    setReleaseHistory(history);
     setCreatorAssets(data.creatorAssets); setRoleImages({});
     setCompanionContext(restoreCompanionContext(data.companionContext));
     setEntryPolicy(restoreEntryPolicy(data.entryPolicy ?? data.generatedWorld?.entryPolicy));
@@ -2473,6 +2521,21 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     setGeneratedWorld(data.generatedWorld ?? null); setCreatorDetailBaseline(data.creatorDetailBaseline ?? null);
     setGeneratedStoryOutline(data.generatedStoryOutline ?? []); setCreatorBrief(data.creatorBrief ?? emptyCreatorBrief);
     setCreatorMessages(data.creatorMessages ?? []); restorePendingCreator(data.creatorSession); setCreatorUndo([]); setCreatorChangeNotice(''); setCreatorFocus(''); setCreateStep(1); navigate('create');
+  }
+
+  function restoreStoryEdition(edition:StoryEdition) {
+    if(creatorAgentThinking || worldGenerating)return;
+    try {
+    const id=crypto.randomUUID();
+    const entry={...structuredClone(edition.entry),id,edition:undefined,world:{...structuredClone(edition.entry.world),id}};
+    const restored=publicationDraft(entry);
+    const doc:CreatorDocument={...restored,data:{...restored.data,publishedWorld:false,releasedEntry:undefined,releaseHistory:[],creatorMessages:[{role:'agent',content:`已将保存版 ${edition.number} 另存为新草稿，原作品与现有存档没有改变。`}]}};
+    const previous={id:draftId,savedAt:Date.now(),data:JSON.parse(creatorDocumentJSON) as CreatorDocument['data']};
+    const documents=upsertById(upsertById(creatorDocuments,previous),doc);
+    persistStudioSnapshot({version:1,runs:savedRuns,chats:chatSessions,documents,draftId:id});
+    setCreatorDocuments(documents);
+    editCreator(doc);
+    }catch(error){setCreatorChangeNotice(error instanceof Error?error.message:'另存失败，原草稿未改变。');}
   }
 
   function restorePendingCreator(value: unknown) {
@@ -2641,7 +2704,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
           onBack={() => navigate(creatorReturnView.current)}
           onPublish={publishCreatorWorld}
           onShare={preparePublicWorld}
-          continuationPanel={generatedWorld ? <div className="creation-next">{continuation ? <><span>正在续写 · 原故事保留</span>{continuation.proposal && <Button disabled={creatorAgentThinking} onClick={acceptContinuation}>确认加入草稿</Button>}<Button variant="outline" onClick={() => { cancelCreatorRequest(); setContinuation(undefined); setCreatorChangeNotice('已退出续写，未确认的提案不会写入草稿。'); }}>退出续写</Button></> : <Button variant="outline" disabled={creatorAgentThinking} onClick={beginContinuation}>继续写后续</Button>}</div> : null}
+          continuationPanel={<>{generatedWorld ? <div className="creation-next">{continuation ? <><span>正在续写 · 原故事保留</span>{continuation.proposal && <Button disabled={creatorAgentThinking} onClick={acceptContinuation}>确认加入草稿</Button>}<Button variant="outline" onClick={() => { cancelCreatorRequest(); setContinuation(undefined); setCreatorChangeNotice('已退出续写，未确认的提案不会写入草稿。'); }}>退出续写</Button></> : <Button variant="outline" disabled={creatorAgentThinking} onClick={beginContinuation}>继续写后续</Button>}</div> : null}<StoryEditionHistory editions={releaseHistory} disabled={creatorAgentThinking||worldGenerating} onRestore={restoreStoryEdition}/></>}
         />
       );
     }
@@ -2701,7 +2764,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       {view === 'library' && <MyPublications key={accountScope} accountScope={accountScope} drafts={creatorDocuments.map(doc => ({ id: doc.id, title: doc.data.worldTitle }))} onDelete={deleteCreator} onEdit={id => { const doc = creatorDocuments.find(item => item.id === id); if (doc) editCreator(doc); }} onRestore={entry => { const doc = publicationDraft(entry); setCreatorDocuments(current => upsertById(current, doc)); editCreator(doc); }} onChanged={() => setCatalogRevision(value => value + 1)} />}
       {screen}
       {publicationNotice && <p className="account-bar" role="status">{publicationNotice}</p>}
-      {publicationEntry && <PublishWorldDialog accountScope={accountScope} entry={publicationEntry} onClose={() => setPublicationEntry(null)} onPublished={(entry) => { setReleasedEntry({ ...entry, id: draftId, world: { ...entry.world, id: draftId } }); setPublishedWorld(true); setCommunityWorlds(current => upsertById(current, entry)); setPublicationEntry(null); setPublicationNotice('世界已公开发布，其他访客现在可以在世界探索中找到它。'); navigate('home'); }} />}
+      {publicationEntry && <PublishWorldDialog accountScope={accountScope} entry={publicationEntry} onClose={() => setPublicationEntry(null)} onPublished={acceptPublicEdition} />}
       {chatEntry && <CharacterEntry key={`${chatEntry.entry.id}:${chatEntry.targetId}`} entry={chatEntry.entry} identityControl={identityControl} targetId={chatEntry.targetId} persona={playerPersona} onClose={() => setChatEntry(null)} onStart={(session) => { saveChat(session); setActiveChat(session); setChatEntry(null); navigate('chat'); }} />}
     </main>
   );

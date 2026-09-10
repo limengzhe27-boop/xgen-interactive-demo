@@ -12,6 +12,7 @@ import { libraryArt } from './library-art.ts';
 import { legacyArt } from './legacy-art.ts';
 
 export type StudioWorld = {
+  edition?: { id: string; number: number; savedAt?: number };
   id: string;
   title: string;
   originalTitle?: string;
