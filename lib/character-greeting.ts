@@ -4,7 +4,8 @@ export type CharacterGreeting = { scene: string; text: string };
 // Authored encounter lines, not quotations from the original IP or model output.
 const openings: Record<string, string> = {
   李白: '在下李白，字太白。既然来了，便坐一会儿。你是来听诗的，还是有件不便对旁人说的心事？',
-  吴月娘: '先坐吧。你今日来找我，是有事相求，还是有话想问？',
+  吴月娘: '先坐吧。内宅人多，各有各的性情。你今日想问哪一桩事？',
+  潘金莲: '才进这宅门，便有许多称呼、许多脸色要认。你找我，是想听句实话，还是也来教我规矩？',
   刘华强: '找我有事？别站那么远，有话当面说。',
   卖瓜老板: '来看看瓜？你想挑个什么样的，跟我说。',
   张飞: '来得正好！有话直说，俺最不耐烦拐弯抹角。你找俺做什么？',

@@ -4,13 +4,14 @@ import type { StudioWorld } from './studio-worlds';
 export type ExpansionRole = {
   name: string; identity: string; persona: string; knows: string; secret: string;
   goal: string; first: string; obstacle: string; choices: [string, string, string];
-  start?: 'stage' | 'back' | 'side'; art?: number; side?: string;
+  start?: 'stage' | 'back' | 'side'; art?: number; side?: string; portrait?: string;
 };
 export type ExpansionSeed = {
   id: string; title: string; genre: string; hook: string; opening: string;
   places: Serial['places']; roles: ExpansionRole[]; fixed?: boolean;
-  time?: string; physics?: string; rules?: string[]; sourceNote: string;
+  time?: string; physics?: string; rules?: string[]; sourceNote: string; cover?: string; portraits?: Record<string, string>;
   sources?: { title: string; url: string }[]; system?: string;
+  links?: Serial['links'];
   twist: [string, string, string]; learning?: { evidence: string; misconception: string; transfer: string };
 };
 
@@ -19,19 +20,19 @@ export function createExpansion(seed: ExpansionSeed): StudioWorld {
   const base = createSerial({
     id: seed.id, title: seed.title, genre: seed.genre, hook: seed.hook,
     time: seed.time ?? '故事开场当下；后续时间只随玩家行动合理推进。',
-    event: seed.opening, cover: asset(['spider-under-table', 'peach-source', 'rome-three-percent'].includes(seed.id) ? 'cover-v2' : 'cover'), physics: seed.physics,
+    event: seed.opening, cover: seed.cover ?? asset(['spider-under-table', 'peach-source', 'rome-three-percent'].includes(seed.id) ? 'cover-v2' : 'cover'), physics: seed.physics,
     places: seed.places, opening: seed.opening,
     roles: seed.roles.map((r, i) => ({
       id: `r${i + 1}`, name: r.name, identity: r.identity, persona: r.persona,
       background: `${r.identity}。${r.persona}`, knowledge: r.knows, secret: r.secret,
-      goal: r.goal, start: r.start ?? 'stage', portrait: r.art === 0 ? asset('cover') : asset(`r${r.art ?? Math.min(i + 1, 3)}`),
+      goal: r.goal, start: r.start ?? 'stage', portrait: seed.portraits?.[r.name] ?? r.portrait ?? (r.art === 0 ? asset('cover') : asset(`r${r.art ?? Math.min(i + 1, 3)}`)),
       appearance: `${r.identity}；${r.persona}。保持配图中已有外貌、时代服饰与标志性道具。`,
       entry: `${r.start && r.start !== 'stage' ? '你目前不在开场现场，不知道未传达的对话。' : '眼前的选择尚未发生，没人替你作答。'}${r.knows}`,
       choices: r.choices,
       arc: [['取得主动权', r.first, r.obstacle], ['把选择变成结果', r.goal, r.obstacle]],
       sideQuest: ['另一条路', r.side ?? `由${r.name}自行决定是否披露自己掌握的一项非公开信息，并与实际接收者谈妥一个具体交换条件；拒绝披露也可另找筹码。`, '旁人可以拒绝，知道秘密不等于拥有对方的信任或控制权。'],
     })),
-    links: seed.roles.slice(1).map((_, i) => [0, i + 1, '同一事件中的独立当事人；关系以开场与人物设定为准', 25]),
+    links: seed.links ?? seed.roles.slice(1).map((_, i) => [0, i + 1, '同一事件中的独立当事人；关系以开场与人物设定为准', 25]),
     twists: [seed.twist],
   });
   base.artNote = seed.sourceNote;
