@@ -39,7 +39,7 @@ export function preserveCreatorDetails(base: WorldDefinition, edited: WorldDefin
       imagePrompt: next.appearance !== previous.appearance ? next.appearance : character.imagePrompt,
     };
   });
-  return { ...edited, locations, characters, coreEvent: premiseChanged ? edited.premise : base.coreEvent,
+  return { ...edited, storyHook: base.storyHook, locations, characters, coreEvent: premiseChanged ? edited.premise : base.coreEvent,
     openingScene: { ...base.openingScene, narrative },
     difficultyConstraints: edited.difficultyConstraints.map((item) => base.difficultyConstraints.find((original) => original.description === item.description
       && edited.tasks.some((task) => task.id === original.blocksTaskId)) ?? item),

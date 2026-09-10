@@ -7,6 +7,7 @@ import { WorldProloguePlayer } from '@/components/world-prologue';
 import { VideoExplorer } from '@/components/video-explorer';
 import './video-explore/video-explore.css';
 import { worldPrologue } from '@/lib/world-prologue';
+import { playableCharacters, characterRecap, applyCharacterEntry } from '@/lib/character-entry';
 import { visibleSystem } from '@/lib/world-system';
 import { CreatorRequest } from '@/lib/creator-request';
 import { STORY_CATEGORIES, validDiscoveryGenre } from '@/lib/discovery-category';
@@ -114,6 +115,7 @@ type WorldKind = 'storm' | 'suggestion' | 'draft';
 type ModelMode = 'checking' | 'real' | 'mock' | 'fallback';
 type ImageModelMode = 'checking' | 'real' | 'off' | 'fallback';
 type Role = {
+  recap?: string[];
   cardHook?: string;
   id: string;
   name: string;
@@ -222,7 +224,7 @@ type CreatorDocument = {
 type StudioStorage = { version: 1; runs: (SavedRun & { id: string })[]; chats: ChatSession[]; documents: CreatorDocument[]; draftId: string };
 
 function entryRoles(entry: StudioWorld): Role[] {
-  return entry.world.characters.map((role, index) => ({ id: role.id, name: role.name, identity: role.identity, personality: role.persona,
+  return entry.world.characters.map((role, index) => ({ id: role.id, cardHook: role.cardHook, recap: characterRecap(entry.world, role.id), name: role.name, identity: role.identity, personality: role.persona,
     publicStory: role.publicBackground, secret: role.secrets[0] || role.privateKnowledge[0] || '暂无额外私密信息', goal: role.goal,
     crop: ['left', 'center', 'right'][index % 3], visualAnchor: role.imagePrompt, imageUrl: entry.portraits[role.id], ownPersona: entry.world.entryAdmission?.roleId === role.id }));
 }
@@ -231,7 +233,7 @@ function entryStory(entry: StudioWorld, roleId: string): StoryBeat[] {
   const role = entry.world.characters.find((item) => item.id === roleId) ?? entry.world.characters[0];
   const present = entry.world.characters.filter((item) => item.id !== role.id && item.startLocationId === role.startLocationId);
   return [{ title: entry.title, location: entry.world.locations.find((place) => place.id === role.startLocationId)?.name ?? '',
-    text: getRoleOpening(entry, role.id), speaker: '', dialogue: '',
+    text: [...characterRecap(entry.world, role.id), getRoleOpening(entry, role.id)].join('\n\n'), speaker: '', dialogue: '',
     choices: entry.roleChoices?.[role.id]?.map((label) => ({ label: `${role.name}：${label}`, clue: '表达自己的立场', result: '', relationDelta: 0 })) ?? [
       { label: `${role.name}：观察眼前的情况，整理我已经知道的信息`, clue: '观察与梳理', result: '', relationDelta: 0 },
       { label: `${role.name}：${present[0] ? `询问${present[0].name}现在的打算` : '尝试联系其他人，询问他们是否方便交谈'}`, clue: '主动沟通', result: '', relationDelta: 0 },
@@ -1571,7 +1573,9 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     const libraryEntry = availableStudioWorlds.find((entry) => entry.id === worldId);
     if (libraryEntry) {
       if (!libraryEntry.world.characters.length) return false;
-      setActiveLibrary(libraryEntry); setActiveWorld('draft'); setSelectedRole(entryRoles(libraryEntry)[0]); setRuntimeBeat(null); navigate('prologue'); return true;
+      const defaultRole = playableCharacters(libraryEntry.world, libraryEntry.fixedRoleId)[0];
+      if (!defaultRole) return false;
+      setActiveLibrary(libraryEntry); setActiveWorld('draft'); setSelectedRole(entryRoles(libraryEntry).find(role => role.id === defaultRole.id)!); setRuntimeBeat(null); navigate('prologue'); return true;
     }
     if (worldId === 'creator-world') {
       return openDraftWorld();
@@ -1706,8 +1710,12 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
   function beginWorld(adapted?: StudioWorld) {
     const startingEntry = adapted ?? activeLibrary;
     const startingWorld = startingEntry?.world ?? activeWorldDefinition;
-    const startingRole = adapted ? entryRoles(adapted).find(role => role.id === (adapted.world.entryAdmission?.roleId ?? selectedRole.id))! : selectedRole;
-    const startingStory = adapted ? entryStory(adapted, startingRole.id) : currentStory;
+    const startable = playableCharacters(startingWorld, startingEntry?.fixedRoleId);
+    const startId = adapted?.world.entryAdmission?.roleId ?? (startable.some(role => role.id === selectedRole.id) ? selectedRole.id : startable[0]?.id);
+    const startingRole = startingEntry ? entryRoles(startingEntry).find(role => role.id === startId) : selectedRole;
+    if (!startingRole) return;
+    const startingStory = startingEntry ? entryStory(startingEntry, startingRole.id) : currentStory;
+    setSelectedRole(startingRole);
     if (adapted) { setActiveLibrary(adapted); setSelectedRole(startingRole); }
     stopActiveGeneration();
     lastImageAttemptTurnRef.current = 0;
@@ -1720,7 +1728,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     setEndingDecision('');
     const roleDefinition = startingWorld.characters.find((character) => character.id === startingRole.id);
     const openingLocationId = startingEntry ? roleDefinition?.startLocationId ?? startingWorld.openingScene.locationId : startingWorld.openingScene.locationId;
-    setWorldState(createInitialWorldState(
+    setWorldState(applyCharacterEntry(startingWorld, startingRole.id, createInitialWorldState(
       activeWorld,
       startingRole.id,
       startingRole.secret,
@@ -1735,7 +1743,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
         characterIds: startingWorld.characters.map((character) => character.id),
         openingLocationId,
       },
-    ));
+    )));
     setActionFeedback(null);
     setLastIncident(null);
     setImageTask(createInitialImageTask(activeLibrary?.openingImage || activeLibrary?.cover || (activeWorld === 'suggestion' ? (suggestedPreset?.id === 'sea-train' ? legacyArt['sea-train'].cover : legacyArt['sixth-roommate'].cover) : legacyArt['storm-manor'].cover)));
@@ -2385,7 +2393,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     const entry: StudioWorld = { id: draftId, title: published.title, genre: '我的创作', premise: published.premise, cover: creatorAssets?.cover || legacyArt['storm-manor'].cover, portraits: creatorAssets?.portraits || {}, world: published,
       portraitCacheKeys: Object.fromEntries(draftRoles.map((role, index) => [published.characters[index]?.id ?? `draft-role-${index}`, portraitCacheKey(role)])) };
     setReleasedEntry(structuredClone(entry));
-    setActiveLibrary(entry); setActiveWorld('draft'); setSelectedRole(entryRoles(entry)[0]); setRuntimeBeat(null); navigate('prologue');
+    setActiveLibrary(entry); setActiveWorld('draft'); setSelectedRole(entryRoles(entry).find(role => role.id === playableCharacters(entry.world)[0]?.id) || entryRoles(entry)[0]); setRuntimeBeat(null); navigate('prologue');
   }
 
   function preparePublicWorld() {
@@ -2472,6 +2480,9 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
   }} />;
 
   function renderScreen() {
+    const playableIds = new Set(playableCharacters(activeWorldDefinition, activeLibrary?.fixedRoleId).map(role => role.id));
+    const selectableRoles = currentRoles.filter(role => playableIds.has(role.id));
+    const singleRole = selectableRoles.length === 1;
     if (view === 'profile') return <ProfilePage profile={userProfile} onProfile={setUserProfile} memoryDetails={memoryDetails} onEdit={(old, value) => {
       if (old !== value && memories.includes(value)) return false;
       setMemories(current => current.map(item => item === old ? value : item));
@@ -2481,7 +2492,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       if (memories.length >= 24) { setStorageError('记忆已满（24 条），请先删除不再需要的内容。'); return; }
       setMemories(current => [...new Set([...current, memory])]); setMemoryDetails(current => confirmMemoryDetail(current, memory)); setPendingPersonalMemories(current => current.filter(item => item !== memory));
     }} />;
-    if (view === 'prologue' && activeLibrary && !preferText && worldPrologue(activeLibrary.id, activeLibrary.premise, activeLibrary.cover).video) return <VideoExplorer key={`${accountScope}:${activeLibrary.id}`} entry={activeLibrary} onBack={returnToCatalog} onText={() => { setPreferText(true); if (activeLibrary.fixedRoleId) beginWorld(); else navigate('roles'); }} />;
+    if (view === 'prologue' && activeLibrary && !preferText && worldPrologue(activeLibrary.id, activeLibrary.premise, activeLibrary.cover).video) return <VideoExplorer key={`${accountScope}:${activeLibrary.id}`} entry={activeLibrary} onBack={returnToCatalog} onText={() => { setPreferText(true); if (singleRole) beginWorld(); else navigate('roles'); }} />;
     if (view === 'chat' && activeChat) return <CharacterChat key={`${accountScope}:${activeChat.id}`} accountScope={accountScope} initial={activeChat} onSave={saveChat} onBack={returnToCatalog} />;
     if (view === 'home' || view === 'library' || view === 'characters') return <StudioHome key={`${accountScope}:${view}`}
       initialBrowse={galleryRestore.browse} returnPosition={galleryRestore.position}
@@ -2497,8 +2508,8 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       ].sort((a, b) => b.savedAt - a.savedAt)}
       onCreate={newCreator} onOpenWorld={openCatalogWorld} onChat={(worldId, targetId) => { const entry = availableStudioWorlds.find((item) => item.id === worldId); if (entry) setChatEntry({ entry, targetId }); }} onPersonal={() => navigate('personal')} onLibrary={() => navigate('library')} onOpenRecord={openRecord}
     />;
-    if (view === 'roles') return <RoleSelection identityControl={identityControl} worldTitle={activeWorldTitle} artNote={activeLibrary?.artNote} availableRoles={currentRoles} selected={selectedRole} onSelect={setSelectedRole} onBack={returnToCatalog} onStart={() => beginWorld()} personaEntry={activeLibrary && restoreEntryPolicy(activeLibrary.world.entryPolicy).allowPersona ? <PersonaAdmission key={activeLibrary.id} entry={activeLibrary} roleId="persona-visitor" persona={playerPersona} onEnter={beginWorld} /> : undefined} />;
-    if (view === 'prologue') return <WorldProloguePlayer key={activeWorldDefinition.id} title={activeWorldTitle} fixedIdentity={activeLibrary?.fixedRoleId ? selectedRole.name : undefined} prologue={worldPrologue(activeWorldDefinition.id, activeLibrary?.premise || activeWorldDefinition.premise, activeLibrary?.cover || (activeWorld === 'suggestion' && suggestedPreset ? legacyArt[suggestedPreset.id]?.cover : undefined) || creatorAssets?.cover || legacyArt['storm-manor'].cover)} onBack={returnToCatalog} onContinue={() => activeLibrary?.fixedRoleId ? beginWorld() : navigate('roles')} continuation={activeLibrary?.fixedRoleId ? undefined : <RoleSelection compact identityControl={identityControl} worldTitle={activeWorldTitle} availableRoles={currentRoles} selected={selectedRole} onSelect={setSelectedRole} onBack={returnToCatalog} onStart={() => beginWorld()} personaEntry={activeLibrary && restoreEntryPolicy(activeLibrary.world.entryPolicy).allowPersona ? <PersonaAdmission key={activeLibrary.id} entry={activeLibrary} roleId="persona-visitor" persona={playerPersona} onEnter={beginWorld} /> : undefined} />} />;
+    if (view === 'roles') return <RoleSelection identityControl={identityControl} worldTitle={activeWorldTitle} artNote={activeLibrary?.artNote} availableRoles={selectableRoles} selected={selectedRole} onSelect={setSelectedRole} onBack={returnToCatalog} onStart={() => beginWorld()} personaEntry={activeLibrary && restoreEntryPolicy(activeLibrary.world.entryPolicy).allowPersona ? <PersonaAdmission key={activeLibrary.id} entry={activeLibrary} roleId="persona-visitor" persona={playerPersona} onEnter={beginWorld} /> : undefined} />;
+    if (view === 'prologue') return <WorldProloguePlayer key={activeWorldDefinition.id} title={activeWorldTitle} fixedIdentity={singleRole ? selectedRole.name : undefined} prologue={{ shots: [{ caption: activeWorldDefinition.storyHook || activeWorldTitle, poster: activeLibrary?.cover || creatorAssets?.cover || legacyArt['storm-manor'].cover, seconds: 0 }], handoff: singleRole ? '接下来，由你决定。' : '选择一个人，从他此刻的处境进入。' }} onBack={returnToCatalog} onContinue={() => singleRole ? beginWorld() : navigate('roles')} continuation={singleRole ? undefined : <RoleSelection compact identityControl={identityControl} worldTitle={activeWorldTitle} availableRoles={selectableRoles} selected={selectedRole} onSelect={setSelectedRole} onBack={returnToCatalog} onStart={() => beginWorld()} personaEntry={activeLibrary && restoreEntryPolicy(activeLibrary.world.entryPolicy).allowPersona ? <PersonaAdmission key={activeLibrary.id} entry={activeLibrary} roleId="persona-visitor" persona={playerPersona} onEnter={beginWorld} /> : undefined} />} />;
     if (view === 'play') {
       return (
         <PlayWorld
@@ -2672,6 +2683,8 @@ function RolePortrait({ role, className = '' }: { role: Role; className?: string
 
 function RoleSelection({ worldTitle, artNote, availableRoles, selected, onSelect, onBack, onStart, personaEntry, identityControl, compact = false }: { worldTitle: string; artNote?: string; availableRoles: Role[]; selected: Role; onSelect: (role: Role) => void; onBack: () => void; onStart: () => void; identityControl: import('react').ReactNode; personaEntry?: import('react').ReactNode; compact?: boolean }) {
   const [ownEntry, setOwnEntry] = useState(Boolean(personaEntry));
+  const [confirmedRole, setConfirmedRole] = useState('');
+  const showingRecap = confirmedRole === selected.id;
   return (
     <div className={`flow-page flow-selection-page${compact ? ' compact-role-selection' : ''}`}>
       <header className="flow-toolbar"><button className="back-link" type="button" onClick={onBack}><ArrowLeft />返回世界</button><p>{worldTitle}</p></header>
@@ -2682,11 +2695,9 @@ function RoleSelection({ worldTitle, artNote, availableRoles, selected, onSelect
         <section className="flow-role-intro">
           <p className="flow-kicker">选择你的身份</p>
           <h1>{selected.name}</h1><p className="flow-identity">{selected.identity}</p>
-          <fieldset className="flow-role-switcher" aria-label="选择角色">{availableRoles.map(role => <button key={role.id} className="flow-control flow-role-option" type="button" aria-pressed={selected.id === role.id} onClick={() => onSelect(role)}>{selected.id === role.id && <Check aria-hidden="true" />}{role.name}</button>)}</fieldset>
-          {!compact && <p className="flow-role-premise">{selected.publicStory.split(/(?<=[。！？])/u)[0] || selected.personality}</p>}
-          <p className="flow-role-goal"><Target /><span><small>你的目标</small>{selected.goal}</span></p>
-          <Button className="primary-action flow-start" size="lg" onClick={onStart}>以 {selected.name} 的身份开始<ArrowRight /></Button>
-          <details className="flow-disclosure" key={`background-${selected.id}`}><summary>查看角色背景</summary>{compact && <p>你的目标：{selected.goal}</p>}<p>{selected.publicStory}</p><p>{selected.personality}</p><p><Eye />只有你知道：{selected.secret}</p></details>
+          {availableRoles.length > 1 && <fieldset className="flow-role-switcher" aria-label="选择角色">{availableRoles.map(role => <button key={role.id} className="flow-control flow-role-option" type="button" aria-pressed={selected.id === role.id} onClick={() => { setConfirmedRole(''); onSelect(role); }}>{selected.id === role.id && <Check aria-hidden="true" />}{role.name}</button>)}</fieldset>}
+          {showingRecap ? <section aria-label="角色专属前情"><p>作为{selected.name}，此刻你知道：</p>{selected.recap?.map((fact, index) => <p key={index}>{fact}</p>)}</section> : <p className="flow-role-premise">{selected.cardHook || selected.personality}</p>}
+          <Button className="primary-action flow-start" size="lg" onClick={() => { if (selected.recap?.length && !showingRecap) setConfirmedRole(selected.id); else onStart(); }}>{showingRecap ? '进入当前场景' : `以 ${selected.name} 的身份开始`}<ArrowRight /></Button>
           {!compact && identityControl}
           {!compact && !personaEntry && <p className="flow-identity">创作者暂未开放自带形象加入；本世界可选择原角色体验。</p>}
         </section>

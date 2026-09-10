@@ -1,6 +1,7 @@
 import type { WorldTurnRequest, WorldTurnResponse } from './ai-contracts';
 import type { StudioWorld } from './studio-worlds';
 import { getRoleOpening } from './studio-worlds';
+import { applyCharacterEntry, characterRecap } from './character-entry';
 import { commitTurn, createInitialWorldState, selectRoleGoal, turnMemoryText, type WorldState } from './world-state';
 export type VideoChoice = {id:string;label:string;intent:string};
 export function threeChoices(choices:VideoChoice[]):VideoChoice[] {
@@ -19,7 +20,7 @@ export function initialVideoRole(entry:StudioWorld,roleId:string){
     characterLocations:Object.fromEntries(world.characters.map(c=>[c.id,c.startLocationId])),openingLocationId:role.startLocationId,
   });
   const custom=entry.roleChoices?.[roleId]?.map((label,i)=>({id:`role-${i}`,label,intent:label}));
-  return {state,narrative:getRoleOpening(entry,roleId),choices:threeChoices(custom??(role.startLocationId===world.openingScene.locationId?world.openingScene.choices:[]))};
+  return {state:applyCharacterEntry(world,roleId,state),narrative:[...characterRecap(world,roleId),getRoleOpening(entry,roleId)].join('\n\n'),choices:threeChoices(custom??(role.startLocationId===world.openingScene.locationId?world.openingScene.choices:[]))};
 }
 export function videoTurnRequest(entry:StudioWorld,roleId:string,state:WorldState,narrative:string,choices:VideoChoice[],action:string):WorldTurnRequest{
   return {contractVersion:'2026-09-04.v2',presentation:{medium:'native-video',seconds:15},world:entry.world,selectedRoleId:roleId,state:{...state,eventLedger:state.eventLedger.slice(-6)},userAction:action,

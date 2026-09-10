@@ -50,6 +50,15 @@ export type PersonalAgentResponse = {
 };
 
 export type CharacterDefinition = {
+  playable?: boolean;
+  isDefault?: boolean;
+  entry?: {
+    storyAnchor: string;
+    completedTaskIds: string[];
+    worldFacts: string[];
+    knownFacts: string[];
+    scene: string;
+  };
   cardHook?: string;
   id: string;
   name: string;
@@ -127,6 +136,7 @@ export type ScheduledWorldEvent = {
 };
 
 export type WorldDefinition = {
+  storyHook?: string;
   discoveryGenre?: string;
   system?: import('./world-system').WorldSystem;
   entryPolicy?: import('./player-persona').EntryPolicy;
