@@ -40,6 +40,7 @@ import { captureGalleryPosition, type GalleryBrowseState, type GalleryPosition }
 import { AccountBar, PublishWorldDialog } from '@/components/account-publication';
 import { MyPublications } from '@/components/my-publications';
 import { publicationDraft } from '@/lib/restore-publication';
+import { appendStory, continuationSummary, type ContinuationDraft } from '@/lib/story-continuation';
 import { AccountBoundary } from '@/components/account-boundary';
 import { CloudWorkspace } from '@/components/cloud-workspace';
 import { applyPendingWorkspace, restoredImage, workspaceKeys } from '@/lib/cloud-workspace';
@@ -204,6 +205,7 @@ type PersistedDemoState = {
   publishedWorld: boolean;
   draftRoles: DraftRole[];
   generatedWorld?: WorldDefinition;
+  releasedEntry?: StudioWorld;
   creatorAssets?: { cover: string; portraits: Record<string, string> };
   creatorDetailBaseline?: CreatorDetailBaseline;
   generatedStoryOutline?: StoryOutlineBeat[];
@@ -215,7 +217,7 @@ type PersistedDemoState = {
 
 type CreatorDocument = {
   id: string; savedAt: number;
-  data: Pick<PersistedDemoState, 'creatorSession' | 'creatorAssets' | 'companionContext' | 'entryPolicy' | 'worldTitle' | 'worldSeed' | 'surprise' | 'draftRoles' | 'generated' | 'generatedWorld' | 'creatorDetailBaseline' | 'generatedStoryOutline' | 'creatorBrief' | 'creatorMessages' | 'publishedWorld'>;
+  data: Pick<PersistedDemoState, 'releasedEntry' | 'creatorSession' | 'creatorAssets' | 'companionContext' | 'entryPolicy' | 'worldTitle' | 'worldSeed' | 'surprise' | 'draftRoles' | 'generated' | 'generatedWorld' | 'creatorDetailBaseline' | 'generatedStoryOutline' | 'creatorBrief' | 'creatorMessages' | 'publishedWorld'>;
 };
 type StudioStorage = { version: 1; runs: (SavedRun & { id: string })[]; chats: ChatSession[]; documents: CreatorDocument[]; draftId: string };
 
@@ -1025,6 +1027,8 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
   const [roleImages, setRoleImages] = useState<Record<string, string>>({});
   const [roleImageStates, setRoleImageStates] = useState<Record<string, 'idle' | 'generating' | 'ready' | 'error'>>({});
   const [publishedWorld, setPublishedWorld] = useState(false);
+  const [releasedEntry, setReleasedEntry] = useState<StudioWorld | undefined>();
+  const [continuation, setContinuation] = useState<ContinuationDraft | undefined>();
   const [communityWorlds, setCommunityWorlds] = useState<StudioWorld[]>([]);
   const [catalogRevision, setCatalogRevision] = useState(0);
   const [publicationEntry, setPublicationEntry] = useState<StudioWorld | null>(null);
@@ -1118,7 +1122,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     : activeWorld === 'suggestion' && suggestedWorldDefinition
       ? suggestedWorldDefinition
       : buildWorldDefinition('storm', activeWorldTitle, currentStory[0].text, currentRoles, currentStory, activeSurprise);
-  const userWorlds: StudioWorld[] = creatorDocuments.filter((doc) => doc.data.publishedWorld && doc.data.generatedWorld).map((doc) => ({
+  const userWorlds: StudioWorld[] = creatorDocuments.filter((doc) => doc.data.publishedWorld && doc.data.generatedWorld).map((doc) => doc.data.releasedEntry ?? ({
     id: doc.id, title: doc.data.worldTitle, genre: '我的创作', premise: doc.data.worldSeed, cover: doc.data.creatorAssets?.cover || legacyArt['storm-manor'].cover, portraits: doc.data.creatorAssets?.portraits || {},
     world: { ...doc.data.generatedWorld!, id: doc.id, title: doc.data.worldTitle },
     portraitCacheKeys: Object.fromEntries(doc.data.draftRoles.map((role, index) => [doc.data.generatedWorld!.characters[index]?.id ?? `draft-role-${index}`, portraitCacheKey(role)])),
@@ -1223,6 +1227,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
           }
           if (typeof saved.generated === 'boolean') setGenerated(saved.generated);
           if (typeof saved.publishedWorld === 'boolean') setPublishedWorld(saved.publishedWorld);
+          setReleasedEntry(saved.releasedEntry);
           if (saved.generatedWorld
             && typeof saved.generatedWorld.title === 'string'
             && Array.isArray(saved.generatedWorld.characters)
@@ -1301,9 +1306,10 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       worldSeed,
       creatorBrief,
       creatorMessages,
-      creatorSession: { proposal: creatorProposal, changes: proposalChanges, input: creatorMessage, questions: creatorQuestions },
+      creatorSession: { proposal: creatorProposal, changes: proposalChanges, input: creatorMessage, questions: creatorQuestions, continuation },
       generated,
       publishedWorld,
+      releasedEntry,
       draftRoles,
       generatedWorld: generatedWorld ?? undefined,
       creatorAssets,
@@ -1313,12 +1319,12 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     };
     try { window.localStorage.setItem(demoStorageKey, JSON.stringify(snapshot)); }
     catch { window.setTimeout(() => setStorageError('浏览器空间不足，最新修改还没有保存。请保持页面打开，勿刷新。'), 0); }
-  }, [creatorProposal, proposalChanges, creatorMessage, creatorQuestions, memoryDetails, creatorAssets, userProfile, companionContext, playerPersona, entryPolicy, agentConversation, personalRecommendations, creatorBrief, creatorDetailBaseline, creatorMessages, draftRoles, generated, generatedStoryOutline, generatedWorld, liveMode, memories, publishedWorld, savedRun, storageReady, surprise, worldSeed, worldTitle]);
+  }, [continuation, releasedEntry, creatorProposal, proposalChanges, creatorMessage, creatorQuestions, memoryDetails, creatorAssets, userProfile, companionContext, playerPersona, entryPolicy, agentConversation, personalRecommendations, creatorBrief, creatorDetailBaseline, creatorMessages, draftRoles, generated, generatedStoryOutline, generatedWorld, liveMode, memories, publishedWorld, savedRun, storageReady, surprise, worldSeed, worldTitle]);
 
   const hasCreation = Boolean(worldTitle.trim() || worldSeed.trim() || generatedWorld || creatorMessages.some(turn => turn.role === 'creator') || companionContext.conversation.length);
   const creatorDocumentJSON = JSON.stringify({ creatorAssets, companionContext, entryPolicy, worldTitle, worldSeed, surprise, draftRoles, generated, generatedWorld: generatedWorld ?? undefined,
-    creatorDetailBaseline: creatorDetailBaseline ?? undefined, generatedStoryOutline, creatorBrief, creatorMessages, publishedWorld,
-    creatorSession: { proposal: creatorProposal, changes: proposalChanges, input: creatorMessage, questions: creatorQuestions } });
+    creatorDetailBaseline: creatorDetailBaseline ?? undefined, generatedStoryOutline, creatorBrief, creatorMessages, publishedWorld, releasedEntry,
+    creatorSession: { proposal: creatorProposal, changes: proposalChanges, input: creatorMessage, questions: creatorQuestions, continuation } });
   useEffect(() => {
     if (!storageReady) return;
     const data = JSON.parse(creatorDocumentJSON) as CreatorDocument['data'];
@@ -1987,6 +1993,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
 
   async function discussCreator(value: string) {
     if (!value || creatorAgentThinking || worldGenerating) return;
+    if (continuation) { await discussContinuation(value); return; }
     const confirmation = creatorConfirmation(value);
     if (confirmation) {
       let reply = '当前没有待采纳的建议。可以直接编辑世界设定，或告诉我新的想法。';
@@ -2068,6 +2075,64 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
 
   function creatorSections(): Record<string, unknown> {
     return { ...creatorBrief, entryPolicy, surpriseLevel: surprise, title: worldTitle, premise: worldSeed, castAndTasks: { roles: draftRoles, tasks: creatorBrief.tasks } };
+  }
+
+  function continuationFingerprint() {
+    return JSON.stringify({ worldTitle, worldSeed, draftRoles, creatorBrief, generatedStoryOutline, generatedWorld, entryPolicy, surprise });
+  }
+
+  function beginContinuation() {
+    if (!generatedWorld || creatorAgentThinking || worldGenerating) return;
+    const base = materializeCreatorWorld();
+    setContinuation({ base }); setCreatorProposal(null); setProposalChanges([]);
+    setCreatorQuestions([]); setCreatorMessage('');
+    setCreatorMessages(current => [...current, { role: 'agent', content: '我们接着这个故事写。告诉我后面发生什么，或想加入谁；原人物和已写剧情会保留，新内容先给你确认。' }].slice(-12) as CreatorChatMessage[]);
+  }
+
+  async function discussContinuation(value: string) {
+    if (!continuation) return;
+    const confirmation = creatorConfirmation(value);
+    if (confirmation) {
+      if (confirmation === 'accept') acceptContinuation();
+      else { setContinuation({ base: continuation.base }); setCreatorChangeNotice('已放弃本次提案，原故事保持不变。'); }
+      setCreatorMessage(''); return;
+    }
+    const signal = creatorRequest.current.start(), revision = navigationRevision.current;
+    const fingerprint = continuationFingerprint();
+    const base = continuation.base;
+    setCreatorAgentThinking(true); setCreatorMessage(''); setCreatorChangeNotice('');
+    setCreatorMessages(current => [...current, { role: 'creator', content: value }].slice(-12) as CreatorChatMessage[]);
+    try {
+      const response = await runAI(adapter => adapter.generateWorld({
+        contractVersion: AI_CONTRACT_VERSION, continuation: { base, previousProposal: continuation.proposal?.world },
+        creatorIntent: base.title, characters: base.characters, relationshipNotes: base.relationships.map(r => r.publicLabel),
+        storySeed: value, surpriseLevel: base.surpriseLevel, creatorBrief: normalizeCreatorBrief(creatorBrief),
+      }, signal), false);
+      if (!creatorRequest.current.current(signal) || revision !== navigationRevision.current) return;
+      if (!response.world.tasks.some(task => !base.tasks.some(old => old.id === task.id))) {
+        setCreatorMessages(current => [...current, { role: 'agent', content: response.unresolvedQuestions.join('\n') || '你希望后面具体发生什么？补充一句就好。' }].slice(-12) as CreatorChatMessage[]);
+        return;
+      }
+      const world = appendStory(base, response.world);
+      setContinuation({ base, proposal: { ...response, world }, draftFingerprint: fingerprint });
+      setCreatorMessages(current => [...current, { role: 'agent', content: `后续提案已整理好：\n${continuationSummary(base, world).join('\n')}\n可以继续告诉我哪里要改，或确认加入草稿。还没有发布。` }].slice(-12) as CreatorChatMessage[]);
+    } catch (error) {
+      if (creatorRequest.current.current(signal)) { setCreatorMessage(value); setCreatorChangeNotice(error instanceof Error ? error.message : '后续生成未完成，原故事未改动。'); }
+    } finally { if (creatorRequest.current.current(signal)) setCreatorAgentThinking(false); }
+  }
+
+  function acceptContinuation() {
+    if (!continuation?.proposal || creatorAgentThinking) return;
+    if (continuation.draftFingerprint !== continuationFingerprint()) { setCreatorChangeNotice('你已修改原设定，这份提案暂未写入。请退出续写后重新进入，按最新设定继续。'); return; }
+    const world = appendStory(continuation.base, continuation.proposal.world);
+    const restored = publicationDraft({ id: draftId, title: world.title, genre: '我的创作', premise: world.premise,
+      cover: creatorAssets?.cover || legacyArt['storm-manor'].cover, portraits: creatorAssets?.portraits || {}, world });
+    const data = restored.data;
+    setGeneratedWorld(world); setDraftRoles(ensureCreatorRoleIds(data.draftRoles));
+    setCreatorBrief(data.creatorBrief); setGeneratedStoryOutline(data.generatedStoryOutline); setCreatorDetailBaseline(data.creatorDetailBaseline);
+    setGenerated(true); setContinuation({ base: world });
+    setCreatorMessages(current => [...current, { role: 'agent', content: '后续已加入草稿，原开场、人物和剧情都保留了。可以继续追加，也可以保存试玩或发布。' }].slice(-12) as CreatorChatMessage[]);
+    setCreatorChangeNotice('后续已加入草稿，尚未改变已发布版本。');
   }
 
   const beginCompanionDiscussion = useEffectEvent((value: string) => { void discussCreator(value); });
@@ -2262,6 +2327,14 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
   }
 
   function materializeCreatorWorld(outlineInput = generatedStoryOutline) {
+    // Do not round-trip an accepted extension through the lossy simple editor.
+    if (generatedWorld) {
+      const projection = publicationDraft({ id: draftId, title: generatedWorld.title, genre: '我的创作', premise: generatedWorld.premise, cover: '', portraits: {}, world: generatedWorld }).data;
+      if (worldTitle === generatedWorld.title && worldSeed === generatedWorld.premise && surprise === generatedWorld.surpriseLevel
+        && JSON.stringify(draftRoles) === JSON.stringify(projection.draftRoles)
+        && JSON.stringify(creatorBrief) === JSON.stringify(projection.creatorBrief)
+        && JSON.stringify(outlineInput) === JSON.stringify(projection.generatedStoryOutline)) return { ...generatedWorld, entryPolicy: restoreEntryPolicy(entryPolicy) };
+    }
     const safeTitle = worldTitle.trim() || `${draftRoles[0]?.name.trim() || '角色'}的小世界`;
     const safeSeed = worldSeed.trim() || `${draftRoles.map((role) => role.name.trim() || '未命名角色').join('、')}正在面对一件会改变彼此关系的事件。`;
     const safeOutline = outlineInput.length >= 3 ? outlineInput : makeEditableOutline(safeSeed, draftRoles);
@@ -2304,16 +2377,19 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
   }
 
   function publishCreatorWorld() {
+    if (continuation?.proposal) { setCreatorChangeNotice('请先确认或放弃后续提案，再保存。'); return; }
     const world = materializeCreatorWorld();
     const published = { ...world, id: draftId };
     setGeneratedWorld(published);
     setPublishedWorld(true);
     const entry: StudioWorld = { id: draftId, title: published.title, genre: '我的创作', premise: published.premise, cover: creatorAssets?.cover || legacyArt['storm-manor'].cover, portraits: creatorAssets?.portraits || {}, world: published,
       portraitCacheKeys: Object.fromEntries(draftRoles.map((role, index) => [published.characters[index]?.id ?? `draft-role-${index}`, portraitCacheKey(role)])) };
+    setReleasedEntry(structuredClone(entry));
     setActiveLibrary(entry); setActiveWorld('draft'); setSelectedRole(entryRoles(entry)[0]); setRuntimeBeat(null); navigate('prologue');
   }
 
   function preparePublicWorld() {
+    if (continuation?.proposal) { setCreatorChangeNotice('请先确认或放弃后续提案，再发布。'); return; }
     const world = materializeCreatorWorld();
     const portraits = Object.fromEntries(world.characters.map((role, index) => [role.id, roleImages[`draft-role-${index}`] || creatorAssets?.portraits[role.id] || '']));
     setPublicationEntry({ id: draftId, title: world.title, genre: '社区创作', premise: world.premise,
@@ -2329,6 +2405,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     setActiveLibrary(null); setActiveWorld('storm'); setSelectedRole(roles[0]); setRuntimeBeat(null);
     setDraftId(crypto.randomUUID());
     setCreatorAssets(undefined);
+    setReleasedEntry(undefined); setContinuation(undefined);
     setEntryPolicy(restoreEntryPolicy(undefined));
     setWorldTitle(''); setWorldSeed(context ? '' : seed); setSurprise(2); setGenerated(false); setGeneratedWorld(null); setPublishedWorld(false);
     setGeneratedStoryOutline([]); setCreatorDetailBaseline(null); setCreatorBrief(emptyCreatorBrief); setCreatorProposal(null);
@@ -2346,6 +2423,8 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     deletedDraftIds.current.delete(doc.id);
     setActiveLibrary(null); setActiveWorld('storm'); setSelectedRole(roles[0]); setRuntimeBeat(null);
     const data = doc.data;
+    // Freeze legacy locally published drafts before any edits are made.
+    setReleasedEntry(data.releasedEntry ?? userWorlds.find(entry => entry.id === doc.id));
     setCreatorAssets(data.creatorAssets); setRoleImages({});
     setCompanionContext(restoreCompanionContext(data.companionContext));
     setEntryPolicy(restoreEntryPolicy(data.entryPolicy ?? data.generatedWorld?.entryPolicy));
@@ -2358,6 +2437,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
 
   function restorePendingCreator(value: unknown) {
     const session = restoreCreatorSession(value);
+    setContinuation(session.continuation);
     setCreatorProposal(session.proposal); setProposalChanges(session.changes);
     setCreatorMessage(session.input); setCreatorQuestions(session.questions);
   }
@@ -2515,6 +2595,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
           onBack={() => navigate(creatorReturnView.current)}
           onPublish={publishCreatorWorld}
           onShare={preparePublicWorld}
+          continuationPanel={generatedWorld ? <div className="creation-next">{continuation ? <><span>正在续写 · 原故事保留</span>{continuation.proposal && <Button disabled={creatorAgentThinking} onClick={acceptContinuation}>确认加入草稿</Button>}<Button variant="outline" onClick={() => { cancelCreatorRequest(); setContinuation(undefined); setCreatorChangeNotice('已退出续写，未确认的提案不会写入草稿。'); }}>退出续写</Button></> : <Button variant="outline" disabled={creatorAgentThinking} onClick={beginContinuation}>继续写后续</Button>}</div> : null}
         />
       );
     }
@@ -2574,7 +2655,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       {view === 'library' && <MyPublications key={accountScope} accountScope={accountScope} drafts={creatorDocuments.map(doc => ({ id: doc.id, title: doc.data.worldTitle }))} onDelete={deleteCreator} onEdit={id => { const doc = creatorDocuments.find(item => item.id === id); if (doc) editCreator(doc); }} onRestore={entry => { const doc = publicationDraft(entry); setCreatorDocuments(current => upsertById(current, doc)); editCreator(doc); }} onChanged={() => setCatalogRevision(value => value + 1)} />}
       {screen}
       {publicationNotice && <p className="account-bar" role="status">{publicationNotice}</p>}
-      {publicationEntry && <PublishWorldDialog accountScope={accountScope} entry={publicationEntry} onClose={() => setPublicationEntry(null)} onPublished={(entry) => { setCommunityWorlds(current => upsertById(current, entry)); setPublicationEntry(null); setPublicationNotice('世界已公开发布，其他访客现在可以在世界探索中找到它。'); navigate('home'); }} />}
+      {publicationEntry && <PublishWorldDialog accountScope={accountScope} entry={publicationEntry} onClose={() => setPublicationEntry(null)} onPublished={(entry) => { setReleasedEntry({ ...entry, id: draftId, world: { ...entry.world, id: draftId } }); setPublishedWorld(true); setCommunityWorlds(current => upsertById(current, entry)); setPublicationEntry(null); setPublicationNotice('世界已公开发布，其他访客现在可以在世界探索中找到它。'); navigate('home'); }} />}
       {chatEntry && <CharacterEntry key={`${chatEntry.entry.id}:${chatEntry.targetId}`} entry={chatEntry.entry} identityControl={identityControl} targetId={chatEntry.targetId} persona={playerPersona} onClose={() => setChatEntry(null)} onStart={(session) => { saveChat(session); setActiveChat(session); setChatEntry(null); navigate('chat'); }} />}
     </main>
   );
@@ -2752,6 +2833,7 @@ function PlayWorld({
 }
 
 function CreateWorld({
+  continuationPanel,
   step,
   roles: draftRoles,
   surprise,
@@ -2800,6 +2882,7 @@ function CreateWorld({
   onPublish,
   onShare,
 }: {
+  continuationPanel?: import('react').ReactNode;
   step: number;
   roles: DraftRole[];
   surprise: number;
@@ -2872,6 +2955,8 @@ function CreateWorld({
               {(creatorProposal && proposalChanges.length > 0 || creatorUndo.length > 0 || creatorChangeNotice) && <details className="flow-disclosure creation-proposals" open={Boolean(creatorProposal && proposalChanges.length)}><summary>{creatorProposal && proposalChanges.length ? `${proposalChanges.length} 项建议，可一键采纳或直接修改` : '最近修改与撤销'}</summary><CreatorProposalReview changes={creatorProposal ? proposalChanges : []} undo={creatorUndo} notice={creatorChangeNotice} busy={creatorAgentThinking || generating} onApply={onApplyCreatorProposal} onApplyAll={onApplyAllCreatorProposals} onEdit={onEditCreatorProposal} onDismiss={onDismissCreatorProposal} problemFor={onCreatorProposalProblem} /></details>}
               </div>
               <div className="creation-compose-area">
+                {continuationPanel}
+                {generated && <div className="creation-next"><Button variant="outline" disabled={creatorAgentThinking || generating} onClick={onPublish}>保存并试玩</Button><Button disabled={creatorAgentThinking || generating} onClick={onShare}>发布作品</Button></div>}
                 {worldSeed.trim() && <div className="creation-next"><p>{draftRoles.filter((role) => role.name.trim()).length} 个角色 · {creatorBrief.tasks.length} 项任务</p><SheetTrigger className="flow-control" onClick={() => onStep(4)} disabled={creatorAgentThinking || generating}>预览并试玩<ArrowRight /></SheetTrigger></div>}
                 <form className="creator-composer" onSubmit={(event) => { followConversation.current = true; onSubmitCreatorMessage(event); }}>
                   <label className="sr-only" htmlFor="creator-message">和 Agent 讨论你的世界</label><MessageTextarea id="creator-message" rows={1} maxLength={3000} value={creatorMessage} onChange={(event) => onCreatorMessage(event.target.value)} placeholder="描述你的想法，或告诉 Agent 哪里需要调整…" disabled={creatorAgentThinking} />

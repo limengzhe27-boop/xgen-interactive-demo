@@ -17,13 +17,13 @@ export function publicationDraft(entry: StudioWorld & { sourceId?: string }) {
     successCondition: world.endingConditions.find(ending => (ending.outcome ?? 'success') === 'success')?.description ?? '',
     failureCondition: world.endingConditions.find(ending => ending.outcome === 'failure')?.description ?? '',
     complexityLevel: 2,
-    tasks: world.tasks.map(task => ({ ...task })),
+    tasks: world.tasks.map(task => ({ ...task, assignedRoleIds: task.assignedRoleIds.map(id => `draft-role-${world.characters.findIndex(role => role.id === id)}`) })),
     difficulties: world.difficultyConstraints.map(item => item.description),
     scheduledEvents: world.scheduledEvents.map(item => ({ title: item.title, trigger: item.trigger, effect: item.effect })),
   };
   return { id: entry.sourceId || entry.id, savedAt: Date.now(), data: {
     worldTitle: world.title, worldSeed: world.premise, surprise: world.surpriseLevel,
-    generated: true, publishedWorld: true, generatedWorld: world, draftRoles: roles,
+    generated: true, publishedWorld: true, releasedEntry: structuredClone(entry), generatedWorld: world, draftRoles: roles,
     generatedStoryOutline: outline, creatorDetailBaseline: { roles, outline }, creatorBrief: brief,
     creatorMessages: [{ role: 'agent', content: '已从公开版本恢复角色、规则与任务。原来的私人创作讨论不在公开版本里，未恢复；这里的修改不会自动更新线上作品。' }] as CreatorChatMessage[],
     entryPolicy: world.entryPolicy, creatorAssets: { cover: entry.cover, portraits: { ...entry.portraits } },

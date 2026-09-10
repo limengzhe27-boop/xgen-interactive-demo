@@ -8,6 +8,7 @@ import { GalleryAtmosphere, GalleryMasonry, GalleryReveal } from '@/components/g
 import { mixGallery } from '@/lib/gallery-order';
 import { editorialCopy, featureHomeItems, HOME_ARTWORK } from '@/lib/home-editorial';
 import { characterHook, characterSearchText } from '@/lib/character-card';
+import { demoPlayCount } from '@/lib/demo-play-count';
 import { advanceComposerScroll } from '@/lib/composer-scroll';
 import { DISCOVERY_CHANNELS, matchesDiscovery } from '@/lib/discovery-category';
 import { restoreGalleryPosition, type GalleryBrowseState, type GalleryPosition } from '@/lib/gallery-memory';
@@ -162,7 +163,7 @@ export function StudioHome({ section, worlds, characters, recent, onCreate, onOp
         const open = () => world ? onOpenWorld(world.id) : onChat(character!.worldId, character!.id);
         return <div className="gallery-cell" key={item.kind + ':' + id} data-gallery-id={item.kind + ':' + id}><GalleryReveal delay={(index % 4) * 60}><article className="gallery-card" data-kind={item.kind} aria-label={title}>
           <button className="gallery-art" onClick={open} type="button" aria-label={world ? '进入：' + title : '与' + character!.name + '对话：' + title}><Artwork src={HOME_ARTWORK[itemKey(item)] || world?.cover || character!.image} alt="" /></button>
-          {title && <div className="gallery-card-copy"><h3>{title}</h3></div>}
+          <div className="gallery-card-copy">{title && <h3>{title}</h3>}<span className="gallery-play-count">{demoPlayCount(itemKey(item))}</span></div>
         </article></GalleryReveal></div>;
       })}</GalleryMasonry>
       {!items.length && <div className="gallery-no-results" aria-live="polite"><Search /><h3>暂时没有找到</h3><p>换一个词，或者和 Agent 一起创造它。</p><button className="studio-button" type="button" onClick={() => { setQuery(''); setGenre('全部'); setKind('all'); }}>清除筛选</button></div>}

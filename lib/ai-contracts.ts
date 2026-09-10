@@ -224,6 +224,7 @@ export type CreatorAgentResponse = {
 };
 
 export type WorldGenerationRequest = {
+  continuation?: { base: WorldDefinition; previousProposal?: WorldDefinition };
   contractVersion: typeof AI_CONTRACT_VERSION;
   creatorIntent?: string;
   characters: (Pick<CharacterDefinition, 'name' | 'identity' | 'persona' | 'cardHook'> & { id?: string; goal?: string })[];

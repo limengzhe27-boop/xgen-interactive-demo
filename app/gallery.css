@@ -330,3 +330,4 @@
 .companion-action > div { display: flex; flex-wrap: wrap; gap: 8px; }
 .companion-action button { white-space: normal; }
 @media (max-width: 600px) { .companion-handoff { padding: 24px 18px; } }
+.gallery-play-count { display: block; margin-top: 8px; color: #ffffffd9; font-size: .8125rem; line-height: 1.4; }

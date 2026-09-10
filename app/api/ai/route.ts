@@ -2,6 +2,8 @@ import { AI_CONTRACT_VERSION } from '@/lib/ai-contracts';
 import { characterChatGuidance, characterChatContract } from '@/lib/character-chat-guidance';
 import { exactChatRecall } from '@/lib/chat-memory';
 import { creativeGuidance } from '@/lib/creative-guidance';
+import { appendStory, CONTINUATION_GUIDANCE } from '@/lib/story-continuation';
+import { publicationWorld } from '@/lib/publication';
 import { prologueAgentInstructions, readPrologueAgentInput, readPrologueAgentReply } from '@/lib/prologue-agent';
 import { repairCreatorProposal } from '@/lib/creator-proposal-repair';
 import { requestAccount } from '@/lib/server-auth';
@@ -41,6 +43,7 @@ const operationInstructions: Record<Operation, string> = {
 // Video has its own 15-second direction below; do not also ask for long illustrated prose.
 const videoTurnContract = operationInstructions['advance-world'];
 for (const op of ['co-create-world', 'generate-world', 'advance-world'] as const) operationInstructions[op] += creativeGuidance(op);
+operationInstructions['generate-world'] += CONTINUATION_GUIDANCE;
 
 operationInstructions['advance-world'] += '\n对白按发言顺序逐条返回：每条 dialogue 只能属于一个 characterId，禁止将多人台词拼在一个人的 text 中。正文 narrative 侧重场景与行动，角色直接发言放入 dialogue，避免上下重复整段对白；visibleToRoleIds 按实际可知范围填写，不因角色出现就让所有人发言，不替玩家编造未表达的台词。';
 
@@ -166,6 +169,15 @@ async function handlePost(request: Request) {
   }
   const version = (body.input as { contractVersion?: unknown }).contractVersion;
   if (version !== AI_CONTRACT_VERSION) return Response.json({ error: 'contract_version_mismatch' }, { status: 409 });
+  let continuationBase: ReturnType<typeof publicationWorld> | undefined;
+  if (body.operation === 'generate-world' && (body.input as { continuation?: unknown }).continuation) {
+    try {
+      const input = body.input as Record<string, unknown>;
+      const continuation = input.continuation as { base: unknown; previousProposal?: unknown };
+      continuationBase = publicationWorld(continuation.base);
+      input.continuation = { base: continuationBase, ...(continuation.previousProposal ? { previousProposal: publicationWorld(continuation.previousProposal) } : {}) };
+    } catch { return Response.json({ error: 'invalid_continuation' }, { status: 400 }); }
+  }
 
   const prologueInput = body.operation === 'plan-prologue' ? readPrologueAgentInput(body.input) : null;
   if (body.operation === 'plan-prologue') {
@@ -233,6 +245,13 @@ async function handlePost(request: Request) {
       });
     }
     let guardedOutput = body.operation === 'design-persona' ? readPersonaDesignReply(output) : output;
+    if (continuationBase && isWorldGenerationResponse(output)) {
+      if (output.unresolvedQuestions.length && !output.world.tasks.some(task => !continuationBase!.tasks.some(old => old.id === task.id))) guardedOutput = { ...output, world: continuationBase };
+      else {
+        try { guardedOutput = { ...output, world: appendStory(continuationBase, output.world) }; }
+        catch { return Response.json({ error: 'invalid_continuation' }, { status: 502 }); }
+      }
+    }
     if (adaptationInput) {
       let suggestion = readPersonaAdaptationSuggestion(output, adaptationInput);
       const remainingMs = Math.min(15_000, 40_000 - (Date.now() - startedAt));
