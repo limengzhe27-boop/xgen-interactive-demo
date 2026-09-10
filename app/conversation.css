@@ -75,3 +75,27 @@
 }
 @media (prefers-reduced-motion: reduce) { .conversation-response { animation: none; } }
 .studio-frame:has(.conversation-shell) > .account-bar { display: none; }
+
+/* Personal Agent reuses the character conversation viewport and composer. */
+.companion-chat-turn { margin: 0 0 24px; min-width: 0; }
+.companion-chat-turn p { margin: 0; font: 16px/1.8 var(--font-ui); white-space: pre-wrap; overflow-wrap: anywhere; }
+.companion-chat .studio-chat-user { margin-bottom: 0; background: var(--color-surface-hover); }
+.companion-speaker { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--color-primary); margin-bottom: 8px; }
+.companion-speaker svg { width: 24px; height: 24px; }
+.companion-turn-tools { display: flex; align-items: center; gap: 4px; min-height: 44px; }
+.companion-chat-turn[data-role=user] .companion-turn-tools { justify-content: flex-end; }
+.companion-turn-tools .personal-message-actions { position: relative; }
+.companion-turn-tools .personal-message-actions[open] { max-width: 100%; }
+.companion-turn-tools .personal-to-creation { min-height: 44px; }
+.companion-profile { overflow-wrap: anywhere; }
+.companion-profile-heading { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.companion-profile-heading h2 { margin: 0; }
+.companion-profile section + section { border-top: 1px solid var(--color-border-soft); margin-top: 16px; padding-top: 4px; }
+.companion-profile p { white-space: pre-wrap; }
+.companion-memory-items { list-style: none; padding: 0; margin: 0; }
+.companion-memory-items li { display: grid; grid-template-columns: minmax(0, 1fr) 44px; align-items: start; gap: 4px; }
+.companion-memory-items .flow-control { padding: 10px; }
+.companion-persona-heading { display: flex; align-items: center; gap: 10px; }
+.companion-persona-heading img { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; }
+.companion-profile .personal-privacy { margin-top: 16px; }
+.companion-chat .conversation-heading > svg { color: var(--color-primary); }

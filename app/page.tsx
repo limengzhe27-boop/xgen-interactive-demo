@@ -2523,7 +2523,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       <PersonalAgent
         accountScope={accountScope}
         onBack={() => navigate('home')}
-        identityPanel={<button className="persona-shortcut" type="button" onClick={() => navigate('profile')}><UserRound /><span><small>我的个人中心</small><strong>查看形象、性格与 Agent 记忆</strong></span><ArrowRight /></button>}
+        profile={userProfile} persona={playerPersona} onProfile={() => navigate('profile')}
         worlds={[
           ...availableStudioWorlds.map((entry) => ({ ...entry, roleCount: entry.fixedRoleId ? 1 : entry.world.characters.length })),
           ...worldCatalog.map((world) => ({ ...world, roleCount: world.id === 'storm-manor' ? roles.length : presetWorlds.find((preset) => preset.id === world.id)?.roles.length ?? 0, cover: world.id === 'storm-manor' ? legacyArt['storm-manor'].cover : world.id === 'sea-train' ? legacyArt['sea-train'].cover : legacyArt['sixth-roommate'].cover })),
