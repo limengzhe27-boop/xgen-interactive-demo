@@ -11,7 +11,9 @@ test('publication restoration retains fiction and pictures without inventing pri
     assert.deepEqual(draft.data.creatorAssets.portraits, entry.portraits);
     assert.equal(draft.data.creatorAssets.cover, entry.cover);
     assert.equal(draft.data.draftRoles.length,entry.world.characters.length);
-    assert.deepEqual(draft.data.creatorBrief.tasks,entry.world.tasks);
+    assert.deepEqual(draft.data.creatorBrief.tasks, entry.world.tasks.map(task => ({ ...task,
+      assignedRoleIds: task.assignedRoleIds.map(id => `draft-role-${entry.world.characters.findIndex(role => role.id === id)}`),
+    })));
     assert.ok(!JSON.stringify(draft).includes('PRIVATE_MARKER'));
     assert.equal(draft.data.creatorMessages.length,1);
     draft.data.generatedWorld.title='edited';

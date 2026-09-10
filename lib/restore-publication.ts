@@ -1,5 +1,6 @@
 import type { CreatorBrief, CreatorChatMessage, StoryOutlineBeat } from './ai-contracts';
 import type { StudioWorld } from './studio-worlds';
+import { publicationWorld } from './publication.ts';
 
 // A historical revision becomes an independent draft, never an implicit rollback
 // or a replacement for the author's current work. Do not retain sourceId.
@@ -12,7 +13,13 @@ export function historicalPublicationDraft(entry: StudioWorld, edition: number, 
 
 // Restore only the published fiction, never invent the author's original discussion.
 export function publicationDraft(entry: StudioWorld & { sourceId?: string }) {
-  const world = structuredClone(entry.world);
+  const world = publicationWorld(structuredClone(entry.world));
+  const releasedEntry = structuredClone(Object.fromEntries([
+    'id', 'title', 'originalTitle', 'genre', 'premise', 'cover', 'artNote', 'featured',
+    'fixedRoleId', 'openingImage', 'portraits', 'portraitCacheKeys', 'roleOpenings',
+    'roleEntryScenes', 'roleChoices', 'edition',
+  ].filter(key => Object.hasOwn(entry, key)).map(key => [key, entry[key as keyof StudioWorld]]))) as StudioWorld;
+  releasedEntry.world = structuredClone(world);
   const roles = world.characters.map(role => ({ editorId: role.id, name: role.name, identity: role.identity,
     personality: role.persona, appearance: role.imagePrompt, relationship: role.publicBackground, goal: role.goal, cardHook: role.cardHook }));
   const outline: StoryOutlineBeat[] = Array.from({ length: Math.max(3, Math.min(world.locations.length, 6)) }, (_, index) => {
@@ -32,7 +39,7 @@ export function publicationDraft(entry: StudioWorld & { sourceId?: string }) {
   };
   return { id: entry.sourceId || entry.id, savedAt: Date.now(), data: {
     worldTitle: world.title, worldSeed: world.premise, surprise: world.surpriseLevel,
-    generated: true, publishedWorld: true, releasedEntry: structuredClone(entry), generatedWorld: world, draftRoles: roles,
+    generated: true, publishedWorld: true, releasedEntry, generatedWorld: world, draftRoles: roles,
     generatedStoryOutline: outline, creatorDetailBaseline: { roles, outline }, creatorBrief: brief,
     creatorMessages: [{ role: 'agent', content: '已从公开版本恢复角色、规则与任务。原来的私人创作讨论不在公开版本里，未恢复；这里的修改不会自动更新线上作品。' }] as CreatorChatMessage[],
     entryPolicy: world.entryPolicy, creatorAssets: { cover: entry.cover, portraits: { ...entry.portraits } },
