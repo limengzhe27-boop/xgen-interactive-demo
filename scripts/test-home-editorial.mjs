@@ -1,8 +1,21 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { HOME_EDITORIAL, CHARACTER_INVITATIONS, featureHomeItems, editorialCopy } from '../lib/home-editorial.ts';
+import { HOME_EDITORIAL, HOME_ARTWORK, CHARACTER_INVITATIONS, featureHomeItems, editorialCopy } from '../lib/home-editorial.ts';
+import { stat } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
+import sharp from 'sharp';
 import { creativeGuidance } from '../lib/creative-guidance.ts';
 import { studioWorlds } from '../lib/studio-worlds.ts';
+void test('every first-screen card has a versioned, readable portrait cover', async () => {
+  assert.deepEqual(Object.keys(HOME_ARTWORK), HOME_EDITORIAL.map(card => card.key));
+  for (const asset of Object.values(HOME_ARTWORK)) {
+    const file = new URL('../public' + asset, import.meta.url);
+    assert.ok((await stat(file)).size > 10000);
+    const metadata = await sharp(fileURLToPath(file)).metadata();
+    assert.equal(metadata.format, 'webp');
+    assert.ok(metadata.height > metadata.width);
+  }
+});
 void test('reviewed invitations target real roles without changing first eight or character data', () => {
   const snapshot = JSON.stringify(studioWorlds);
   assert.equal(Object.keys(CHARACTER_INVITATIONS).length, 3);

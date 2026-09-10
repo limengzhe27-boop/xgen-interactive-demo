@@ -10,6 +10,18 @@ export const HOME_EDITORIAL = [
   { key: 'world:rome-three-percent', title: '行李在巴黎，我在罗马，手机只剩 3%' },
 ] as const;
 
+/** Discovery artwork only. Never rewrite saved portraits, video references or world state. */
+export const HOME_ARTWORK: Record<string, string> = {
+  'world:emperor-last-decree': '/assets/expansion/emperor-last-decree/cover-v2.webp',
+  'character:libai-moon-debt:r1': '/assets/expansion/libai-moon-debt/r1-v2.webp',
+  'world:spider-under-table': '/assets/expansion/spider-under-table/cover-v2.webp',
+  'world:surrounded-by-beauties': '/assets/expansion/surrounded-by-beauties/cover-v2.webp',
+  'world:ascension-work-number': '/assets/ascension-v1/cover-v2.webp',
+  'character:conquest-watermelon:liu': '/assets/conquest-v1/liu-v2.webp',
+  'world:peach-source': '/assets/expansion/peach-source/cover-v2.webp',
+  'world:rome-three-percent': '/assets/expansion/rome-three-percent/cover-v2.webp',
+};
+
 export function editorialCopy(key: string): { title?: string; tagline?: string } | undefined {
   return CHARACTER_INVITATIONS[key] ?? HOME_EDITORIAL.find(item => item.key === key);
 }
