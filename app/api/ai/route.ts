@@ -1,5 +1,5 @@
 import { AI_CONTRACT_VERSION } from '@/lib/ai-contracts';
-import { characterChatGuidance } from '@/lib/character-chat-guidance';
+import { characterChatGuidance, characterChatContract } from '@/lib/character-chat-guidance';
 import { creativeGuidance } from '@/lib/creative-guidance';
 import { prologueAgentInstructions, readPrologueAgentInput, readPrologueAgentReply } from '@/lib/prologue-agent';
 import { repairCreatorProposal } from '@/lib/creator-proposal-repair';
@@ -86,6 +86,7 @@ function parseModelJSON(content: string): unknown {
 }
 
 async function callCompany(provider: CompanyProvider, operation: Operation, input: unknown, timeoutMs?: number): Promise<unknown> {
+  const isChat = operation === 'advance-world' && isWorldTurnRequest(input) && input.interaction?.mode === 'character-chat';
   const runtimeInput = operation === 'advance-world' && isWorldTurnRequest(input)
     ? { ...input, systemView: visibleSystem(input.world, input.selectedRoleId, input.state.completedTaskIds) }
     : input;
@@ -102,7 +103,7 @@ async function callCompany(provider: CompanyProvider, operation: Operation, inpu
         model: provider.model,
         messages: [
           ...(operation === 'advance-world' && isWorldTurnRequest(input) && input.presentation?.medium === 'native-video' ? [{role:'system',content:'本轮为15秒原生有声互动视频，覆盖默认长篇字数规则：只推进用户这次行动可在15秒内完成的一个具体事件。narrative约150—280字，按0—3秒行动起势、3—9秒交互与阻力、9—13秒可见反应、13—15秒未决尾态安排，场景与动作连续，不靠静态推拉凑时长，依次写起势、接触/反应、可见后果与未决尾态，不能只描述风景或推镜；不完成整场长任务。dialogue最多四句、合计不超过50个汉字；保持说话人准确，玩家没授权说话不要替他说。独处可空对白，由现场动作声表达。nextChoices必须恰好3项不同且当场可执行的动作。不要把所有秘密、远处事件写进可见剧情。生成结果停在下一次行动之前。'}] : []),
-          { role: 'system', content: `你正在驱动一个图文交互小世界 Demo。只输出一个有效 JSON 对象，不使用 Markdown。契约版本：${AI_CONTRACT_VERSION}。${operationInstructions[operation]}${operation === 'advance-world' ? '如果输入 interaction.mode=character-chat，这是独立的角色会面，体验者仍是selectedRoleId，对话对象是interaction.targetCharacterId，两者绝不互换。重点呈现目标角色对本次话语的真实回应，并保持世界知识、关系与任务约束；不要为凑长度强行转场或安排不在场角色登场，不替玩家说下一句话或接受关系。目标角色不在场时如实说明，不让其隔空回答。普通对话优先复用图片；关键可见场景变化才生图。' : ''}` },
+          { role: 'system', content: `你正在驱动一个图文交互小世界 Demo。只输出一个有效 JSON 对象，不使用 Markdown。契约版本：${AI_CONTRACT_VERSION}。${isChat ? characterChatContract : operationInstructions[operation]}` },
           ...(operation === 'advance-world' ? [{ role: 'system', content: '角色会面中，如果所选参与者身份为自由对话用户，直接回应用户，不要求先选角，不把对方当成世界里的已有角色，不编造其家庭、性格、旧关系或秘密，不强迫完成主线；用户未表达的身份保持未知。原剧情人物的背景只用于演绎该人物。' }] : []),
           ...(operation === 'advance-world' && isWorldTurnRequest(input) && input.interaction?.mode === 'character-chat' ? [{ role: 'system', content: characterChatGuidance }] : []),
           ...(operation === 'personal-agent' ? [{ role: 'system', content: personalActionInstructions + ' 用户当前填写的资料优先于旧聊天和旧记忆；有冲突时询问，不擅自覆盖。不从虚构角色设定推断真人性格，不把临时情绪当成长期性格。' }] : []),

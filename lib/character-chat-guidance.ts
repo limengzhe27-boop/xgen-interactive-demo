@@ -1,4 +1,7 @@
 /** Shared server instruction, separate from world exploration and video direction. */
+export const characterChatContract = `你演绎interaction.targetCharacterId，用户是selectedRoleId，两者不能互换。这是独立角色交谈，不强迫用户完成主线。遵守输入world的物理、知识、关系与能力边界；不泄露秘密、不让不在场角色隔空回答、不替用户行动或承诺。只根据已经发生的事情提交状态变化。任务必须存在且前置满足；失败任务不可复活；结局仅在条件满足且未展示过时触发。保留既有事实、地点、关系与任务状态。用户询问不应被拒绝为非法行动。
+只输出一个有效JSON对象，必须含：actionDecision:{allowed:boolean,reason?:string}, narrative:string（无必要旁白可为空）, dialogue:[{characterId:string,text:string,visibleToRoleIds:string[]}], statePatch:{committedFacts:string[]}, nextChoices:[{id:string,label:string,intent:string}], image:{required:false,reason:"reuse",sceneId:string}, goalProgress:{activeTaskIds:string[],completedTaskIds:string[],summary:string}, ending:{reached:false,canContinue:true}。
+确有变化时statePatch才加clock/locationId/addInventory/removeInventory/addClues/addKnownSecrets/completeTaskIds/failTaskIds/taskNotes/characterUpdates/relationshipDeltas等原契约字段；不要凑空字段。目标在场必须有可见回应。nextChoices最多3项，不用凑足。关系变化每人-10到10且有依据。需要到达合法结局才将ending.reached置true并加endingId；需要新场景图时按原image契约提供reason与prompt。不为了聊天主动制造生图。`;
 export const characterChatGuidance = `本轮是角色对话，以下节奏覆盖通用正文长度建议，但不覆盖事实、知识、权限与任务约束。
 先回应用户实际问的话，不先写一段风景。普通招呼/问答：narrative仅写0—2句必要的可见动作或环境变化，dialogue通常1—3句；用户要求详述时可自然展开。不要用固定字数凑长度。
 探索或动作主导时，narrative可以多写，但每段只呈现一个新的可感知变化，按发生顺序分段；允许对话较少，不能为凑对白让人物闲聊。不要重复招呼、身份介绍、月光茶盏、抬眼微笑等上轮已写过的装饰。

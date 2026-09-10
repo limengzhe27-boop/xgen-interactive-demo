@@ -59,13 +59,14 @@ export function CharacterChat({ initial, accountScope, onSave, onBack }: { initi
   const [unread, setUnread] = useState(false);
   const player = session.entry.world.characters.find((role) => role.id === session.playerRoleId)!;
   const target = session.entry.world.characters.find((role) => role.id === session.targetCharacterId)!;
+  const identity = target.identity.replace(/^\s*\d+\s*岁\s*[·・，,／/]?\s*/, '');
   const background = (target.publicBackground || '').replace(target.identity, '').replace(target.persona, '').replace(/^[。；\s]+|[。；\s]+$/g, '');
   const place = session.entry.world.locations.find(item => item.id === target.startLocationId);
-  const profile = <><h2>{target.name}</h2><p className="conversation-identity">{target.identity}</p>
+  const profile = <><h2>{target.name}</h2><p className="conversation-identity">{identity}</p>
     {background && <section><h3>他是谁</h3><p>{background}</p></section>}
     <section><h3>初见时的场景 · {place?.name}</h3><p>{place?.description || '你们在这里开始交谈。'}</p></section>
     <section><h3>性格与相处</h3><p>{target.persona}</p></section>
-    <p className="conversation-world-note">故事：{session.entry.title}</p></>;
+    </>;
   function editInput(value: string) {
     setInput(value);
     const next = { ...sessionRef.current, draftInput: value };
@@ -126,17 +127,17 @@ export function CharacterChat({ initial, accountScope, onSave, onBack }: { initi
       const next = { ...sessionRef.current, state, draftInput: '', narrative: response.narrative, turns: [...sessionRef.current.turns, { action: action.trim(), response }], savedAt: Date.now() };
       sessionRef.current = next; setSession(next); onSave(next); setInput('');
       if (response.image.prompt && shouldGenerateImage(response.image, state.turn, lastImageAttemptTurn.current, true)) void makeImage(response.image.prompt, next);
-    } catch { if (!aborter.signal.aborted) setError('真实模型暂时没有返回有效回应。你的输入和进度已保留，可以重试。'); }
+    } catch (cause) { if (!aborter.signal.aborted) setError(cause instanceof Error ? cause.message : '网络连接失败，你的输入和进度已保留，可以重试。'); }
     finally { if (!aborter.signal.aborted) { setBusy(false); controller.current = null; } }
   }
 
-  const sceneTools = <section className="conversation-scene-tools"><h3>场景插图</h3><img src={image} alt="会面参考插图，不代表实时场景" /><small>{imageState || '插图为参考，不代表实时场景。'}</small><button className="flow-control" type="button" onClick={() => void makeImage(`${session.entry.world.title}。${session.narrative}。${target.imagePrompt}。电影感场景，无文字，无水印。`, session)} disabled={busy || imageState.startsWith('正在')}><RefreshCw />{imageState.includes('失败') ? '重试场景图' : '生成场景图（可选）'}</button><small>点击生成会调用生图服务并产生费用。</small></section>;
+  const sceneTools = <section className="conversation-scene-tools">{image !== session.entry.cover && <img src={image} alt="生成的场景插图" />}<button className="flow-control" type="button" onClick={() => void makeImage(`${session.entry.world.title}。${session.narrative}。${target.imagePrompt}。电影感场景，无文字，无水印。`, session)} disabled={busy || imageState.startsWith('正在')}><RefreshCw />{imageState.includes('失败') ? '重试场景图' : '生成场景图'}</button>{imageState && <small role="status">{imageState}</small>}</section>;
   return <div className="flow-page meeting-chat conversation-shell">
     <header className="conversation-header"><button className="flow-control" onClick={onBack} type="button" aria-label="返回"><ArrowLeft /></button><div className="conversation-heading"><img src={session.entry.portraits[target.id] || session.entry.cover} alt="" /><span><strong>{target.name}</strong><small>{session.state.location}</small></span></div></header>
     <div className="conversation-layout"><div className="conversation-main">
     <section ref={messagesRef} className="conversation-messages" aria-label={`与${target.name}的对话记录`} tabIndex={0} onScroll={() => { const area = messagesRef.current; if (area) { followLatest.current = area.scrollHeight - area.scrollTop - area.clientHeight < 80; if (followLatest.current) setUnread(false); } }}>
       <section className="conversation-inline-profile" aria-label="人物与场景">{profile}{sceneTools}</section>
-      <div className="conversation-opening"><div className="conversation-opening-context">{target.name} · {target.identity}<br />{place?.name}：{place?.description}</div>{session.greeting ? <><small>{session.greeting.scene}</small><div className="conversation-line"><img src={session.entry.portraits[target.id] || session.entry.cover} alt="" /><div><strong>{target.name}</strong><p>{session.greeting.text}</p></div></div><LocalSpeech accountScope={accountScope} text={session.greeting.text} /></> : <><small>会面开始</small><p>{session.entry.world.openingScene.narrative}</p><LocalSpeech accountScope={accountScope} text={session.entry.world.openingScene.narrative} /></>}</div>
+      <div className="conversation-opening"><div className="conversation-opening-context">{target.name} · {identity}<br />{place?.name}：{place?.description}</div>{session.greeting ? <><small>{session.greeting.scene}</small><div className="conversation-line"><img src={session.entry.portraits[target.id] || session.entry.cover} alt="" /><div><strong>{target.name}</strong><p>{session.greeting.text}</p></div></div><LocalSpeech accountScope={accountScope} text={session.greeting.text} /></> : <><small>会面开始</small><p>{session.entry.world.openingScene.narrative}</p><LocalSpeech accountScope={accountScope} text={session.entry.world.openingScene.narrative} /></>}</div>
       {session.turns.map((turn, index) => <article className="studio-chat-turn" key={index}>
         <div className="studio-chat-user" aria-label="你发送的消息"><p>{turn.action}</p></div>
         <div className="conversation-response">
