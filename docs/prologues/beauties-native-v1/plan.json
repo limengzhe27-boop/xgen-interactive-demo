@@ -1,0 +1,175 @@
+{
+  "version": 2,
+  "title": "完蛋！我被美女包围了！",
+  "characters": [
+    {
+      "id": "player",
+      "identity": "许遇，成年新租客",
+      "appearance": "第一人称只见深蓝袖口与手，拖黑色行李箱和误拿的银色样机箱"
+    },
+    {
+      "id": "director",
+      "identity": "许星遥，成年纪录片导演",
+      "appearance": "栗色短发、白衬衣、深色背带，手持小摄影机与纸咖啡杯"
+    },
+    {
+      "id": "chef",
+      "identity": "江晚，成年主厨",
+      "appearance": "黑发扎起，浅色厨服，双手端白瓷试菜盘"
+    },
+    {
+      "id": "founder",
+      "identity": "唐梨，成年创业者",
+      "appearance": "黑色长发，绿色轻薄外套，朝银色硬壳箱走来"
+    }
+  ],
+  "facts": [
+    {
+      "id": "arrival",
+      "description": "体验者初到场景，第一人称尚未回答",
+      "channel": "visual"
+    },
+    {
+      "id": "encounter",
+      "description": "咖啡泼在行李箱上，导演认错了来人。",
+      "channel": "visual"
+    },
+    {
+      "id": "change",
+      "description": "第二份工作被行李挡住，玩家还未解释身份。",
+      "channel": "visual"
+    },
+    {
+      "id": "question",
+      "description": "银色箱被指出是样机，三个不同诉求同时等玩家回答。",
+      "channel": "visual"
+    }
+  ],
+  "shots": [
+    {
+      "id": "opening",
+      "start": 0,
+      "end": 15,
+      "characterIds": [
+        "player",
+        "director",
+        "chef",
+        "founder"
+      ],
+      "location": "现代创业公寓，电梯开向共享客厅，左侧摄影工作区，右侧厨房通道",
+      "startState": "电梯门从中间打开，黑色行李箱滚轮跨过门槛，门外导演正在后退取景。",
+      "action": "电梯门打开，导演后退一步撞到正在出门的行李箱，纸杯倾斜，咖啡真实泼落箱盖。她立即将摄影机抬高避开液体，空手按住摇晃的杯子。 导演侧身让开，主厨端着菜从右方厨房通道快步过来，看见箱子挡路急停，向左挪一步护住盘边。她低头找自己的箱子，侧身留出一条通道。 创业者从客厅工作桌旁起身走近，绕过主厨，在银色箱前停住，指向箱扣。导演放低摄影机转头看箱子，主厨端盘侧立。玩家仍握箱柄，没有开箱、答应工作或恋爱。",
+      "endState": "电梯门外，黑色箱有咖啡渍，银色箱未打开；唐梨指着银箱，许星遥摄影机放低，江晚端菜站在侧面，玩家尚未回答。",
+      "continuity": "单段15秒，严格第一人称，正常实时速度，同一空间内完整演出动作变化，无旁白解释。",
+      "evidence": [
+        {
+          "factId": "arrival",
+          "channel": "visual",
+          "detail": "体验者初到场景，第一人称尚未回答"
+        },
+        {
+          "factId": "encounter",
+          "channel": "visual",
+          "detail": "咖啡泼在行李箱上，导演认错了来人。"
+        },
+        {
+          "factId": "change",
+          "channel": "visual",
+          "detail": "第二份工作被行李挡住，玩家还未解释身份。"
+        },
+        {
+          "factId": "question",
+          "channel": "visual",
+          "detail": "银色箱被指出是样机，三个不同诉求同时等玩家回答。"
+        }
+      ]
+    }
+  ],
+  "handoff": {
+    "shotId": "opening",
+    "unresolved": "电梯门外，黑色箱有咖啡渍，银色箱未打开；唐梨指着银箱，许星遥摄影机放低，江晚端菜站在侧面，玩家尚未回答。",
+    "choices": [
+      "说明自己只是新租客，请星遥先放下摄影机。",
+      "先承认拿错箱，问唐梨需要怎么归还。",
+      "先给江晚让路，再问她在找哪个箱子。"
+    ]
+  },
+  "story": {
+    "throughline": "新租客刚出电梯就被三项工作撞个正着：咖啡泼洒、试菜被挡、样机拿错，先向谁解释由玩家决定。",
+    "perspective": "first-person",
+    "povCharacterId": "player",
+    "beats": [
+      {
+        "shotId": "opening",
+        "cause": "电梯门从中间打开，黑色行李箱滚轮跨过门槛，门外导演正在后退取景。",
+        "change": "电梯门外，黑色箱有咖啡渍，银色箱未打开；唐梨指着银箱，许星遥摄影机放低，江晚端菜站在侧面，玩家尚未回答。"
+      }
+    ],
+    "recall": [
+      {
+        "topic": "who",
+        "answer": "许遇，成年新租客",
+        "factIds": [
+          "arrival"
+        ]
+      },
+      {
+        "topic": "relationship",
+        "answer": "许星遥，成年纪录片导演；江晚，成年主厨；唐梨，成年创业者",
+        "factIds": [
+          "encounter"
+        ]
+      },
+      {
+        "topic": "event",
+        "answer": "咖啡泼在行李箱上，导演认错了来人。",
+        "factIds": [
+          "encounter"
+        ]
+      },
+      {
+        "topic": "pressure",
+        "answer": "第二份工作被行李挡住，玩家还未解释身份。",
+        "factIds": [
+          "change"
+        ]
+      },
+      {
+        "topic": "handoff",
+        "answer": "银色箱被指出是样机，三个不同诉求同时等玩家回答。",
+        "factIds": [
+          "question"
+        ]
+      }
+    ]
+  },
+  "audio": {
+    "mode": "native",
+    "cues": [
+      {
+        "start": 1,
+        "end": 4.5,
+        "speakerId": "director",
+        "text": "对不起！你是来试镜的？",
+        "delivery": "近处年轻成年女声，先惊讶再疑问，嘴型同步",
+        "kind": "dialogue"
+      },
+      {
+        "start": 5,
+        "end": 8.5,
+        "speakerId": "chef",
+        "text": "先让一下，谁拿了我的箱子？",
+        "delivery": "右侧成年女声，赶时间但不吼叫",
+        "kind": "dialogue"
+      },
+      {
+        "start": 10,
+        "end": 13,
+        "speakerId": "founder",
+        "text": "等一下，那是我的样机。",
+        "delivery": "正前方成年女声，清楚认真",
+        "kind": "dialogue"
+      }
+    ]
+  }
+}

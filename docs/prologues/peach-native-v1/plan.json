@@ -1,0 +1,161 @@
+{
+  "version": 2,
+  "title": "误入桃花源，外面还是秦朝吗？",
+  "characters": [
+    {
+      "id": "player",
+      "identity": "武陵渔人，成年，来自晋代",
+      "appearance": "第一人称只露粗麻袖口与手，不拍渔人脸或背影"
+    },
+    {
+      "id": "elder",
+      "identity": "村老，桃花源居民，不知外界朝代",
+      "appearance": "白发白须，灰褐麻衣，木杖"
+    },
+    {
+      "id": "weaver",
+      "identity": "村中织者，成年村民",
+      "appearance": "深色长发盘起，浅褐交领布衣，手持线团"
+    }
+  ],
+  "facts": [
+    {
+      "id": "arrival",
+      "description": "体验者初到场景，第一人称尚未回答",
+      "channel": "visual"
+    },
+    {
+      "id": "encounter",
+      "description": "陌生村庄从石缝后真实显露，村老发现渔人。",
+      "channel": "visual"
+    },
+    {
+      "id": "change",
+      "description": "村老拦住去路询问来历，织者也被惊动。",
+      "channel": "visual"
+    },
+    {
+      "id": "question",
+      "description": "普通问路变成朝代谜题，回答与否交由玩家。",
+      "channel": "visual"
+    }
+  ],
+  "shots": [
+    {
+      "id": "opening",
+      "start": 0,
+      "end": 15,
+      "characterIds": [
+        "player",
+        "elder",
+        "weaver"
+      ],
+      "location": "桃花源狭窄山口连接田埂，前方是梯田与村舍，右侧织者在屋檐下，村老从前方田埂走来",
+      "startState": "近处石壁几乎贴着双肩，粗麻袖手扶过岩石，眼前山口亮处已有随风落下的桃花。",
+      "action": "渔人从狭窄石口侧身挤出，袖口擦过石壁，前方枝条被肩膀碰开，视野露出田地与村舍。木杖点地的村老抬头发现外人，立刻从田埂走近。 村老连走两步到田埂岔口，将木杖立在身侧，空手抬起示意渔人稍停；渔人停在他面前。屋檐下织者放下线团，站起身侧看外人。 村老稍向渔人靠近，先看湿麻袖再抬眼，问外面是否仍是秦朝。织者走到屋檐边停住，村老身后通往村子的路可见，玩家双手空着并未回答。",
+      "endState": "村老站在田埂前方等回答，织者在右后方屋檐边，山村道路在村老身后；渔人未说明朝代、未进屋、未离开。",
+      "continuity": "单段15秒，严格第一人称，正常实时速度，同一空间内完整演出动作变化，无旁白解释。",
+      "evidence": [
+        {
+          "factId": "arrival",
+          "channel": "visual",
+          "detail": "体验者初到场景，第一人称尚未回答"
+        },
+        {
+          "factId": "encounter",
+          "channel": "visual",
+          "detail": "陌生村庄从石缝后真实显露，村老发现渔人。"
+        },
+        {
+          "factId": "change",
+          "channel": "visual",
+          "detail": "村老拦住去路询问来历，织者也被惊动。"
+        },
+        {
+          "factId": "question",
+          "channel": "visual",
+          "detail": "普通问路变成朝代谜题，回答与否交由玩家。"
+        }
+      ]
+    }
+  ],
+  "handoff": {
+    "shotId": "opening",
+    "unresolved": "村老站在田埂前方等回答，织者在右后方屋檐边，山村道路在村老身后；渔人未说明朝代、未进屋、未离开。",
+    "choices": [
+      "告诉老人外面是晋代，再问他们何时来到这里。",
+      "说明自己只是捕鱼人，问他们为何提起秦朝。",
+      "请老人讲讲祖先离开外面时发生了什么。"
+    ]
+  },
+  "story": {
+    "throughline": "渔人挤出山口，看见隐秘村庄，村老走来拦住并问外面是否仍是秦朝，玩家尚未透露外界信息。",
+    "perspective": "first-person",
+    "povCharacterId": "player",
+    "beats": [
+      {
+        "shotId": "opening",
+        "cause": "近处石壁几乎贴着双肩，粗麻袖手扶过岩石，眼前山口亮处已有随风落下的桃花。",
+        "change": "村老站在田埂前方等回答，织者在右后方屋檐边，山村道路在村老身后；渔人未说明朝代、未进屋、未离开。"
+      }
+    ],
+    "recall": [
+      {
+        "topic": "who",
+        "answer": "武陵渔人，成年，来自晋代",
+        "factIds": [
+          "arrival"
+        ]
+      },
+      {
+        "topic": "relationship",
+        "answer": "村老，桃花源居民，不知外界朝代；村中织者，成年村民",
+        "factIds": [
+          "encounter"
+        ]
+      },
+      {
+        "topic": "event",
+        "answer": "陌生村庄从石缝后真实显露，村老发现渔人。",
+        "factIds": [
+          "encounter"
+        ]
+      },
+      {
+        "topic": "pressure",
+        "answer": "村老拦住去路询问来历，织者也被惊动。",
+        "factIds": [
+          "change"
+        ]
+      },
+      {
+        "topic": "handoff",
+        "answer": "普通问路变成朝代谜题，回答与否交由玩家。",
+        "factIds": [
+          "question"
+        ]
+      }
+    ]
+  },
+  "audio": {
+    "mode": "native",
+    "cues": [
+      {
+        "start": 5,
+        "end": 8.5,
+        "speakerId": "elder",
+        "text": "客从何来？",
+        "delivery": "近处年长男声，警惕但礼貌，发声时嘴型同步",
+        "kind": "dialogue"
+      },
+      {
+        "start": 10,
+        "end": 13.5,
+        "speakerId": "elder",
+        "text": "外面……还是秦朝吗？",
+        "delivery": "同一男声，放轻声音认真询问，不能换成旁白",
+        "kind": "dialogue"
+      }
+    ]
+  }
+}
