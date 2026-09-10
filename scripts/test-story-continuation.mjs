@@ -5,7 +5,6 @@ import { publicationWorld } from '../lib/publication.ts';
 import { publicationDraft } from '../lib/restore-publication.ts';
 import { restoreCreatorSession } from '../lib/creator-session.ts';
 import { studioWorlds } from '../lib/studio-worlds.ts';
-import { demoPlayCount } from '../lib/demo-play-count.ts';
 
 const base = publicationWorld(studioWorlds[0].world);
 const proposal = () => {
@@ -44,8 +43,4 @@ test('restored editor has valid positional role assignments and a separate saved
   assert.ok(draft.creatorBrief.tasks.every(t => t.assignedRoleIds.every(id => /^draft-role-\d+$/.test(id))));
   draft.generatedWorld.title = '未发布草稿';
   assert.equal(draft.releasedEntry.world.title, base.title);
-});
-test('demonstration counts are stable and clearly marked', () => {
-  assert.equal(demoPlayCount('world-a'), demoPlayCount('world-a'));
-  assert.match(demoPlayCount('world-a'), /人玩过.*演示/);
 });

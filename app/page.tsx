@@ -5,6 +5,7 @@ import { SyntheticEvent, useEffect, useEffectEvent, useRef, useState } from 'rea
 import { WorldSystemPanel } from '@/components/world-system-panel';
 import { WorldProloguePlayer } from '@/components/world-prologue';
 import { VideoExplorer } from '@/components/video-explorer';
+import { RecordPlay } from '@/components/play-counts';
 import './video-explore/video-explore.css';
 import { worldPrologue } from '@/lib/world-prologue';
 import { playableCharacters, characterRecap, applyCharacterEntry } from '@/lib/character-entry';
@@ -2754,6 +2755,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
   return (
     <main className="studio-frame" data-focused-flow={view === 'prologue' || view === 'roles' || view === 'play' || view === 'personal' || view === 'create' || view === 'chat'}>
       <StudioNav section={view} onNavigate={navigate} onCreate={newCreator} />
+      {view === 'play' && <RecordPlay target={`world:${activeLibrary?.id ?? activeWorld}`} accountScope={accountScope} />}
       {view !== 'prologue' && <AccountBar onProfile={['home', 'library', 'characters', 'personal'].includes(view) ? () => navigate('profile') : undefined} workspaceControls={['home', 'library', 'personal', 'profile', 'characters'].includes(view) && <CloudWorkspace accountScope={accountScope} disabled={!storageReady || storageReadFailed.current || agentThinking || creatorAgentThinking || worldGenerating} />} />}
       {companionHandoff && <CompanionHandoff seed={companionHandoff.seed} conversation={agentConversation} memoryCount={memories.length} onClose={() => setCompanionHandoff(null)} onConfirm={(seed, context) => {
         if (worldGenerating || creatorAgentThinking) { setStorageError('请等当前创作回应结束后再新建。'); return; }

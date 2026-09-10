@@ -17,6 +17,7 @@ import type { ChatSession } from '@/lib/studio-session';
 import type { StudioWorld } from '@/lib/studio-worlds';
 import type { PlayerPersona } from '@/lib/player-persona';
 import { characterGreeting } from '@/lib/character-greeting';
+import { useRecordPlay } from '@/components/play-counts';
 
 export function CharacterEntry({ entry, targetId, onStart }: { identityControl?: import('react').ReactNode; entry: StudioWorld; targetId: string; persona?: PlayerPersona | null; onClose: () => void; onStart: (session: ChatSession) => void }) {
   const started = useRef(false);
@@ -42,6 +43,7 @@ export function CharacterEntry({ entry, targetId, onStart }: { identityControl?:
 export function CharacterChat({ initial, accountScope, onSave, onBack }: { initial: ChatSession; accountScope: string; onSave: (session: ChatSession) => void; onBack: () => void }) {
   const remoteAIAdapter = useMemo(() => createRemoteAIAdapter(accountScope), [accountScope]);
   const [session, setSession] = useState(initial);
+  useRecordPlay(session.turns.length ? `character:${session.entry.id}:${session.targetCharacterId}` : null, accountScope);
   const [input, setInput] = useState(initial.draftInput ?? '');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');

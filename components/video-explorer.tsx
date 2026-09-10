@@ -14,6 +14,7 @@ import { switchRole } from '@/lib/role-switch';
 import { applyStoryUpgrade } from '@/lib/story-upgrade';
 import { StoryUpdateNotice } from '@/components/story-update-notice';
 import { RequestStoryUpdate } from '@/components/request-story-update';
+import { useRecordPlay } from '@/components/play-counts';
 import { publicationWorld } from '@/lib/publication';
 import { commitVideoTurn, initialVideoRole, threeChoices, videoErrors, videoMotionPrompt, videoTurnRequest, type VideoChoice } from '@/lib/video-exploration';
 
@@ -29,6 +30,7 @@ export function VideoExplorer({entry:latestEntry,onBack,onText}:{entry:StudioWor
   const current=useRef(session);
   useEffect(()=>{current.current=session;},[session]);
   const [phase,setPhase]=useState<Phase>(roles.length===1?'intro':'roles'),[scope,setScope]=useState<string|null>(null),[configured,setConfigured]=useState(false);
+  useRecordPlay(session.rounds > 0 ? `world:${entry.id}` : null, scope);
   const [enabled,setEnabled]=useState(false),[paused,setPaused]=useState(false),[seconds,setSeconds]=useState(15),[text,setText]=useState(''),[focused,setFocused]=useState(false);
   const [visible,setVisible]=useState(true),[error,setError]=useState(''),[loading,setLoading]=useState(true);
   const [saveError,setSaveError]=useState(''),[waitSeconds,setWaitSeconds]=useState(0);
