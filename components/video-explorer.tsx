@@ -13,6 +13,7 @@ import { playableCharacters, characterRecap } from '@/lib/character-entry';
 import { switchRole } from '@/lib/role-switch';
 import { applyStoryUpgrade } from '@/lib/story-upgrade';
 import { StoryUpdateNotice } from '@/components/story-update-notice';
+import { RequestStoryUpdate } from '@/components/request-story-update';
 import { publicationWorld } from '@/lib/publication';
 import { commitVideoTurn, initialVideoRole, threeChoices, videoErrors, videoMotionPrompt, videoTurnRequest, type VideoChoice } from '@/lib/video-exploration';
 
@@ -233,6 +234,7 @@ export function VideoExplorer({entry:latestEntry,onBack,onText}:{entry:StudioWor
         {phase==='ready'&&<button onClick={()=>void player.current?.play()}>播放新片</button>}
       </>}
       {error&&<p role="alert">{error}</p>}
+      {session.finished&&<RequestStoryUpdate key={`${scope}:${entry.id}`} worldId={entry.id} accountScope={scope??'pending'}/>}
       {saveError&&<p role="alert">{saveError}</p>}
       {session.pending&&phase==='error'&&<button onClick={()=>void resume()}>恢复本回合查询（不重新购买）</button>}
       <details onToggle={e=>{if(e.currentTarget.open)setPaused(true);}}><summary>更多 · 剧情与探索方式</summary>

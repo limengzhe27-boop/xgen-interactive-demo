@@ -45,6 +45,7 @@ import { StudioHome, StudioNav } from '@/components/studio-home';
 import { captureGalleryPosition, type GalleryBrowseState, type GalleryPosition } from '@/lib/gallery-memory';
 import { AccountBar, PublishWorldDialog } from '@/components/account-publication';
 import { MyPublications } from '@/components/my-publications';
+import { RequestStoryUpdate } from '@/components/request-story-update';
 import { publicationDraft } from '@/lib/restore-publication';
 import { appendStory, continuationSummary, type ContinuationDraft } from '@/lib/story-continuation';
 import { AccountBoundary } from '@/components/account-boundary';
@@ -2708,7 +2709,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
         />
       );
     }
-    if (view === 'ending') return <Ending storyUpdate={activeLibrary ? <StoryUpdateNotice current={activeLibrary} latest={availableStudioWorlds.find(entry=>entry.id===activeLibrary.id)} onApply={attachStoryUpdate} /> : undefined} error={actionFeedback?.allowed===false?actionFeedback.reason:undefined} worldTitle={activeWorldTitle} role={selectedRole} decision={endingDecision} state={worldState} world={activeWorldDefinition} imageUrl={imageTask.assetUrl} onContinue={continueWorld} onReplay={() => { if (activeLibrary?.world.entryAdmission) { if (!openCatalogWorld(activeLibrary.id)) navigate('home'); } else navigate('roles'); }} onHome={returnToCatalog} />;
+    if (view === 'ending') return <Ending storyUpdate={activeLibrary ? <><StoryUpdateNotice current={activeLibrary} latest={availableStudioWorlds.find(entry=>entry.id===activeLibrary.id)} onApply={attachStoryUpdate} /><RequestStoryUpdate key={`${accountScope}:${activeLibrary.id}`} worldId={activeLibrary.id} accountScope={accountScope}/></> : undefined} error={actionFeedback?.allowed===false?actionFeedback.reason:undefined} worldTitle={activeWorldTitle} role={selectedRole} decision={endingDecision} state={worldState} world={activeWorldDefinition} imageUrl={imageTask.assetUrl} onContinue={continueWorld} onReplay={() => { if (activeLibrary?.world.entryAdmission) { if (!openCatalogWorld(activeLibrary.id)) navigate('home'); } else navigate('roles'); }} onHome={returnToCatalog} />;
     return (
       <PersonalAgent
         accountScope={accountScope}
