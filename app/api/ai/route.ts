@@ -42,6 +42,7 @@ const operationInstructions: Record<Operation, string> = {
 {"actionDecision":{"allowed":true,"reason":"可选","suggestedAlternative":"可选"},"narrative":"中文剧情回应","dialogue":[{"characterId":"character-id","text":"台词","visibleToRoleIds":["role-id"]}],"statePatch":{"clock":"可选","locationId":"可选","addInventory":[],"removeInventory":[],"addClues":[],"addKnownSecrets":[],"completeTaskIds":["task-id"],"failTaskIds":[],"taskNotes":{"task-id":"进度说明"},"characterUpdates":{"character-id":{"locationId":"location-id","status":"状态","lastAction":"私下行动的可见摘要"}},"relationshipDeltas":{"character-id":0},"committedFacts":[]},"nextChoices":[{"id":"choice-id","label":"行动文本","intent":"意图"}],"image":{"required":false,"reason":"opening|location_changed|character_changed|major_event|reuse","sceneId":"scene-id","prompt":"可选","reuseAssetId":"可选"},"goalProgress":{"activeTaskIds":["task-id"],"completedTaskIds":[],"summary":"目标进度"},"ending":{"reached":false,"endingId":"可选","canContinue":true}}`,
 };
 // Video has its own 15-second direction below; do not also ask for long illustrated prose.
+operationInstructions['advance-world'] += '\n同一存档可切换角色。以 state.clock/location/characterStates 为当前时刻与位置，不重新应用角色 entry，不把切换视为行动或新开局。state.inventory/clues/knownSecrets/eventLedger 只属于当前角色；全局 committedFacts/taskNotes/任务进度是世界真相，不等于角色已知。没有获知途径不得在对白或画面泄露。';
 const videoTurnContract = operationInstructions['advance-world'];
 for (const op of ['co-create-world', 'generate-world', 'advance-world'] as const) operationInstructions[op] += creativeGuidance(op);
 operationInstructions['generate-world'] += CONTINUATION_GUIDANCE + CHARACTER_ENTRY_GUIDANCE;
@@ -205,6 +206,8 @@ async function handlePost(request: Request) {
 
   if (body.operation === 'advance-world') {
     if (!isWorldTurnRequest(body.input)) return Response.json({ error: 'invalid_world_turn_request' }, { status: 400 });
+    // Other viewpoints remain in the saved game, never in this actor's prompt.
+    delete body.input.state.rolePerspectives;
     const validation = validateAction(body.input.userAction, body.input.state, body.input.currentScene.choices.map((choice) => choice.label), body.input.world);
     if (!validation.allowed) {
       return Response.json(makeRejectedWorldTurn(body.input, validation), {

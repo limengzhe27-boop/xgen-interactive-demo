@@ -29,6 +29,7 @@ export type EventRecord = {
 };
 
 export type WorldState = {
+  rolePerspectives?: Record<string, Pick<WorldState, 'inventory' | 'clues' | 'knownSecrets' | 'relationshipTrust' | 'relationshipChanges' | 'eventLedger'>>;
   turn: number;
   clock: string;
   location: string;

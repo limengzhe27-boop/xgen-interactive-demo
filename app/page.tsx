@@ -8,6 +8,7 @@ import { VideoExplorer } from '@/components/video-explorer';
 import './video-explore/video-explore.css';
 import { worldPrologue } from '@/lib/world-prologue';
 import { playableCharacters, characterRecap, applyCharacterEntry } from '@/lib/character-entry';
+import { switchRole } from '@/lib/role-switch';
 import { visibleSystem } from '@/lib/world-system';
 import { CreatorRequest } from '@/lib/creator-request';
 import { STORY_CATEGORIES, validDiscoveryGenre } from '@/lib/discovery-category';
@@ -1760,6 +1761,20 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     navigate('play');
   }
 
+  function switchCurrentRole(roleId: string) {
+    if (isThinking || roleId === selectedRole.id) return;
+    try {
+      const changed = switchRole(activeWorldDefinition, worldState, selectedRole.id, roleId, activeLibrary?.fixedRoleId);
+      const role = currentRoles.find(r => r.id === roleId);
+      if (!role) return;
+      cancelImageTask();
+      setSelectedRole(role); setWorldState(changed.state); setNarrative(changed.narrative);
+      setRuntimeBeat({ title: changed.state.location, location: changed.state.location, text: changed.narrative, speaker: '', dialogue: '', dialogues: [], choices: ['观察眼前的环境', '确认身边有哪些人', '查看自己随身的物品'].map(label => ({ label, result: '', clue: '', relationDelta: 0 })) });
+      setLastAction(''); setLastIncident(null); setFreeAction(''); setEndingDecision(''); setActionFeedback(null);
+      setImageTask(createInitialImageTask(role.imageUrl || activeLibrary?.cover || legacyArt['storm-manor'].cover));
+    } catch (error) { setActionFeedback({ allowed: false, reason: error instanceof Error ? error.message : '暂时无法切换角色' }); }
+  }
+
   function continueWorld() {
     cancelImageTask();
     // Returning to play does not advance time, reset tasks, or invent a new event.
@@ -1807,7 +1822,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       state: worldState,
       recentTurns: worldState.eventLedger.filter((event) => event.status === 'committed').slice(-4).map((event) => ({ action: event.action, result: event.result })),
       currentScene: toSceneContext(currentBeat, turn, currentRoles),
-      nextScene: nextTurn < currentStory.length ? toSceneContext(currentStory[nextTurn], nextTurn, currentRoles) : undefined,
+      nextScene: !worldState.rolePerspectives && nextTurn < currentStory.length ? toSceneContext(currentStory[nextTurn], nextTurn, currentRoles) : undefined,
       interruptedDraft: preservedText || undefined,
     };
     const generationController = new AbortController();
@@ -2517,6 +2532,8 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
           artNote={activeLibrary?.artNote}
           world={activeWorldDefinition}
           role={selectedRole}
+          roleSwitcher={selectableRoles.length > 1 && !activeWorldDefinition.entryAdmission ? <label>切换角色 <select aria-label="同一存档切换角色" value={selectedRole.id} disabled={isThinking} onChange={e => switchCurrentRole(e.target.value)}>{selectableRoles.map(role => <option key={role.id} value={role.id}>{role.name}</option>)}</select></label> : undefined}
+          knownSecrets={worldState.knownSecrets}
           worldTitle={activeWorldTitle}
           availableRoles={currentRoles}
           presentRoleIds={currentRoles.filter((role) => {
@@ -2707,6 +2724,8 @@ function RoleSelection({ worldTitle, artNote, availableRoles, selected, onSelect
 }
 
 function PlayWorld({
+  roleSwitcher,
+  knownSecrets,
   accountScope,
   backLabel,
   artNote,
@@ -2741,6 +2760,8 @@ function PlayWorld({
   onAction,
   onBack,
 }: {
+  roleSwitcher?: React.ReactNode;
+  knownSecrets: string[];
   artNote?: string;
   backLabel: string;
   world: WorldDefinition;
@@ -2791,6 +2812,7 @@ function PlayWorld({
       <header className="flow-toolbar">
         <button className="back-link" type="button" onClick={onBack}><ArrowLeft />{backLabel}</button>
         <p className="flow-player-label">你是 {role.name}</p>
+        {roleSwitcher}
         <SheetTrigger className="flow-control" onClick={() => setCategory('tasks')}>故事资料</SheetTrigger>
       </header>
       <SheetContent className="flow-drawer" showCloseButton={false} finalFocus={() => {
@@ -2802,7 +2824,7 @@ function PlayWorld({
         <fieldset className="flow-detail-categories" aria-label="资料分类">{categories.map(item => <button className="flow-control" type="button" key={item.id} aria-pressed={category === item.id} onClick={() => setCategory(item.id)}>{item.label}</button>)}</fieldset>
         <section className="flow-detail-body" aria-label={categories.find(item => item.id === category)?.label}>
           {category === 'tasks' && <><h2>{goal?.title || role.goal}</h2><p>{goal?.description || role.goal}</p><small>主线 {completedMainTasks.length} / {mainTasks.length} 已完成</small><ol className="flow-task-list">{tasks.map(task => <li key={task.id}><div><strong>{task.title}</strong><small>{task.kind === 'side' ? '支线 · ' : ''}{taskDisplayStatus(task, completedTaskIds, failedTaskIds)}</small></div><p>{task.description}</p>{task.difficulty && <small>阻力：{task.difficulty}</small>}</li>)}</ol></>}
-          {category === 'people' && <><h2>当前在场</h2><div className="flow-people">{availableRoles.filter(item => item.id === role.id || presentRoleIds.includes(item.id)).map(item => <article key={item.id}><RolePortrait role={item} /><div><strong>{item.name}{item.id === role.id ? ' · 你' : ''}</strong><p>{item.identity}</p></div></article>)}</div><p>他人对你的信任：{relation} / 100</p><details className="flow-disclosure"><summary>我的入场信息</summary><p>{role.secret}</p></details></>}
+          {category === 'people' && <><h2>当前在场</h2><div className="flow-people">{availableRoles.filter(item => item.id === role.id || presentRoleIds.includes(item.id)).map(item => <article key={item.id}><RolePortrait role={item} /><div><strong>{item.name}{item.id === role.id ? ' · 你' : ''}</strong><p>{item.identity}</p></div></article>)}</div><p>他人对你的信任：{relation} / 100</p><details className="flow-disclosure"><summary>我已知的信息</summary>{knownSecrets.map((fact, i) => <p key={i}>{fact}</p>)}</details></>}
           {category === 'items' && <><h2>持有物</h2>{inventory.length ? <ul>{inventory.map(item => <li key={item}>{item}</li>)}</ul> : <p>暂时没有持有物。</p>}<h2>已知线索</h2>{clues.length ? <ul>{clues.map(clue => <li key={clue}>{clue}</li>)}</ul> : <p>还没有发现新的线索。</p>}</>}
           {category === 'history' && <><h2>第 {turn + 1} 轮 · {location}</h2><p>{clock}</p>{!eventLedger.length && <p>你的故事刚刚开始。</p>}<ol className="flow-history">{eventLedger.map(event => <li key={event.id}><small>{event.location} · {event.status === 'committed' ? '已发生' : event.status === 'interrupted' ? '已中断' : '已拒绝'}</small><h3>{event.action}</h3><p>{event.result}</p></li>)}</ol></>}
           {category === 'system' && system && <WorldSystemPanel world={world} roleId={role.id} completedTaskIds={completedTaskIds} disabled={isThinking && !liveMode} onPrepare={action => { onFreeAction(action); preparedAction.current = true; setDetailsOpen(false); }} />}
@@ -2820,7 +2842,7 @@ function PlayWorld({
           <h1 id="scene-title">{beat.title}</h1>
           <p className="flow-narrative">{isThinking && !narrative ? '世界正在回应你的行动……' : narrative}{isThinking && liveMode ? <span className="streaming-cursor" aria-label="正在生成" /> : null}</p>
           {incident && <p className="flow-incident"><Sparkles />{incident.title}</p>}
-          {!isThinking && <SpeechSequence key={`speech-${turn}`} segments={speechSegments(narrative, (beat.dialogues ?? []).filter(line => availableRoles.some(role => role.id === line.characterId)), beat.dialogues ? '' : beat.dialogue)} accountScope={accountScope} />}
+          {!isThinking && <SpeechSequence key={`speech-${role.id}-${turn}`} segments={speechSegments(narrative, (beat.dialogues ?? []).filter(line => availableRoles.some(role => role.id === line.characterId)), beat.dialogues ? '' : beat.dialogue)} accountScope={accountScope} />}
           {!isThinking && (beat.dialogues ? beat.dialogues.map((line, index) => {
             const speaker = availableRoles.find(item => item.id === line.characterId);
             return speaker ? <blockquote key={`${line.characterId}-${index}`}><RolePortrait role={speaker} /><div><strong>{speaker.name}</strong><p>“{line.text}”</p></div></blockquote> : null;
