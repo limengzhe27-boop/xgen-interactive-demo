@@ -1,5 +1,6 @@
 import { AI_CONTRACT_VERSION } from '@/lib/ai-contracts';
 import { characterChatGuidance, characterChatContract } from '@/lib/character-chat-guidance';
+import { exactChatRecall } from '@/lib/chat-memory';
 import { creativeGuidance } from '@/lib/creative-guidance';
 import { prologueAgentInstructions, readPrologueAgentInput, readPrologueAgentReply } from '@/lib/prologue-agent';
 import { repairCreatorProposal } from '@/lib/creator-proposal-repair';
@@ -37,6 +38,8 @@ const operationInstructions: Record<Operation, string> = {
   'advance-world': `你是统一的世界 Agent。体验者本人就是selectedRoleId，不存在额外的场外玩家角色，禁止写成“所选角色听到你的话”。NPC自主完成其任务时，也必须同步completeTaskIds、committedFacts与characterUpdates；不要在正文完成动作后仍让NPC无限重做。endingConditions.applicableRoleIds 存在时，只有包含 selectedRoleId 的结局才可向体验者触发；其他角色的目标达成只是世界事件，继续推进当前体验角色的目标。先阅读 recentTurns 和 currentScene，接续上轮已经发生的后果；禁止复制、轻微改写前几轮整段叙事，尤其不能在结局后反复重新整理同一批物品或重复首次询问。玩家重复询问时，承认已经讨论过的安排，给出当前进展或尚未变化的简短理由，展开当下可感知的具体反馈，不强行制造新危机或替玩家行动。优先采用所选角色的 role 目标，否则采用 world 目标；不要把其他角色的私人目标、任务或秘密当作玩家的。体验者只授权 userAction 中明确的动作。严禁替体验者主动承诺、决定下楼、移动、牺牲或接受新任务；其他角色可以提议，但必须停在等待玩家选择的位置。userAction 说留在当前地点时，保持体验者 locationId 不变。询问和观察是合法尝试；对方不在场时描述寻找或呼叫没有回应，不要用 allowed=false 拒绝普通询问。当已发生事实满足任务 successCondition 时必须提交 completeTaskIds，不得不断追加创作者未定义的障碍拖延完成。失败条件使用 endingConditions 中 outcome=failure 的 requiredFailedTaskIds 和 requiredFacts。所有 requiredFacts 是精确事实标签；仅当事件确实发生才原样写入 committedFacts，同时在剧情中说明证据。每回合必须区分行动意图和真实结果，不得因为用户宣告就将结果记为事实。state.reachedEndingIds 中的结局已经展示，用户选择继续后不得重复触发，也不能重置事实、任务或时间。结局后的所有回合默认 ending.reached=false。state.failedTaskIds 是不可逆失败任务，不得再标记 completeTaskIds；后续补救只能是新的行动事实，不能把泡毁的原件说成获救。按行动的信息量写作：普通问答或短暂观察的正文约120—250字，重要冲突、探索或动作场面约250—500字；这不是硬字数门槛，不能为凑长度替玩家说话、增设门禁或重演环境。体验者代入 selectedRoleId；其他角色由你依据世界定义统一演绎，不是多个独立 Agent。严格遵守物理规则、角色知识边界、已提交事实、当前状态、tasks 的前置条件和 difficultyConstraints。nextScene 只是创作者的参考方向，不是固定剧情；即使 nextScene 不存在也必须继续动态推演。只有 endingConditions 的 requiredTaskIds 和 requiredFacts 真正满足，或明确失败条件发生时，ending.reached 才能为 true；绝不能因为分幕用完或回合数到达就结束。goalProgress.activeTaskIds 只能包含“尚未完成且所有 prerequisiteTaskIds 已完成”的任务，不能把未解锁任务写入 activeTaskIds。对一句话跳过 Boss/条件的行动，必须根据前置和角色能力判定失败、部分成功或引发代价，不得直接完成所有任务。有实际可推进的非玩家角色时同步其状态，写入 characterUpdates；单角色或独处场景允许空数组，以环境、物件和行动后果推进，不虚构NPC。不能泄露体验者不应知道的内容。narrative写可见场景、行为和后果，实际台词只写在dialogue、不在两处重复，有在场人物时生成与实际发言人数相称的角色对话；独处、动物或纯环境场景允许无对白，不强凑人物；生成 3—4 个不同策略的下一步建议。自由输入是主行动方式，选项只是灵感。所有 nextChoices.label 必须以体验角色姓名开头。场景或重大事件变化时生成新图，普通对话复用图片。输出 JSON：
 {"actionDecision":{"allowed":true,"reason":"可选","suggestedAlternative":"可选"},"narrative":"中文剧情回应","dialogue":[{"characterId":"character-id","text":"台词","visibleToRoleIds":["role-id"]}],"statePatch":{"clock":"可选","locationId":"可选","addInventory":[],"removeInventory":[],"addClues":[],"addKnownSecrets":[],"completeTaskIds":["task-id"],"failTaskIds":[],"taskNotes":{"task-id":"进度说明"},"characterUpdates":{"character-id":{"locationId":"location-id","status":"状态","lastAction":"私下行动的可见摘要"}},"relationshipDeltas":{"character-id":0},"committedFacts":[]},"nextChoices":[{"id":"choice-id","label":"行动文本","intent":"意图"}],"image":{"required":false,"reason":"opening|location_changed|character_changed|major_event|reuse","sceneId":"scene-id","prompt":"可选","reuseAssetId":"可选"},"goalProgress":{"activeTaskIds":["task-id"],"completedTaskIds":[],"summary":"目标进度"},"ending":{"reached":false,"endingId":"可选","canContinue":true}}`,
 };
+// Video has its own 15-second direction below; do not also ask for long illustrated prose.
+const videoTurnContract = operationInstructions['advance-world'];
 for (const op of ['co-create-world', 'generate-world', 'advance-world'] as const) operationInstructions[op] += creativeGuidance(op);
 
 operationInstructions['advance-world'] += '\n对白按发言顺序逐条返回：每条 dialogue 只能属于一个 characterId，禁止将多人台词拼在一个人的 text 中。正文 narrative 侧重场景与行动，角色直接发言放入 dialogue，避免上下重复整段对白；visibleToRoleIds 按实际可知范围填写，不因角色出现就让所有人发言，不替玩家编造未表达的台词。';
@@ -103,7 +106,7 @@ async function callCompany(provider: CompanyProvider, operation: Operation, inpu
         model: provider.model,
         messages: [
           ...(operation === 'advance-world' && isWorldTurnRequest(input) && input.presentation?.medium === 'native-video' ? [{role:'system',content:'本轮为15秒原生有声互动视频，覆盖默认长篇字数规则：只推进用户这次行动可在15秒内完成的一个具体事件。narrative约150—280字，按0—3秒行动起势、3—9秒交互与阻力、9—13秒可见反应、13—15秒未决尾态安排，场景与动作连续，不靠静态推拉凑时长，依次写起势、接触/反应、可见后果与未决尾态，不能只描述风景或推镜；不完成整场长任务。dialogue最多四句、合计不超过50个汉字；保持说话人准确，玩家没授权说话不要替他说。独处可空对白，由现场动作声表达。nextChoices必须恰好3项不同且当场可执行的动作。不要把所有秘密、远处事件写进可见剧情。生成结果停在下一次行动之前。'}] : []),
-          { role: 'system', content: `你正在驱动一个图文交互小世界 Demo。只输出一个有效 JSON 对象，不使用 Markdown。契约版本：${AI_CONTRACT_VERSION}。${isChat ? characterChatContract : operationInstructions[operation]}` },
+          { role: 'system', content: `你正在驱动一个图文交互小世界 Demo。只输出一个有效 JSON 对象，不使用 Markdown。契约版本：${AI_CONTRACT_VERSION}。${isChat ? characterChatContract : operation === 'advance-world' && isWorldTurnRequest(input) && input.presentation?.medium === 'native-video' ? videoTurnContract : operationInstructions[operation]}` },
           ...(operation === 'advance-world' ? [{ role: 'system', content: '角色会面中，如果所选参与者身份为自由对话用户，直接回应用户，不要求先选角，不把对方当成世界里的已有角色，不编造其家庭、性格、旧关系或秘密，不强迫完成主线；用户未表达的身份保持未知。原剧情人物的背景只用于演绎该人物。' }] : []),
           ...(operation === 'advance-world' && isWorldTurnRequest(input) && input.interaction?.mode === 'character-chat' ? [{ role: 'system', content: characterChatGuidance }] : []),
           ...(operation === 'personal-agent' ? [{ role: 'system', content: personalActionInstructions + ' 用户当前填写的资料优先于旧聊天和旧记忆；有冲突时询问，不擅自覆盖。不从虚构角色设定推断真人性格，不把临时情绪当成长期性格。' }] : []),
@@ -198,6 +201,12 @@ async function handlePost(request: Request) {
   }
 
   const provider = getCompanyProvider();
+  if (body.operation === 'advance-world' && isWorldTurnRequest(body.input)) {
+    const recall = exactChatRecall(body.input);
+    if (recall) return Response.json(enforceWorldTurnGuardrails(body.input, recall), {
+      headers: { 'Cache-Control': 'no-store', 'X-AI-Provider': 'conversation-record' },
+    });
+  }
   if (!provider) return Response.json({ error: 'model_not_configured' }, { status: 503 });
   const startedAt = Date.now();
   try {
@@ -273,7 +282,7 @@ async function handlePost(request: Request) {
       }
     }
     return Response.json(guardedOutput, {
-      headers: { 'Cache-Control': 'no-store', 'X-AI-Provider': 'yibu' },
+      headers: { 'Cache-Control': 'no-store', 'X-AI-Provider': 'yibu', 'Server-Timing': `ai;dur=${Date.now() - startedAt}` },
     });
   } catch (error) {
     const code = error instanceof Error && ['invalid_creator_task_graph', 'model_timeout', 'model_output_truncated', 'invalid_model_output', 'model_rate_limited', 'model_access_denied', 'invalid_task_transition', 'premature_ending', 'unauthorized_player_movement', 'repeated_narrative', 'player_perspective_drift', 'chat_target_missing'].includes(error.message)

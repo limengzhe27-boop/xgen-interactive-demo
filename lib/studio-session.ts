@@ -3,6 +3,7 @@ import type { WorldState } from './world-state';
 import { turnMemoryText } from './world-state.ts';
 import type { WorldTurnRequest, WorldTurnResponse } from './ai-contracts';
 import type { CharacterGreeting } from './character-greeting';
+import { chatHistoryIndices } from './chat-memory.ts';
 
 export function upsertById<T extends { id: string }>(records: T[], next: T): T[] {
   return [next, ...records.filter((record) => record.id !== next.id)];
@@ -60,8 +61,8 @@ export function chatRequest(session: ChatSession, action: string): WorldTurnRequ
     interaction: { mode: 'character-chat', targetCharacterId: session.targetCharacterId },
     conversationMemory: { firstUserMessage: session.turns[0]?.action ?? null,
       greeting: session.greeting?.text ?? null, totalTurns: session.turns.length },
-    userAction: action, state: session.state,
-    recentTurns: session.turns.slice(-12).map((turn) => ({ action: turn.action, result: turnMemoryText(turn.response, session.entry.world, session.playerRoleId) })),
+    userAction: action, state: { ...session.state, eventLedger: session.state.eventLedger.slice(-12) },
+    recentTurns: chatHistoryIndices(session.turns.map(turn => turn.action), action).map(index => session.turns[index]).map((turn) => ({ action: turn.action, result: turnMemoryText(turn.response, session.entry.world, session.playerRoleId) })),
     currentScene: { id: `chat-${session.state.turn}`, title: session.entry.title, narrative: session.narrative,
       speakerCharacterId: session.targetCharacterId, choices: session.turns.at(-1)?.response.nextChoices ?? [] },
   };

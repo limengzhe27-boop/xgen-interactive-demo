@@ -22,7 +22,7 @@ export function initialVideoRole(entry:StudioWorld,roleId:string){
   return {state,narrative:getRoleOpening(entry,roleId),choices:threeChoices(custom??(role.startLocationId===world.openingScene.locationId?world.openingScene.choices:[]))};
 }
 export function videoTurnRequest(entry:StudioWorld,roleId:string,state:WorldState,narrative:string,choices:VideoChoice[],action:string):WorldTurnRequest{
-  return {contractVersion:'2026-09-04.v2',presentation:{medium:'native-video',seconds:15},world:entry.world,selectedRoleId:roleId,state,userAction:action,
+  return {contractVersion:'2026-09-04.v2',presentation:{medium:'native-video',seconds:15},world:entry.world,selectedRoleId:roleId,state:{...state,eventLedger:state.eventLedger.slice(-6)},userAction:action,
     recentTurns:state.eventLedger.slice(-6).map(e=>({action:e.action,result:e.result})),
     currentScene:{id:`video-${state.turn}`,title:state.location,narrative,choices}};
 }

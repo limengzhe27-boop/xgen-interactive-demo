@@ -108,7 +108,8 @@ export function VideoExplorer({entry,onBack,onText}:{entry:StudioWorld;onBack?:(
   }
   async function poll(pending:Pending,signal:AbortSignal){
     if(!pending.id)throw Error('没有可查询的任务编号');
-    for(let i=0;i<60;i++){
+    const deadline=Date.now()+300_000;
+    while(Date.now()<deadline){
       const r=await fetch(`/api/fal-video?id=${pending.id}`,{headers:{'x-xgen-account':scope!},signal,cache:'no-store'});
       const body=await r.json() as MediaReply;if(!r.ok)throw Error(videoErrors[body.error??'']??'任务查询暂时失败，可以恢复查询，不能重复购买。');
       if(body.status==='ready'){
@@ -116,7 +117,7 @@ export function VideoExplorer({entry,onBack,onText}:{entry:StudioWorld;onBack?:(
         save({...current.current,clip:body.assetUrl,pending:{...pending,assetUrl:body.assetUrl}});setPhase('ready');return;
       }
       if(body.status==='failed'||body.status==='reserved')throw Error(videoErrors[body.error??body.status]??videoErrors.failed);
-      await new Promise<void>((resolve,reject)=>{const abort=()=>{clearTimeout(timer);reject(new DOMException('Aborted','AbortError'));};const timer=setTimeout(()=>{signal.removeEventListener('abort',abort);resolve();},5000);signal.addEventListener('abort',abort,{once:true});});
+      await new Promise<void>((resolve,reject)=>{const abort=()=>{clearTimeout(timer);reject(new DOMException('Aborted','AbortError'));};const timer=setTimeout(()=>{signal.removeEventListener('abort',abort);resolve();},2000);signal.addEventListener('abort',abort,{once:true});});
     }
     throw Error('生成仍未完成，已暂停查询。可稍后恢复，不会重复购买。');
   }
