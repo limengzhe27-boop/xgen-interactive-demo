@@ -1,4 +1,5 @@
 import { checkStoryProloguePlan, compileProloguePlan, type ProloguePlan } from './prologue-plan.ts';
+import { CINEMATIC_EXECUTION } from './cinematic-language.ts';
 
 /** Offline directing layer. Declared timing is an editorial target, not a model capability. */
 export type ShotDirection = {
@@ -100,7 +101,7 @@ export function compileDirectedProloguePlan(value: unknown, direction: unknown) 
     reviewRequired: [...base.reviewRequired, '首帧是否容纳动作与运镜、参考人物是否可辨', '逐节拍实际动作与尾态，不以字数或音轨存在判通过'],
     shots: plan.shots.map((shot, i) => {
       const d = detail.shots[i];
-      const common = [viewpoint, `首态：${d.firstFrame}`, `镜头原则：${d.camera}`];
+      const common = [viewpoint, CINEMATIC_EXECUTION, `首态：${d.firstFrame}`, `镜头原则：${d.camera}`];
       const ending = [
         `尾态：${d.lastFrame}`, `避免：${d.avoid}`,
         '正常速度，有动机的停顿保留；不循环动作、不用慢动作拉满时长。不生成可读文字。',

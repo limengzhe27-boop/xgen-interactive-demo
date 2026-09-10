@@ -1,6 +1,6 @@
 import { compileNativeDirectedPrologue } from './prologue-direction.ts';
 
-export const PROLOGUE_AGENT_VERSION = 'native-story-1';
+export const PROLOGUE_AGENT_VERSION = 'native-story-camera-2';
 const object = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
 const text = (v: unknown, max: number) => typeof v === 'string' && v.trim() && v.length <= max ? v.trim() : null;
 

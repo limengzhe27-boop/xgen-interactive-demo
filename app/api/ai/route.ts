@@ -21,6 +21,7 @@ import { enforceWorldTurnGuardrails, makeRejectedWorldTurn } from '@/lib/world-a
 import { validateAction } from '@/lib/world-state';
 import { visibleSystem } from '@/lib/world-system';
 import { worldProgression, PROGRESSION_GUIDANCE } from '@/lib/world-progression';
+import { cinematicGuidance } from '@/lib/cinematic-language';
 import { personaAdaptationInstructions, readPersonaAdaptationRequest, readPersonaAdaptationSuggestion } from '@/lib/persona-adaptation';
 import { personaDesignInstructions, readPersonaDesignInput, readPersonaDesignReply } from '@/lib/persona-design';
 
@@ -111,6 +112,8 @@ async function callCompany(provider: CompanyProvider, operation: Operation, inpu
       body: JSON.stringify({
         model: provider.model,
         messages: [
+          ...(operation === 'plan-prologue' ? [{role:'system',content:cinematicGuidance(readPrologueAgentInput(input)?.perspective === 'first-person' ? 'first-person' : 'external')}] : []),
+          ...(operation === 'advance-world' && isWorldTurnRequest(input) && input.presentation?.medium === 'native-video' ? [{role:'system',content:cinematicGuidance('first-person')}] : []),
           ...(operation === 'advance-world' && !isChat ? [{role:'system',content:PROGRESSION_GUIDANCE}] : []),
           ...(operation === 'advance-world' && isWorldTurnRequest(input) && input.presentation?.medium === 'native-video' ? [{role:'system',content:'本轮为15秒原生有声互动视频，覆盖默认长篇字数规则：只推进用户这次行动可在15秒内完成的一个具体事件。narrative约150—280字，按0—3秒行动起势、3—9秒交互与阻力、9—13秒可见反应、13—15秒未决尾态安排，场景与动作连续，不靠静态推拉凑时长，依次写起势、接触/反应、可见后果与未决尾态，不能只描述风景或推镜；不完成整场长任务。dialogue最多四句、合计不超过50个汉字；保持说话人准确，玩家没授权说话不要替他说。独处可空对白，由现场动作声表达。nextChoices必须恰好3项不同且当场可执行的动作。不要把所有秘密、远处事件写进可见剧情。生成结果停在下一次行动之前。'}] : []),
           { role: 'system', content: `你正在驱动一个图文交互小世界 Demo。只输出一个有效 JSON 对象，不使用 Markdown。契约版本：${AI_CONTRACT_VERSION}。${isChat ? characterChatContract : operation === 'advance-world' && isWorldTurnRequest(input) && input.presentation?.medium === 'native-video' ? videoTurnContract : operationInstructions[operation]}` },

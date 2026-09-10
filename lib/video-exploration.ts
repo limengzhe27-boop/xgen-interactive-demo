@@ -1,5 +1,6 @@
 import type { WorldTurnRequest, WorldTurnResponse } from './ai-contracts';
 import type { StudioWorld } from './studio-worlds';
+import { CINEMATIC_EXECUTION } from './cinematic-language.ts';
 import { getRoleOpening } from './studio-worlds';
 import { applyCharacterEntry, characterRecap } from './character-entry';
 import { commitTurn, createInitialWorldState, selectRoleGoal, turnMemoryText, type WorldState } from './world-state';
@@ -36,6 +37,7 @@ export function videoMotionPrompt(entry:StudioWorld,roleId:string,state:WorldSta
   // Only public visual descriptions of heard speakers. No secrets, personal memories or full world object.
   const cast=lines.map(l=>entry.world.characters.find(c=>c.id===l.characterId)).filter(c=>c&&c.id!==roleId);
   return `Generate a continuous 15-second story action video WITH native synchronized audio, not a moving poster. Strict first-person eyes of ${role.name}, ${role.imagePrompt}. Never show the player externally. ${hasFrame?'Continue from this exact last frame, preserve hands, props, characters and spatial positions.':'Re-establish the selected character’s own first-person location; this is a viewpoint change, not the old camera position.'}
+${CINEMATIC_EXECUTION}
 Current location: ${state.location}. Visible/heard characters: ${cast.map(c=>`${c!.name}: ${c!.imagePrompt}`).join('; ')}.
 Act out this already adjudicated short event in order (trigger, physical action, response, changed end state): ${response.narrative}
 Native Mandarin dialogue, spoken once by the named speakers in the order below, voices appropriate to their identities, not narration: ${lines.map(l=>`${entry.world.characters.find(c=>c.id===l.characterId)?.name}: “${l.text}”`).join('; ')||'No dialogue; generate audible synchronized physical action and environmental sounds.'}
