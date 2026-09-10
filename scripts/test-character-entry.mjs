@@ -5,6 +5,19 @@ import { studioWorlds, getRoleOpening } from '../lib/studio-worlds.ts';
 import { publicationWorld } from '../lib/publication.ts';
 import { playableCharacters, characterRecap, applyCharacterEntry } from '../lib/character-entry.ts';
 const base=()=>publicationWorld(studioWorlds[0].world);
+test('Ximen chooser binds distinct portraits and enters each current location',()=>{
+ const entry=studioWorlds.find(w=>w.id==='ximen-red-ledger');
+ assert.equal(new Set(Object.values(entry.portraits)).size,3);
+ assert.ok(entry.portraits.r1.includes('pan-jinlian'));
+ assert.ok(entry.portraits.r2.endsWith('/r2.webp'));
+ assert.ok(entry.portraits.r3.includes('wu-yueniang'));
+ assert.ok(getRoleOpening(entry,'r2').includes('不在'));
+ const source=readFileSync(new URL('../app/page.tsx',import.meta.url),'utf8');
+ assert.ok(source.includes("view === 'roles' || (view === 'prologue' && !singleRole)"));
+ assert.ok(!source.includes('<RoleSelection compact'));
+ assert.ok(source.includes('切换视角 · 时间不变'));
+ assert.ok(!source.includes("backLabel={activeLibrary?.fixedRoleId ?"));
+});
 test('legacy cast remains playable, fixed identity is respected, NPCs are excluded',()=>{
  const world=base();assert.equal(playableCharacters(world).length,world.characters.length);
  assert.equal(playableCharacters(world,world.characters[0].id).length,1);

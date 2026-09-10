@@ -59,19 +59,6 @@ export function VideoExplorer({entry:latestEntry,onBack,onText}:{entry:StudioWor
   },[phase]);
   const player=useRef<HTMLVideoElement>(null),frame=useRef<string|null>(null),busy=useRef(false),alive=useRef(true),controller=useRef<AbortController|null>(null);
   const layout=useRef<HTMLElement>(null),heading=useRef<HTMLElement>(null),controls=useRef<HTMLElement>(null);
-  useEffect(()=>{
-    const resize=()=>{
-      if(!layout.current||!heading.current||!controls.current)return;
-      const style=getComputedStyle(layout.current);
-      const available=window.innerHeight-heading.current.offsetHeight-controls.current.offsetHeight-parseFloat(style.paddingTop)-parseFloat(style.paddingBottom)-24;
-      layout.current.style.setProperty('--stage-height',`${Math.max(160,available)}px`);
-    };
-    const observer=new ResizeObserver(resize);
-    if(heading.current)observer.observe(heading.current);
-    if(controls.current)observer.observe(controls.current);
-    resize();window.addEventListener('resize',resize);
-    return()=>{observer.disconnect();window.removeEventListener('resize',resize);};
-  },[]);
   const storageKey=scope?`xgen:video-pilot:v2:${scope}:${entry.id}`:null;
   const save=(input:Session)=>{const next={...input,worldSnapshot:input.worldSnapshot??entry};current.current=next;setSession(next);if(storageKey)try{sessionStorage.setItem(storageKey,JSON.stringify(next));setSaveError('');}catch{setSaveError('浏览器未能保存本次进度，请暂勿刷新或关闭此标签页。已生成的视频未被删除。');}};
   useEffect(()=>{
@@ -230,20 +217,20 @@ export function VideoExplorer({entry:latestEntry,onBack,onText}:{entry:StudioWor
   useEffect(()=>{if(seconds===0&&ticking){const timer=setTimeout(()=>{setSeconds(15);autoAction.current();},0);return()=>clearTimeout(timer);}},[seconds,ticking]);
   useEffect(()=>{if(phase==='ready')void player.current?.play().catch(()=>{/* User gesture required, keep visible controls. */});},[phase]);
   const active=phase==='roles'||phase==='choices'||phase==='error';
-  return <section ref={layout} className="video-explorer">
+  return <section ref={layout} className="video-explorer" data-screen-playing={phase==='playing'&&!error}>
     <header ref={heading}>{onBack?<button onClick={onBack}><ArrowLeft size={18}/> 返回</button>:<Link href="/prologue-comparison"><ArrowLeft size={18}/> 返回对比</Link>}<h1>{entry.title}</h1><span>视频探索</span></header>
     <div className="video-explorer-stage">
       {/* Actual native dialogue is unverified; don't invent a caption transcript. */}
       {/* oxlint-disable-next-line jsx-a11y/media-has-caption */}
       {!loading&&session.clip? <video ref={player} key={session.clip} src={session.clip} controls playsInline autoPlay={!session.pending} preload="metadata" poster={session.rounds===0?prologue.shots[0]?.poster:undefined}
-        onEnded={ended} onPlaying={playing} onError={()=>{setError('视频暂时无法播放，剧情不会继续。请检查连接后重播。');setPaused(true);}} aria-label="当前剧情视频">
+        onEnded={ended} onPlaying={playing} onError={()=>{setError('视频暂时无法播放，剧情不会继续。请检查连接后重播。');setPhase('error');setPaused(true);}} aria-label="当前剧情视频">
         {/* Raw model dialogue is unverified: no invented subtitle track. Text alternative below. */}
       </video>:<Image src={entry.cover} alt={entry.title} width={1280} height={720} unoptimized/>}
     </div>
     <section ref={controls} className="video-explorer-controls" aria-label="接下来的行动">
       {session.state&&<StoryUpdateNotice current={entry} latest={latestEntry} disabled={!!session.pending||!['choices','error'].includes(phase)} onApply={attachUpdate}/>}
       {session.finished&&phase==='choices'&&<div><h2>当前剧情已体验完</h2><p>进度和已生成片段已保留，可以接入新增剧情，或留在当前世界自由探索。</p><button onClick={()=>{save({...current.current,finished:false,choices:threeChoices([])});setPaused(true);}}>留在这个世界</button></div>}
-      {session.state&&roles.length>1&&!entry.world.entryAdmission&&<label>切换角色 <select aria-label="同一存档切换角色" value={session.roleId} disabled={!!session.pending||!['choices','error'].includes(phase)} onChange={e=>switchViewpoint(e.target.value)}>{roles.map(role=><option key={role.id} value={role.id}>{role.name}</option>)}</select></label>}
+      {session.state&&roles.length>1&&!entry.world.entryAdmission&&<label>切换视角 · 时间不变 <select aria-label="同一存档切换角色" value={session.roleId} disabled={!!session.pending||!['choices','error'].includes(phase)} onChange={e=>switchViewpoint(e.target.value)}>{roles.map(role=><option key={role.id} value={role.id}>{role.name}</option>)}</select></label>}
       {session.state&&!session.clip&&<p>{session.narrative}</p>}
       {!enabled&&<div className="video-explorer-start"><p>先选择体验角色，再从对应场景行动。续片由 fal H3 Max 生成，要求原生声音。每段15秒，不设体验段数上限，会持续消耗额度；配置就绪不代表账户余额充足。</p>
         <p>开启后，将本世界的可见剧情、角色外观与视频末帧交给 fal；不发送个人资料、私人聊天或角色秘密。视频存入本账号私人空间。</p>

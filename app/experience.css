@@ -50,6 +50,7 @@
 .flow-page :is(button, textarea, summary):focus-visible, .flow-drawer :is(button, textarea, summary):focus-visible { outline: 2px solid var(--color-primary); outline-offset: 3px; }
 .flow-page .primary-action { min-height: 48px; box-shadow: none; white-space: normal; }
 .flow-selection { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: center; gap: 48px; }
+.entry-story-hook {max-width:70ch;margin:0 0 24px;color:var(--color-text-secondary);font-size:16px;line-height:1.8;}
 .flow-selection > * { min-width: 0; }
 .flow-role-art > .role-portrait { width: 100%; aspect-ratio: 4/5; border-radius: 24px; max-height: 550px; }
 .flow-role-art > small { display: block; margin-top: 12px; color: var(--color-text-muted); font-size: .8125rem; }
