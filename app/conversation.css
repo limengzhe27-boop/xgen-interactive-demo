@@ -85,6 +85,7 @@
 .companion-turn-tools { display: flex; align-items: center; gap: 4px; min-height: 44px; }
 .companion-chat-turn[data-role=user] .companion-turn-tools { justify-content: flex-end; }
 .companion-turn-tools .personal-message-actions { position: relative; }
+.companion-turn-tools .personal-message-actions > summary { min-width: 44px; justify-content: center; }
 .companion-turn-tools .personal-message-actions[open] { max-width: 100%; }
 .companion-turn-tools .personal-to-creation { min-height: 44px; }
 .companion-profile { overflow-wrap: anywhere; }
@@ -99,3 +100,14 @@
 .companion-persona-heading img { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; }
 .companion-profile .personal-privacy { margin-top: 16px; }
 .companion-chat .conversation-heading > svg { color: var(--color-primary); }
+.companion-chat .conversation-messages { padding-inline: clamp(20px, 3vw, 56px); }
+.companion-chat .conversation-composer { padding-inline: clamp(20px, 3vw, 56px); }
+.companion-profile-fields { margin-top: 12px; }
+.companion-profile .companion-profile-field { display: flex; gap: 2px; margin: 8px 0; min-width: 0; font-size: 14px; }
+.companion-profile-field > span:first-child { flex-shrink: 0; color: var(--color-text-muted); }
+.companion-profile-field > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.companion-profile .companion-memory-items p { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+@media (max-width: 600px) {
+  .companion-chat .conversation-messages { padding-inline: 16px; }
+  .companion-chat .conversation-composer { padding-inline: 12px; }
+}

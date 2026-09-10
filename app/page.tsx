@@ -2866,15 +2866,19 @@ function CreateWorld({
             <section className="creator-agent-panel" aria-label="与创作 Agent 讨论">
               <div className="creator-agent-heading"><span><Sparkles /></span><div><small>还是我，陪你创作</small><strong>{worldTitle || '从一个念头，开始另一种人生。'}</strong></div></div>
               <div className="creator-conversation" ref={conversationLog} role="log" aria-live="polite" aria-busy={creatorAgentThinking} onScroll={(event) => { const el = event.currentTarget; followConversation.current = el.scrollHeight - el.scrollTop - el.clientHeight < 100; }}>
-                {creatorMessages.slice(-6).map((item, index) => <p key={`${item.role}-${index}`} data-role={item.role}><small>{item.role === 'agent' ? 'Agent' : '你'}</small><span>{item.content}</span></p>)}
+                {creatorMessages.map((item, index) => <p key={`${item.role}-${index}`} data-role={item.role}>{item.role === 'agent' && <small>创作 Agent</small>}<span>{item.content}</span></p>)}
                 {creatorAgentThinking ? <p data-role="agent"><small>Agent</small><span>正在把你的想法和已有设定放在一起考虑……</span></p> : null}
-              </div>
               <div className="creator-question-chips">{creatorQuestions.slice(0, 1).map((question) => <button type="button" key={question} disabled={creatorAgentThinking} onClick={() => { onCreatorMessage(question); document.getElementById('creator-message')?.focus(); }}>{question}</button>)}</div>
               {(creatorProposal && proposalChanges.length > 0 || creatorUndo.length > 0 || creatorChangeNotice) && <details className="flow-disclosure creation-proposals" open={Boolean(creatorProposal && proposalChanges.length)}><summary>{creatorProposal && proposalChanges.length ? `${proposalChanges.length} 项建议，可一键采纳或直接修改` : '最近修改与撤销'}</summary><CreatorProposalReview changes={creatorProposal ? proposalChanges : []} undo={creatorUndo} notice={creatorChangeNotice} busy={creatorAgentThinking || generating} onApply={onApplyCreatorProposal} onApplyAll={onApplyAllCreatorProposals} onEdit={onEditCreatorProposal} onDismiss={onDismissCreatorProposal} problemFor={onCreatorProposalProblem} /></details>}
-              <form className="creator-composer" onSubmit={(event) => { followConversation.current = true; onSubmitCreatorMessage(event); }}>
-                <label htmlFor="creator-message">和 Agent 讨论你的世界 · Enter 发送，Shift + Enter 换行</label><MessageTextarea id="creator-message" maxLength={3000} value={creatorMessage} onChange={(event) => onCreatorMessage(event.target.value)} placeholder="只有一句话也可以。比如：想做一个被逐出家门后回来争家产的故事，人物还没想好。" disabled={creatorAgentThinking} />
-                <Button className="agent-send" type="submit" disabled={!creatorMessage.trim() || creatorAgentThinking}><Send />继续讨论</Button>
-              </form>
+              </div>
+              <div className="creation-compose-area">
+                {worldSeed.trim() && <div className="creation-next"><p>{draftRoles.filter((role) => role.name.trim()).length} 个角色 · {creatorBrief.tasks.length} 项任务</p><SheetTrigger className="flow-control" onClick={() => onStep(4)} disabled={creatorAgentThinking || generating}>预览并试玩<ArrowRight /></SheetTrigger></div>}
+                <form className="creator-composer" onSubmit={(event) => { followConversation.current = true; onSubmitCreatorMessage(event); }}>
+                  <label className="sr-only" htmlFor="creator-message">和 Agent 讨论你的世界</label><MessageTextarea id="creator-message" rows={1} maxLength={3000} value={creatorMessage} onChange={(event) => onCreatorMessage(event.target.value)} placeholder="描述你的想法，或告诉 Agent 哪里需要调整…" disabled={creatorAgentThinking} />
+                  <Button className="agent-send" type="submit" aria-label="继续讨论" disabled={!creatorMessage.trim() || creatorAgentThinking}>{creatorAgentThinking ? <LoaderCircle className="is-spinning" /> : <Send />}</Button>
+                </form>
+                <small className="conversation-input-hint">Enter 发送 · Shift + Enter 换行</small>
+              </div>
             </section>
   );
   return (
@@ -2882,7 +2886,6 @@ function CreateWorld({
       <Sheet open={settingsOpen} onOpenChange={setSettingsOpen}>
       <header className="flow-toolbar"><button className="flow-control" type="button" onClick={onBack}><ArrowLeft />返回</button><h1>一起创作</h1><SheetTrigger className="flow-control">编辑设定</SheetTrigger></header>
       {discussionPanel}
-      {worldSeed.trim() && <div className="creation-next"><p>{draftRoles.filter((role) => role.name.trim()).length} 个角色 · {creatorBrief.tasks.length} 项任务<span>{generated ? 'AI 框架已补全' : '设定仍可随时修改'}</span></p><SheetTrigger className="flow-control" onClick={() => onStep(4)} disabled={creatorAgentThinking || generating}>预览并试玩<ArrowRight /></SheetTrigger></div>}
       <SheetContent className="flow-drawer creator-settings-drawer" showCloseButton={false}>
       <div className="flow-drawer-heading"><SheetTitle>世界设定</SheetTitle><SheetClose className="flow-control" aria-label="关闭世界设定"><X /></SheetClose></div>
       <SheetDescription>这里可以直接修改；关闭后，接着和同一个 Agent 聊。</SheetDescription>
