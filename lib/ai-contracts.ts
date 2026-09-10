@@ -266,6 +266,11 @@ export type WorldTurnRequest = {
   world: WorldDefinition;
   selectedRoleId: string;
   interaction?: { mode: 'character-chat'; targetCharacterId: string };
+  conversationMemory?: {
+    firstUserMessage: string | null;
+    greeting: string | null;
+    totalTurns: number;
+  };
   userAction: string;
   state: WorldState;
   recentTurns: { action: string; result: string }[];

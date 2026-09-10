@@ -58,8 +58,10 @@ export function conversationEntry(entry: StudioWorld, playerId: string, targetId
 export function chatRequest(session: ChatSession, action: string): WorldTurnRequest {
   return { contractVersion: '2026-09-04.v2', world: session.entry.world, selectedRoleId: session.playerRoleId,
     interaction: { mode: 'character-chat', targetCharacterId: session.targetCharacterId },
+    conversationMemory: { firstUserMessage: session.turns[0]?.action ?? null,
+      greeting: session.greeting?.text ?? null, totalTurns: session.turns.length },
     userAction: action, state: session.state,
-    recentTurns: session.turns.slice(-4).map((turn) => ({ action: turn.action, result: turnMemoryText(turn.response, session.entry.world, session.playerRoleId) })),
+    recentTurns: session.turns.slice(-12).map((turn) => ({ action: turn.action, result: turnMemoryText(turn.response, session.entry.world, session.playerRoleId) })),
     currentScene: { id: `chat-${session.state.turn}`, title: session.entry.title, narrative: session.narrative,
       speakerCharacterId: session.targetCharacterId, choices: session.turns.at(-1)?.response.nextChoices ?? [] },
   };

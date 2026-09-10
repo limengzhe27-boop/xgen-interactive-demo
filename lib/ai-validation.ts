@@ -209,6 +209,13 @@ export function isWorldTurnRequest(value: unknown): value is WorldTurnRequest {
   if (!value.world.characters.some((character) => isRecord(character) && character.id === value.selectedRoleId)) return false;
   if (value.presentation !== undefined && (!isRecord(value.presentation) || value.presentation.medium !== 'native-video' || (value.presentation.seconds !== 5 && value.presentation.seconds !== 15))) return false;
   if (!validOptionalSystem(value.world)) return false;
+  if (value.conversationMemory !== undefined) {
+    const memory = value.conversationMemory;
+    if (!isRecord(memory) || value.interaction === undefined
+      || !(memory.firstUserMessage === null || typeof memory.firstUserMessage === 'string')
+      || !(memory.greeting === null || typeof memory.greeting === 'string')
+      || !Number.isSafeInteger(memory.totalTurns) || (memory.totalTurns as number) < 0) return false;
+  }
   if (!validPersonaAdmission(value.world as WorldTurnRequest['world'], value.selectedRoleId)) return false;
   if (value.interaction !== undefined) {
     if (!isRecord(value.interaction) || value.interaction.mode !== 'character-chat'

@@ -40,6 +40,22 @@ test('NPC relationship changes stay separate and survive save/resume, including 
   assert.deepEqual(again.relationshipChanges, { chen: 1, xu: -1 });
   assert.equal(input.state.relationshipChanges, undefined);
 });
+test('chat retains exact first user message beyond recent window and across serialization', () => {
+  const input = fixture();
+  const session = { entry: { world: input.world }, playerRoleId: 'xu', targetCharacterId: 'chen',
+    state: input.state, narrative: '', greeting: { text: '这是角色的招呼', scene: '档案室' },
+    turns: Array.from({ length: 18 }, (_, i) => ({ action: i ? `后续消息${i}` : '你谁', response: responseFor(input) })) };
+  const request = chatRequest(JSON.parse(JSON.stringify(session)), '我给你发送的第一句话是什么');
+  assert.equal(request.conversationMemory.firstUserMessage, '你谁');
+  assert.equal(request.conversationMemory.greeting, '这是角色的招呼');
+  assert.equal(request.conversationMemory.totalTurns, 18);
+  assert.equal(request.recentTurns.length, 12);
+  assert.equal(request.recentTurns.at(-1).action, '后续消息17');
+  assert.ok(!JSON.stringify(request.recentTurns).includes('紫槐51'));
+  const fresh = chatRequest({ ...session, turns: [], greeting: undefined }, '你好');
+  assert.equal(fresh.conversationMemory.firstUserMessage, null);
+  assert.equal(fresh.conversationMemory.greeting, null);
+});
 test('relationship patch drops invented ids, self and nonfinite values and bounds each turn', () => {
   const input = fixture(); const response = responseFor(input);
   response.statePatch.relationshipDeltas = { chen: 900, xu: 8, nonexistent: 3, world: NaN };

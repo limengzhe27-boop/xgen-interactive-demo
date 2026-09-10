@@ -18,6 +18,9 @@
 .conversation-shell .studio-chat-turn p { font-size: 16px; line-height: 1.8; }
 .conversation-shell .studio-chat-user { width: fit-content; max-width: 88%; margin: 0 0 24px auto; padding: 10px 16px; border-radius: 16px 16px 4px 16px; }
 .conversation-shell .studio-chat-user small { font-size: 12px; }
+.conversation-shell .studio-chat-user p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.conversation-world-note { color: var(--color-text-muted); border-top: 1px solid var(--color-border-soft); padding-top: 16px; }
+.conversation-opening-context { font-size: 14px; line-height: 1.8; color: var(--color-text-secondary); margin: 8px 0 16px; }
 .conversation-response { min-width: 0; animation: conversation-in .18s ease-out; }
 .conversation-line { display: grid; grid-template-columns: 32px minmax(0, 1fr); gap: 10px; margin: 16px 0; }
 .conversation-line img { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; }
@@ -25,7 +28,7 @@
 .conversation-line p { margin-top: 4px; color: var(--color-text); }
 .conversation-shell .company-media { margin: 4px 0; }
 .conversation-shell .company-media .flow-control { font-size: 12px; color: var(--color-text-muted); padding: 4px 8px; min-height: 44px; }
-.conversation-composer { padding: 12px 24px calc(32px + env(safe-area-inset-bottom)); border-top: 1px solid var(--color-border-soft); background: var(--color-bg); max-height: 45dvh; overflow-y: auto; }
+.conversation-composer { padding: 8px max(24px, calc((100% - 760px) / 2)) calc(48px + env(safe-area-inset-bottom)); background: var(--color-bg); max-height: 45dvh; overflow-y: auto; }
 .conversation-input { display: flex; align-items: end; gap: 8px; border: 1px solid var(--color-border); background: var(--color-bg-elevated); border-radius: 18px; padding: 8px; }
 .conversation-input:focus-within { border-color: var(--color-primary); }
 .conversation-input textarea { min-width: 0; flex: 1; min-height: 48px; max-height: 120px; resize: vertical; border: 0; box-shadow: none; background: transparent; font: 16px/1.8 var(--font-ui); padding: 8px; }

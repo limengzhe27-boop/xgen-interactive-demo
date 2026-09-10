@@ -12,7 +12,7 @@ import { createRemoteAIAdapter } from '@/lib/remote-ai-adapter';
 import { generateSceneImage } from '@/lib/remote-image-service';
 import { shouldGenerateImage } from '@/lib/image-policy';
 import { cacheSceneImage, getCachedSceneImage, makeContentImageKey } from '@/lib/image-cache';
-import { commitTurn, createInitialWorldState, selectRoleGoal, turnMemoryText } from '@/lib/world-state';
+import { commitTurn, createInitialWorldState, turnMemoryText } from '@/lib/world-state';
 import { chatRequest, directConversationEntry } from '@/lib/studio-session';
 import type { ChatSession } from '@/lib/studio-session';
 import type { StudioWorld } from '@/lib/studio-worlds';
@@ -60,6 +60,13 @@ export function CharacterChat({ initial, accountScope, onSave, onBack }: { initi
   const [unread, setUnread] = useState(false);
   const player = session.entry.world.characters.find((role) => role.id === session.playerRoleId)!;
   const target = session.entry.world.characters.find((role) => role.id === session.targetCharacterId)!;
+  const background = (target.publicBackground || '').replace(target.identity, '').replace(target.persona, '').replace(/^[。；\s]+|[。；\s]+$/g, '');
+  const place = session.entry.world.locations.find(item => item.id === target.startLocationId);
+  const profile = <><h2>{target.name}</h2><p className="conversation-identity">{target.identity}</p>
+    {background && <section><h3>他是谁</h3><p>{background}</p></section>}
+    <section><h3>初见时的场景 · {place?.name}</h3><p>{place?.description || '你们在这里开始交谈。'}</p></section>
+    <section><h3>性格与相处</h3><p>{target.persona}</p></section>
+    <p className="conversation-world-note">故事：{session.entry.title}</p></>;
   function editInput(value: string) {
     setInput(value);
     const next = { ...sessionRef.current, draftInput: value };
@@ -124,13 +131,13 @@ export function CharacterChat({ initial, accountScope, onSave, onBack }: { initi
   }
 
   return <div className="flow-page meeting-chat conversation-shell"><Sheet>
-    <header className="conversation-header"><button className="flow-control" onClick={onBack} type="button" aria-label="返回"><ArrowLeft /></button><SheetTrigger className="conversation-heading" aria-label={`查看${target.name}的会面资料`}><img src={session.entry.portraits[target.id] || session.entry.cover} alt="" /><span><strong>{target.name}</strong><small>{session.state.location}</small></span></SheetTrigger><SheetTrigger className="flow-control">会面资料</SheetTrigger></header>
-    <SheetContent className="flow-drawer" showCloseButton={false}><div className="flow-drawer-heading"><SheetTitle>会面资料</SheetTitle><SheetClose className="flow-control" aria-label="关闭会面资料"><X /></SheetClose></div><SheetDescription>{session.entry.title} · 这份会面不改变已有探索。</SheetDescription><p>你是 {player.name} · {player.identity}</p><p>目标：{selectRoleGoal(session.entry.world, player.id)?.title || player.goal}</p>{session.entry.world.entryAdmission && <p>额外能力：{session.entry.world.entryAdmission.grantedAbilities.join('；') || '仅剧情身份原有能力'}</p>}<img className="meeting-scene" src={image} alt="当前会面参考插图" /><p>{session.state.location}</p><small>{imageState || session.entry.artNote || '普通对话复用画面，关键变化时更新。'}</small><button className="flow-control" type="button" onClick={() => void makeImage(`${session.entry.world.title}。${session.narrative}。${target.imagePrompt}。电影感场景，无文字，无水印。`, session)} disabled={busy || imageState.startsWith('正在')}><RefreshCw />{imageState.includes('失败') ? '重试场景图' : '生成场景图（可选）'}</button><p>手动生成会调用生图服务并产生费用，打开资料不会生成图片。</p></SheetContent>
+    <header className="conversation-header"><button className="flow-control" onClick={onBack} type="button" aria-label="返回"><ArrowLeft /></button><SheetTrigger className="conversation-heading" aria-label={`查看${target.name}的人物与场景`}><img src={session.entry.portraits[target.id] || session.entry.cover} alt="" /><span><strong>{target.name}</strong><small>{session.state.location}</small></span></SheetTrigger><SheetTrigger className="flow-control">人物与场景</SheetTrigger></header>
+    <SheetContent className="flow-drawer" showCloseButton={false}><div className="flow-drawer-heading"><SheetTitle>人物与场景</SheetTitle><SheetClose className="flow-control" aria-label="关闭人物与场景"><X /></SheetClose></div><SheetDescription>与右侧相同的人物资料；这是独立交谈，不要求你完成故事主线。</SheetDescription><div className="conversation-profile-detail">{profile}</div><details><summary>场景插图与生成</summary><img className="meeting-scene" src={image} alt="会面参考插图，不代表实时场景" /><p>当前地点：{session.state.location}</p><small>{imageState || '普通对话复用图片，插图不代表实时场景。'}</small><button className="flow-control" type="button" onClick={() => void makeImage(`${session.entry.world.title}。${session.narrative}。${target.imagePrompt}。电影感场景，无文字，无水印。`, session)} disabled={busy || imageState.startsWith('正在')}><RefreshCw />{imageState.includes('失败') ? '重试场景图' : '生成场景图（可选）'}</button><p>手动生成会调用生图服务并产生费用，打开资料不会生成图片。</p></details></SheetContent>
     <div className="conversation-layout"><div className="conversation-main">
     <section ref={messagesRef} className="conversation-messages" aria-label={`与${target.name}的对话记录`} tabIndex={0} onScroll={() => { const area = messagesRef.current; if (area) { followLatest.current = area.scrollHeight - area.scrollTop - area.clientHeight < 80; if (followLatest.current) setUnread(false); } }}>
-      <div className="conversation-opening">{session.greeting ? <><small>{session.greeting.scene}</small><div className="conversation-line"><img src={session.entry.portraits[target.id] || session.entry.cover} alt="" /><div><strong>{target.name}</strong><p>{session.greeting.text}</p></div></div><LocalSpeech accountScope={accountScope} text={session.greeting.text} /></> : <><small>会面开始</small><p>{session.entry.world.openingScene.narrative}</p><LocalSpeech accountScope={accountScope} text={session.entry.world.openingScene.narrative} /></>}</div>
+      <div className="conversation-opening"><div className="conversation-opening-context">{target.name} · {target.identity}<br />{place?.name}：{place?.description}</div>{session.greeting ? <><small>{session.greeting.scene}</small><div className="conversation-line"><img src={session.entry.portraits[target.id] || session.entry.cover} alt="" /><div><strong>{target.name}</strong><p>{session.greeting.text}</p></div></div><LocalSpeech accountScope={accountScope} text={session.greeting.text} /></> : <><small>会面开始</small><p>{session.entry.world.openingScene.narrative}</p><LocalSpeech accountScope={accountScope} text={session.entry.world.openingScene.narrative} /></>}</div>
       {session.turns.map((turn, index) => <article className="studio-chat-turn" key={index}>
-        <div className="studio-chat-user"><small>{player.name === '你' ? '你' : `${player.name} · 你`}</small><p>{turn.action}</p></div>
+        <div className="studio-chat-user" aria-label="你发送的消息"><p>{turn.action}</p></div>
         <div className="conversation-response">
         {turn.response.narrative.trim() && <div className="conversation-narrative">{turn.response.narrative.split(/\n\s*\n/).filter(part => part.trim()).map((part, paragraph) => <p key={paragraph}>{part}</p>)}</div>}
         {turn.response.dialogue.filter((line) => line.visibleToRoleIds.includes(player.id) && line.characterId !== player.id).map((line, i) => <div className="conversation-line" key={i}><img src={session.entry.portraits[line.characterId] || session.entry.cover} alt="" /><div><strong>{session.entry.world.characters.find((role) => role.id === line.characterId)?.name || '角色'}</strong><p>{line.text}</p></div></div>)}
@@ -149,6 +156,6 @@ export function CharacterChat({ initial, accountScope, onSave, onBack }: { initi
         {error && <p role="alert">{error}</p>}
         <small className="conversation-input-hint">Enter 发送 · Shift + Enter 换行</small>
       </form>
-    </div><aside className="conversation-profile" aria-label="人物资料"><img src={session.entry.portraits[target.id] || session.entry.cover} alt={target.name} /><h2>{target.name}</h2><p className="conversation-identity">{target.identity}</p><section><h3>关于 TA</h3><p>{target.publicBackground || target.persona}</p></section>{target.publicBackground && <section><h3>性格与相处</h3><p>{target.persona}</p></section>}<details><summary>所在世界</summary><p>{session.entry.title}</p><p>{session.state.location}</p></details><SheetTrigger className="flow-control">查看会面与场景资料</SheetTrigger></aside></div></Sheet>
+    </div><aside className="conversation-profile" aria-label="人物资料"><img src={session.entry.portraits[target.id] || session.entry.cover} alt={target.name} />{profile}</aside></div></Sheet>
   </div>;
 }
