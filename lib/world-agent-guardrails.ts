@@ -96,7 +96,7 @@ export function enforceWorldTurnGuardrails(input: WorldTurnRequest, output: Worl
       && (condition.forbiddenFacts ?? []).every((fact) => !facts.has(fact));
   });
   const ending = eligible.find((condition) => condition.id === output.ending.endingId)
-    ?? eligible.find((condition) => condition.outcome === 'failure') ?? eligible[0];
+    ?? eligible[0];
   if (output.ending.reached && !ending && !seen.has(output.ending.endingId ?? '')) {
     throw new Error('premature_ending');
   }
@@ -126,6 +126,6 @@ export function enforceWorldTurnGuardrails(input: WorldTurnRequest, output: Worl
       activeTaskIds: activeTasks(input, completed, failed), completedTaskIds: [...completed],
       summary: ending ? ending.description : output.goalProgress.summary,
     },
-    ending: { reached: Boolean(ending), endingId: ending?.id, outcome: ending ? ending.outcome ?? 'success' : undefined, canContinue: true },
+    ending: { reached: Boolean(ending), endingId: ending?.id, outcome: undefined, canContinue: true },
   };
 }

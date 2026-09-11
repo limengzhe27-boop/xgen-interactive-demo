@@ -24,20 +24,31 @@ test('NPC completion unlocks another role task without skipping prerequisites', 
   input.state.completedTaskIds=['npc-event'];
   assert.deepEqual(guard(input,response({completeTaskIds:['player-goal']})).statePatch.completeTaskIds,['player-goal']);
 });
-test('success requires all tasks and persists a fact from an earlier turn', () => {
+test('stage closure retains authored prerequisites and prior facts without a win label', () => {
   const input = makeEndingFixture();
   input.state = commitTurn(input.state, { action: '准备', result: '核对完成', clue: '', nextLocation: 'upstairs', relationshipDelta: 0,
     completeTaskIds: ['box', 'pack'], committedFacts: ['台账已搬到楼上', '另一条已验证事实'], addClues: ['线索一', '线索二'] });
   const result = guard(input, response({ completeTaskIds: ['move'] }));
   assert.equal(result.ending.endingId, 'saved');
-  assert.equal(result.ending.outcome, 'success');
+  assert.equal(result.ending.outcome, undefined);
   assert.ok(input.state.committedFacts.includes('另一条已验证事实'));
   assert.ok(input.state.clues.includes('线索二'));
 });
-test('failure does not require successful completion of main tasks', () => {
+test('irreversible consequences are another continuing story direction', () => {
   const input = makeEndingFixture(); input.state.completedTaskIds = ['box'];
   const result = guard(input, response({ failTaskIds: ['pack'], committedFacts: ['三本台账已泡毁'] }));
-  assert.equal(result.ending.endingId, 'lost'); assert.equal(result.ending.outcome, 'failure');
+  assert.equal(result.ending.endingId, 'lost'); assert.equal(result.ending.outcome, undefined);
+  assert.equal(result.ending.canContinue, true);
+});
+test('legacy failure labels have no arbitration priority', () => {
+  const input = makeEndingFixture();
+  input.world.endingConditions = [
+    { id: 'first', description: '局面改变', requiredTaskIds: [], requiredFacts: ['局面改变'], outcome: 'success' },
+    { id: 'second', description: '局面改变', requiredTaskIds: [], requiredFacts: ['局面改变'], outcome: 'failure' },
+  ];
+  const result = guard(input, response({ committedFacts: ['局面改变'] }));
+  assert.equal(result.ending.endingId, 'first');
+  assert.equal(result.ending.outcome, undefined);
 });
 test('empty ending conditions cannot end a world', () => {
   const input = makeEndingFixture(); input.world.endingConditions = [{ id: 'empty', requiredTaskIds: [], requiredFacts: [] }];

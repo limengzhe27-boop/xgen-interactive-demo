@@ -3,6 +3,7 @@
 
 import { SyntheticEvent, useEffect, useEffectEvent, useRef, useState } from 'react';
 import { WorldSystemPanel } from '@/components/world-system-panel';
+import { storyDirections } from '@/lib/story-directions';
 import { WorldProloguePlayer } from '@/components/world-prologue';
 import { VideoExplorer } from '@/components/video-explorer';
 import { RecordPlay } from '@/components/play-counts';
@@ -809,8 +810,8 @@ function briefFromOutline(outline: StoryOutlineBeat[], premise: string, complexi
   }));
   return {
     coreGoal: premise,
-    successCondition: '完成全部主线条件并对核心冲突作出选择',
-    failureCondition: '关键时限到达，或核心目标已无法完成',
+    successCondition: '当前矛盾产生阶段性变化',
+    failureCondition: '',
     complexityLevel,
     tasks,
     difficulties: ['信息分散在不同角色手中', '跳过前置条件会引发代价'],
@@ -877,21 +878,13 @@ function buildCreatorWorld(
       ...event,
       earliestTurn: Math.max(2, index + 2),
     })),
-    endingConditions: [...(hasRolePlan ? playableRoles.map((role, index) => ({
-      id: `creator-ending-${role.id}`, applicableRoleIds: [role.id], outcome: 'success' as const,
-      description: drafts[index].goal?.trim() || normalizedBrief.successCondition || '达成角色目标',
-      requiredTaskIds: roleMainIds(role.id),
-      requiredFacts: [drafts[index].goal?.trim() || normalizedBrief.successCondition || '达成角色目标'],
-      forbiddenFacts: normalizedBrief.failureCondition ? [normalizedBrief.failureCondition] : [],
-    })) : [{
+    endingConditions: [...(normalizedBrief.successCondition ? [{
       id: 'creator-ending',
-      description: normalizedBrief.successCondition || '完成所有主线任务后触发结局',
-      requiredTaskIds: mainTaskIds,
-      requiredFacts: [],
-      outcome: 'success' as const,
-      forbiddenFacts: normalizedBrief.failureCondition ? [normalizedBrief.failureCondition] : [],
-    }]), ...(normalizedBrief.failureCondition ? [{
-      id: 'creator-failure', outcome: 'failure' as const,
+      description: normalizedBrief.successCondition,
+      requiredTaskIds: [],
+      requiredFacts: [normalizedBrief.successCondition],
+    }] : []), ...(normalizedBrief.failureCondition ? [{
+      id: 'creator-failure',
       description: normalizedBrief.failureCondition, requiredTaskIds: [],
       requiredFacts: [normalizedBrief.failureCondition],
     }] : [])],
@@ -2115,7 +2108,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       const nextChanges = creatorChanges(baseline, { ...brief, entryPolicy: response.proposal.entryPolicy ?? entryPolicy, surpriseLevel: response.proposal.surpriseLevel ?? surprise, title: response.proposal.title, premise: response.proposal.premise, castAndTasks: { roles: nextRoles, tasks: brief.tasks } }, {
         discoveryGenre: '剧情分类', entryPolicy: '身份入场与能力规则',
         surpriseLevel: '意外程度',
-        title: '世界名称', premise: '背景与冲突', castAndTasks: '角色目标与任务编排', coreGoal: '世界核心目标', successCondition: '成功条件', failureCondition: '失败条件', complexityLevel: '世界复杂度', difficulties: '世界级困难', scheduledEvents: '预设事件',
+        title: '世界名称', premise: '背景与冲突', castAndTasks: '人物动机与剧情节点', coreGoal: '故事主要走向', successCondition: '预期走向', failureCondition: '其他走向', complexityLevel: '世界复杂度', difficulties: '世界级困难', scheduledEvents: '预设事件',
       }).map(change => change.key === 'entryPolicy' ? { ...change, roleOrder: draftRoles.map(role => role.editorId!), referenceLabels: Object.fromEntries(draftRoles.map((role, index) => [`draft-role-${index}`, role.name || `角色 ${index + 1}`])) } : change);
       if (openingRevision) {
         const opening = (change: CreatorChange) => ['premise', 'scheduledEvents'].includes(change.key);
@@ -2359,8 +2352,8 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
         ...effectiveBrief,
         discoveryGenre: effectiveBrief.discoveryGenre || normalizedWorld.discoveryGenre || '',
         coreGoal: (response.world.goals.find((goal) => goal.scope === 'world') ?? response.world.goals[0])?.title || effectiveBrief.coreGoal,
-        successCondition: response.world.endingConditions.find((ending) => (ending.outcome ?? 'success') === 'success')?.description || effectiveBrief.successCondition,
-        failureCondition: response.world.endingConditions.find((ending) => ending.outcome === 'failure')?.description || '',
+        successCondition: storyDirections(response.world.endingConditions).primary?.description || effectiveBrief.successCondition,
+        failureCondition: storyDirections(response.world.endingConditions).alternative?.description || '',
         tasks: response.world.tasks.map((task) => ({
           id: task.id,
           title: task.title,
@@ -2410,7 +2403,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       : {
         ...creatorBrief,
         coreGoal: creatorBrief.coreGoal.trim() || safeSeed,
-        successCondition: creatorBrief.successCondition.trim() || '完成全部主线条件并对核心冲突作出选择',
+        successCondition: creatorBrief.successCondition.trim() || '当前矛盾产生阶段性变化',
         tasks: briefFromOutline(safeOutline, safeSeed, normalizeSurpriseLevel(creatorBrief.complexityLevel || 2)).tasks,
       };
     const edited = buildCreatorWorld(safeTitle, safeSeed, draftRoles, safeOutline, surprise, effectiveBrief, generatedWorld);
@@ -3178,7 +3171,7 @@ function CreateWorld({
               <label><input type="checkbox" disabled={!creatorBrief.discoveryGenre} checked={!!creatorBrief.discoveryGenre?.includes('热梗名场面')} onChange={event => onUpdateCreatorBrief('discoveryGenre', (creatorBrief.discoveryGenre || '').split(' · ')[0] + (event.target.checked ? ' · 热梗名场面' : ''))} /> 同时收录到热梗名场面</label>
               <label htmlFor="world-seed">世界背景与当下冲突</label><Textarea id="world-seed" value={worldSeed} onChange={(event) => onWorldSeed(event.target.value)} placeholder="写清之前发生了什么，角色们现在面对什么。" />
               <label htmlFor="creator-goal">核心目标</label><Textarea id="creator-goal" value={creatorBrief.coreGoal} onChange={(event) => onUpdateCreatorBrief('coreGoal', event.target.value)} placeholder="体验者最终要做成什么？" />
-              <div className="condition-grid"><label htmlFor="success-condition">成功条件<Input id="success-condition" value={creatorBrief.successCondition} onChange={(event) => onUpdateCreatorBrief('successCondition', event.target.value)} placeholder="什么状态才算成功" /></label><label htmlFor="failure-condition">失败条件<Input id="failure-condition" value={creatorBrief.failureCondition} onChange={(event) => onUpdateCreatorBrief('failureCondition', event.target.value)} placeholder="什么时候进入失败结局" /></label></div>
+              <div className="condition-grid"><label htmlFor="success-condition">预期走向（可选）<Input id="success-condition" value={creatorBrief.successCondition} onChange={(event) => onUpdateCreatorBrief('successCondition', event.target.value)} placeholder="这段故事可能走向哪里" /></label><label htmlFor="failure-condition">其他走向（可选）<Input id="failure-condition" value={creatorBrief.failureCondition} onChange={(event) => onUpdateCreatorBrief('failureCondition', event.target.value)} placeholder="人物选择不同，可能发生什么" /></label></div>
               <div className="complexity-picker"><span><strong>世界复杂度</strong><small>决定任务深度，不是预设分钟数</small></span><div>{['轻量', '标准', '丰富', '多线'].map((label, index) => <button type="button" key={label} data-selected={creatorBrief.complexityLevel === index + 1} onClick={() => onComplexity(index + 1)}>{label}</button>)}</div></div>
               <div className="creator-task-heading"><span><strong>目标下的任务条件</strong><small>前置条件与困难防止玩家一句话直达结局</small></span><Button variant="outline" onClick={onAddCreatorTask}><Plus />添加任务</Button></div>
               <CreatorTaskEditor tasks={creatorBrief.tasks} roles={draftRoles} onUpdate={onUpdateCreatorTask} onRemove={onRemoveCreatorTask} />
@@ -3237,9 +3230,9 @@ function Ending({ storyUpdate, error, worldTitle, role, decision, state, world, 
       <section className="ending-card title-reveal">
         <span className="ending-mark"><Check /></span>
         <p className="eyebrow">{worldTitle} · 当前剧情</p>
-        <h1>{ending?.outcome === 'failure' ? '这次目标未能达成' : '当前剧情已体验完'}</h1>
+        <h1>当前剧情</h1>
         <p>你以 {role.name} 的身份走到了这里。{decision || ending?.description}</p>
-        <div className="ending-stats"><span><strong>{state.turn}</strong><small>行动回合</small></span><span><strong>{completedTasks}</strong><small>完成角色任务</small></span><span><strong>{seenEndings} / {roleEndings.length}</strong><small>该角色已见结局</small></span></div>
+        <div className="ending-stats"><span><strong>{state.turn}</strong><small>行动回合</small></span><span><strong>{completedTasks}</strong><small>已发生的剧情节点</small></span><span><strong>{seenEndings} / {roleEndings.length}</strong><small>已体验的剧情收束</small></span></div>
         <p>可以保留当前进度自由探索；有兼容的新剧情时，可在这里接上。</p>
         {storyUpdate}
         {error && <p role="alert">{error}</p>}

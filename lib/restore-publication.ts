@@ -1,3 +1,4 @@
+import { storyDirections } from './story-directions.ts';
 import type { CreatorBrief, CreatorChatMessage, StoryOutlineBeat } from './ai-contracts';
 import type { StudioWorld } from './studio-worlds';
 import { publicationWorld } from './publication.ts';
@@ -30,8 +31,8 @@ export function publicationDraft(entry: StudioWorld & { sourceId?: string }) {
   const brief: CreatorBrief = {
     discoveryGenre: world.discoveryGenre,
     coreGoal: (world.goals.find(goal => goal.scope === 'world') ?? world.goals[0])?.title ?? world.coreEvent,
-    successCondition: world.endingConditions.find(ending => (ending.outcome ?? 'success') === 'success')?.description ?? '',
-    failureCondition: world.endingConditions.find(ending => ending.outcome === 'failure')?.description ?? '',
+    successCondition: storyDirections(world.endingConditions).primary?.description ?? '',
+    failureCondition: storyDirections(world.endingConditions).alternative?.description ?? '',
     complexityLevel: 2,
     tasks: world.tasks.map(task => ({ ...task, assignedRoleIds: task.assignedRoleIds.map(id => `draft-role-${world.characters.findIndex(role => role.id === id)}`) })),
     difficulties: world.difficultyConstraints.map(item => item.description),

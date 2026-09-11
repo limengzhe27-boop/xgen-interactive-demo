@@ -153,7 +153,6 @@ export function isWorldGenerationResponse(value: unknown): value is WorldGenerat
       && typeof event.earliestTurn === 'number'
       && typeof event.effect === 'string')
     && Array.isArray(world.endingConditions)
-    && world.endingConditions.length >= 1
     && world.endingConditions.every(isEndingCondition)
     && isRecord(world.openingScene)
     && Array.isArray(world.openingScene.choices)

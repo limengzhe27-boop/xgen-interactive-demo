@@ -12,7 +12,6 @@ export function appendStory(baseInput: WorldDefinition, proposedInput: WorldDefi
   const locations = additions(base.locations, proposed.locations);
   const tasks = additions(base.tasks, proposed.tasks);
   if (!tasks.length&&!characters.length) throw new Error('没有新的剧情或人物，请说明接下来发生什么，或想加入谁；原故事未改动。');
-  const newMain = tasks.filter(task => task.kind === 'main').map(task => task.id);
   // New locations must be reachable; only add graph edges, never remove old paths.
   const mergedLocations = base.locations.map(place => ({ ...place, connectedLocationIds: [...new Set([
     ...place.connectedLocationIds,
@@ -26,11 +25,8 @@ export function appendStory(baseInput: WorldDefinition, proposedInput: WorldDefi
     rules: [...base.rules, ...additions(base.rules, proposed.rules)],
     scheduledEvents: [...base.scheduledEvents, ...additions(base.scheduledEvents, proposed.scheduledEvents)],
     difficultyConstraints: [...base.difficultyConstraints, ...additions(base.difficultyConstraints, proposed.difficultyConstraints)],
-    // Existing success is not allowed to stop a newly extended story too early.
-    // Failure paths remain intact. Old runs still hold their own world snapshot.
-    endingConditions: [...base.endingConditions.map(ending => (ending.outcome ?? 'success') === 'success'
-      ? { ...ending, requiredTaskIds: [...new Set([...ending.requiredTaskIds, ...newMain])] } : ending),
-      ...additions(base.endingConditions, proposed.endingConditions)],
+    // Earlier stages remain valid; new chapters do not redefine their prerequisites.
+    endingConditions: [...base.endingConditions, ...additions(base.endingConditions, proposed.endingConditions)],
   };
   return publicationWorld(next);
 }

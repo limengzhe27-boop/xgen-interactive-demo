@@ -90,8 +90,8 @@ function buildCreatorBrief(input: CreatorAgentRequest): CreatorBrief {
   ];
   return {
     coreGoal: current.coreGoal || `推动“${subject.slice(0, 52)}”并让所选角色达成自己的目标`,
-    successCondition: current.successCondition || '完成所有主线任务，并对核心冲突作出不可撤回的选择',
-    failureCondition: current.failureCondition || '关键时限到达，或行动导致核心目标已无法达成',
+    successCondition: current.successCondition || '',
+    failureCondition: current.failureCondition || '',
     complexityLevel: current.complexityLevel || 2,
     tasks: existingTasks,
     difficulties: current.difficulties.length > 0
@@ -195,7 +195,7 @@ class MockAIAdapter implements AIAdapter {
         goals: [{
           id: 'world-goal',
           title: input.creatorBrief.coreGoal || '解决核心事件',
-          description: input.creatorBrief.successCondition || '完成主线任务并作出最终选择',
+          description: input.creatorBrief.successCondition || '根据人物与事件继续推演',
           scope: 'world',
           requiredTaskIds: mainTaskIds,
         }],
@@ -212,18 +212,7 @@ class MockAIAdapter implements AIAdapter {
           ...event,
           earliestTurn: Math.max(2, index + 2),
         })),
-        endingConditions: [{
-          id: 'core-choice',
-          description: input.creatorBrief.successCondition || '确认关键事实并对核心事件作出明确选择。',
-          requiredTaskIds: mainTaskIds,
-          requiredFacts: [],
-          forbiddenFacts: input.creatorBrief.failureCondition ? [input.creatorBrief.failureCondition] : [],
-          outcome: 'success',
-        }, ...(input.creatorBrief.failureCondition ? [{
-          id: 'core-failure', outcome: 'failure' as const,
-          description: input.creatorBrief.failureCondition, requiredTaskIds: [],
-          requiredFacts: [input.creatorBrief.failureCondition],
-        }] : [])],
+        endingConditions: [input.creatorBrief.successCondition, input.creatorBrief.failureCondition].flatMap((description, index) => description ? [{ id: `core-direction-${index}`, description, requiredTaskIds: [], requiredFacts: [description] }] : []),
         openingScene: {
           locationId: 'opening-location',
           narrative: `${premise}\n\n此刻，${leadName}先察觉到现场气氛不对：${counterpartName}的反应与平时不同，而另一名在场者似乎故意把一个重要细节轻描淡写地带过。没有超自然力量替任何人解释动机，也没有凭空出现的答案；能推动故事的，只有体验者接下来选择相信谁、追问什么，以及愿意承担怎样的关系后果。`,
