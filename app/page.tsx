@@ -5,6 +5,7 @@ import { SyntheticEvent, useEffect, useEffectEvent, useRef, useState } from 'rea
 import { WorldSystemPanel } from '@/components/world-system-panel';
 import { storyDirections } from '@/lib/story-directions';
 import { reusePublicationArt } from '@/lib/reuse-publication-art';
+import { creatorPortraitPrompt } from '@/lib/creator-image-prompts';
 import { WorldProloguePlayer } from '@/components/world-prologue';
 import { VideoExplorer } from '@/components/video-explorer';
 import { RecordPlay } from '@/components/play-counts';
@@ -2038,7 +2039,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     const requestId = (roleImageRequestRef.current[roleId] ?? 0) + 1;
     roleImageRequestRef.current[roleId] = requestId;
     setRoleImageStates((current) => ({ ...current, [roleId]: 'generating' }));
-    const prompt = `单人角色设定立绘，${role.name || `角色${index + 1}`}，身份：${role.identity || '身份待定'}，性格：${role.personality || '性格待定'}，固定外观：${role.appearance || '由身份与性格自然设计外貌和服装'}。全身或四分之三身，正面略侧身，人物完整，电影感写实叙事插画，统一暗色背景，服装和配饰细节清楚，无文字、无水印、无边框、无其他人物。`;
+    const prompt = creatorPortraitPrompt(role, worldTitle);
     try {
       const cacheKey = portraitCacheKey(role);
       if (!regenerate) {

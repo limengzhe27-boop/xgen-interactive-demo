@@ -1,6 +1,7 @@
 import type { StudioWorld } from './studio-worlds';
 import { generateSceneImage } from './remote-image-service.ts';
 import { hasPublicationImage } from './publication-art.ts';
+import { CREATOR_IMAGE_STYLE, creatorPortraitPrompt } from './creator-image-prompts.ts';
 export { hasPublicationImage } from './publication-art.ts';
 
 // Old publication placeholders are not images made for this work.
@@ -15,12 +16,12 @@ export async function preparePublicationImages(entry:StudioWorld,scope:string,on
    done++;return result.assetUrl;
  }
  for(const c of missing){
-   next={...next,portraits:{...next.portraits,[c.id]:await image('portrait',`publish-${entry.id}-${c.id}`,`电影感叙事插画，单人角色形象。${c.name}，${c.identity}。固定外观：${c.imagePrompt}。三分之二身，人物清晰完整，无文字、无水印。`)}};
+   next={...next,portraits:{...next.portraits,[c.id]:await image('portrait',`publish-${entry.id}-${c.id}`,creatorPortraitPrompt({name:c.name,identity:c.identity,appearance:c.imagePrompt},entry.title))}};
    onProgress(next,`配图已保存 ${done}/${total}`);
  }
  if(!hasPublicationImage(next.cover)){
    const cast=entry.world.characters.filter(c=>entry.world.openingScene.presentCharacterIds.includes(c.id));
-   next={...next,cover:await image('scene',`publish-${entry.id}-cover`,`电影感叙事插画，故事封面。${entry.title}。开场：${entry.world.openingScene.narrative}。人物外观：${cast.map(c=>`${c.name}：${c.imagePrompt}`).join('；')}。聚焦开场事件与人物互动，不是人物拼贴，无文字、无水印。`)};
+   next={...next,cover:await image('scene',`publish-${entry.id}-cover`,`${CREATOR_IMAGE_STYLE}。故事封面。${entry.title}。开场：${entry.world.openingScene.narrative}。人物外观：${cast.map(c=>`${c.name}：${c.imagePrompt}`).join('；')}。聚焦开场事件与人物互动，不是人物拼贴，无文字、无水印。`)};
    onProgress(next,'配图已准备');
  }
  return next;

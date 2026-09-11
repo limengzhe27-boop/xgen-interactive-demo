@@ -31,6 +31,8 @@ test('publish prepares missing images only and reuses results',async()=>{
  const calls=[];const generate=async input=>{calls.push(input);return {persistent:true,assetUrl:'/saved/'+input.sceneId};};
  const result=await preparePublicationImages(entry,'fixture',()=>{},generate);
  assert.equal(calls.length,2);assert.equal(result.portraits.a,'/existing.webp');assert.ok(result.cover);
+ for(const call of calls)assert.ok(call.prompt.startsWith('真人电影剧照风格'));
+ assert.ok(calls.find(c=>c.purpose==='portrait').prompt.includes('不要文字、姓名标签'));
  await preparePublicationImages(result,'fixture',()=>{},generate);assert.equal(calls.length,2);
  assert.equal(entry.cover,'');assert.equal(entry.portraits.b,undefined);
 });
