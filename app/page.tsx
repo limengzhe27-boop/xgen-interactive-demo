@@ -1179,6 +1179,26 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     return () => { live = false; };
   }, [catalogRevision]);
   const personalCatalog = [...worldCatalog, ...availableStudioWorlds.map((entry) => ({ id: entry.id, title: entry.title, genre: entry.genre, premise: entry.premise, surpriseLevel: entry.world.surpriseLevel }))];
+  // Also hydrate an already-open / locally restored editor, not just the public-list entry point.
+  const restoreEditorArt = useEffectEvent((entries: (StudioWorld & { sourceId?: string })[]) => {
+    const published = entries.find(entry => entry.sourceId === draftId || entry.id === draftId);
+    if (!published || !generatedWorld) return;
+    const merged = reusePublicationArt({ ...published, world: generatedWorld,
+      cover: creatorAssets?.cover || '', portraits: creatorAssets?.portraits || {} }, published);
+    const assets = { cover: merged.cover, portraits: merged.portraits };
+    if (JSON.stringify(assets) !== JSON.stringify(creatorAssets)) setCreatorAssets(assets);
+  });
+  useEffect(() => {
+    if (!storageReady || view !== 'create' || accountScope === 'guest') return;
+    const controller = new AbortController();
+    void fetch('/api/worlds?mine=true', { cache: 'no-store', signal: controller.signal,
+      headers: { 'x-xgen-account': accountScope } }).then(async response => {
+      if (!response.ok) return;
+      const result = await response.json() as { publications?: { document: StudioWorld & { sourceId?: string } }[] };
+      if (!controller.signal.aborted && Array.isArray(result.publications)) restoreEditorArt(result.publications.map(row => row.document));
+    }).catch(() => {});
+    return () => controller.abort();
+  }, [storageReady, view, draftId, accountScope]);
   const libraryPortraitJSON = JSON.stringify({ id: activeLibrary?.id, keys: activeLibrary?.portraitCacheKeys ?? {} });
   useEffect(() => {
     let active = true;

@@ -46,6 +46,17 @@ test('author publication lifecycle isolates accounts, detects stale changes and 
     assert.equal((await route.POST(req('POST',{...body,expectedUpdatedAt:state.rows[0].updated_at,world:{...body.world,title:'更新后的合成作品'}}))).status,200);
     assert.equal(state.rows.length,1);
     assert.equal(state.rows[0].document.title,'更新后的合成作品');
+    // The author/editor endpoint must resolve the same legacy art as the public catalogue.
+    state.rows[0].document={id:'community-56ed98581aeb49b16bfe83b22761525138a3a139c137955931288b7fe5dfa5d6',sourceId:'draft-a',title:'下课以后',cover:'',portraits:{},world:{characters:[
+      {id:'draft-role-0',name:'周野',imagePrompt:'校服穿得松松垮垮，头发有些长，右手腕戴着一根旧红绳'},
+      {id:'draft-role-1',name:'沈知夏',imagePrompt:'常穿素色衬衫与长裙，戴细框眼镜，说话时习惯转笔'},
+      {id:'draft-role-2',name:'林小满',imagePrompt:'马尾扎得整齐，校服熨得平整，书包上挂着一只旧挂件'},
+    ]}};
+    const editor=(await (await route.GET(req('GET',null,'author-a','?mine=true'))).json()).publications[0].document;
+    const catalog=(await (await route.GET(req('GET'))).json()).worlds[0];
+    assert.equal(editor.portraits['draft-role-0'],'/assets/after-class-v1/zhou.webp');
+    assert.deepEqual(editor.portraits,catalog.portraits);
+    assert.equal(editor.sourceId,'draft-a');assert.equal(catalog.sourceId,undefined);
     state.user=null;
     assert.equal((await route.GET(req('GET',null,'guest','?mine=true'))).status,401);
     assert.equal((await route.PATCH(req('PATCH',patch))).status,401);

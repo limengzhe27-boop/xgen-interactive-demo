@@ -43,7 +43,8 @@ export async function GET(request: Request) {
       if (error || !user) return reply({ error: 'login_required' }, 401);
       if (request.headers.get('x-xgen-account') !== user.id) return reply({ error: 'account_changed' }, 409);
       const response = await storageFetch(`/rest/v1/demo_world_publications?owner_id=eq.${encodeURIComponent(user.id)}&select=id,document,published,updated_at&order=updated_at.desc&limit=10`);
-      return reply({ publications: await response.json(), canPublish: process.env.WORLD_PUBLICATION_ENABLED === 'true' });
+      const rows = await response.json() as { document: Record<string, unknown> }[];
+      return reply({ publications: rows.map(row => ({ ...row, document: publicationArt(row.document) })), canPublish: process.env.WORLD_PUBLICATION_ENABLED === 'true' });
     } catch { return reply({ error: 'publications_unavailable' }, 503); }
   }
   try {
