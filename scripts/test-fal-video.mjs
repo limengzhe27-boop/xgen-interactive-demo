@@ -35,6 +35,20 @@ test('timings persist per account, bound history, deduplicate server metrics and
   assert.deepEqual(readVideoTiming({downloadMs:-1,storeMs:NaN,submittedAt:100,secret:'no'}),{submittedAt:100});
  }finally{globalThis.localStorage=old;}
 });
+test('new timing batches retain history and keep late branch results in their original batch',()=>{
+ const old=globalThis.localStorage,store=new Map();globalThis.localStorage={getItem:k=>store.get(k),setItem:(k,v)=>store.set(k,v)};
+ try{
+  const log=new VideoTimingLog();log.scope('batch-test');const finish=log.begin('old','旧分支','脚本');
+  const batch=log.startBatch();assert.equal(log.rows.length,1);finish();
+  log.server('old','旧分支',{downloadMs:200});
+  assert.ok(log.rows.every(r=>r.batch==='历史记录'));
+  log.begin('new','新分支','脚本')();assert.equal(log.rows.at(-1).batch,batch);
+  const restored=new VideoTimingLog();restored.scope('batch-test');assert.equal(restored.activeBatch,batch);assert.equal(restored.rows.length,3);
+  restored.scope('other');assert.equal(restored.rows.length,0);assert.equal(restored.activeBatch,'历史记录');
+  store.set('xgen:video-timing:v1:legacy',JSON.stringify([{id:'legacy',group:'legacy',label:'旧数据',stage:'脚本',started:1,ms:10,status:'完成'}]));
+  restored.scope('legacy');restored.startBatch();restored.metric('legacy','旧数据','缓存',1);assert.equal(restored.rows.at(-1).batch,'历史记录');
+ }finally{globalThis.localStorage=old;}
+});
 test('video model input removes duplicate history without dropping story constraints or changing cache keys',()=>{
  const entry=studioWorlds.find(w=>w.id==='yoga-lotus-boundary'),role=entry.world.characters[0].id;
  const source={...initialVideoRole(entry,role),roleId:role,hasFrame:false};
