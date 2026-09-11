@@ -57,6 +57,13 @@ test('author publication lifecycle isolates accounts, detects stale changes and 
     assert.equal(editor.portraits['draft-role-0'],'/assets/after-class-v1/zhou.webp');
     assert.deepEqual(editor.portraits,catalog.portraits);
     assert.equal(editor.sourceId,'draft-a');assert.equal(catalog.sourceId,undefined);
+    const artUpdate={...body,expectedUpdatedAt:state.rows[0].updated_at,
+      cover:editor.cover,portraits:Object.fromEntries(body.world.characters.map(c=>[c.id,editor.portraits['draft-role-0']]))};
+    assert.equal((await route.POST(req('POST',artUpdate))).status,200);
+    assert.equal(state.rows[0].document.cover,'/assets/after-class-v1/cover.webp');
+    const invalidArt=await route.POST(req('POST',{...artUpdate,expectedUpdatedAt:state.rows[0].updated_at,cover:'/assets/unapproved.webp'}));
+    assert.equal(invalidArt.status,409);
+    assert.equal((await invalidArt.json()).error,'image_not_publishable');
     state.user=null;
     assert.equal((await route.GET(req('GET',null,'guest','?mine=true'))).status,401);
     assert.equal((await route.PATCH(req('PATCH',patch))).status,401);

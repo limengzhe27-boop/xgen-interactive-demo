@@ -1,7 +1,7 @@
 import { authConfigured, authContext, sameOrigin } from '@/lib/server-auth';
 import { claimImage, findImage, imageId, imageOwner, saveImage, storageFetch } from '@/lib/server-image-store';
 import { publicationWorld } from '@/lib/publication';
-import { publicationArt } from '@/lib/publication-art';
+import { publicationArt, publicationArtPaths } from '@/lib/publication-art';
 import publicImages from '@/lib/public-image-manifest.json';
 import { libraryArtPaths } from '@/lib/library-art';
 import { memeArtPaths } from '@/lib/meme-worlds';
@@ -13,7 +13,7 @@ const publicPrefix = () => `${process.env.SUPABASE_URL}/storage/v1/object/public
 async function publishImage(path: unknown, request: Request, userId: string): Promise<string> {
   if (typeof path !== 'string' || !path) return legacyArt['storm-manor'].cover;
   if (path === '/assets/storm-manor-cover.png' || path === '/assets/storm-manor-cast.png') return path;
-  if (libraryArtPaths.has(path) || legacyArtPaths.has(path) || memeArtPaths.has(path)) return path;
+  if (libraryArtPaths.has(path) || legacyArtPaths.has(path) || memeArtPaths.has(path) || publicationArtPaths.has(path)) return path;
   if (Object.hasOwn(publicImages, path)) return `${publicPrefix()}${(publicImages as Record<string, string>)[path]}.webp`;
   const id = /^\/api\/image\/asset\/([a-f0-9]{64})$/.exec(path)?.[1];
   const sharedId = path.startsWith(publicPrefix()) ? /^([a-f0-9]{64})\.webp$/.exec(path.slice(publicPrefix().length))?.[1] : null;
@@ -117,5 +117,14 @@ export async function POST(request: Request) {
       await storageFetch('/rest/v1/rpc/demo_publish_world', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ p_id: id, p_owner: user.id, p_document: document }) });
     }
     return reply({ published: true, world: document });
-  } catch { return reply({ error: 'publication_failed', message: '发布未完成。请检查角色、地点、任务及图片是否有效；原草稿不会被删除。' }, 400); }
+  } catch (error) {
+    const code = error instanceof Error ? error.message : '';
+    const imageErrors: Record<string, string> = {
+      image_not_publishable: '有图片尚不能用于公开发布。已有图片和草稿已保留，无需重新生成。',
+      image_not_owned: '图片尚未就绪或不属于当前账号。草稿已保留，请核对图片与登录账号。',
+      image_publish_pending_or_limit: '图片公开保存尚未完成或已达到限额。草稿已保留，请稍后重试，不要重新生图。',
+    };
+    if (imageErrors[code]) return reply({ error: code, message: imageErrors[code] }, 409);
+    return reply({ error: 'publication_failed', message: '发布未完成。请检查角色、地点、任务及图片是否有效；原草稿不会被删除。' }, 400);
+  }
 }

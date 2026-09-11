@@ -1,5 +1,7 @@
 // Legacy placeholder assets must never masquerade as art belonging to a publication.
 export const PUBLICATION_PLACEHOLDER='/assets/publication-placeholder.svg';
+// Explicitly shipped public artwork; never accept an arbitrary /assets path.
+export const publicationArtPaths = new Set(['cover', 'zhou', 'shen', 'lin'].map(name => `/assets/after-class-v1/${name}.webp`));
 export function hasPublicationImage(path?:string){return Boolean(path&&!path.includes('storm-manor')&&!path.includes('storm_manor')&&path!==PUBLICATION_PLACEHOLDER);}
 export function publicationArt(document:Record<string,unknown>){
  const portraits=document.portraits&&typeof document.portraits==='object'?document.portraits as Record<string,unknown>:{};
