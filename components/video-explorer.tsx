@@ -70,7 +70,7 @@ export function VideoExplorer({entry:latestEntry,onBack,onText}:{entry:StudioWor
   const layout=useRef<HTMLElement>(null),heading=useRef<HTMLElement>(null),controls=useRef<HTMLElement>(null);
   const storageKey=scope?`xgen:video-pilot:v2:${scope}:${entry.id}`:null;
   const save=(input:Session)=>{const next={...input,worldSnapshot:input.worldSnapshot??entry};current.current=next;setSession(next);if(storageKey)try{sessionStorage.setItem(storageKey,JSON.stringify(next));setSaveError('');}catch{setSaveError('浏览器未能保存本次进度，请暂勿刷新或关闭此标签页。已生成的视频未被删除。');}};
-  const baseSource:BranchSource|null=session.state&&!session.finished?{roleId:session.roleId,state:session.state,narrative:session.narrative,choices:session.choices,hasFrame:Boolean(session.clip&&(session.rounds>0||entry.fixedRoleId))}:null;
+  const baseSource:BranchSource|null=session.state&&!session.finished?{roleId:session.roleId,state:session.state,narrative:session.narrative,choices:session.choices,hasFrame:Boolean(session.clip)}:null;
   const preparationSource=baseSource&&session.pending?afterPending(entry,baseSource,session.pending):baseSource;
   const preparationKey=preparationSource?branchKey(entry,preparationSource):'';
   const baseKey=baseSource?branchKey(entry,baseSource):'';
@@ -147,10 +147,10 @@ export function VideoExplorer({entry:latestEntry,onBack,onText}:{entry:StudioWor
     if(busy.current)return;
     const initial=initialVideoRole(entry,roleId);
     // A public/multi-role camera is not the selected person's first-person camera.
-    if(!entry.fixedRoleId)frame.current=null;
+    if(roles.length>1)frame.current=null;
     // This old clip contains Lin's private experiences, not the husband's knowledge.
     const roleClip=entry.id==='yoga-lotus-boundary'&&roleId==='lin'&&!current.current.roleId?prologue.video:undefined;
-    save({...current.current,...initial,roleId,...(roleClip?{clip:roleClip}:{})});setPhase(roleClip?'intro':'choices');setSeconds(15);setError('');
+    save({...current.current,...initial,roleId,clip:roleClip??(roles.length===1?current.current.clip:''),branches:undefined});setPhase(roleClip?'intro':'choices');setSeconds(15);setError('');
   }
   function switchViewpoint(roleId:string){
     const s=current.current;
@@ -216,8 +216,8 @@ export function VideoExplorer({entry:latestEntry,onBack,onText}:{entry:StudioWor
     const s=current.current;
     if(busy.current||!enabled||!scope||!s.state||!action.trim()||s.finished||s.pending)return;
     // Fresh first-person continuations require a real decoded last frame, never a poster fallback.
-    if(s.clip&&(s.rounds>0||entry.fixedRoleId)&&!frame.current){setError('未能读取末帧，请完整重播当前片段后再选择。没有提交生成。');setPaused(true);return;}
-    const key=branchKey(entry,{roleId:s.roleId,state:s.state,narrative:s.narrative,choices:s.choices,hasFrame:Boolean(s.clip&&(s.rounds>0||entry.fixedRoleId))});
+    if(s.clip&&!frame.current){setError('未能读取末帧，请完整重播当前片段后再选择。没有提交生成。');setPaused(true);return;}
+    const key=branchKey(entry,{roleId:s.roleId,state:s.state,narrative:s.narrative,choices:s.choices,hasFrame:Boolean(s.clip)});
     const prepared=s.branches?.key===key?s.branches.plans.find(p=>p.action===action):undefined;
     // Preset clicks never fall back to a blocking text-model call.
     if(preset&&!prepared)return;
@@ -253,7 +253,7 @@ export function VideoExplorer({entry:latestEntry,onBack,onText}:{entry:StudioWor
   }
   const autoAction=useRef(()=>{});
   useEffect(()=>{autoAction.current=()=>{if(phase==='roles')selectRole(roles[0].id);else void act(current.current.choices[0]?.label??'',true);};});
-  const ticking=enabled&&!drawerOpen&&!paused&&visible&&!focused&&!text.trim()&&!error&&!session.pending&&!session.finished&&(phase==='roles'||phase==='choices'&&cachedPlans.some(p=>p.action===session.choices[0]?.label));
+  const ticking=enabled&&!drawerOpen&&!paused&&online&&visible&&!focused&&!text.trim()&&!error&&!session.pending&&!session.finished&&(phase==='roles'||phase==='choices'&&cachedPlans.some(p=>p.action===session.choices[0]?.label));
   useEffect(()=>{
     if(!ticking)return;
     const timer=setInterval(()=>setSeconds(n=>Math.max(0,n-1)),1000);return()=>clearInterval(timer);
@@ -262,6 +262,8 @@ export function VideoExplorer({entry:latestEntry,onBack,onText}:{entry:StudioWor
   useEffect(()=>{if(phase==='ready'&&!drawerOpen)void player.current?.play().catch(()=>{/* User gesture required, keep visible controls. */});},[phase,drawerOpen]);
   const choosing=(phase==='choices'||phase==='error'&&!session.pending)&&!!session.state&&!session.finished;
   const waiting=phase==='planning'||phase==='generating';
+  const preparingDefault=choosing&&!cachedPlans.some(p=>p.action===session.choices[0]?.label);
+  const countdownLabel=ticking?`${seconds}秒后自动选择`:preparingDefault?'行动准备中 · 计时未开始':`倒计时暂停 · ${seconds}秒`;
   const pauseActive=['playing','intro','ready'].includes(phase)?mediaPaused:paused;
   const roleName=roles.find(r=>r.id===session.roleId)?.name??'';
   const shortAction=(label:string)=>label.startsWith(roleName)&&roleName?label.slice(roleName.length).replace(/^[：:，,\s]+/,''):label;
@@ -276,8 +278,8 @@ export function VideoExplorer({entry:latestEntry,onBack,onText}:{entry:StudioWor
     </header>
     <div className="video-explorer-stage">
       {/* oxlint-disable-next-line jsx-a11y/media-has-caption */}
-      {!loading&&session.clip?<video ref={player} key={session.clip} src={session.clip} controls={phase==='playing'||phase==='intro'||phase==='ready'} playsInline autoPlay={!session.pending} preload="metadata" poster={session.rounds===0?prologue.shots[0]?.poster:undefined}
-        onPause={()=>setMediaPaused(true)} onEnded={ended} onPlaying={()=>{setMediaPaused(false);playing();}} onError={()=>{setError('视频暂时无法播放，剧情不会继续。请检查连接后重播。');setPhase('error');setPaused(true);}} aria-label="当前剧情视频"/>:<Image src={entry.cover} alt={entry.title} width={1280} height={720} unoptimized/>}
+      {!loading&&session.clip?<video ref={player} key={session.clip} src={session.clip} controls={phase==='playing'||phase==='intro'||phase==='ready'} playsInline autoPlay={!session.pending} preload="metadata" poster={session.clip===prologue.video?prologue.shots[0]?.poster:undefined}
+        onPause={()=>setMediaPaused(true)} onEnded={ended} onPlaying={()=>{setMediaPaused(false);playing();}} onError={()=>{setError('视频暂时无法播放，剧情不会继续。请检查连接后重播。');setPhase('error');setPaused(true);}} aria-label="当前剧情视频"/>:<Image src={entry.portraits[session.roleId]||entry.cover} alt={roleName||entry.title} width={1280} height={720} unoptimized/>}
     </div>
     <section ref={controls} className="video-explorer-controls" aria-label="接下来的行动">
       {!enabled&&<div className="video-explorer-start">
@@ -285,6 +287,7 @@ export function VideoExplorer({entry:latestEntry,onBack,onText}:{entry:StudioWor
         <button disabled={loading||!configured} onClick={()=>{setEnabled(true);setPaused(false);setSeconds(15);if(!session.clip)ended();else if(player.current?.ended)ended();}}>{loading?'连接中…':configured?'开启探索':'服务暂不可用'}</button>
       </div>}
       {waiting&&<p className="video-brief" role="status">{phase==='planning'?'正在编排你的行动':'正在生成下一幕'} · {waitSeconds}秒</p>}
+      {enabled&&(choosing||phase==='roles')&&<div className="video-countdown" data-paused={!ticking}><span>{countdownLabel}</span><progress aria-label={countdownLabel} max={15} value={seconds}/></div>}
       {phase==='roles'&&<div className="video-explorer-choices">{roles.map(role=><button disabled={loading} key={role.id} title={role.identity} onClick={()=>selectRole(role.id)}>{role.name}</button>)}</div>}
       {choosing&&<>
         <div className="video-explorer-choices">{session.choices.map((c,i)=><button disabled={!enabled||!online||!cachedPlans.some(p=>p.action===c.label)} key={c.id} title={c.label} aria-label={c.label} onClick={()=>void act(c.label,true)}><span>{shortAction(c.label)}</span>{i===0&&ticking&&<em aria-label={`${seconds}秒后自动选择`}>{seconds}</em>}</button>)}</div>

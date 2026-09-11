@@ -26,6 +26,11 @@ test('immersive actions use icon corners and a closed records dialog without lab
  assert.match(css,/video-corner:hover/);
  assert.match(css,/@media\(hover:none\)/);
  assert.match(css,/grid-template-columns:1fr/);
+ assert.match(ui,/<progress aria-label=\{countdownLabel\} max=\{15\} value=\{seconds\}/);
+ assert.match(ui,/paused&&online&&visible/);
+ assert.match(ui,/entry.portraits\[session.roleId\]\|\|entry.cover/);
+ assert.match(ui,/if\(s.clip&&!frame.current\)/);
+ assert.match(ui,/clip:roleClip\?\?\(roles.length===1\?current.current.clip:''\)/);
 });
 test('prepared branches project without committing and match the eventual played state',()=>{
  const entry=studioWorlds.find(w=>w.id==='yoga-lotus-boundary');
