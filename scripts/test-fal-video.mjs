@@ -15,6 +15,27 @@ const route=await import('../app/api/fal-video/route.ts');
 const {imageOwner}=await import('../lib/server-image-store.ts');
 const {initialVideoRole,threeChoices,videoMotionPrompt,commitVideoTurn}=await import('../lib/video-exploration.ts');
 const {studioWorlds}=await import('../lib/studio-worlds.ts');
+const {branchKey,afterPending,compileBranch}=await import('../lib/video-branch-plans.ts');
+test('prepared branches project without committing and match the eventual played state',()=>{
+ const entry=studioWorlds.find(w=>w.id==='yoga-lotus-boundary');
+ const role=entry.world.characters[0].id;
+ const source={...initialVideoRole(entry,role),roleId:role,hasFrame:false};
+ const before=JSON.stringify(source);
+ const response={actionDecision:{allowed:true},narrative:'你站稳脚步，对方停在门旁。',dialogue:[],statePatch:{committedFacts:[]},nextChoices:[],ending:{reached:false}};
+ const projected=afterPending(entry,source,{action:'观察',response});
+ assert.equal(JSON.stringify(source),before);
+ assert.equal(projected.state.turn,source.state.turn+1);
+ const actual={roleId:role,state:commitVideoTurn(entry,role,source.state,'观察',response),narrative:response.narrative,choices:threeChoices(response.nextChoices),hasFrame:true};
+ assert.equal(branchKey(entry,projected),branchKey(entry,actual));
+ for(const change of [{roleId:'other'},{hasFrame:true},{narrative:'different'},{choices:[]}])assert.notEqual(branchKey(entry,source),branchKey(entry,{...source,...change}));
+ assert.equal(compileBranch(entry,source,'观察',response).action,'观察');
+ assert.throws(()=>compileBranch(entry,source,'观察',{...response,actionDecision:{allowed:false}}));
+ assert.equal(afterPending(entry,source,{action:'观察',response:{...response,ending:{reached:true}}}),null);
+ const ui=readFileSync(root+'components/video-explorer.tsx','utf8');
+ assert.match(ui,/if\(preset&&!prepared\)return/);
+ assert.match(ui,/prepared\?\.response\?\?await/);
+ assert.match(ui,/act\(c.label,true\)/);
+});
 test('long continuation has no frontend trial-round cap or backend daily RPC quota',()=>{
  assert.equal(policy.FAL_VIDEO_SECONDS,15);
  const ui=readFileSync(root+'components/video-explorer.tsx','utf8');
