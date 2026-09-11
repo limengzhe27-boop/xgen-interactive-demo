@@ -1042,6 +1042,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
   const [releaseHistory, setReleaseHistory] = useState<StoryEdition[]>([]);
   const [continuation, setContinuation] = useState<ContinuationDraft | undefined>();
   const [communityWorlds, setCommunityWorlds] = useState<StudioWorld[]>([]);
+  const [communityLoaded,setCommunityLoaded]=useState(false);
   const [catalogRevision, setCatalogRevision] = useState(0);
   const [publicationEntry, setPublicationEntry] = useState<StudioWorld | null>(null);
   const [publicationNotice, setPublicationNotice] = useState('');
@@ -1144,11 +1145,13 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
   const linkedWorldStartPending = useRef(false);
   useEffect(() => {
     if (!storageReady || entryLinkOpened.current) return;
+    const requestedId=new URLSearchParams(window.location.search).get('world');
+    if(requestedId?.startsWith('community-')&&!communityLoaded)return;
     entryLinkOpened.current = true;
-    if (activeChat) return; // A restored private chat takes priority over an old world link.
-    // Public sample links only select a built-in world; never submit a model request.
+    if (activeChat&&!requestedId) return;
+    // Explicit work links select a work, never submit a model request.
     const id = new URLSearchParams(window.location.search).get('world');
-    const entry = studioWorlds.find(item => item.id === id);
+    const entry = availableStudioWorlds.find(item => item.id === id);
     if (entry) {
       setPreferText(new URLSearchParams(window.location.search).get('mode') === 'text');
       linkedWorldStartPending.current = Boolean(entry.fixedRoleId && new URLSearchParams(window.location.search).get('mode') === 'text' && new URLSearchParams(window.location.search).get('intro') === 'seen');
@@ -1156,7 +1159,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       setSelectedRole(entryRoles(entry).find(role => role.id === entry.fixedRoleId) || entryRoles(entry)[0]);
       setRuntimeBeat(null); setView('prologue');
     }
-  }, [storageReady]);
+  }, [storageReady,communityLoaded]);
   const startLinkedWorld = useEffectEvent(() => beginWorld());
   useEffect(() => {
     if (linkedWorldStartPending.current && activeLibrary?.fixedRoleId === selectedRole.id && storageReady) {
@@ -1170,7 +1173,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       if (!r.ok) return;
       const data = await r.json() as { worlds?: StudioWorld[] };
       if (live && Array.isArray(data.worlds)) setCommunityWorlds(data.worlds);
-    }).catch(() => {});
+    }).catch(() => {}).finally(()=>{if(live)setCommunityLoaded(true);});
     return () => { live = false; };
   }, [catalogRevision]);
   const personalCatalog = [...worldCatalog, ...availableStudioWorlds.map((entry) => ({ id: entry.id, title: entry.title, genre: entry.genre, premise: entry.premise, surpriseLevel: entry.world.surpriseLevel }))];
@@ -2467,13 +2470,15 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       const previous=readStoryEditions(stored?.documents.find(doc=>doc.id===draftId)?.data.releaseHistory,draftId);
       if(previous.at(-1)?.id!==releaseHistory.at(-1)?.id)throw Error('公开发布已成功，但本机出现版本冲突，请刷新后恢复公开版本。');
       const recorded=recordStoryEdition(releaseHistory,local,releasedEntry);
-      const data={...JSON.parse(creatorDocumentJSON),releaseHistory:recorded.history,releasedEntry:recorded.entry,publishedWorld:true} as CreatorDocument['data'];
+      const data={...JSON.parse(creatorDocumentJSON),creatorAssets:{cover:entry.cover,portraits:entry.portraits},generatedWorld:local.world,releaseHistory:recorded.history,releasedEntry:recorded.entry,publishedWorld:true} as CreatorDocument['data'];
       const documents=upsertById(creatorDocuments,{id:draftId,savedAt:Date.now(),data});
       persistStudioSnapshot({version:1,runs:savedRuns,chats:chatSessions,documents,draftId});
       setCreatorDocuments(documents);setReleaseHistory(recorded.history);setReleasedEntry(recorded.entry);setPublishedWorld(true);
+      setCreatorAssets({cover:entry.cover,portraits:entry.portraits});setGeneratedWorld(local.world);
       setPublicationNotice('世界已公开发布，本次内容已记入保存版本。');
     }catch(error){setPublicationNotice(error instanceof Error?`公开发布已成功；本机版本记录未保存：${error.message}`:'公开发布已成功，但本机版本记录保存失败。');}
     navigate('home');
+    setGalleryRestore({browse:{seed:'',query:'',genre:'全部',kind:'all'}});
   }
 
   function preparePublicWorld() {
@@ -2481,7 +2486,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     const world = materializeCreatorWorld();
     const portraits = Object.fromEntries(world.characters.map((role, index) => [role.id, roleImages[`draft-role-${index}`] || creatorAssets?.portraits[role.id] || '']));
     setPublicationEntry({ id: draftId, title: world.title, genre: '社区创作', premise: world.premise,
-      cover: roleImages['draft-role-0'] || creatorAssets?.cover || legacyArt['storm-manor'].cover, portraits, world });
+      cover: creatorAssets?.cover || '', portraits, world });
   }
 
   function newCreator(seed = '', context?: CompanionContext, preserveCurrent = true) {

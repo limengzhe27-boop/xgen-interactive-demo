@@ -58,7 +58,8 @@ export function MyPublications({ accountScope, drafts, onEdit, onDelete, onResto
     </> : <>
       {accountScope === 'guest' ? <p>登录后查看自己发布的作品。</p> : loading ? <p role="status">正在读取作品…</p> : !error && !rows.length ? <p>还没有公开版本。保存并试玩后，可在创作的发布设置中发布。</p> : null}
       {!loading && rows.map(row => <article key={row.id}><div><strong>{row.document.title}</strong><p>{row.published ? '已发布' : '已下架'} · {new Date(row.updated_at).toLocaleString('zh-CN')}</p></div><div>
-        {drafts.some(draft => draft.id === (row.document.sourceId || row.document.id)) ? <Button variant="outline" disabled={!!busy} onClick={() => onEdit(row.document.sourceId || row.document.id)}>编辑草稿</Button>
+        <a className="studio-button" href={`/?world=${row.document.id}`}>进入作品</a>
+        {drafts.some(draft => draft.id === (row.document.sourceId || row.document.id)) ? <Button variant="outline" disabled={!!busy} onClick={() => onEdit(row.document.sourceId || row.document.id)}>编辑作品</Button>
           : <Button variant="outline" disabled={!!busy} onClick={() => { if (window.confirm('从公开版本恢复一份本机草稿，不包含原来的私人讨论。不会立即修改公开作品，继续？')) onRestore(row.document); }}>恢复并编辑</Button>}
         <Button variant="outline" disabled={!!busy || (!row.published && !canPublish)} onClick={() => void change(row)}>{busy === row.id ? '处理中…' : row.published ? '下架' : '重新发布'}</Button>
       </div><PublicationActivity key={`${accountScope}:${row.id}:${row.updated_at}`} id={row.id} accountScope={accountScope} onRestore={onRestoreEdition}/></article>)}
