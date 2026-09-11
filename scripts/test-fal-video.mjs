@@ -13,12 +13,38 @@ registerHooks({resolve(s,c,next){
 const policy=await import('../lib/fal-video.ts');
 const route=await import('../app/api/fal-video/route.ts');
 const {imageOwner}=await import('../lib/server-image-store.ts');
-const {initialVideoRole,threeChoices,videoMotionPrompt,commitVideoTurn}=await import('../lib/video-exploration.ts');
+const {initialVideoRole,threeChoices,videoMotionPrompt,commitVideoTurn,videoTurnRequest}=await import('../lib/video-exploration.ts');
 const {studioWorlds}=await import('../lib/studio-worlds.ts');
 const {branchKey,afterPending,compileBranch}=await import('../lib/video-branch-plans.ts');
 const {videoBranchTurnKey,videoEndingFrame}=await import('../lib/video-prefetch.ts');
 const {VideoBuffer}=await import('../lib/video-buffer.ts');
 const {startVideo}=await import('../lib/video-autoplay.ts');
+const {compactVideoScriptInput}=await import('../lib/video-script-input.ts');
+test('video model input removes duplicate history without dropping story constraints or changing cache keys',()=>{
+ const entry=studioWorlds.find(w=>w.id==='yoga-lotus-boundary'),role=entry.world.characters[0].id;
+ const source={...initialVideoRole(entry,role),roleId:role,hasFrame:false};
+ source.state.eventLedger=[{turn:1,action:'询问',result:'对方解释当前安排。'.repeat(50)}];
+ source.state.rolePerspectives={other:{eventLedger:[{result:'另一角色的私人经历'}]}};
+ const input=videoTurnRequest(entry,role,source.state,source.narrative,source.choices,'观察');
+ const original=JSON.stringify(input),key=branchKey(entry,source),compact=compactVideoScriptInput(input);
+ assert.equal(JSON.stringify(input),original);assert.equal(branchKey(entry,source),key);
+ assert.ok(JSON.stringify(compact).length<original.length);
+ assert.equal(compact.state.eventLedger,undefined);assert.equal(compact.state.rolePerspectives,undefined);
+ assert.deepEqual(compact.recentTurns,input.recentTurns);assert.deepEqual(compact.currentScene,input.currentScene);
+ for(const field of ['rules','tasks','relationships','difficultyConstraints','endingConditions','scheduledEvents','goals'])assert.deepEqual(compact.world[field],input.world[field]);
+ for(const field of ['committedFacts','knownSecrets','inventory','completedTaskIds','characterStates'])assert.deepEqual(compact.state[field],input.state[field]);
+ compact.world.characters.forEach((c,i)=>{assert.deepEqual(c.privateKnowledge,input.world.characters[i].privateKnowledge);assert.deepEqual(c.secrets,input.world.characters[i].secrets);assert.deepEqual(c.entry,input.world.characters[i].entry);});
+});
+test('pipeline starts frames before scripts, wakes immediately on a prepared branch and projects before joining video work',()=>{
+ const ui=readFileSync(root+'components/video-explorer.tsx','utf8');
+ assert.match(ui,/void endingFrame\(clip\)/);
+ assert.match(ui,/phase,cachedPlans.length\]/);
+ assert.match(ui,/setInterval\(\(\)=>void tick\(\),2000\)/);
+ const act=ui.slice(ui.indexOf('async function act('),ui.indexOf('async function resume('));
+ assert.ok(act.indexOf('save(next)')<act.indexOf('await prefetchRunning.current.get'));
+ assert.match(ui,/await cache.load\(src\)/);
+ assert.match(ui,/session.choices.flatMap/);
+});
 test('autoplay prefers audio, falls back only for permission denial, and respects cancellation',async()=>{
  let calls=0;const video={muted:false,async play(){calls++;if(!this.muted)throw new DOMException('gesture required','NotAllowedError');}};
  assert.equal(await startVideo(video,()=>true),'muted');assert.equal(calls,2);

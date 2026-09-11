@@ -92,15 +92,19 @@ export function VideoExplorer({entry:latestEntry,onBack,onText}:{entry:StudioWor
   const [shownClip,setShownClip]=useState('');
   const [holdFrame,setHoldFrame]=useState<string|null>(null);
   const [playbackRetry,setPlaybackRetry]=useState(0);
-  const readySources=session.videos?.key===videoKey?Object.values(session.videos.jobs).flatMap(j=>j.assetUrl?[j.assetUrl]:[]):[];
+  const readySources=session.videos?.key===videoKey?session.choices.flatMap(c=>{const url=session.videos!.jobs[c.label]?.assetUrl;return url?[url]:[];}):[];
   const bufferSources=JSON.stringify([...new Set([session.clip,playback.clip,...readySources])].filter(Boolean));
   useEffect(()=>{
     const cache=buffers.current!;
     cache.retain(JSON.parse(bufferSources) as string[]);
-    if(online&&visible)for(const src of JSON.parse(bufferSources) as string[]){
-      if(src!==session.clip&&src!==playback.clip&&src.startsWith('/api/media/asset/'))void cache.load(src).catch(()=>{/* Selected video can stream if warming fails. */});
-    }
-  },[bufferSources,online,visible]);
+    let stopped=false;
+    // Default branch first, one warmup at a time: do not split bandwidth three ways.
+    if(online&&visible)void(async()=>{for(const src of JSON.parse(bufferSources) as string[]){
+      if(stopped)return;
+      if(src!==session.clip&&src!==playback.clip&&src.startsWith('/api/media/asset/'))await cache.load(src).catch(()=>{/* Selected video can stream if warming fails. */});
+    }})();
+    return()=>{stopped=true;};
+  },[bufferSources,online,visible,session.clip,playback.clip]);
   useEffect(()=>()=>buffers.current?.dispose(),[scope]);
   useEffect(()=>{
     const clip=session.clip;
@@ -110,6 +114,17 @@ export function VideoExplorer({entry:latestEntry,onBack,onText}:{entry:StudioWor
     setPlayback({clip,src:buffers.current!.playbackSource(clip)});
     if(playbackRetry)player.current?.load();
   },[session.clip,scope,playbackRetry]);
+  function endingFrame(clip:string){
+    if(endFrames.current?.src!==clip)endFrames.current={src:clip,promise:videoEndingFrame(buffers.current!.peek(clip)||clip)};
+    return endFrames.current.promise;
+  }
+  useEffect(()=>{
+    // Decode in parallel with script preparation, not after the scripts return.
+    if(!enabled||!online||!visible||drawerOpen||!session.clip)return;
+    let stopped=false;const clip=session.clip;
+    void endingFrame(clip).then(value=>{if(!stopped&&current.current.clip===clip)frame.current=value;}).catch(()=>{/* tick exposes the existing recoverable error */});
+    return()=>{stopped=true;};
+  },[enabled,online,visible,drawerOpen,session.clip]);
   useEffect(()=>{
     // Only the actual current scene gets videos. Projected grandchildren get scripts only.
     if(!enabled||!scope||!online||!visible||drawerOpen||session.pending||!session.state||session.finished||!['playing','intro','choices','error'].includes(phase))return;
@@ -131,8 +146,7 @@ export function VideoExplorer({entry:latestEntry,onBack,onText}:{entry:StudioWor
       if(!plans.length)return;
       let ending:string|null=null;
       if(s.clip){
-        if(endFrames.current?.src!==s.clip)endFrames.current={src:s.clip,promise:videoEndingFrame(buffers.current!.peek(s.clip)||s.clip)};
-        try{ending=await endFrames.current.promise;}catch(e){if(valid())setPrefetchNote(e instanceof Error?e.message:'末帧读取失败');return;}
+        try{ending=await endingFrame(s.clip);}catch(e){if(valid())setPrefetchNote(e instanceof Error?e.message:'末帧读取失败');return;}
       }
       if(!valid())return;
       frame.current=ending;
@@ -165,11 +179,11 @@ export function VideoExplorer({entry:latestEntry,onBack,onText}:{entry:StudioWor
         try{await work;}finally{prefetchRunning.current.delete(lock);}
       }));
     }
-    void tick();const timer=setInterval(()=>void tick(),4000);
+    void tick();const timer=setInterval(()=>void tick(),2000);
     return()=>{stopped=true;clearInterval(timer);};
     // Cache updates are consumed by the next tick, never restart paid submissions.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  },[enabled,scope,online,visible,drawerOpen,videoKey,Boolean(session.pending),session.finished,phase]);
+  },[enabled,scope,online,visible,drawerOpen,videoKey,Boolean(session.pending),session.finished,phase,cachedPlans.length]);
   const preparationRef=useRef(preparationKey);preparationRef.current=preparationKey;
   useEffect(()=>{
     if(!enabled||!scope||!online||!preparationSource||!preparationKey)return;
@@ -319,19 +333,22 @@ export function VideoExplorer({entry:latestEntry,onBack,onText}:{entry:StudioWor
     busy.current=true;setText(action);setError('');startedAt.current=Date.now();setWaitSeconds(0);setWaitingNote(prepared?'使用已准备的脚本，正在提交视频。':'正在编排你自行输入的行动；此时尚未提交视频。');setPhase(prepared?'generating':'planning');const abort=new AbortController();controller.current=abort;
     save({...s,draftAction:action});
     try{
-      // If a background submit is in flight, join it instead of racing its reservation.
-      await prefetchRunning.current.get(`${scope}:${videoKey}:${action}`);
-      if(!alive.current||abort.signal.aborted)return;
-      const prefetched=current.current.videos?.key===videoKey?current.current.videos.jobs[action]:undefined;
       const response=prepared?.response??await createRemoteAIAdapter(scope).advanceWorld(videoTurnRequest(entry,s.roleId,s.state,s.narrative,s.choices,action),abort.signal);
       if(!alive.current||abort.signal.aborted)return;
       const prompt=prepared?.prompt??videoMotionPrompt(entry,s.roleId,s.state,response,!!frame.current);
-      const pending:Pending=prefetched??{input:{confirmed:true,turnKey:await videoBranchTurnKey(s.id,videoKey,action),prompt,frame:frame.current},response,action,startedAt:startedAt.current};
+      const existing=current.current.videos?.key===videoKey?current.current.videos.jobs[action]:undefined;
+      let pending:Pending=existing??{input:{confirmed:true,turnKey:await videoBranchTurnKey(s.id,videoKey,action),prompt,frame:frame.current},response,action,startedAt:startedAt.current};
       // Persist the exact request BEFORE any potentially billable submission.
       if(!storageKey)throw Error('未能确定保存位置，尚未提交视频。');
       const next={...current.current,pending,draftAction:action,worldSnapshot:s.worldSnapshot??entry};
       sessionStorage.setItem(storageKey,JSON.stringify(next));
-      save(next);setWaitSeconds(0);setPhase('generating');await submit(pending,abort.signal);setText('');
+      // Publish the projected state now so next-round scripts overlap this video wait.
+      save(next);setWaitSeconds(0);setPhase('generating');
+      // Join any already-submitted request before querying; never buy a duplicate.
+      await prefetchRunning.current.get(`${scope}:${videoKey}:${action}`);
+      if(!alive.current||abort.signal.aborted)return;
+      pending=current.current.videos?.key===videoKey?current.current.videos.jobs[action]??pending:pending;
+      save({...current.current,pending});await submit(pending,abort.signal);setText('');
     }catch(e){if(alive.current&&!abort.signal.aborted){setError(e instanceof Error?e.message:'生成失败');setPhase('error');setPaused(true);}}
     finally{busy.current=false;}
   }

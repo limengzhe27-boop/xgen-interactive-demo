@@ -23,6 +23,7 @@ import { validateAction } from '@/lib/world-state';
 import { visibleSystem } from '@/lib/world-system';
 import { worldProgression, PROGRESSION_GUIDANCE } from '@/lib/world-progression';
 import { cinematicGuidance } from '@/lib/cinematic-language';
+import { compactVideoScriptInput } from '@/lib/video-script-input';
 import { personaAdaptationInstructions, readPersonaAdaptationRequest, readPersonaAdaptationSuggestion } from '@/lib/persona-adaptation';
 import { personaDesignInstructions, readPersonaDesignInput, readPersonaDesignReply } from '@/lib/persona-design';
 
@@ -101,7 +102,7 @@ function parseModelJSON(content: string): unknown {
 async function callCompany(provider: CompanyProvider, operation: Operation, input: unknown, timeoutMs?: number): Promise<unknown> {
   const isChat = operation === 'advance-world' && isWorldTurnRequest(input) && input.interaction?.mode === 'character-chat';
   const runtimeInput = operation === 'advance-world' && isWorldTurnRequest(input)
-    ? { ...input, progression: worldProgression(input), world: { ...input.world, characters: input.world.characters.map(({ cardHook: _cardHook, ...character }) => character) }, systemView: visibleSystem(input.world, input.selectedRoleId, input.state.completedTaskIds) }
+    ? { ...(input.presentation?.medium === 'native-video' ? compactVideoScriptInput(input) : { ...input, world: { ...input.world, characters: input.world.characters.map(({ cardHook: _cardHook, ...character }) => character) } }), progression: worldProgression(input), systemView: visibleSystem(input.world, input.selectedRoleId, input.state.completedTaskIds) }
     : input;
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs ?? (operation === 'generate-world' ? 75_000 : 60_000));
@@ -120,6 +121,7 @@ async function callCompany(provider: CompanyProvider, operation: Operation, inpu
           ...(operation === 'advance-world' && !isChat ? [{role:'system',content:PROGRESSION_GUIDANCE}] : []),
           ...(operation === 'advance-world' && isWorldTurnRequest(input) && input.presentation?.medium === 'native-video' ? [{role:'system',content:'本轮为15秒原生有声互动视频，覆盖默认长篇字数规则：只推进用户这次行动可在15秒内完成的一个具体事件。narrative约150—280字，按0—3秒行动起势、3—9秒交互与阻力、9—13秒可见反应、13—15秒未决尾态安排，场景与动作连续，不靠静态推拉凑时长，依次写起势、接触/反应、可见后果与未决尾态，不能只描述风景或推镜；不完成整场长任务。dialogue最多四句、合计不超过50个汉字；保持说话人准确，玩家没授权说话不要替他说。独处可空对白，由现场动作声表达。nextChoices必须恰好3项不同且当场可执行的动作。不要把所有秘密、远处事件写进可见剧情。生成结果停在下一次行动之前。'}] : []),
           { role: 'system', content: `你正在驱动一个图文交互小世界 Demo。只输出一个有效 JSON 对象，不使用 Markdown。契约版本：${AI_CONTRACT_VERSION}。${isChat ? characterChatContract : operation === 'advance-world' && isWorldTurnRequest(input) && input.presentation?.medium === 'native-video' ? videoTurnContract : operationInstructions[operation]}` },
+          ...(operation === 'advance-world' && isWorldTurnRequest(input) && input.presentation?.medium === 'native-video' ? [{role:'system',content:'视频接口精简输出：不需要静态生图，image只返回required=false、reason="reuse"、sceneId=currentScene.id，不写生图prompt。statePatch保留committedFacts，只输出本轮实际改变的其他字段，不复述未变角色状态、旧事实和已完成任务。保留完整的必要剧情、对白、三个nextChoices、goalProgress与ending判断，不输出解释或重复资料。'}] : []),
           ...(operation === 'advance-world' ? [{ role: 'system', content: '角色会面中，如果所选参与者身份为自由对话用户，直接回应用户，不要求先选角，不把对方当成世界里的已有角色，不编造其家庭、性格、旧关系或秘密，不强迫完成主线；用户未表达的身份保持未知。原剧情人物的背景只用于演绎该人物。' }] : []),
           ...(operation === 'advance-world' && isWorldTurnRequest(input) && input.interaction?.mode === 'character-chat' ? [{ role: 'system', content: characterChatGuidance }] : []),
           ...(operation === 'personal-agent' ? [{ role: 'system', content: personalActionInstructions + ' 用户当前填写的资料优先于旧聊天和旧记忆；有冲突时询问，不擅自覆盖。不从虚构角色设定推断真人性格，不把临时情绪当成长期性格。' }] : []),
