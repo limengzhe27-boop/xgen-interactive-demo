@@ -16,6 +16,20 @@ const {imageOwner}=await import('../lib/server-image-store.ts');
 const {initialVideoRole,threeChoices,videoMotionPrompt,commitVideoTurn}=await import('../lib/video-exploration.ts');
 const {studioWorlds}=await import('../lib/studio-worlds.ts');
 const {branchKey,afterPending,compileBranch}=await import('../lib/video-branch-plans.ts');
+const {videoBranchTurnKey,videoEndingFrame}=await import('../lib/video-prefetch.ts');
+test('prefetch billing keys survive reload and separate actions, worlds and roles',async()=>{
+ const a=await videoBranchTurnKey('session','world:role:turn:clip','观察');
+ assert.equal(a,await videoBranchTurnKey('session','world:role:turn:clip','观察'));
+ assert.notEqual(a,await videoBranchTurnKey('session','world:role:turn:clip','离开'));
+ assert.notEqual(a,await videoBranchTurnKey('session','world:other:turn:clip','观察'));
+ assert.match(a,/^branch:[a-f0-9]{64}$/);
+});
+test('prefetch extracts an ending from a detached decoder, not the visible player',async()=>{
+ const old=globalThis.document;let sought,cleaned=false,drawn=false;
+ const decoder={duration:15,videoWidth:1920,videoHeight:1080,load(){cleaned=true;},removeAttribute(){},set currentTime(t){sought=t;queueMicrotask(()=>this.onseeked());},set src(s){assert.equal(s,'/clip.mp4');queueMicrotask(()=>this.onloadedmetadata());}};
+ globalThis.document={createElement(tag){if(tag==='video')return decoder;return {getContext(){return {drawImage(v){assert.equal(v,decoder);drawn=true;}};},toDataURL(){return 'data:image/jpeg;base64,YQ==';}};}};
+ try{assert.equal(await videoEndingFrame('/clip.mp4'),'data:image/jpeg;base64,YQ==');assert.equal(sought,14.95);assert.ok(cleaned&&drawn);}finally{globalThis.document=old;}
+});
 test('immersive actions use icon corners and a closed records dialog without label clutter',()=>{
  const ui=readFileSync(root+'components/video-explorer.tsx','utf8');
  const css=readFileSync(root+'app/video-explore/video-explore.css','utf8');
@@ -135,5 +149,11 @@ test('fal submit/query is owner-isolated, idempotent and native-audio gated; no 
     mode='silent';const silent=await(await route.POST(req({...base,turnKey:'test:0003'}))).json();const checked=await(await query(silent.id)).json();assert.equal(checked.error,'fal_missing_native_audio');
     mode='uncertain';assert.equal((await route.POST(req({...base,turnKey:'test:0004'}))).status,503);assert.equal((await(await route.POST(req({...base,turnKey:'test:0004'}))).json()).status,'reserved');assert.equal(paid,4);
     assert.equal((await route.POST(req({...base,frame:'data:image/png;base64,YWJj'}))).status,400);assert.equal(paid,4);
+    mode='ok';
+    const keys=await Promise.all(['left','middle','right'].map(a=>videoBranchTurnKey('session','scene',a)));
+    const branches=await Promise.all(keys.map(turnKey=>route.POST(req({...base,turnKey})).then(r=>r.json())));
+    assert.equal(new Set(branches.map(b=>b.id)).size,3);assert.equal(paid,7);
+    await Promise.all(keys.map(turnKey=>route.POST(req({...base,turnKey}))));
+    assert.equal(paid,7,'reload and selection reuse all three paid branch reservations');
   }finally{globalThis.fetch=original;}
 });

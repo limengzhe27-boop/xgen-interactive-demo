@@ -19,10 +19,12 @@ import { publicationWorld } from '@/lib/publication';
 import { turnMemoryText } from '@/lib/world-state';
 import { migrateWorldState } from '@/lib/world-state-migration';
 import {afterPending,branchKey,compileBranch,type BranchCache,type BranchSource} from '@/lib/video-branch-plans';
+import {videoBranchTurnKey,videoEndingFrame} from '@/lib/video-prefetch';
 import { commitVideoTurn, initialVideoRole, threeChoices, videoErrors, videoMotionPrompt, videoTurnRequest, type VideoChoice } from '@/lib/video-exploration';
 
 type Pending={input:FalVideoInput;response:WorldTurnResponse;action:string;id?:string;assetUrl?:string;startedAt?:number};
-type Session={version:1;id:string;roleId:string;state:WorldState|null;narrative:string;choices:VideoChoice[];clip:string;rounds:number;worldSnapshot?:StudioWorld;pending?:Pending;branches?:BranchCache;draftAction?:string;finished?:boolean;clips?:{url:string;action:string;narrative?:string}[]};
+type Prefetched=Pending&{status:string;error?:string};
+type Session={version:1;id:string;roleId:string;state:WorldState|null;narrative:string;choices:VideoChoice[];clip:string;rounds:number;worldSnapshot?:StudioWorld;pending?:Pending;branches?:BranchCache;videos?:{key:string;jobs:Record<string,Prefetched>};draftAction?:string;finished?:boolean;clips?:{url:string;action:string;narrative?:string}[]};
 type Phase='intro'|'roles'|'choices'|'planning'|'generating'|'ready'|'playing'|'error';
 type MediaReply={id?:string;status:string;error?:string;assetUrl?:string};
 export function VideoExplorer({entry:latestEntry,onBack,onText}:{entry:StudioWorld;onBack?:()=>void;onText?:()=>void}){
@@ -75,13 +77,78 @@ export function VideoExplorer({entry:latestEntry,onBack,onText}:{entry:StudioWor
   const preparationKey=preparationSource?branchKey(entry,preparationSource):'';
   const baseKey=baseSource?branchKey(entry,baseSource):'';
   const cachedPlans=session.branches?.key===baseKey?session.branches.plans:[];
+  const videoKey=JSON.stringify([baseKey,session.clip]);
+  const prefetchRunning=useRef(new Map<string,Promise<void>>());
+  const endFrames=useRef<{src:string;promise:Promise<string>}|null>(null);
+  const prefetchContext=useRef('');prefetchContext.current=`${scope}:${videoKey}`;
+  const [prefetchNote,setPrefetchNote]=useState('');
+  useEffect(()=>{
+    // Only the actual current scene gets videos. Projected grandchildren get scripts only.
+    if(!enabled||!scope||!online||!visible||drawerOpen||session.pending||!session.state||session.finished||!['playing','intro','choices','error'].includes(phase))return;
+    let stopped=false;
+    const context=`${scope}:${videoKey}`;
+    const valid=()=>!stopped&&alive.current&&prefetchContext.current===context&&!current.current.pending;
+    const put=(action:string,job:Prefetched)=>{
+      if(!alive.current||prefetchContext.current!==context)return;
+      const s=current.current,jobs=s.videos?.key===videoKey?s.videos.jobs:{};
+      const next={...s,videos:{key:videoKey,jobs:{...jobs,[action]:job}}};
+      // A failed local write must stop before buying a task we cannot recover.
+      if(!storageKey)throw Error('未能保存预生成任务');
+      sessionStorage.setItem(storageKey,JSON.stringify(next));save(next);
+    };
+    async function tick(){
+      if(!valid())return;
+      const s=current.current;
+      const plans=s.branches?.key===baseKey?s.branches.plans.slice(0,3):[];
+      if(!plans.length)return;
+      let ending:string|null=null;
+      if(s.clip){
+        if(endFrames.current?.src!==s.clip)endFrames.current={src:s.clip,promise:videoEndingFrame(s.clip)};
+        try{ending=await endFrames.current.promise;}catch(e){if(valid())setPrefetchNote(e instanceof Error?e.message:'末帧读取失败');return;}
+      }
+      if(!valid())return;
+      frame.current=ending;
+      await Promise.allSettled(plans.map(async plan=>{
+        const lock=`${context}:${plan.action}`;
+        if(prefetchRunning.current.has(lock))return;
+        const work=(async()=>{
+          let job=current.current.videos?.key===videoKey?current.current.videos.jobs[plan.action]:undefined;
+          if(job&&['ready','failed','reserved','uncertain'].includes(job.status))return;
+          if(job?.startedAt&&Date.now()-job.startedAt>300_000)return;
+          try{
+            if(!job){
+              const turnKey=await videoBranchTurnKey(s.id,videoKey,plan.action);
+              if(!valid())return;
+              job={action:plan.action,response:plan.response,input:{confirmed:true,turnKey,prompt:plan.prompt,frame:ending},status:'submitting',startedAt:Date.now()};
+              put(plan.action,job);
+            }
+            if(!valid())return;
+            const r=job.id?await fetch(`/api/fal-video?id=${job.id}`,{headers:{'x-xgen-account':scope!},cache:'no-store',signal:AbortSignal.timeout(110000)})
+              :await fetch('/api/fal-video',{method:'POST',headers:{'Content-Type':'application/json','x-xgen-account':scope!},body:JSON.stringify(job.input),signal:AbortSignal.timeout(110000)});
+            const body=await r.json() as MediaReply;
+            if(body.assetUrl&&!/^\/api\/media\/asset\/[a-f0-9]{64}$/.test(body.assetUrl))throw Error('返回的视频地址无效');
+            job={...job,id:body.id??job.id,status:r.ok?body.status:'uncertain',assetUrl:body.assetUrl,error:body.error};
+            put(plan.action,job);
+          }catch(e){
+            if(job)try{put(plan.action,{...job,status:'uncertain',error:e instanceof Error?e.message:'查询失败'});}catch{/* Keep prior durable reservation. */}
+          }
+        })();
+        prefetchRunning.current.set(lock,work);
+        try{await work;}finally{prefetchRunning.current.delete(lock);}
+      }));
+    }
+    void tick();const timer=setInterval(()=>void tick(),4000);
+    return()=>{stopped=true;clearInterval(timer);};
+    // Cache updates are consumed by the next tick, never restart paid submissions.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[enabled,scope,online,visible,drawerOpen,videoKey,Boolean(session.pending),session.finished,phase]);
   const preparationRef=useRef(preparationKey);preparationRef.current=preparationKey;
   useEffect(()=>{
     if(!enabled||!scope||!online||!preparationSource||!preparationKey)return;
     const source=preparationSource,key=preparationKey,stop=new AbortController();
     const existing=current.current.branches?.key===key?current.current.branches.plans:[];
     const missing=source.choices.filter(c=>!existing.some(p=>p.action===c.label));
-    if(!missing.length){setBranchPreparing(false);setBranchStatus('三个分支已准备，点击即可提交视频');return;}
+    if(!missing.length){setBranchPreparing(false);setBranchStatus('三个脚本已准备，下一层视频将提前生成');return;}
     setBranchPreparing(true);
     setBranchStatus('正在提前准备三个分支脚本，不生成视频');
     void Promise.allSettled(missing.map(async choice=>{
@@ -94,7 +161,7 @@ export function VideoExplorer({entry:latestEntry,onBack,onText}:{entry:StudioWor
       if(stop.signal.aborted||preparationRef.current!==key)return;
       setBranchPreparing(false);
       const count=current.current.branches?.key===key?current.current.branches.plans.length:0;
-      setBranchStatus(count===3?'三个分支已准备，点击即可提交视频':`已准备 ${count}/3 个分支；未完成的可以重新准备，不会购买视频`);
+      setBranchStatus(count===3?'三个脚本已准备，下一层视频将提前生成':`已准备 ${count}/3 个脚本；其余可以重新准备，就绪后会预生成视频`);
     });
     return()=>stop.abort();
     // The serialized key covers world version, role, all state, choices and frame mode.
@@ -216,7 +283,7 @@ export function VideoExplorer({entry:latestEntry,onBack,onText}:{entry:StudioWor
     const s=current.current;
     if(busy.current||!enabled||!scope||!s.state||!action.trim()||s.finished||s.pending)return;
     // Fresh first-person continuations require a real decoded last frame, never a poster fallback.
-    if(s.clip&&!frame.current){setError('未能读取末帧，请完整重播当前片段后再选择。没有提交生成。');setPaused(true);return;}
+    if(s.clip&&!frame.current){setError('正在读取当前片段末帧，请稍后选择。没有提交生成。');setPaused(true);return;}
     const key=branchKey(entry,{roleId:s.roleId,state:s.state,narrative:s.narrative,choices:s.choices,hasFrame:Boolean(s.clip)});
     const prepared=s.branches?.key===key?s.branches.plans.find(p=>p.action===action):undefined;
     // Preset clicks never fall back to a blocking text-model call.
@@ -224,10 +291,14 @@ export function VideoExplorer({entry:latestEntry,onBack,onText}:{entry:StudioWor
     busy.current=true;setText(action);setError('');startedAt.current=Date.now();setWaitSeconds(0);setWaitingNote(prepared?'使用已准备的脚本，正在提交视频。':'正在编排你自行输入的行动；此时尚未提交视频。');setPhase(prepared?'generating':'planning');const abort=new AbortController();controller.current=abort;
     save({...s,draftAction:action});
     try{
+      // If a background submit is in flight, join it instead of racing its reservation.
+      await prefetchRunning.current.get(`${scope}:${videoKey}:${action}`);
+      if(!alive.current||abort.signal.aborted)return;
+      const prefetched=current.current.videos?.key===videoKey?current.current.videos.jobs[action]:undefined;
       const response=prepared?.response??await createRemoteAIAdapter(scope).advanceWorld(videoTurnRequest(entry,s.roleId,s.state,s.narrative,s.choices,action),abort.signal);
       if(!alive.current||abort.signal.aborted)return;
       const prompt=prepared?.prompt??videoMotionPrompt(entry,s.roleId,s.state,response,!!frame.current);
-      const pending:Pending={input:{confirmed:true,turnKey:`${s.id}:${s.state.turn}`,prompt,frame:frame.current},response,action,startedAt:startedAt.current};
+      const pending:Pending=prefetched??{input:{confirmed:true,turnKey:await videoBranchTurnKey(s.id,videoKey,action),prompt,frame:frame.current},response,action,startedAt:startedAt.current};
       // Persist the exact request BEFORE any potentially billable submission.
       if(!storageKey)throw Error('未能确定保存位置，尚未提交视频。');
       const next={...current.current,pending,draftAction:action,worldSnapshot:s.worldSnapshot??entry};
@@ -249,6 +320,10 @@ export function VideoExplorer({entry:latestEntry,onBack,onText}:{entry:StudioWor
     const s=current.current,p=s.pending;
     if(p?.assetUrl&&s.state){save({...s,state:commitVideoTurn(entry,s.roleId,s.state,p.action,p.response),narrative:p.response.narrative,choices:threeChoices(p.response.nextChoices),
       rounds:s.rounds+1,clips:[...(s.clips??[]),{url:p.assetUrl,action:p.action,narrative:turnMemoryText(p.response,entry.world,s.roleId)}],pending:undefined,draftAction:undefined,finished:p.response.ending.reached});setText('');}
+    if(!s.roleId&&roles.length===1){
+      const initial=initialVideoRole(entry,roles[0].id);
+      save({...current.current,...initial,roleId:roles[0].id});
+    }
     setPhase('playing');
   }
   const autoAction=useRef(()=>{});
@@ -283,14 +358,14 @@ export function VideoExplorer({entry:latestEntry,onBack,onText}:{entry:StudioWor
     </div>
     <section ref={controls} className="video-explorer-controls" aria-label="接下来的行动">
       {!enabled&&<div className="video-explorer-start">
-        <p>开启后使用文字模型预编排，并将可见剧情与末帧发送 fal 生成所选视频，消耗额度。不发送私人聊天。</p>
+        <p>播放时提前生成下一层三个分支，每轮最多生成三段视频；未选择的分支也会消耗额度。不发送私人聊天。</p>
         <button disabled={loading||!configured} onClick={()=>{setEnabled(true);setPaused(false);setSeconds(15);if(!session.clip)ended();else if(player.current?.ended)ended();}}>{loading?'连接中…':configured?'开启探索':'服务暂不可用'}</button>
       </div>}
       {waiting&&<p className="video-brief" role="status">{phase==='planning'?'正在编排你的行动':'正在生成下一幕'} · {waitSeconds}秒</p>}
       {enabled&&(choosing||phase==='roles')&&<div className="video-countdown" data-paused={!ticking}><span>{countdownLabel}</span><progress aria-label={countdownLabel} max={15} value={seconds}/></div>}
       {phase==='roles'&&<div className="video-explorer-choices">{roles.map(role=><button disabled={loading} key={role.id} title={role.identity} onClick={()=>selectRole(role.id)}>{role.name}</button>)}</div>}
       {choosing&&<>
-        <div className="video-explorer-choices">{session.choices.map((c,i)=><button disabled={!enabled||!online||!cachedPlans.some(p=>p.action===c.label)} key={c.id} title={c.label} aria-label={c.label} onClick={()=>void act(c.label,true)}><span>{shortAction(c.label)}</span>{i===0&&ticking&&<em aria-label={`${seconds}秒后自动选择`}>{seconds}</em>}</button>)}</div>
+        <div className="video-explorer-choices">{session.choices.map((c,i)=>{const job=session.videos?.key===videoKey?session.videos.jobs[c.label]:undefined;return <button disabled={!enabled||!online||!cachedPlans.some(p=>p.action===c.label)} key={c.id} title={job?.assetUrl?'视频已就绪':job?'视频准备中':c.label} aria-label={c.label} onClick={()=>void act(c.label,true)}><span>{shortAction(c.label)}</span>{job?.assetUrl&&<small>已就绪</small>}{i===0&&ticking&&<em aria-label={`${seconds}秒后自动选择`}>{seconds}</em>}</button>;})}</div>
         <form onSubmit={e=>{e.preventDefault();void act(text);}}><input aria-label="输入自己的行动" id="video-action" maxLength={600} value={text} onChange={e=>setText(e.target.value)} onFocus={()=>setFocused(true)} onBlur={()=>setFocused(false)} placeholder="你想怎么做…" /><button disabled={!enabled||!online||!text.trim()} aria-label="提交自己的行动"><Send size={20}/></button></form>
         {enabled&&cachedPlans.length<session.choices.length&&<div className="video-brief" role="status">{branchPreparing?'正在准备行动…':'部分行动尚未就绪'}{!branchPreparing&&<button aria-label="重新准备未完成的脚本" title="重新准备" disabled={!online} onClick={()=>setBranchRetry(n=>n+1)}><RotateCw size={17}/></button>}</div>}
       </>}
@@ -306,6 +381,8 @@ export function VideoExplorer({entry:latestEntry,onBack,onText}:{entry:StudioWor
       {error&&<p role="alert">{error}</p>}{saveError&&<p role="alert">{saveError}</p>}
       {waiting&&<div><p>{waitingNote}</p><button onClick={pauseWaiting}>停止本页等待</button></div>}
       {branchStatus&&<p>{branchStatus}</p>}
+      {prefetchNote&&<p>{prefetchNote}</p>}
+      {session.videos?.key===videoKey&&<p>下一层视频：{Object.values(session.videos.jobs).filter(j=>j.status==='ready').length}/3 已就绪。选择未完成的分支会继续等待原任务。</p>}
       {session.state&&<StoryUpdateNotice current={entry} latest={latestEntry} disabled={!!session.pending||!['choices','error'].includes(phase)} onApply={attachUpdate}/>}
       {session.state&&roles.length>1&&!entry.world.entryAdmission&&<label>切换视角 · 时间不变 <select aria-label="同一存档切换角色" value={session.roleId} disabled={!!session.pending||!['choices','error'].includes(phase)} onChange={e=>switchViewpoint(e.target.value)}>{roles.map(role=><option key={role.id} value={role.id}>{role.name}</option>)}</select></label>}
       <section><h3>当前场景</h3><p>{session.narrative}</p></section>
@@ -313,7 +390,7 @@ export function VideoExplorer({entry:latestEntry,onBack,onText}:{entry:StudioWor
       {prologue.video&&roles.length===1&&<details><summary>开场视频</summary><video controls preload="none" src={prologue.video} aria-label="回看开场视频"/></details>}
       {(session.clips??[]).filter(c=>/^\/api\/media\/asset\/[a-f0-9]{64}$/.test(c.url)).map((c,i)=><details key={c.url}><summary>第 {i+1} 段 · {c.action}</summary><p>{c.narrative??'此旧片段未单独保存文字，请参照当前场景。'}</p><video controls preload="none" src={c.url} aria-label={`回看第${i+1}段`}/></details>)}
       {session.finished&&<RequestStoryUpdate key={`${scope}:${entry.id}`} worldId={entry.id} accountScope={scope??'pending'}/>}
-      <details><summary>探索说明</summary><p>每段15秒，三个候选脚本仅预编排文字，只生成选中的视频。进度保存在当前浏览器标签页，刷新后恢复；不是跨设备同步。</p><p>离开、失焦或打开记录会暂停自动选择。停止等待不会取消已提交的后台任务，恢复时复用原任务，不重复购买。</p></details>
+      <details><summary>探索说明</summary><p>每段15秒，播放时预生成下一层三个分支，不递归生成未选择路线。已完成的分支直接播放，未完成的继续等待。进度保存在当前浏览器标签页，刷新后恢复；不是跨设备同步。</p><p>离开或失焦暂停新预生成，已提交的任务不会取消；恢复时复用原任务。未选择的分支也已消耗生成额度。只有选中的视频开始播放后才推进剧情。</p></details>
     </dialog>
   </section>;
 }
