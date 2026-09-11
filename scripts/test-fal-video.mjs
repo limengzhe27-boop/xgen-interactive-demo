@@ -16,6 +16,17 @@ const {imageOwner}=await import('../lib/server-image-store.ts');
 const {initialVideoRole,threeChoices,videoMotionPrompt,commitVideoTurn}=await import('../lib/video-exploration.ts');
 const {studioWorlds}=await import('../lib/studio-worlds.ts');
 const {branchKey,afterPending,compileBranch}=await import('../lib/video-branch-plans.ts');
+test('immersive actions use icon corners and a closed records dialog without label clutter',()=>{
+ const ui=readFileSync(root+'components/video-explorer.tsx','utf8');
+ const css=readFileSync(root+'app/video-explore/video-explore.css','utf8');
+ assert.doesNotMatch(ui,/默认行动|另一种选择|或自己行动|更多 · 剧情与探索方式/);
+ assert.match(ui,/<dialog ref=\{drawer\}/);
+ assert.match(ui,/narrative:turnMemoryText\(p.response/);
+ assert.match(ui,/enabled&&!drawerOpen&&!paused/);
+ assert.match(css,/video-corner:hover/);
+ assert.match(css,/@media\(hover:none\)/);
+ assert.match(css,/grid-template-columns:1fr/);
+});
 test('prepared branches project without committing and match the eventual played state',()=>{
  const entry=studioWorlds.find(w=>w.id==='yoga-lotus-boundary');
  const role=entry.world.characters[0].id;

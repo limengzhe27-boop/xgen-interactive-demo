@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { ArrowLeft, Pause, Play, Send } from 'lucide-react';
+import { ArrowLeft, Pause, Play, Send, History, MessageSquare, X, RotateCw } from 'lucide-react';
 import type { StudioWorld } from '@/lib/studio-worlds';
 import type { WorldState } from '@/lib/world-state';
 import type { WorldTurnResponse } from '@/lib/ai-contracts';
@@ -16,12 +16,13 @@ import { StoryUpdateNotice } from '@/components/story-update-notice';
 import { RequestStoryUpdate } from '@/components/request-story-update';
 import { useRecordPlay } from '@/components/play-counts';
 import { publicationWorld } from '@/lib/publication';
+import { turnMemoryText } from '@/lib/world-state';
 import { migrateWorldState } from '@/lib/world-state-migration';
 import {afterPending,branchKey,compileBranch,type BranchCache,type BranchSource} from '@/lib/video-branch-plans';
 import { commitVideoTurn, initialVideoRole, threeChoices, videoErrors, videoMotionPrompt, videoTurnRequest, type VideoChoice } from '@/lib/video-exploration';
 
 type Pending={input:FalVideoInput;response:WorldTurnResponse;action:string;id?:string;assetUrl?:string;startedAt?:number};
-type Session={version:1;id:string;roleId:string;state:WorldState|null;narrative:string;choices:VideoChoice[];clip:string;rounds:number;worldSnapshot?:StudioWorld;pending?:Pending;branches?:BranchCache;draftAction?:string;finished?:boolean;clips?:{url:string;action:string}[]};
+type Session={version:1;id:string;roleId:string;state:WorldState|null;narrative:string;choices:VideoChoice[];clip:string;rounds:number;worldSnapshot?:StudioWorld;pending?:Pending;branches?:BranchCache;draftAction?:string;finished?:boolean;clips?:{url:string;action:string;narrative?:string}[]};
 type Phase='intro'|'roles'|'choices'|'planning'|'generating'|'ready'|'playing'|'error';
 type MediaReply={id?:string;status:string;error?:string;assetUrl?:string};
 export function VideoExplorer({entry:latestEntry,onBack,onText}:{entry:StudioWorld;onBack?:()=>void;onText?:()=>void}){
@@ -40,6 +41,11 @@ export function VideoExplorer({entry:latestEntry,onBack,onText}:{entry:StudioWor
   const [branchStatus,setBranchStatus]=useState(''),[branchRetry,setBranchRetry]=useState(0);
   const [branchPreparing,setBranchPreparing]=useState(false);
   const startedAt=useRef(0);
+  const drawer=useRef<HTMLDialogElement>(null);
+  const [drawerOpen,setDrawerOpen]=useState(false),[mediaPaused,setMediaPaused]=useState(false);
+  function openRecords(){setPaused(true);player.current?.pause();setDrawerOpen(true);drawer.current?.showModal();}
+  function togglePause(){if(phase==='playing'||phase==='intro'||phase==='ready'){const v=player.current;if(v){if(v.paused)void v.play().catch(()=>{});else v.pause();}}else{setPaused(p=>!p);setSeconds(15);}}
+
   const embedded=Boolean(onBack);
   useEffect(()=>{
     if(!embedded)return;
@@ -242,65 +248,69 @@ export function VideoExplorer({entry:latestEntry,onBack,onText}:{entry:StudioWor
   function playing(){
     const s=current.current,p=s.pending;
     if(p?.assetUrl&&s.state){save({...s,state:commitVideoTurn(entry,s.roleId,s.state,p.action,p.response),narrative:p.response.narrative,choices:threeChoices(p.response.nextChoices),
-      rounds:s.rounds+1,clips:[...(s.clips??[]),{url:p.assetUrl,action:p.action}],pending:undefined,draftAction:undefined,finished:p.response.ending.reached});setText('');}
+      rounds:s.rounds+1,clips:[...(s.clips??[]),{url:p.assetUrl,action:p.action,narrative:turnMemoryText(p.response,entry.world,s.roleId)}],pending:undefined,draftAction:undefined,finished:p.response.ending.reached});setText('');}
     setPhase('playing');
   }
   const autoAction=useRef(()=>{});
   useEffect(()=>{autoAction.current=()=>{if(phase==='roles')selectRole(roles[0].id);else void act(current.current.choices[0]?.label??'',true);};});
-  const ticking=enabled&&!paused&&visible&&!focused&&!text.trim()&&!error&&!session.pending&&!session.finished&&(phase==='roles'||phase==='choices'&&cachedPlans.some(p=>p.action===session.choices[0]?.label));
+  const ticking=enabled&&!drawerOpen&&!paused&&visible&&!focused&&!text.trim()&&!error&&!session.pending&&!session.finished&&(phase==='roles'||phase==='choices'&&cachedPlans.some(p=>p.action===session.choices[0]?.label));
   useEffect(()=>{
     if(!ticking)return;
     const timer=setInterval(()=>setSeconds(n=>Math.max(0,n-1)),1000);return()=>clearInterval(timer);
   },[ticking]);
   useEffect(()=>{if(seconds===0&&ticking){const timer=setTimeout(()=>{setSeconds(15);autoAction.current();},0);return()=>clearTimeout(timer);}},[seconds,ticking]);
-  useEffect(()=>{if(phase==='ready')void player.current?.play().catch(()=>{/* User gesture required, keep visible controls. */});},[phase]);
-  const active=phase==='roles'||phase==='choices'||phase==='error';
-  return <section ref={layout} className="video-explorer" data-screen-playing={phase==='playing'&&!error}>
-    <header ref={heading}>{onBack?<button onClick={onBack}><ArrowLeft size={18}/> 返回</button>:<Link href="/prologue-comparison"><ArrowLeft size={18}/> 返回对比</Link>}<h1>{entry.title}</h1><span>视频探索</span></header>
+  useEffect(()=>{if(phase==='ready'&&!drawerOpen)void player.current?.play().catch(()=>{/* User gesture required, keep visible controls. */});},[phase,drawerOpen]);
+  const choosing=(phase==='choices'||phase==='error'&&!session.pending)&&!!session.state&&!session.finished;
+  const waiting=phase==='planning'||phase==='generating';
+  const pauseActive=['playing','intro','ready'].includes(phase)?mediaPaused:paused;
+  const roleName=roles.find(r=>r.id===session.roleId)?.name??'';
+  const shortAction=(label:string)=>label.startsWith(roleName)&&roleName?label.slice(roleName.length).replace(/^[：:，,\s]+/,''):label;
+  return <section ref={layout} className="video-explorer" data-screen-playing={phase==='playing'&&!error} aria-label={entry.title}>
+    <header ref={heading} className="video-explorer-hud">
+      <div className="video-corner">{onBack?<button aria-label="返回" title="返回" onClick={onBack}><ArrowLeft size={22}/></button>:<Link aria-label="返回对比" title="返回对比" href="/prologue-comparison"><ArrowLeft size={22}/></Link>}</div>
+      <div className="video-corner video-corner-right">
+        <button onClick={togglePause} aria-label={pauseActive?'继续':'暂停'} title={pauseActive?'继续':'暂停'}>{pauseActive?<Play size={21}/>:<Pause size={21}/>}</button>
+        {onText?<button onClick={onText} aria-label="切换图文探索" title="切换图文探索"><MessageSquare size={21}/></button>:<Link href={`/?world=${entry.id}&mode=text`} aria-label="图文探索（另开体验）" title="图文探索（另开体验）"><MessageSquare size={21}/></Link>}
+        <button onClick={openRecords} aria-label="剧情记录" title="剧情记录" aria-haspopup="dialog" aria-expanded={drawerOpen}><History size={21}/></button>
+      </div>
+    </header>
     <div className="video-explorer-stage">
-      {/* Actual native dialogue is unverified; don't invent a caption transcript. */}
       {/* oxlint-disable-next-line jsx-a11y/media-has-caption */}
-      {!loading&&session.clip? <video ref={player} key={session.clip} src={session.clip} controls playsInline autoPlay={!session.pending} preload="metadata" poster={session.rounds===0?prologue.shots[0]?.poster:undefined}
-        onEnded={ended} onPlaying={playing} onError={()=>{setError('视频暂时无法播放，剧情不会继续。请检查连接后重播。');setPhase('error');setPaused(true);}} aria-label="当前剧情视频">
-        {/* Raw model dialogue is unverified: no invented subtitle track. Text alternative below. */}
-      </video>:<Image src={entry.cover} alt={entry.title} width={1280} height={720} unoptimized/>}
+      {!loading&&session.clip?<video ref={player} key={session.clip} src={session.clip} controls={phase==='playing'||phase==='intro'||phase==='ready'} playsInline autoPlay={!session.pending} preload="metadata" poster={session.rounds===0?prologue.shots[0]?.poster:undefined}
+        onPause={()=>setMediaPaused(true)} onEnded={ended} onPlaying={()=>{setMediaPaused(false);playing();}} onError={()=>{setError('视频暂时无法播放，剧情不会继续。请检查连接后重播。');setPhase('error');setPaused(true);}} aria-label="当前剧情视频"/>:<Image src={entry.cover} alt={entry.title} width={1280} height={720} unoptimized/>}
     </div>
     <section ref={controls} className="video-explorer-controls" aria-label="接下来的行动">
-      {session.state&&<StoryUpdateNotice current={entry} latest={latestEntry} disabled={!!session.pending||!['choices','error'].includes(phase)} onApply={attachUpdate}/>}
-      {session.finished&&phase==='choices'&&<div><h2>当前剧情已体验完</h2><p>进度和已生成片段已保留，可以接入新增剧情，或留在当前世界自由探索。</p><button onClick={()=>{save({...current.current,finished:false,choices:threeChoices([])});setPaused(true);}}>留在这个世界</button></div>}
-      {session.state&&roles.length>1&&!entry.world.entryAdmission&&<label>切换视角 · 时间不变 <select aria-label="同一存档切换角色" value={session.roleId} disabled={!!session.pending||!['choices','error'].includes(phase)} onChange={e=>switchViewpoint(e.target.value)}>{roles.map(role=><option key={role.id} value={role.id}>{role.name}</option>)}</select></label>}
-      {session.state&&!session.clip&&<p>{session.narrative}</p>}
-      {!enabled&&<div className="video-explorer-start"><p>先选择体验角色，再从对应场景行动。续片由 fal H3 Max 生成，要求原生声音。每段15秒，不设体验段数上限，会持续消耗额度；配置就绪不代表账户余额充足。</p>
-        <p>开启后，将本世界的可见剧情、角色外观与视频末帧交给 fal；不发送个人资料、私人聊天或角色秘密。视频存入本账号私人空间。</p>
-        <p>系统会提前编排三个候选脚本，使用文字模型额度；只为选中的一个分支生成视频。自行输入的行动需另行编排。</p>
-        <button disabled={loading||!configured} onClick={()=>{setEnabled(true);setPaused(false);setSeconds(15);if(!session.clip)ended();else if(player.current?.ended)ended();}}>{loading?'检查连接中…':configured?'开启视频探索（会使用 fal 额度）':'fal 尚未就绪'}</button>
+      {!enabled&&<div className="video-explorer-start">
+        <p>开启后使用文字模型预编排，并将可见剧情与末帧发送 fal 生成所选视频，消耗额度。不发送私人聊天。</p>
+        <button disabled={loading||!configured} onClick={()=>{setEnabled(true);setPaused(false);setSeconds(15);if(!session.clip)ended();else if(player.current?.ended)ended();}}>{loading?'连接中…':configured?'开启探索':'服务暂不可用'}</button>
       </div>}
-      {(enabled||active||phase==='generating'||phase==='ready')&&<>
-        <div className="video-explorer-status"><span>{phase==='planning'?`正在编排剧情 · 已等待 ${waitSeconds} 秒`:phase==='generating'?`等待成片 · 本回合已用 ${waitSeconds} 秒`:phase==='ready'?'新片就绪，点击播放继续':session.finished?'当前剧情已体验完':active?`${phase==='roles'?'选择体验角色':'接下来怎么做'} · ${ticking?`${seconds}秒后自动选择第一项`:'自动选择已暂停'}`:'正在播放，结束后在这里选择'}</span>
-          {active&&enabled&&!session.pending&&!session.finished&&<button onClick={()=>{setPaused(!paused);setSeconds(15);}} aria-label={paused?'恢复自动选择':'暂停自动选择'}>{paused?<Play size={16}/>:<Pause size={16}/>} {paused?'恢复计时':'暂停计时'}</button>}
-        </div>
-        {(phase==='planning'||phase==='generating')&&<div aria-live="polite"><p>{waitingNote}</p><button onClick={pauseWaiting}>暂时停止等待</button></div>}
-        {phase==='roles'&&<div className="video-explorer-choices">{roles.map((role,i)=><button disabled={loading} key={role.id} onClick={()=>selectRole(role.id)}><strong>{role.name}{i===0?' · 默认':''}</strong><span>{role.identity}</span></button>)}</div>}
-        {session.roleId&&session.rounds===0&&!session.state?.rolePerspectives&&characterRecap(entry.world,session.roleId).length>0&&<div aria-label="角色专属前情">{characterRecap(entry.world,session.roleId).map((fact,i)=><p key={i}>{fact}</p>)}</div>}
-        {(phase==='choices'||phase==='error'&&!session.pending)&&session.state&&!session.finished&&<>
-          {!enabled&&<p>先开启上方视频探索，再提交行动；未开启不会生成或计费。</p>}
-          {enabled&&<div aria-live="polite"><p>{branchStatus}</p>{!branchPreparing&&cachedPlans.length<session.choices.length&&<button disabled={!online} onClick={()=>setBranchRetry(n=>n+1)}>重新准备未完成的脚本</button>}</div>}
-          <div className="video-explorer-choices">{session.choices.map((c,i)=><button disabled={!enabled||!online||!cachedPlans.some(p=>p.action===c.label)} key={c.id} onClick={()=>void act(c.label,true)}><small>{cachedPlans.some(p=>p.action===c.label)?(i===0?'默认行动 · 脚本就绪':'脚本就绪'):'脚本待准备'}</small>{c.label}</button>)}</div>
-          <form onSubmit={e=>{e.preventDefault();void act(text);}}><label htmlFor="video-action">或自己行动</label><div><input id="video-action" maxLength={600} value={text} onChange={e=>setText(e.target.value)} onFocus={()=>setFocused(true)} onBlur={()=>setFocused(false)} placeholder="说一句话，或描述一个动作…"/><button disabled={!enabled||!text.trim()} aria-label="提交自己的行动"><Send size={18}/></button></div></form>
-        </>}
-        {phase==='ready'&&<button onClick={()=>void player.current?.play()}>播放新片</button>}
+      {waiting&&<p className="video-brief" role="status">{phase==='planning'?'正在编排你的行动':'正在生成下一幕'} · {waitSeconds}秒</p>}
+      {phase==='roles'&&<div className="video-explorer-choices">{roles.map(role=><button disabled={loading} key={role.id} title={role.identity} onClick={()=>selectRole(role.id)}>{role.name}</button>)}</div>}
+      {choosing&&<>
+        <div className="video-explorer-choices">{session.choices.map((c,i)=><button disabled={!enabled||!online||!cachedPlans.some(p=>p.action===c.label)} key={c.id} title={c.label} aria-label={c.label} onClick={()=>void act(c.label,true)}><span>{shortAction(c.label)}</span>{i===0&&ticking&&<em aria-label={`${seconds}秒后自动选择`}>{seconds}</em>}</button>)}</div>
+        <form onSubmit={e=>{e.preventDefault();void act(text);}}><input aria-label="输入自己的行动" id="video-action" maxLength={600} value={text} onChange={e=>setText(e.target.value)} onFocus={()=>setFocused(true)} onBlur={()=>setFocused(false)} placeholder="你想怎么做…" /><button disabled={!enabled||!online||!text.trim()} aria-label="提交自己的行动"><Send size={20}/></button></form>
+        {enabled&&cachedPlans.length<session.choices.length&&<div className="video-brief" role="status">{branchPreparing?'正在准备行动…':'部分行动尚未就绪'}{!branchPreparing&&<button aria-label="重新准备未完成的脚本" title="重新准备" disabled={!online} onClick={()=>setBranchRetry(n=>n+1)}><RotateCw size={17}/></button>}</div>}
       </>}
-      {error&&<p role="alert">{error}</p>}
-      {session.finished&&<RequestStoryUpdate key={`${scope}:${entry.id}`} worldId={entry.id} accountScope={scope??'pending'}/>}
-      {saveError&&<p role="alert">{saveError}</p>}
-      {!online&&<p role="status">当前离线，联网后可继续；不会自动提交新视频。</p>}
-      {session.pending&&phase==='error'&&<button disabled={!online} onClick={()=>void resume()}>{session.pending.assetUrl?'播放已保存的视频':'恢复本回合（复用原任务）'}</button>}
-      <details onToggle={e=>{if(e.currentTarget.open)setPaused(true);}}><summary>更多 · 剧情与探索方式</summary>
-        <p>进度保存在当前浏览器标签页，刷新可恢复；不是跨设备云同步。刷新后需重新开启生成，避免自动扣费。</p>
-        {!!session.clips?.length&&<nav aria-label="已生成片段">{session.clips.filter(c=>/^\/api\/media\/asset\/[a-f0-9]{64}$/.test(c.url)).map((c,i)=><p key={c.url}><a href={c.url} target="_blank" rel="noreferrer">回看第 {i+1} 段 · {c.action}</a></p>)}</nav>}
-        {onText&&<button onClick={onText}>改用图文 / 自带形象探索</button>}
-        {!onText&&session.finished&&<Link href={`/?world=${entry.id}&mode=text`}>改用图文探索（另开体验）</Link>}
-        <p>{session.narrative}</p><p>多角色选角后的第一段重建对应视角，之后读取实际末帧续演。原生音轨会自动检查，但模型是否拍准动作、对白是否清晰，仍需实际观看。刷新后需重播/恢复查询；离开或失焦后暂停自动选择。</p></details>
+      {phase==='ready'&&<button aria-label="播放新片" onClick={()=>void player.current?.play()}><Play size={22}/></button>}
+      {session.finished&&phase!=='playing'&&<p className="video-brief">当前剧情<button onClick={()=>{save({...current.current,finished:false,choices:threeChoices([])});setPaused(true);setPhase('choices');}}>继续探索</button></p>}
+      {(error||saveError)&&<div className="video-brief" role="alert">暂未继续，进度已保留<button onClick={openRecords}>查看详情</button></div>}
+      {!online&&<p className="video-brief" role="status">网络已断开，进度保留</p>}
+      {session.pending&&phase==='error'&&<button disabled={!online} onClick={()=>void resume()}>{session.pending.assetUrl?'播放已保存片段':'恢复等待'}</button>}
     </section>
+    <dialog ref={drawer} className="video-records" aria-labelledby="video-records-title" onClose={()=>{drawer.current?.querySelectorAll('video').forEach(v=>v.pause());setDrawerOpen(false);}} onClick={e=>{if(e.target===e.currentTarget){const b=e.currentTarget.getBoundingClientRect();if(e.clientX<b.left||e.clientX>b.right||e.clientY<b.top||e.clientY>b.bottom)e.currentTarget.close();}}}>
+      <div className="video-records-heading"><h2 id="video-records-title">剧情记录</h2><button aria-label="关闭剧情记录" onClick={()=>drawer.current?.close()}><X size={22}/></button></div>
+      <h3>{entry.title}</h3>
+      {error&&<p role="alert">{error}</p>}{saveError&&<p role="alert">{saveError}</p>}
+      {waiting&&<div><p>{waitingNote}</p><button onClick={pauseWaiting}>停止本页等待</button></div>}
+      {branchStatus&&<p>{branchStatus}</p>}
+      {session.state&&<StoryUpdateNotice current={entry} latest={latestEntry} disabled={!!session.pending||!['choices','error'].includes(phase)} onApply={attachUpdate}/>}
+      {session.state&&roles.length>1&&!entry.world.entryAdmission&&<label>切换视角 · 时间不变 <select aria-label="同一存档切换角色" value={session.roleId} disabled={!!session.pending||!['choices','error'].includes(phase)} onChange={e=>switchViewpoint(e.target.value)}>{roles.map(role=><option key={role.id} value={role.id}>{role.name}</option>)}</select></label>}
+      <section><h3>当前场景</h3><p>{session.narrative}</p></section>
+      {session.roleId&&session.rounds===0&&!session.state?.rolePerspectives&&characterRecap(entry.world,session.roleId).length>0&&<section><h3>角色前情</h3>{characterRecap(entry.world,session.roleId).map((fact,i)=><p key={i}>{fact}</p>)}</section>}
+      {prologue.video&&roles.length===1&&<details><summary>开场视频</summary><video controls preload="none" src={prologue.video} aria-label="回看开场视频"/></details>}
+      {(session.clips??[]).filter(c=>/^\/api\/media\/asset\/[a-f0-9]{64}$/.test(c.url)).map((c,i)=><details key={c.url}><summary>第 {i+1} 段 · {c.action}</summary><p>{c.narrative??'此旧片段未单独保存文字，请参照当前场景。'}</p><video controls preload="none" src={c.url} aria-label={`回看第${i+1}段`}/></details>)}
+      {session.finished&&<RequestStoryUpdate key={`${scope}:${entry.id}`} worldId={entry.id} accountScope={scope??'pending'}/>}
+      <details><summary>探索说明</summary><p>每段15秒，三个候选脚本仅预编排文字，只生成选中的视频。进度保存在当前浏览器标签页，刷新后恢复；不是跨设备同步。</p><p>离开、失焦或打开记录会暂停自动选择。停止等待不会取消已提交的后台任务，恢复时复用原任务，不重复购买。</p></details>
+    </dialog>
   </section>;
 }
