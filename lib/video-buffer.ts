@@ -3,6 +3,14 @@ type Buffered={promise:Promise<string>;url?:string;abort:AbortController};
 export class VideoBuffer {
   private entries=new Map<string,Buffered>();
   peek(src:string){return this.entries.get(src)?.url;}
+  playbackSource(src:string){
+    const item=this.entries.get(src);
+    if(item?.url)return item.url;
+    // Do not block playback on a complete Blob. Release the competing download
+    // and let the same authenticated endpoint serve browser Range requests.
+    if(item){item.abort.abort();this.entries.delete(src);}
+    return src;
+  }
   retain(sources:string[]){
     const keep=new Set(sources);
     for(const [src,item] of this.entries)if(!keep.has(src)){

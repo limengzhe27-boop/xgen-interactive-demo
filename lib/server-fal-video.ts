@@ -1,4 +1,4 @@
-import { FAL_VIDEO_MODEL, falAssetUrl, falFailure, falQueueUrl, mp4HasAudio, readFalJob } from './fal-video';
+import { isFalVideoModel, falAssetUrl, falFailure, falQueueUrl, mp4HasAudio, readFalJob } from './fal-video';
 import { boundedMedia, saveMedia, updateMedia, type MediaAsset } from './server-media-store';
 export async function falFetch(url: string | URL, body?: unknown) {
   const key=process.env.FAL_KEY?.trim();
@@ -7,7 +7,7 @@ export async function falFetch(url: string | URL, body?: unknown) {
     ...(body?{body:JSON.stringify(body)}:{}),redirect:'error',signal:AbortSignal.timeout(body?45000:20000),cache:'no-store'});
 }
 export async function refreshFalVideo(asset:MediaAsset):Promise<MediaAsset> {
-  if(asset.model!==FAL_VIDEO_MODEL||asset.status!=='queued'||!asset.task_id)return asset;
+  if(!isFalVideoModel(asset.model)||asset.status!=='queued'||!asset.task_id)return asset;
   const job=readFalJob(JSON.parse(asset.task_id));
   const fail=async(reason:string)=>{await updateMedia(asset.id,{status:'failed',task_id:JSON.stringify({error:reason})});return {...asset,status:'failed',task_id:JSON.stringify({error:reason})};};
   const r=await falFetch(falQueueUrl(job.status_url));

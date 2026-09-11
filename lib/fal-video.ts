@@ -1,4 +1,7 @@
-export const FAL_VIDEO_MODEL = 'minimax/h3-max/image-to-video';
+export const FAL_VIDEO_MODEL = 'minimax/h3-max-turbo/image-to-video';
+export function isFalVideoModel(model:string){
+  return model===FAL_VIDEO_MODEL||model==='minimax/h3-max/image-to-video';
+}
 export const FAL_VIDEO_SECONDS = 15;
 export type FalVideoInput = { confirmed: true; turnKey: string; prompt: string; frame: string | null };
 export function readFalInput(value: unknown): FalVideoInput | null {
@@ -12,7 +15,7 @@ export function readFalInput(value: unknown): FalVideoInput | null {
 export function falQueueUrl(value: string) {
   const u = new URL(value);
   if (u.protocol !== 'https:' || u.hostname !== 'queue.fal.run' || u.port || u.username || u.password || u.search || u.hash
-    || !/^\/minimax\/h3-max(?:\/image-to-video)?\/requests\/[a-zA-Z0-9_-]+(?:\/(?:status|cancel))?$/.test(u.pathname)) throw new Error('invalid_fal_queue_url');
+    || !/^\/minimax\/h3-max(?:-turbo)?(?:\/image-to-video)?\/requests\/[a-zA-Z0-9_-]+(?:\/(?:status|cancel))?$/.test(u.pathname)) throw new Error('invalid_fal_queue_url');
   return u;
 }
 export function falAssetUrl(value: string) {

@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { ArrowLeft, Pause, Play, Send, History, MessageSquare, X, RotateCw } from 'lucide-react';
+import { ArrowLeft, Pause, Play, Send, History, MessageSquare, X, RotateCw, Volume2 } from 'lucide-react';
 import type { StudioWorld } from '@/lib/studio-worlds';
 import type { WorldState } from '@/lib/world-state';
 import type { WorldTurnResponse } from '@/lib/ai-contracts';
@@ -21,6 +21,7 @@ import { migrateWorldState } from '@/lib/world-state-migration';
 import {afterPending,branchKey,compileBranch,type BranchCache,type BranchSource} from '@/lib/video-branch-plans';
 import {videoBranchTurnKey,videoEndingFrame} from '@/lib/video-prefetch';
 import {VideoBuffer} from '@/lib/video-buffer';
+import {startVideo} from '@/lib/video-autoplay';
 import { commitVideoTurn, initialVideoRole, threeChoices, videoErrors, videoMotionPrompt, videoTurnRequest, type VideoChoice } from '@/lib/video-exploration';
 
 type Pending={input:FalVideoInput;response:WorldTurnResponse;action:string;id?:string;assetUrl?:string;startedAt?:number};
@@ -46,8 +47,10 @@ export function VideoExplorer({entry:latestEntry,onBack,onText}:{entry:StudioWor
   const startedAt=useRef(0);
   const drawer=useRef<HTMLDialogElement>(null);
   const [drawerOpen,setDrawerOpen]=useState(false),[mediaPaused,setMediaPaused]=useState(false);
+  const [soundBlocked,setSoundBlocked]=useState(false);
+  const userPaused=useRef(false);
   function openRecords(){setPaused(true);player.current?.pause();setDrawerOpen(true);drawer.current?.showModal();}
-  function togglePause(){if(phase==='playing'||phase==='intro'||phase==='ready'){const v=player.current;if(v){if(v.paused)void v.play().catch(()=>{});else v.pause();}}else{setPaused(p=>!p);setSeconds(15);}}
+  function togglePause(){if(phase==='playing'||phase==='intro'||phase==='ready'||phase==='error'&&current.current.pending?.assetUrl){const v=player.current;if(v){if(v.paused){userPaused.current=false;setError('');setPhase('ready');void startVideo(v,()=>alive.current&&!userPaused.current).then(result=>{if(result==='muted')setSoundBlocked(true);}).catch(()=>setError('暂时无法播放，请重新加载视频。'));}else{userPaused.current=true;v.pause();}}}else{setPaused(p=>!p);setSeconds(15);}}
 
   const embedded=Boolean(onBack);
   useEffect(()=>{
@@ -95,19 +98,17 @@ export function VideoExplorer({entry:latestEntry,onBack,onText}:{entry:StudioWor
     const cache=buffers.current!;
     cache.retain(JSON.parse(bufferSources) as string[]);
     if(online&&visible)for(const src of JSON.parse(bufferSources) as string[]){
-      if(src.startsWith('/api/media/asset/'))void cache.load(src).catch(()=>{/* Selected video can stream if warming fails. */});
+      if(src!==session.clip&&src!==playback.clip&&src.startsWith('/api/media/asset/'))void cache.load(src).catch(()=>{/* Selected video can stream if warming fails. */});
     }
   },[bufferSources,online,visible]);
   useEffect(()=>()=>buffers.current?.dispose(),[scope]);
   useEffect(()=>{
-    let stale=false;
     const clip=session.clip;
-    setHoldFrame(frame.current);setShownClip('');player.current?.pause();
+    setHoldFrame(frame.current);setShownClip('');player.current?.pause();userPaused.current=false;
     if(!clip){setPlayback({clip:'',src:''});setShownClip('');return;}
     // Blob URLs never enter saved sessions; reloads still use the authenticated asset.
-    const source=clip.startsWith('/api/media/asset/')?buffers.current!.load(clip).catch(()=>clip):Promise.resolve(clip);
-    void source.then(src=>{if(!stale)setPlayback({clip,src});});
-    return()=>{stale=true;};
+    setPlayback({clip,src:buffers.current!.playbackSource(clip)});
+    if(playbackRetry)player.current?.load();
   },[session.clip,scope,playbackRetry]);
   useEffect(()=>{
     // Only the actual current scene gets videos. Projected grandchildren get scripts only.
@@ -354,15 +355,27 @@ export function VideoExplorer({entry:latestEntry,onBack,onText}:{entry:StudioWor
     }
     setPhase('playing');
   }
-  function revealPlaying(){
-    const clip=playback.clip;
-    const reveal=()=>{
-      if(!alive.current||current.current.clip!==clip)return;
-      setShownClip(clip);setMediaPaused(false);playing();
-    };
-    const video=player.current;
-    if(video&&'requestVideoFrameCallback' in video)video.requestVideoFrameCallback(reveal);
-    else reveal();
+  function decoded(){
+    if(playback.clip===current.current.clip&&player.current&&player.current.readyState>=2&&player.current.videoWidth>0)setShownClip(playback.clip);
+  }
+  const autoStarting=useRef<string|null>(null);
+  async function autoStart(){
+    const video=player.current,clip=playback.clip;
+    if(!video||clip!==current.current.clip||drawerOpen||userPaused.current||video.readyState<2||video.ended||!['ready','intro','playing'].includes(phase)||autoStarting.current===playback.src)return;
+    const src=playback.src;autoStarting.current=src;
+    try{
+      decoded();
+      const result=await startVideo(video,()=>alive.current&&current.current.clip===clip&&!userPaused.current&&!drawer.current?.open);
+      if(result==='muted')setSoundBlocked(true);
+    }catch(e){
+      if(e instanceof Error&&e.name==='AbortError')return;
+      if(current.current.clip===clip){setError('浏览器暂时未能启动播放，请点击右上角继续；视频不会重新生成。');setPhase('error');}
+    }finally{if(autoStarting.current===src)autoStarting.current=null;}
+  }
+  function enableSound(){
+    const video=player.current;if(!video)return;
+    video.muted=false;userPaused.current=false;
+    void video.play().then(()=>setSoundBlocked(false)).catch(()=>{video.muted=true;setSoundBlocked(true);});
   }
   const autoAction=useRef(()=>{});
   useEffect(()=>{autoAction.current=()=>{if(phase==='roles')selectRole(roles[0].id);else void act(current.current.choices[0]?.label??'',true);};});
@@ -372,7 +385,9 @@ export function VideoExplorer({entry:latestEntry,onBack,onText}:{entry:StudioWor
     const timer=setInterval(()=>setSeconds(n=>Math.max(0,n-1)),1000);return()=>clearInterval(timer);
   },[ticking]);
   useEffect(()=>{if(seconds===0&&ticking){const timer=setTimeout(()=>{setSeconds(15);autoAction.current();},0);return()=>clearTimeout(timer);}},[seconds,ticking]);
-  useEffect(()=>{if(phase==='ready'&&!drawerOpen&&playback.clip===session.clip)void player.current?.play().catch(()=>{/* User gesture required, keep visible controls. */});},[phase,drawerOpen,playback,session.clip]);
+  // Keep the same HTMLVideoElement across clips so a user's sound permission survives.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(()=>{void autoStart();},[phase,drawerOpen,playback,session.clip]);
   const choosing=(phase==='choices'||phase==='error'&&!session.pending)&&!!session.state&&!session.finished;
   const waiting=phase==='planning'||phase==='generating';
   const preparingDefault=choosing&&!cachedPlans.some(p=>p.action===session.choices[0]?.label);
@@ -384,6 +399,7 @@ export function VideoExplorer({entry:latestEntry,onBack,onText}:{entry:StudioWor
     <header ref={heading} className="video-explorer-hud">
       <div className="video-corner">{onBack?<button aria-label="返回" title="返回" onClick={onBack}><ArrowLeft size={22}/></button>:<Link aria-label="返回对比" title="返回对比" href="/prologue-comparison"><ArrowLeft size={22}/></Link>}</div>
       <div className="video-corner video-corner-right">
+        {soundBlocked&&<button onClick={enableSound} aria-label="开启声音" title="浏览器限制自动出声，点击开启声音"><Volume2 size={21}/></button>}
         <button onClick={togglePause} aria-label={pauseActive?'继续':'暂停'} title={pauseActive?'继续':'暂停'}>{pauseActive?<Play size={21}/>:<Pause size={21}/>}</button>
         {onText?<button onClick={onText} aria-label="切换图文探索" title="切换图文探索"><MessageSquare size={21}/></button>:<Link href={`/?world=${entry.id}&mode=text`} aria-label="图文探索（另开体验）" title="图文探索（另开体验）"><MessageSquare size={21}/></Link>}
         <button onClick={openRecords} aria-label="剧情记录" title="剧情记录" aria-haspopup="dialog" aria-expanded={drawerOpen}><History size={21}/></button>
@@ -391,8 +407,9 @@ export function VideoExplorer({entry:latestEntry,onBack,onText}:{entry:StudioWor
     </header>
     <div className="video-explorer-stage">
       {/* oxlint-disable-next-line jsx-a11y/media-has-caption */}
-      {!loading&&session.clip&&playback.src?<video ref={player} key={playback.src} src={playback.src} controls={phase==='playing'||phase==='intro'||phase==='ready'} playsInline autoPlay={!session.pending} preload="auto" poster={holdFrame||entry.portraits[session.roleId]||entry.cover}
-        onPause={()=>setMediaPaused(true)} onEnded={()=>{if(playback.clip===current.current.clip)ended();}} onPlaying={revealPlaying} onError={()=>{setError('视频加载失败，成片和进度已保留。可以重新加载，不会重新生成。');setPhase('error');setPaused(true);}} aria-label="当前剧情视频"/>:<Image src={entry.portraits[session.roleId]||entry.cover} alt={roleName||entry.title} width={1280} height={720} unoptimized/>}
+      {!loading&&session.clip&&playback.src?<video ref={player} src={playback.src} controls={phase==='playing'||phase==='intro'||phase==='ready'} playsInline preload="auto" poster={holdFrame||entry.portraits[session.roleId]||entry.cover}
+        onLoadedData={decoded} onCanPlay={()=>{decoded();void autoStart();}}
+        onPause={()=>{setMediaPaused(true);if(phase==='playing'&&!current.current.pending&&playback.clip===current.current.clip&&!player.current?.ended&&!drawer.current?.open)userPaused.current=true;}} onEnded={()=>{if(playback.clip===current.current.clip)ended();}} onPlaying={()=>{decoded();setMediaPaused(false);playing();}} onError={()=>{setError('视频加载失败，成片和进度已保留。可以重新加载，不会重新生成。');setPhase('error');setPaused(true);}} aria-label="当前剧情视频"/>:<Image src={entry.portraits[session.roleId]||entry.cover} alt={roleName||entry.title} width={1280} height={720} unoptimized/>}
       {session.clip&&shownClip!==session.clip&&<div className="video-transition-cover" aria-label="缓冲视频，保留上一幕"><Image src={holdFrame||entry.portraits[session.roleId]||entry.cover} alt="" width={1280} height={720} unoptimized/><span role="status">正在缓冲画面…</span></div>}
     </div>
     <section ref={controls} className="video-explorer-controls" aria-label="接下来的行动">
@@ -408,7 +425,6 @@ export function VideoExplorer({entry:latestEntry,onBack,onText}:{entry:StudioWor
         <form onSubmit={e=>{e.preventDefault();void act(text);}}><input aria-label="输入自己的行动" id="video-action" maxLength={600} value={text} onChange={e=>setText(e.target.value)} onFocus={()=>setFocused(true)} onBlur={()=>setFocused(false)} placeholder="你想怎么做…" /><button disabled={!enabled||!online||!text.trim()} aria-label="提交自己的行动"><Send size={20}/></button></form>
         {enabled&&cachedPlans.length<session.choices.length&&<div className="video-brief" role="status">{branchPreparing?'正在准备行动…':'部分行动尚未就绪'}{!branchPreparing&&<button aria-label="重新准备未完成的脚本" title="重新准备" disabled={!online} onClick={()=>setBranchRetry(n=>n+1)}><RotateCw size={17}/></button>}</div>}
       </>}
-      {phase==='ready'&&<button aria-label="播放新片" onClick={()=>void player.current?.play()}><Play size={22}/></button>}
       {session.finished&&phase!=='playing'&&<p className="video-brief">当前剧情<button onClick={()=>{save({...current.current,finished:false,choices:threeChoices([])});setPaused(true);setPhase('choices');}}>继续探索</button></p>}
       {(error||saveError)&&<div className="video-brief" role="alert">暂未继续，进度已保留<button onClick={openRecords}>查看详情</button></div>}
       {!online&&<p className="video-brief" role="status">网络已断开，进度保留</p>}

@@ -18,6 +18,22 @@ const {studioWorlds}=await import('../lib/studio-worlds.ts');
 const {branchKey,afterPending,compileBranch}=await import('../lib/video-branch-plans.ts');
 const {videoBranchTurnKey,videoEndingFrame}=await import('../lib/video-prefetch.ts');
 const {VideoBuffer}=await import('../lib/video-buffer.ts');
+const {startVideo}=await import('../lib/video-autoplay.ts');
+test('autoplay prefers audio, falls back only for permission denial, and respects cancellation',async()=>{
+ let calls=0;const video={muted:false,async play(){calls++;if(!this.muted)throw new DOMException('gesture required','NotAllowedError');}};
+ assert.equal(await startVideo(video,()=>true),'muted');assert.equal(calls,2);
+ assert.equal(await startVideo(video,()=>false),'cancelled');assert.equal(calls,2);
+ await assert.rejects(startVideo({muted:false,async play(){throw new Error('decode failed');}},()=>true),/decode failed/);
+ assert.equal(await startVideo({muted:false,async play(){}},()=>true),'playing');
+ const ui=readFileSync(root+'components/video-explorer.tsx','utf8');
+ assert.doesNotMatch(ui,/key=\{playback.src\}|aria-label="播放新片"|requestVideoFrameCallback/);
+ assert.match(ui,/onLoadedData=\{decoded\}/);
+});
+test('selecting an unfinished warmup streams immediately instead of awaiting the full file',async()=>{
+ const original=globalThis.fetch,cache=new VideoBuffer(),src='/api/media/asset/'+'d'.repeat(64);
+ globalThis.fetch=async(_url,init)=>new Promise((_,reject)=>init.signal.addEventListener('abort',()=>reject(new DOMException('aborted','AbortError'))));
+ try{const pending=cache.load(src);const rejected=assert.rejects(pending);assert.equal(cache.playbackSource(src),src);await rejected;assert.equal(cache.peek(src),undefined);}finally{cache.dispose();globalThis.fetch=original;}
+});
 test('private video warmup and playback share one download and release old branches',async()=>{
  const original=globalThis.fetch,create=URL.createObjectURL,revoke=URL.revokeObjectURL;
  let downloads=0;const revoked=[];
@@ -145,10 +161,11 @@ test('fal submit/query is owner-isolated, idempotent and native-audio gated; no 
     if(u.hostname==='queue.fal.run'){
       assert.equal(new Headers(init.headers).get('Authorization'),'Key synthetic-fal');
       if(init.method==='POST'){
+        assert.equal(u.pathname,'/minimax/h3-max-turbo/image-to-video');
         paid++;assert.equal(body.duration,15);assert.equal(body.enable_safety_checker,true);assert.equal(body.generate_audio,undefined);
         if(mode==='balance')return Response.json({detail:'Exhausted balance'},{status:403});
         if(mode==='uncertain')throw Error('network lost');
-        return Response.json({request_id:'test-job',status_url:'https://queue.fal.run/minimax/h3-max/requests/test-job/status',response_url:'https://queue.fal.run/minimax/h3-max/requests/test-job'});
+        return Response.json({request_id:'test-job',status_url:'https://queue.fal.run/minimax/h3-max-turbo/requests/test-job/status',response_url:'https://queue.fal.run/minimax/h3-max-turbo/requests/test-job'});
       }
       if(u.pathname.endsWith('/status'))return Response.json({status:completed?'COMPLETED':'IN_QUEUE'});
       return Response.json({video:{url:'https://v3.fal.media/test.mp4'}});
@@ -174,5 +191,10 @@ test('fal submit/query is owner-isolated, idempotent and native-audio gated; no 
     assert.equal(new Set(branches.map(b=>b.id)).size,3);assert.equal(paid,7);
     await Promise.all(keys.map(turnKey=>route.POST(req({...base,turnKey}))));
     assert.equal(paid,7,'reload and selection reuse all three paid branch reservations');
+    const legacy=rows.get(branches[0].id);legacy.model='minimax/h3-max/image-to-video';
+    legacy.task_id=JSON.stringify({request_id:'test-job',status_url:'https://queue.fal.run/minimax/h3-max/requests/test-job/status',response_url:'https://queue.fal.run/minimax/h3-max/requests/test-job'});
+    const reused=await(await route.POST(req({...base,turnKey:keys[0]}))).json();
+    assert.equal(reused.model,'minimax/h3-max/image-to-video');assert.equal(paid,7);
+    const recovered=await(await query(legacy.id)).json();assert.equal(recovered.status,'ready');assert.equal(recovered.model,legacy.model);
   }finally{globalThis.fetch=original;}
 });

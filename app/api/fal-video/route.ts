@@ -3,7 +3,7 @@ import { requestAccount, sameOrigin } from '@/lib/server-auth';
 import { imageOwner, imageId, storageConfigured, storageFetch } from '@/lib/server-image-store';
 import { findMedia, updateMedia } from '@/lib/server-media-store';
 import { falFetch, refreshFalVideo } from '@/lib/server-fal-video';
-import { FAL_VIDEO_MODEL, FAL_VIDEO_SECONDS, falFailure, readFalInput, readFalJob } from '@/lib/fal-video';
+import { FAL_VIDEO_MODEL, FAL_VIDEO_SECONDS, isFalVideoModel, falFailure, readFalInput, readFalJob } from '@/lib/fal-video';
 export const maxDuration=120;
 const headers={'Cache-Control':'private, no-store'};
 function errorCode(e:unknown){return e instanceof Error && /^fal_[a-z_]+$/.test(e.message)?e.message:'fal_unavailable';}
@@ -17,11 +17,11 @@ export async function GET(request:Request){
         note:'配置就绪不代表余额或实际生成已验证。',perAccountDailyLimit:null}, {headers:{...headers,...(owner?.cookie?{'Set-Cookie':owner.cookie}:{})}}));
     }
     let asset=await findMedia(id);
-    if(!asset||asset.owner_id!==owner?.id||asset.model!==FAL_VIDEO_MODEL)return account.finish(Response.json({error:'not_found'},{status:404,headers}));
+    if(!asset||asset.owner_id!==owner?.id||!isFalVideoModel(asset.model))return account.finish(Response.json({error:'not_found'},{status:404,headers}));
     asset=await refreshFalVideo(asset);
     let error:string|undefined;
     if(asset.status==='failed')try{error=JSON.parse(asset.task_id??'{}').error;}catch{/* Legacy rows. */}
-    return account.finish(Response.json({id,status:asset.status,error,...(asset.status==='ready'?{assetUrl:`/api/media/asset/${id}`}:{})},{headers}));
+    return account.finish(Response.json({id,status:asset.status,model:asset.model,error,...(asset.status==='ready'?{assetUrl:`/api/media/asset/${id}`}:{})},{headers}));
   }catch(e){return Response.json({error:errorCode(e)},{status:503,headers});}
 }
 export async function POST(request:Request){
@@ -46,9 +46,9 @@ export async function POST(request:Request){
     const reservation=await storageFetch('/rest/v1/demo_media_assets?on_conflict=id',{method:'POST',headers:{'Content-Type':'application/json',Prefer:'resolution=ignore-duplicates,return=representation'},body:JSON.stringify({id,owner_id:owner.id,kind:'video',model:FAL_VIDEO_MODEL,status:'reserved',bytes:0})});
     const inserted=await reservation.json() as {id:string}[];
     const existing=inserted.length?null:await findMedia(id);
-    if(!inserted.length&&(!existing||existing.owner_id!==owner.id||existing.model!==FAL_VIDEO_MODEL))throw new Error('fal_reservation_failed');
+    if(!inserted.length&&(!existing||existing.owner_id!==owner.id||!isFalVideoModel(existing.model)))throw new Error('fal_reservation_failed');
     const claim={status:inserted.length?'claimed':existing!.status};
-    const reply=(status:string,reused=false,error?:string)=>account.finish(Response.json({id,status,reused,error,model:FAL_VIDEO_MODEL,...(status==='ready'?{assetUrl:`/api/media/asset/${id}`}:{})},{headers}));
+    const reply=(status:string,reused=false,error?:string)=>account.finish(Response.json({id,status,reused,error,model:existing?.model??FAL_VIDEO_MODEL,...(status==='ready'?{assetUrl:`/api/media/asset/${id}`}:{})},{headers}));
     if(['ready','queued','reserved','failed'].includes(claim.status))return reply(claim.status,true);
     if(claim.status!=='claimed')return account.finish(Response.json({error:claim.status},{status:429,headers}));
     const result=await falFetch(`https://queue.fal.run/${FAL_VIDEO_MODEL}`,{prompt:input.prompt,duration:FAL_VIDEO_SECONDS,resolution:'768P',enable_safety_checker:true,prompt_expansion_mode:'balanced',...(frame?{image_url:frame}:{})});
