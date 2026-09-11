@@ -6,6 +6,7 @@ import { WorldSystemPanel } from '@/components/world-system-panel';
 import { storyDirections } from '@/lib/story-directions';
 import { reusePublicationArt } from '@/lib/reuse-publication-art';
 import { creatorPortraitPrompt } from '@/lib/creator-image-prompts';
+import { rebaseCreatorAcceptance } from '@/lib/creator-changes';
 import { WorldProloguePlayer } from '@/components/world-prologue';
 import { VideoExplorer } from '@/components/video-explorer';
 import { RecordPlay } from '@/components/play-counts';
@@ -2267,6 +2268,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
   }, [draftId]);
 
   function creatorProposalProblem(change: CreatorChange, undo = false) {
+    if (!undo) change = rebaseCreatorAcceptance(creatorSections(), change);
     if (change.key === 'entryPolicy' && (JSON.stringify(change.roleOrder) !== JSON.stringify(draftRoles.map(role => role.editorId)) || restoreEntryPolicy(undo ? change.before : change.after).allowedRoleIds.some(id => !draftRoles.some((_, index) => id === `draft-role-${index}`)))) return '角色名单已变化或引用了不存在的角色，请重新讨论入场规则。';
     const next = applyCreatorChange(creatorSections(), change, undo);
     if (!next) return '相关字段或角色名单已有新修改，未覆盖。请保留手改或重新讨论。';
@@ -2280,9 +2282,9 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
   }
 
   function applyAllCreatorProposals(changes: CreatorChange[]): string {
-    const combined = combineCreatorChanges(creatorSections(), changes);
+    const combined = combineCreatorChanges(creatorSections(), changes, true);
     if (!combined) {
-      const message = '有设定在建议生成后被手动修改，本次未覆盖任何内容。请先忽略冲突项，或重新讨论。';
+      const message = '建议关联的角色已删除或顺序已变化，无法安全对应。请调整该项的角色关联后采纳；普通内容修改不会阻止采纳。';
       setCreatorChangeNotice(message); return message;
     }
     const next = combined.after as Record<string, unknown>;
@@ -2303,6 +2305,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
   }
 
   function applyCreatorProposal(change: CreatorChange, undo = false) {
+    if (!undo) change = rebaseCreatorAcceptance(creatorSections(), change);
     const problem = creatorProposalProblem(change, undo);
     if (problem) { setCreatorChangeNotice(problem); return; }
     const next = applyCreatorChange(creatorSections(), change, undo);

@@ -98,10 +98,18 @@ export function applyCreatorChange(current: Record<string, unknown>, change: Cre
 
 // Check every baseline, then validate the final task graph at the caller. This
 // allows related task additions/removals to be accepted without ordering clicks.
-export function combineCreatorChanges(current: Record<string, unknown>, changes: CreatorChange[]): CreatorChange | null {
+export function rebaseCreatorAcceptance(current: Record<string, unknown>, change: CreatorChange): CreatorChange {
+  if (change.key === '__all') return change;
+  const cast = castFrom(current.castAndTasks);
+  const target = change.target;
+  const before = target?.kind === 'role' ? cast?.roles.find(role => role.editorId === target.id)?.[target.field] || ''
+    : target?.kind === 'task' ? cast?.tasks.find(task => task.id === target.id) : current[change.key];
+  return { ...change, before };
+}
+export function combineCreatorChanges(current: Record<string, unknown>, changes: CreatorChange[], explicitAcceptance = false): CreatorChange | null {
   let next = current;
   for (const change of changes) {
-    const updated = applyCreatorChange(next, change);
+    const updated = applyCreatorChange(next, explicitAcceptance ? rebaseCreatorAcceptance(next, change) : change);
     if (!updated) return null;
     next = updated;
   }
