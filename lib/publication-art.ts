@@ -1,9 +1,11 @@
+import { afterClassEntry } from './after-class-entry.ts';
 // Legacy placeholder assets must never masquerade as art belonging to a publication.
 export const PUBLICATION_PLACEHOLDER='/assets/publication-placeholder.svg';
 // Explicitly shipped public artwork; never accept an arbitrary /assets path.
 export const publicationArtPaths = new Set(['cover', 'zhou', 'shen', 'lin', 'lu-live-v1', 'zhou-story-v2', 'lu-story-v2'].map(name => `/assets/after-class-v1/${name}.webp`));
 export function hasPublicationImage(path?:string){return Boolean(path&&!path.includes('storm-manor')&&!path.includes('storm_manor')&&path!==PUBLICATION_PLACEHOLDER);}
 export function publicationArt(document:Record<string,unknown>){
+ document=afterClassEntry(document);
  const portraits=document.portraits&&typeof document.portraits==='object'?document.portraits as Record<string,unknown>:{};
  const world=document.world as {characters?:{id:string;name:string;imagePrompt:string}[]}|undefined;
  const matched=document.id==='community-56ed98581aeb49b16bfe83b22761525138a3a139c137955931288b7fe5dfa5d6'&&document.title==='下课以后';

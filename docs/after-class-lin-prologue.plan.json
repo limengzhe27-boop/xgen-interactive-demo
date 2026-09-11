@@ -1,0 +1,45 @@
+{
+  "version": 2,
+  "title": "下课以后 · 林小满的前情",
+  "characters": [
+    {"id":"lin","identity":"林小满，高三学生，周野的女友；本片第一人称体验者","appearance":"只见熨平的校服袖口和书包挂件，不外拍自己的脸"},
+    {"id":"zhou","identity":"周野，林小满的同班男友","appearance":"沿用周野已生成参考图：偏长凌乱黑发，瘦削有棱角的脸，松垮校服，右腕旧红绳；不可换成短寸头或动漫人物"}
+  ],
+  "facts": [
+    {"id":"who","description":"林小满放学后在校园里看见自己的男友周野","channel":"visual"},
+    {"id":"away","description":"周野没有去球场，而是走向办公楼","channel":"visual"},
+    {"id":"unknown","description":"林小满还不知道他为什么频繁去办公室","channel":"visual"},
+    {"id":"wait","description":"周野尚未说明原因，林小满尚未决定是否追问","channel":"visual"}
+  ],
+  "shots": [{
+    "id":"opening","start":0,"end":15,"characterIds":["lin","zhou"],
+    "location":"放学后的校园走廊岔口；左侧远处可见球场，前方通往办公楼，办公室内部不可见",
+    "startState":"林小满停在走廊，周野从侧前方经过，朝办公楼方向走。",
+    "action":"周野从球场方向的岔路旁经过，却转向办公楼。林小满叫住他，他停步回头，原本随意的笑容收住；他没有解释，只把书包带提回肩上，停在几步外等她继续问。",
+    "endState":"两人隔着几步站在走廊，办公楼在周野身后。林小满未追过去，周野未解释，也没有回到开场重复走路。",
+    "continuity":"同一地点同一时刻，严格林小满眼睛视角；没有办公室内景、回忆或他人秘密。",
+    "evidence":[
+      {"factId":"who","channel":"visual","detail":"面前是穿校服的周野；林小满自然叫他的名字，问放学行踪。"},
+      {"factId":"away","channel":"visual","detail":"球场在左侧，周野明确转向前方办公楼。"},
+      {"factId":"unknown","channel":"visual","detail":"他被叫住后停步回头，没有提供解释；镜头不进入办公室。"},
+      {"factId":"wait","channel":"visual","detail":"末段保持两人间的距离与待回应状态，不替林小满作决定。"}
+    ]
+  }],
+  "handoff":{"shotId":"opening","unresolved":"周野停在办公楼前，还没有解释为什么来这里。","choices":["问他为什么又去办公室","先听他怎么解释","暂时不问，留意他的反应"]},
+  "story":{
+    "throughline":"林小满发现男友没有去球场而是又往办公楼走，叫住他后，他停下却未解释，追问与否交给玩家。",
+    "perspective":"first-person","povCharacterId":"lin",
+    "beats":[{"shotId":"opening","cause":"林小满已经留意到男友频繁去办公室，今天又看见他改变方向。","change":"周野被叫住，两人的日常行踪变成一个尚未得到解释的问题。"}],
+    "recall":[
+      {"topic":"who","answer":"林小满，从她的眼睛看周野。","factIds":["who"]},
+      {"topic":"relationship","answer":"周野是林小满的同班男友。","factIds":["who"]},
+      {"topic":"event","answer":"周野没有去球场，而是走向办公楼。","factIds":["away"]},
+      {"topic":"pressure","answer":"林小满发现他的行踪异常，却不知道原因。","factIds":["unknown"]},
+      {"topic":"handoff","answer":"周野尚未解释，林小满还可以决定如何问。","factIds":["wait"]}
+    ]
+  },
+  "audio":{"mode":"native","cues":[
+    {"start":4,"end":7,"speakerId":"lin","kind":"dialogue","text":"周野，不是说去球场吗？","delivery":"镜头所在位置的年轻女生现场声音，熟悉而疑惑，不是解说旁白"},
+    {"start":10,"end":13,"speakerId":"lin","kind":"dialogue","text":"你怎么又去办公室？","delivery":"同一女生，克制追问，结尾留给对方反应"}
+  ]}
+}
