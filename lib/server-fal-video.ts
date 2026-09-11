@@ -1,11 +1,25 @@
 import { isFalVideoModel, falAssetUrl, falFailure, falQueueUrl, mp4HasAudio, readFalJob } from './fal-video';
 import { boundedMedia, saveMedia, updateMedia, type MediaAsset } from './server-media-store';
 import {readVideoTiming} from './video-timing';
+import {mediaLimit} from './media-policy';
 export function falPlaybackUrl(asset:MediaAsset):URL|null{
   if(!isFalVideoModel(asset.model)||asset.status!=='queued')return null;
   try{const data=JSON.parse(asset.task_id??'{}');return data.audioValidated===true&&typeof data.playbackUrl==='string'?falAssetUrl(data.playbackUrl):null;}catch{return null;}
 }
 const saving=new Map<string,Promise<void>>();
+// A complete moov/audio handler near the start lets playback begin without
+// downloading mdat first. Unknown layouts fall back to the existing full check.
+export async function probeFalAudio(url:string):Promise<{audio:boolean;buffer?:Buffer}>{
+  const r=await fetch(falAssetUrl(url),{headers:{Range:'bytes=0-262143'},redirect:'error',signal:AbortSignal.timeout(10000)});
+  if(r.status===200){const buffer=await boundedMedia(r,'video');return {audio:mp4HasAudio(buffer),buffer};}
+  const range=/^bytes 0-(\d+)\/(\d+)$/.exec(r.headers.get('content-range')||'');
+  if(r.status!==206||!range||Number(range[2])>mediaLimit('video')||Number(range[1])>=Number(range[2])){await r.body?.cancel();return {audio:false};}
+  const reader=r.body?.getReader();if(!reader)return {audio:false};
+  const chunks:Uint8Array[]=[];let size=0;
+  try{for(;;){const part=await reader.read();if(part.done)break;size+=part.value.length;if(size>262144)return {audio:false};chunks.push(part.value);}}finally{await reader.cancel();}
+  const bytes=Buffer.concat(chunks);
+  return {audio:bytes.length===Number(range[1])+1&&bytes.subarray(4,8).toString()==='ftyp'&&mp4HasAudio(bytes)};
+}
 export async function falFetch(url: string | URL, body?: unknown) {
   const key=process.env.FAL_KEY?.trim();
   if(!key)throw new Error('fal_not_configured');
@@ -34,8 +48,18 @@ export async function refreshFalVideo(asset:MediaAsset,defer?:(work:()=>Promise<
   outputUrl=falAssetUrl(data.video.url).href;
   }
   const downloadStart=Date.now();
-  const download=await fetch(falAssetUrl(outputUrl),{redirect:'error',signal:AbortSignal.timeout(60000)});
-  const buffer=await boundedMedia(download,'video');
+  let buffer:Buffer|undefined;
+  if(defer&&!playback){
+    const probe=await probeFalAudio(outputUrl).catch(()=>({audio:false,buffer:undefined}));buffer=probe.buffer;
+    if(probe.audio&&!buffer){
+      const task_id=JSON.stringify({...job,timing,playbackUrl:outputUrl,audioValidated:true});
+      await updateMedia(asset.id,{status:'queued',task_id});
+      const playable={...asset,task_id};
+      await defer(async()=>{try{await refreshFalVideo(playable);}catch{console.warn('fal_archive_pending',{id:asset.id});}});
+      return playable;
+    }
+  }
+  if(!buffer){const download=await fetch(falAssetUrl(outputUrl),{redirect:'error',signal:AbortSignal.timeout(60000)});buffer=await boundedMedia(download,'video');}
   timing.downloadMs=Date.now()-downloadStart;
   if(!mp4HasAudio(buffer))return fail('fal_missing_native_audio');
   if(defer){
@@ -43,7 +67,7 @@ export async function refreshFalVideo(asset:MediaAsset,defer?:(work:()=>Promise<
     await updateMedia(asset.id,{status:'queued',task_id});
     await defer(async()=>{
       if(saving.has(asset.id))return saving.get(asset.id);
-      const work=(async()=>{const start=Date.now();await saveMedia(asset,buffer,()=>{timing.storeMs=Date.now()-start;return JSON.stringify({...job,timing});});})();
+      const work=(async()=>{const start=Date.now();await saveMedia(asset,buffer!,()=>{timing.storeMs=Date.now()-start;return JSON.stringify({...job,timing});});})();
       saving.set(asset.id,work);
       try{await work;}catch{console.warn('fal_archive_pending',{id:asset.id});}finally{saving.delete(asset.id);}
     });

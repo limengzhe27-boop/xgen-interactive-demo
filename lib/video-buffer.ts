@@ -4,6 +4,7 @@ export class VideoBuffer {
   constructor(private measure?:(src:string)=>(status?:string)=>void){}
   private entries=new Map<string,Buffered>();
   peek(src:string){return this.entries.get(src)?.url;}
+  pauseDownloads(){for(const [src,item] of this.entries)if(!item.url){item.abort.abort();this.entries.delete(src);}}
   playbackSource(src:string){
     const item=this.entries.get(src);
     if(item?.url)return item.url;

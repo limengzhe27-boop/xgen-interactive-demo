@@ -167,6 +167,19 @@ test('long continuation has no frontend trial-round cap or backend daily RPC quo
 });
 function box(type,body=Buffer.alloc(0)){const head=Buffer.alloc(8);head.writeUInt32BE(body.length+8);head.write(type,4);return Buffer.concat([head,body]);}
 const audio=Buffer.concat([box('ftyp'),box('moov',box('trak',box('mdia',box('hdlr',Buffer.concat([Buffer.alloc(8),Buffer.from('soun')])))))]);
+test('audio prefix probe accepts structural audio only and falls back for unsupported ranges',async()=>{
+ const {probeFalAudio}=await import('../lib/server-fal-video.ts');const old=globalThis.fetch;
+ try{
+  globalThis.fetch=async(url,init)=>{assert.equal(new Headers(init.headers).get('Range'),'bytes=0-262143');assert.equal(new Headers(init.headers).has('Authorization'),false);return new Response(audio,{status:206,headers:{'content-range':`bytes 0-${audio.length-1}/1000000`}});};
+  assert.deepEqual(await probeFalAudio('https://v3.fal.media/test.mp4'),{audio:true});
+  globalThis.fetch=async()=>new Response(Buffer.from('ftyp moov soun'),{status:206,headers:{'content-range':'bytes 0-13/1000000'}});
+  assert.equal((await probeFalAudio('https://v3.fal.media/test.mp4')).audio,false);
+  globalThis.fetch=async()=>new Response(audio);
+  assert.deepEqual((await probeFalAudio('https://v3.fal.media/test.mp4')).buffer,audio);
+  globalThis.fetch=async()=>new Response(null,{status:416});
+  assert.equal((await probeFalAudio('https://v3.fal.media/test.mp4')).audio,false);
+ }finally{globalThis.fetch=old;}
+});
 test('MP4 audio detection walks real boxes and rejects spoofed/plain strings',()=>{
   assert.equal(policy.mp4HasAudio(audio),true);assert.equal(policy.mp4HasAudio(box('ftyp',Buffer.from('soun'))),false);
   assert.equal(policy.mp4HasAudio(Buffer.from('soun')),false);

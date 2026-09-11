@@ -142,6 +142,7 @@ export function VideoExplorer({entry:latestEntry,onBack,onText}:{entry:StudioWor
   useEffect(()=>{
     const cache=buffers.current!;
     cache.retain(JSON.parse(bufferSources) as string[]);
+    if(shownClip!==session.clip){cache.pauseDownloads();return;}
     let stopped=false;
     // Default branch first, one warmup at a time: do not split bandwidth three ways.
     if(online&&visible)void(async()=>{for(const src of JSON.parse(bufferSources) as string[]){
@@ -149,7 +150,7 @@ export function VideoExplorer({entry:latestEntry,onBack,onText}:{entry:StudioWor
       if(src!==session.clip&&src!==playback.clip&&src.startsWith('/api/media/asset/'))await cache.load(src).catch(()=>{/* Selected video can stream if warming fails. */});
     }})();
     return()=>{stopped=true;};
-  },[bufferSources,online,visible,session.clip,playback.clip]);
+  },[bufferSources,online,visible,session.clip,playback.clip,shownClip]);
   useEffect(()=>()=>buffers.current?.dispose(),[scope]);
   useEffect(()=>{
     const clip=session.clip;
