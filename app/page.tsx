@@ -4,6 +4,7 @@
 import { SyntheticEvent, useEffect, useEffectEvent, useRef, useState } from 'react';
 import { WorldSystemPanel } from '@/components/world-system-panel';
 import { storyDirections } from '@/lib/story-directions';
+import { reusePublicationArt } from '@/lib/reuse-publication-art';
 import { WorldProloguePlayer } from '@/components/world-prologue';
 import { VideoExplorer } from '@/components/video-explorer';
 import { RecordPlay } from '@/components/play-counts';
@@ -1068,6 +1069,13 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
   const roleImageKeysRef = useRef<string[]>([]);
   const storageReadFailed = useRef(false);
   const portraitSignature = JSON.stringify(draftRoles.map(portraitCacheKey));
+  const creatorRoleImages = Object.fromEntries(draftRoles.map((role, index) => {
+    const character = generatedWorld?.characters.find(c => c.id === role.editorId)
+      ?? generatedWorld?.characters[index];
+    const saved = character?.name === role.name && character.imagePrompt === role.appearance
+      ? creatorAssets?.portraits[character.id] : undefined;
+    return [`draft-role-${index}`, roleImages[`draft-role-${index}`] || saved || ''];
+  }));
 
   const playableDraftRoles = makePlayableDraftRoles(draftRoles).map((role, index) => {
     const generatedCharacter = generatedWorld?.characters[index];
@@ -2478,7 +2486,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
   function preparePublicWorld() {
     if (continuation?.proposal) { setCreatorChangeNotice('请先确认或放弃后续提案，再发布。'); return; }
     const world = materializeCreatorWorld();
-    const portraits = Object.fromEntries(world.characters.map((role, index) => [role.id, roleImages[`draft-role-${index}`] || creatorAssets?.portraits[role.id] || '']));
+    const portraits = Object.fromEntries(world.characters.map((role, index) => [role.id, creatorRoleImages[`draft-role-${index}`] || creatorAssets?.portraits[role.id] || '']));
     setPublicationEntry({ id: draftId, title: world.title, genre: '社区创作', premise: world.premise,
       cover: creatorAssets?.cover || '', portraits, world });
   }
@@ -2528,7 +2536,9 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
   function continuePublished(entry: StudioWorld & { sourceId?: string }) {
     const existing=creatorDocuments.find(doc=>doc.id===(entry.sourceId||entry.id));
     // Keep unfinished local writing; recovering the public base is an implementation detail.
-    const doc:CreatorDocument=existing??publicationDraft(entry);
+    const original:CreatorDocument=existing??publicationDraft(entry);
+    const art=reusePublicationArt({...entry,world:original.data.generatedWorld??entry.world,cover:original.data.creatorAssets?.cover||'',portraits:original.data.creatorAssets?.portraits||{}},entry);
+    const doc:CreatorDocument={...original,data:{...original.data,creatorAssets:{cover:art.cover,portraits:art.portraits}}};
     setCreatorDocuments(current=>upsertById(current,doc));
     editCreator(doc);
     setContinuation(restoreCreatorSession(doc.data.creatorSession).continuation??{base:doc.data.generatedWorld??entry.world});
@@ -2697,7 +2707,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
           onCreatorFocus={setCreatorFocus}
           creatorQuestions={creatorQuestions}
           storyOutline={generatedStoryOutline}
-          roleImages={roleImages}
+          roleImages={creatorRoleImages}
           roleImageStates={roleImageStates}
           onStep={(value) => { setCreateStep(value); setCreatorFocus(''); }}
           onAddRole={addDraftRole}

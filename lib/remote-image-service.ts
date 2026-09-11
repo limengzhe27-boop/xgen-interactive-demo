@@ -29,7 +29,20 @@ export async function generateSceneImage(
     cache: 'no-store',
     signal,
   });
-  if (!response.ok) throw new Error(`Image request failed with status ${response.status}`);
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({})) as { error?: string };
+    const messages: Record<string,string> = {
+      account_changed_or_unavailable: '登录状态已变化，请刷新后再发布。已有图片不会重新生成。',
+      image_pending: '这张图片已有生成请求，暂未完成；请稍后再查看，不要重复提交。',
+      image_generation_or_storage_failed: '图片服务暂时不可用，已有图片已保留。本次发布未完成。',
+      image_model_not_configured: '图片服务暂不可用，无法补齐缺少的图片。',
+      image_storage_not_configured: '图片存储暂不可用，已有图片不会重做。',
+    };
+    throw new Error(messages[data.error || ''] || (response.status === 409
+      ? '图片请求已有记录或账号状态变化，请稍后查看。已有图片已保留。'
+      : response.status === 503 ? '图片服务暂时不可用，已有图片已保留。'
+      : `图片准备未完成（${response.status}），已有图片已保留。`));
+  }
   const body = await response.json() as Partial<ImageGenerationResult>;
   if (body.requestId !== input.requestId
     || body.sceneId !== input.sceneId

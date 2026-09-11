@@ -1,5 +1,22 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { reusePublicationArt } from '../lib/reuse-publication-art.ts';
+
+test('updated publication reuses old cast art without generating and keeps new cast missing',async()=>{
+ const published={id:'same',cover:'/cover.webp',portraits:{a:'/a.webp'},world:{characters:[{id:'a',name:'甲',imagePrompt:'蓝衣'}]}};
+ const local={...published,cover:'',portraits:{},world:{...published.world,characters:[...published.world.characters,{id:'b',name:'乙',imagePrompt:'白衣'}]}};
+ const result=reusePublicationArt(local,published);
+ assert.equal(result.portraits.a,'/a.webp');assert.equal(result.portraits.b,'');assert.equal(result.cover,'/cover.webp');
+ assert.equal(local.cover,'');
+ const full=reusePublicationArt({...local,world:published.world},published);
+ await preparePublicationImages(full,'fixture',()=>{},async()=>{throw Error('must not regenerate');});
+});
+test('reuse does not overwrite custom pictures or copy a different character',()=>{
+ const published={cover:'/cover.webp',portraits:{a:'/a.webp'},world:{characters:[{id:'a',name:'甲',imagePrompt:'蓝衣'}]}};
+ const own={...published,portraits:{a:'/manual.webp'}};
+ assert.equal(reusePublicationArt(own,published).portraits.a,'/manual.webp');
+ assert.equal(reusePublicationArt({...own,portraits:{},world:{characters:[{id:'a',name:'乙',imagePrompt:'白衣'}]}},published).portraits.a,'');
+});
 import {preparePublicationImages} from '../lib/publication-images.ts';
 import {publicationArt,PUBLICATION_PLACEHOLDER,hasPublicationImage} from '../lib/publication-art.ts';
 test('legacy borrowed art is visibly missing and remains eligible for future generation',()=>{

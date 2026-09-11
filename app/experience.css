@@ -266,7 +266,7 @@
 .creation-next > button { color: var(--color-primary); }
 .creation-flow .creation-next { width: 100%; margin: 0 0 8px; }
 .creation-proposals > .creator-review { max-height: none; overflow: visible; }
-[data-slot=sheet-content].creator-settings-drawer { width: min(760px, 100vw); max-width: 760px; }
+[data-slot=sheet-content].creator-settings-drawer { width: min(920px, 100vw); max-width: 920px; }
 .creator-settings-drawer .creator-chapters { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 16px; border: 0; }
 .creator-settings-drawer .creator-chapters button { flex: 1 1 140px; min-height: 44px; padding: 8px; white-space: normal; }
 .creator-settings-drawer .creator-editor { display: block; min-width: 0; }
@@ -278,7 +278,10 @@
 .creator-settings-drawer .creation-role { border-bottom: 1px solid var(--color-border); }
 .creation-role > summary { min-height: 52px; padding: 14px 4px; cursor: pointer; font-weight: 600; }
 .creation-role > summary small { margin-left: 12px; color: var(--color-text-secondary); font-weight: 400; }
-.creator-settings-drawer .draft-role { display: grid; grid-template-columns: 100px minmax(0, 1fr); gap: 16px; padding: 16px 0; border: 0; }
+.creator-settings-drawer .draft-role { display: grid; grid-template-columns: 160px minmax(0, 1fr); gap: 20px; padding: 16px 0; border: 0; }
+.creator-settings-drawer .draft-role-image { align-self: start; height: 250px; }
+.creator-settings-drawer .draft-role-image > img { height: 100%; object-fit: cover; }
+.creator-settings-drawer .draft-role-image > button { white-space: nowrap; }
 .creator-settings-drawer .draft-role-index { display: none; }
 .creator-settings-drawer .draft-role-image { width: 100%; min-width: 0; }
 .creator-settings-drawer .draft-fields { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }

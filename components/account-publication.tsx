@@ -2,6 +2,7 @@
 /* eslint-disable next/no-html-link-for-pages -- OAuth route must use a full navigation, never client prefetch. */
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { preparePublicationImages } from '@/lib/publication-images';
+import { reusePublicationArt } from '@/lib/reuse-publication-art';
 import { LogIn, LogOut, Upload, LoaderCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
@@ -61,9 +62,12 @@ export function PublishWorldDialog({ entry, accountScope, onClose, onPublished }
       if (data.user) {
         const response = await fetch('/api/worlds?mine=true', { cache: 'no-store', headers: { 'x-xgen-account': accountScope } });
         if (!response.ok) throw new Error();
-        const result = await response.json() as { publications: { document: { id: string; sourceId?: string }; updated_at: string }[] };
+        const result = await response.json() as { publications: { document: StudioWorld & { sourceId?: string }; updated_at: string }[] };
         const current = result.publications.find(row => row.document.sourceId === entry.id || row.document.id === entry.id);
-        if (live) { setExpectedUpdatedAt(current?.updated_at ?? null); setVersionReady(true); }
+        if (live) {
+          if(current) prepared.current=reusePublicationArt(prepared.current,current.document);
+          setExpectedUpdatedAt(current?.updated_at ?? null); setVersionReady(true);
+        }
       }
     }).catch(() => { if (live) setError('暂时无法检查账号，请稍后重试。'); });
     return () => { live = false; };
