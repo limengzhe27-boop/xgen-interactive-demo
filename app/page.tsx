@@ -2531,6 +2531,17 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     setCreatorMessages(data.creatorMessages ?? []); restorePendingCreator(data.creatorSession); setCreatorUndo([]); setCreatorChangeNotice(''); setCreatorFocus(''); setCreateStep(1); navigate('create');
   }
 
+  function continuePublished(entry: StudioWorld & { sourceId?: string }) {
+    const existing=creatorDocuments.find(doc=>doc.id===(entry.sourceId||entry.id));
+    // Keep unfinished local writing; recovering the public base is an implementation detail.
+    const doc:CreatorDocument=existing??publicationDraft(entry);
+    setCreatorDocuments(current=>upsertById(current,doc));
+    editCreator(doc);
+    setContinuation(restoreCreatorSession(doc.data.creatorSession).continuation??{base:doc.data.generatedWorld??entry.world});
+    setCreatorProposal(null);setProposalChanges([]);setCreatorQuestions([]);
+    setCreatorMessages(current=>[...current,{role:'agent',content:'接着这部作品创作。告诉我想追加的剧情或新角色；原内容保留，确认后更新发布，新可体验角色会出现在选角中。'}].slice(-12) as CreatorChatMessage[]);
+  }
+
   function restoreStoryEdition(edition:StoryEdition) {
     if(creatorAgentThinking || worldGenerating)return;
     try {
@@ -2780,7 +2791,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       }} />}
       {storageError && <p className="studio-storage-error" role="alert">{storageError}</p>}
       {(view === 'play' || view === 'ending') && activeLibrary?.world.entryAdmission && <p className="persona-runtime">{activeLibrary.world.entryAdmission.mode === 'newcomer' ? `你是新加入的 ${selectedRole.name}，原角色仍在这个世界中` : `旧会话：${selectedRole.name} 代入 ${activeLibrary.world.entryAdmission.originalName}`} · 额外能力：{activeLibrary.world.entryAdmission.grantedAbilities.join('；') || '无'}。这是独立会话，原世界未改变。</p>}
-      {view === 'library' && <MyPublications key={accountScope} accountScope={accountScope} drafts={creatorDocuments.map(doc => ({ id: doc.id, title: doc.data.worldTitle }))} onDelete={deleteCreator} onEdit={id => { const doc = creatorDocuments.find(item => item.id === id); if (doc) editCreator(doc); }} onRestore={entry => { const doc = publicationDraft(entry); setCreatorDocuments(current => upsertById(current, doc)); editCreator(doc); }} onRestoreEdition={restorePublishedEdition} onChanged={() => setCatalogRevision(value => value + 1)} />}
+      {view === 'library' && <MyPublications key={accountScope} accountScope={accountScope} drafts={creatorDocuments.map(doc => ({ id: doc.id, title: doc.data.worldTitle }))} onDelete={deleteCreator} onEdit={id => { const doc = creatorDocuments.find(item => item.id === id); if (doc) editCreator(doc); }} onRestore={continuePublished} onRestoreEdition={restorePublishedEdition} onChanged={() => setCatalogRevision(value => value + 1)} />}
       {screen}
       {publicationNotice && <p className="account-bar" role="status">{publicationNotice}</p>}
       {publicationEntry && <PublishWorldDialog accountScope={accountScope} entry={publicationEntry} onClose={() => setPublicationEntry(null)} onPublished={acceptPublicEdition} />}

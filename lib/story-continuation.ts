@@ -11,7 +11,7 @@ export function appendStory(baseInput: WorldDefinition, proposedInput: WorldDefi
   const characters = additions(base.characters, proposed.characters);
   const locations = additions(base.locations, proposed.locations);
   const tasks = additions(base.tasks, proposed.tasks);
-  if (!tasks.length) throw new Error('没有新的剧情任务，请说明接下来发生什么；原故事未改动。');
+  if (!tasks.length&&!characters.length) throw new Error('没有新的剧情或人物，请说明接下来发生什么，或想加入谁；原故事未改动。');
   const newMain = tasks.filter(task => task.kind === 'main').map(task => task.id);
   // New locations must be reachable; only add graph edges, never remove old paths.
   const mergedLocations = base.locations.map(place => ({ ...place, connectedLocationIds: [...new Set([

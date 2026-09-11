@@ -5,8 +5,17 @@ import { publicationWorld } from '../lib/publication.ts';
 import { publicationDraft, historicalPublicationDraft } from '../lib/restore-publication.ts';
 import { restoreCreatorSession } from '../lib/creator-session.ts';
 import { studioWorlds } from '../lib/studio-worlds.ts';
+import { playableCharacters } from '../lib/character-entry.ts';
 
 const base = publicationWorld(studioWorlds[0].world);
+test('a new playable character can be appended without inventing extra tasks',()=>{
+ const next=structuredClone(base);
+ next.characters.push({...next.characters[0],id:'new-visitor',name:'新访客',isDefault:false,playable:true});
+ const result=appendStory(base,next);
+ assert.deepEqual(result.tasks,base.tasks);
+ assert.ok(playableCharacters(result).some(c=>c.id==='new-visitor'));
+ assert.deepEqual(result.characters.slice(0,base.characters.length),base.characters);
+});
 test('historical published revision restores independently without overwriting source or exposing old chat', () => {
   const original = { ...structuredClone(studioWorlds[0]), sourceId: 'current-draft' };
   const snapshot = structuredClone(original);
