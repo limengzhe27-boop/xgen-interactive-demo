@@ -1070,6 +1070,34 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
   const roleImageKeysRef = useRef<string[]>([]);
   const storageReadFailed = useRef(false);
   const portraitSignature = JSON.stringify(draftRoles.map(portraitCacheKey));
+  const applyRequestedPortraitReplacement = useEffectEvent(async (isCancelled: () => boolean) => {
+    if (worldTitle !== '下课以后' || !['周野', '沈知夏', '林小满'].every(name => draftRoles.some(role => role.name === name))) return;
+    const index = draftRoles.findIndex(role => role.name === '陆嘉树');
+    if (index < 0 || !generatedWorld) return;
+    const role = draftRoles[index];
+    const character = generatedWorld.characters.find(c => c.id === role.editorId)
+      ?? generatedWorld.characters.find(c => c.name === role.name && c.imagePrompt === role.appearance);
+    if (!character || character.name !== role.name) return;
+    const marker = `xgen-art-correction:lu-live-v1:${accountScope}:${draftId}`;
+    if (localStorage.getItem(marker)) return;
+    const asset = '/assets/after-class-v1/lu-live-v1.webp';
+    await cacheSceneImage(portraitCacheKey(role), asset);
+    if (isCancelled()) return;
+    const assets = { cover: creatorAssets?.cover || '', portraits: { ...creatorAssets?.portraits, [character.id]: asset } };
+    const data = { ...JSON.parse(creatorDocumentJSON), creatorAssets: assets } as CreatorDocument['data'];
+    const documents = upsertById(creatorDocuments, { id: draftId, savedAt: Date.now(), data });
+    persistStudioSnapshot({ version: 1, runs: savedRuns, chats: chatSessions, documents, draftId });
+    setCreatorDocuments(documents); setCreatorAssets(assets);
+    setRoleImages(current => ({ ...current, [`draft-role-${index}`]: asset }));
+    // Only this requested replacement: later manual regenerations remain the user's choice.
+    localStorage.setItem(marker, 'done');
+  });
+  useEffect(() => {
+    if (!storageReady || view !== 'create') return;
+    let cancelled = false;
+    void applyRequestedPortraitReplacement(() => cancelled).catch(() => {});
+    return () => { cancelled = true; };
+  }, [storageReady, view, draftId, accountScope, portraitSignature]);
   const creatorRoleImages = Object.fromEntries(draftRoles.map((role, index) => {
     const character = generatedWorld?.characters.find(c => c.id === role.editorId)
       ?? generatedWorld?.characters[index];
