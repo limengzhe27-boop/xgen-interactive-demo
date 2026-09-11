@@ -46,6 +46,7 @@ import { StudioHome, StudioNav } from '@/components/studio-home';
 import { captureGalleryPosition, type GalleryBrowseState, type GalleryPosition } from '@/lib/gallery-memory';
 import { AccountBar, PublishWorldDialog } from '@/components/account-publication';
 import { MyPublications } from '@/components/my-publications';
+import { reconcileLocalArt } from '@/lib/catalog-art';
 import { RequestStoryUpdate } from '@/components/request-story-update';
 import { publicationDraft, historicalPublicationDraft } from '@/lib/restore-publication';
 import { appendStory, continuationSummary, type ContinuationDraft } from '@/lib/story-continuation';
@@ -1140,7 +1141,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     world: { ...doc.data.generatedWorld!, id: doc.id, title: doc.data.worldTitle },
     portraitCacheKeys: Object.fromEntries(doc.data.draftRoles.map((role, index) => [doc.data.generatedWorld!.characters[index]?.id ?? `draft-role-${index}`, portraitCacheKey(role)])),
   }));
-  const availableStudioWorlds = [...studioWorlds, ...userWorlds, ...communityWorlds];
+  const availableStudioWorlds = [...studioWorlds, ...userWorlds.map(w=>reconcileLocalArt(w,communityWorlds)), ...communityWorlds];
   const entryLinkOpened = useRef(false);
   const linkedWorldStartPending = useRef(false);
   useEffect(() => {

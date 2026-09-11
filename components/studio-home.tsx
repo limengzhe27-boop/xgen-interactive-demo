@@ -7,6 +7,7 @@ import { MessageTextarea } from '@/components/message-textarea';
 import { GalleryAtmosphere, GalleryMasonry, GalleryReveal } from '@/components/gallery-motion';
 import { mixGallery } from '@/lib/gallery-order';
 import { editorialCopy, featureHomeItems, HOME_ARTWORK } from '@/lib/home-editorial';
+import { catalogueIdentity } from '@/lib/catalog-art';
 import { characterHook, characterSearchText } from '@/lib/character-card';
 import { usePlayCounts } from '@/components/play-counts';
 import { advanceComposerScroll } from '@/lib/composer-scroll';
@@ -119,7 +120,8 @@ export function StudioHome({ section, worlds, characters, recent, onCreate, onOp
     observer.observe(anchor.current);
     return () => observer.disconnect();
   }, [isHome]);
-  const orderedWorlds = [...worlds].sort((a, b) => Number(!!b.featured) - Number(!!a.featured));
+  const publicIdentities=new Set(worlds.filter(w=>w.id.startsWith('community-')).map(catalogueIdentity));
+  const orderedWorlds = worlds.filter(w=>w.id.startsWith('community-')||!publicIdentities.has(catalogueIdentity(w))).sort((a, b) => Number(!!b.featured) - Number(!!a.featured));
   const genres = DISCOVERY_CHANNELS;
   const matches = (text: string) => text.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase());
   const grouped: GalleryItem[] = [];
@@ -130,9 +132,10 @@ export function StudioHome({ section, worlds, characters, recent, onCreate, onOp
   const itemKey = (item: GalleryItem) => item.kind + ':' + (item.kind === 'world' ? item.value.id : item.value.worldId + ':' + item.value.id);
   const mixed = mixGallery(grouped, itemKey, item => item.kind === 'world' ? item.value.id : item.value.worldId);
   const featured = featureHomeItems(mixed, itemKey);
-  const freshKeys=new Set(worlds.filter(w=>w.id.startsWith('community-')).slice(0,3).map(w=>'world:'+w.id));
-  const lead=featured.slice(0,8),rest=featured.slice(8);
-  const items = isHome && genre === '全部' && kind === 'all' && !query.trim() ? [...lead,...rest.filter(item=>freshKeys.has(itemKey(item))),...rest.filter(item=>!freshKeys.has(itemKey(item)))] : mixed;
+  const freshKeys=new Set(featured.filter(item=>(item.kind==='world'?item.value.id:item.value.worldId).startsWith('community-')).map(itemKey));
+  const notFresh=featured.filter(item=>!freshKeys.has(itemKey(item)));
+  const lead=notFresh.slice(0,24),rest=notFresh.slice(24);
+  const items = isHome && genre === '全部' && kind === 'all' && !query.trim() ? [...lead,...featured.filter(item=>freshKeys.has(itemKey(item))),...rest] : mixed;
   const start = () => onCreate(seed);
 
   return <div className="studio-home">
