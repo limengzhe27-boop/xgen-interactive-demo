@@ -17,6 +17,25 @@ const {initialVideoRole,threeChoices,videoMotionPrompt,commitVideoTurn}=await im
 const {studioWorlds}=await import('../lib/studio-worlds.ts');
 const {branchKey,afterPending,compileBranch}=await import('../lib/video-branch-plans.ts');
 const {videoBranchTurnKey,videoEndingFrame}=await import('../lib/video-prefetch.ts');
+const {VideoBuffer}=await import('../lib/video-buffer.ts');
+test('private video warmup and playback share one download and release old branches',async()=>{
+ const original=globalThis.fetch,create=URL.createObjectURL,revoke=URL.revokeObjectURL;
+ let downloads=0;const revoked=[];
+ globalThis.fetch=async(_url,init)=>{downloads++;assert.equal(init.credentials,'same-origin');assert.equal(init.cache,'no-store');return new Response(new Uint8Array([1,2,3]),{headers:{'Content-Type':'video/mp4'}});};
+ URL.createObjectURL=()=>`blob:fixture-${downloads}`;URL.revokeObjectURL=url=>revoked.push(url);
+ const cache=new VideoBuffer(),a='/api/media/asset/'+'a'.repeat(64),b='/api/media/asset/'+'b'.repeat(64);
+ try{
+   const warm=cache.load(a),selected=cache.load(a);assert.equal(warm,selected);
+   assert.equal(await warm,await selected);assert.equal(downloads,1);assert.equal(cache.peek(a),'blob:fixture-1');
+   await cache.load(b);cache.retain([b]);assert.equal(cache.peek(a),undefined);assert.deepEqual(revoked,['blob:fixture-1']);
+   cache.dispose();assert.equal(revoked.length,2);await assert.rejects(cache.load('https://other.test/private.mp4'));
+ }finally{cache.dispose();globalThis.fetch=original;URL.createObjectURL=create;URL.revokeObjectURL=revoke;}
+});
+test('video buffer rejects oversized responses and permits a download retry, not generation',async()=>{
+ const original=globalThis.fetch,cache=new VideoBuffer(),src='/api/media/asset/'+'c'.repeat(64);let calls=0;
+ globalThis.fetch=async()=>{calls++;return new Response('x',{headers:{'Content-Type':'video/mp4','Content-Length':String(25*1024*1024)}});};
+ try{await assert.rejects(cache.load(src),/too_large/);await assert.rejects(cache.load(src),/too_large/);assert.equal(calls,2);assert.equal(cache.peek(src),undefined);}finally{cache.dispose();globalThis.fetch=original;}
+});
 test('prefetch billing keys survive reload and separate actions, worlds and roles',async()=>{
  const a=await videoBranchTurnKey('session','world:role:turn:clip','观察');
  assert.equal(a,await videoBranchTurnKey('session','world:role:turn:clip','观察'));

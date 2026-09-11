@@ -20,6 +20,7 @@ import { turnMemoryText } from '@/lib/world-state';
 import { migrateWorldState } from '@/lib/world-state-migration';
 import {afterPending,branchKey,compileBranch,type BranchCache,type BranchSource} from '@/lib/video-branch-plans';
 import {videoBranchTurnKey,videoEndingFrame} from '@/lib/video-prefetch';
+import {VideoBuffer} from '@/lib/video-buffer';
 import { commitVideoTurn, initialVideoRole, threeChoices, videoErrors, videoMotionPrompt, videoTurnRequest, type VideoChoice } from '@/lib/video-exploration';
 
 type Pending={input:FalVideoInput;response:WorldTurnResponse;action:string;id?:string;assetUrl?:string;startedAt?:number};
@@ -82,6 +83,32 @@ export function VideoExplorer({entry:latestEntry,onBack,onText}:{entry:StudioWor
   const endFrames=useRef<{src:string;promise:Promise<string>}|null>(null);
   const prefetchContext=useRef('');prefetchContext.current=`${scope}:${videoKey}`;
   const [prefetchNote,setPrefetchNote]=useState('');
+  const buffers=useRef<VideoBuffer|null>(null);
+  if(!buffers.current)buffers.current=new VideoBuffer();
+  const [playback,setPlayback]=useState({clip:'',src:''});
+  const [shownClip,setShownClip]=useState('');
+  const [holdFrame,setHoldFrame]=useState<string|null>(null);
+  const [playbackRetry,setPlaybackRetry]=useState(0);
+  const readySources=session.videos?.key===videoKey?Object.values(session.videos.jobs).flatMap(j=>j.assetUrl?[j.assetUrl]:[]):[];
+  const bufferSources=JSON.stringify([...new Set([session.clip,playback.clip,...readySources])].filter(Boolean));
+  useEffect(()=>{
+    const cache=buffers.current!;
+    cache.retain(JSON.parse(bufferSources) as string[]);
+    if(online&&visible)for(const src of JSON.parse(bufferSources) as string[]){
+      if(src.startsWith('/api/media/asset/'))void cache.load(src).catch(()=>{/* Selected video can stream if warming fails. */});
+    }
+  },[bufferSources,online,visible]);
+  useEffect(()=>()=>buffers.current?.dispose(),[scope]);
+  useEffect(()=>{
+    let stale=false;
+    const clip=session.clip;
+    setHoldFrame(frame.current);setShownClip('');player.current?.pause();
+    if(!clip){setPlayback({clip:'',src:''});setShownClip('');return;}
+    // Blob URLs never enter saved sessions; reloads still use the authenticated asset.
+    const source=clip.startsWith('/api/media/asset/')?buffers.current!.load(clip).catch(()=>clip):Promise.resolve(clip);
+    void source.then(src=>{if(!stale)setPlayback({clip,src});});
+    return()=>{stale=true;};
+  },[session.clip,scope,playbackRetry]);
   useEffect(()=>{
     // Only the actual current scene gets videos. Projected grandchildren get scripts only.
     if(!enabled||!scope||!online||!visible||drawerOpen||session.pending||!session.state||session.finished||!['playing','intro','choices','error'].includes(phase))return;
@@ -103,7 +130,7 @@ export function VideoExplorer({entry:latestEntry,onBack,onText}:{entry:StudioWor
       if(!plans.length)return;
       let ending:string|null=null;
       if(s.clip){
-        if(endFrames.current?.src!==s.clip)endFrames.current={src:s.clip,promise:videoEndingFrame(s.clip)};
+        if(endFrames.current?.src!==s.clip)endFrames.current={src:s.clip,promise:videoEndingFrame(buffers.current!.peek(s.clip)||s.clip)};
         try{ending=await endFrames.current.promise;}catch(e){if(valid())setPrefetchNote(e instanceof Error?e.message:'末帧读取失败');return;}
       }
       if(!valid())return;
@@ -317,6 +344,7 @@ export function VideoExplorer({entry:latestEntry,onBack,onText}:{entry:StudioWor
     setError(current.current.pending?'已暂停本页查询，后台任务未取消。可稍后恢复同一回合。':'已停止等待剧情编排，尚未提交视频。行动文字已保留，可重新提交。');
   }
   function playing(){
+    if(playback.clip!==current.current.clip)return;
     const s=current.current,p=s.pending;
     if(p?.assetUrl&&s.state){save({...s,state:commitVideoTurn(entry,s.roleId,s.state,p.action,p.response),narrative:p.response.narrative,choices:threeChoices(p.response.nextChoices),
       rounds:s.rounds+1,clips:[...(s.clips??[]),{url:p.assetUrl,action:p.action,narrative:turnMemoryText(p.response,entry.world,s.roleId)}],pending:undefined,draftAction:undefined,finished:p.response.ending.reached});setText('');}
@@ -326,6 +354,16 @@ export function VideoExplorer({entry:latestEntry,onBack,onText}:{entry:StudioWor
     }
     setPhase('playing');
   }
+  function revealPlaying(){
+    const clip=playback.clip;
+    const reveal=()=>{
+      if(!alive.current||current.current.clip!==clip)return;
+      setShownClip(clip);setMediaPaused(false);playing();
+    };
+    const video=player.current;
+    if(video&&'requestVideoFrameCallback' in video)video.requestVideoFrameCallback(reveal);
+    else reveal();
+  }
   const autoAction=useRef(()=>{});
   useEffect(()=>{autoAction.current=()=>{if(phase==='roles')selectRole(roles[0].id);else void act(current.current.choices[0]?.label??'',true);};});
   const ticking=enabled&&!drawerOpen&&!paused&&online&&visible&&!focused&&!text.trim()&&!error&&!session.pending&&!session.finished&&(phase==='roles'||phase==='choices'&&cachedPlans.some(p=>p.action===session.choices[0]?.label));
@@ -334,7 +372,7 @@ export function VideoExplorer({entry:latestEntry,onBack,onText}:{entry:StudioWor
     const timer=setInterval(()=>setSeconds(n=>Math.max(0,n-1)),1000);return()=>clearInterval(timer);
   },[ticking]);
   useEffect(()=>{if(seconds===0&&ticking){const timer=setTimeout(()=>{setSeconds(15);autoAction.current();},0);return()=>clearTimeout(timer);}},[seconds,ticking]);
-  useEffect(()=>{if(phase==='ready'&&!drawerOpen)void player.current?.play().catch(()=>{/* User gesture required, keep visible controls. */});},[phase,drawerOpen]);
+  useEffect(()=>{if(phase==='ready'&&!drawerOpen&&playback.clip===session.clip)void player.current?.play().catch(()=>{/* User gesture required, keep visible controls. */});},[phase,drawerOpen,playback,session.clip]);
   const choosing=(phase==='choices'||phase==='error'&&!session.pending)&&!!session.state&&!session.finished;
   const waiting=phase==='planning'||phase==='generating';
   const preparingDefault=choosing&&!cachedPlans.some(p=>p.action===session.choices[0]?.label);
@@ -353,8 +391,9 @@ export function VideoExplorer({entry:latestEntry,onBack,onText}:{entry:StudioWor
     </header>
     <div className="video-explorer-stage">
       {/* oxlint-disable-next-line jsx-a11y/media-has-caption */}
-      {!loading&&session.clip?<video ref={player} key={session.clip} src={session.clip} controls={phase==='playing'||phase==='intro'||phase==='ready'} playsInline autoPlay={!session.pending} preload="metadata" poster={session.clip===prologue.video?prologue.shots[0]?.poster:undefined}
-        onPause={()=>setMediaPaused(true)} onEnded={ended} onPlaying={()=>{setMediaPaused(false);playing();}} onError={()=>{setError('视频暂时无法播放，剧情不会继续。请检查连接后重播。');setPhase('error');setPaused(true);}} aria-label="当前剧情视频"/>:<Image src={entry.portraits[session.roleId]||entry.cover} alt={roleName||entry.title} width={1280} height={720} unoptimized/>}
+      {!loading&&session.clip&&playback.src?<video ref={player} key={playback.src} src={playback.src} controls={phase==='playing'||phase==='intro'||phase==='ready'} playsInline autoPlay={!session.pending} preload="auto" poster={holdFrame||entry.portraits[session.roleId]||entry.cover}
+        onPause={()=>setMediaPaused(true)} onEnded={()=>{if(playback.clip===current.current.clip)ended();}} onPlaying={revealPlaying} onError={()=>{setError('视频加载失败，成片和进度已保留。可以重新加载，不会重新生成。');setPhase('error');setPaused(true);}} aria-label="当前剧情视频"/>:<Image src={entry.portraits[session.roleId]||entry.cover} alt={roleName||entry.title} width={1280} height={720} unoptimized/>}
+      {session.clip&&shownClip!==session.clip&&<div className="video-transition-cover" aria-label="缓冲视频，保留上一幕"><Image src={holdFrame||entry.portraits[session.roleId]||entry.cover} alt="" width={1280} height={720} unoptimized/><span role="status">正在缓冲画面…</span></div>}
     </div>
     <section ref={controls} className="video-explorer-controls" aria-label="接下来的行动">
       {!enabled&&<div className="video-explorer-start">
@@ -379,6 +418,7 @@ export function VideoExplorer({entry:latestEntry,onBack,onText}:{entry:StudioWor
       <div className="video-records-heading"><h2 id="video-records-title">剧情记录</h2><button aria-label="关闭剧情记录" onClick={()=>drawer.current?.close()}><X size={22}/></button></div>
       <h3>{entry.title}</h3>
       {error&&<p role="alert">{error}</p>}{saveError&&<p role="alert">{saveError}</p>}
+      {error&&session.clip&&<button onClick={()=>{setError('');setPlaybackRetry(n=>n+1);setPhase('ready');}}>重新加载视频</button>}
       {waiting&&<div><p>{waitingNote}</p><button onClick={pauseWaiting}>停止本页等待</button></div>}
       {branchStatus&&<p>{branchStatus}</p>}
       {prefetchNote&&<p>{prefetchNote}</p>}
