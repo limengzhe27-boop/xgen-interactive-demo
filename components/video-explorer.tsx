@@ -28,7 +28,8 @@ import {VideoTimings} from '@/components/video-timings';
 import {PreparedVideo} from '@/components/prepared-video';
 import { commitVideoTurn, initialVideoRole, threeChoices, videoErrors, videoMotionPrompt, videoTurnRequest, type VideoChoice } from '@/lib/video-exploration';
 
-type Pending={input:FalVideoInput;response:WorldTurnResponse;action:string;id?:string;assetUrl?:string;startedAt?:number};
+import {queryVideo} from '@/lib/video-query';
+type Pending={input:FalVideoInput;response:WorldTurnResponse;action:string;id?:string;assetUrl?:string;startedAt?:number;status?:string;error?:string};
 type Prefetched=Pending&{status:string;error?:string};
 type Session={version:1;id:string;roleId:string;state:WorldState|null;narrative:string;choices:VideoChoice[];clip:string;rounds:number;worldSnapshot?:StudioWorld;pending?:Pending;branches?:BranchCache;videos?:{key:string;jobs:Record<string,Prefetched>};draftAction?:string;finished?:boolean;clips?:{url:string;action:string;narrative?:string}[]};
 type Phase='intro'|'roles'|'choices'|'planning'|'generating'|'ready'|'playing'|'error';
@@ -254,7 +255,7 @@ export function VideoExplorer({entry:latestEntry,onBack,onText}:{entry:StudioWor
     if(!scope||!online||!preparationSource||!preparationKey)return;
     const source=preparationSource,key=preparationKey,stop=new AbortController();
     const existing=current.current.branches?.key===key?current.current.branches.plans:[];
-    const missing=source.choices.filter(c=>!existing.some(p=>p.action===c.label));
+    const missing=source.choices.filter(c=>!existing.some(p=>p.action===c.label)&&!(key===baseKey&&current.current.videos?.key===videoKey&&current.current.videos.jobs[c.label]?.status==='failed'));
     if(!missing.length){setBranchPreparing(false);setBranchStatus('三个脚本已准备，下一层视频将提前生成');return;}
     setBranchPreparing(true);
     setBranchStatus('正在提前准备三个分支脚本，不生成视频');
@@ -372,9 +373,10 @@ export function VideoExplorer({entry:latestEntry,onBack,onText}:{entry:StudioWor
     while(Date.now()<deadline){
       if(!navigator.onLine)throw Error('网络已断开。任务与原进度已保留，联网后可恢复查询。');
       setWaitingNote('正在查询原任务；离开等待不会取消已提交的生成。');
-      const r=await fetch(`/api/fal-video?id=${pending.id}`,{headers:{'x-xgen-account':scope!},signal,cache:'no-store'});
+      const r=await queryVideo(`/api/fal-video?id=${pending.id}`,scope!,signal,()=>setWaitingNote('连接暂时不稳定，正在重试查询原任务。'));
       const body=await r.json() as MediaReply;if(!r.ok)throw Error(videoErrors[body.error??'']??'任务查询暂时失败，可以恢复查询，不能重复购买。');
       recordReply(pending,body);
+      pending={...pending,status:body.status,error:body.error};save({...current.current,pending});
       if(body.status==='ready'){
         if(!body.assetUrl||!/^\/api\/media\/asset\/[a-f0-9]{64}$/.test(body.assetUrl))throw Error('返回的视频地址无效');
         save({...current.current,clip:body.assetUrl,pending:{...pending,assetUrl:body.assetUrl}});setPhase('ready');return;
@@ -386,6 +388,7 @@ export function VideoExplorer({entry:latestEntry,onBack,onText}:{entry:StudioWor
     throw Error('生成仍未完成，已暂停查询。可稍后恢复，不会重复购买。');
   }
   async function submit(pending:Pending,signal:AbortSignal){
+    if(pending.status==='failed')throw Error(videoErrors[pending.error??'']??'本次视频任务已失败，可以返回选择其他行动。');
     if(pending.assetUrl){save({...current.current,clip:pending.assetUrl});setPhase('ready');return;}
     if(!pending.id){
       trackGeneration(pending);
@@ -393,7 +396,7 @@ export function VideoExplorer({entry:latestEntry,onBack,onText}:{entry:StudioWor
       const r=await fetch('/api/fal-video',{method:'POST',headers:{'Content-Type':'application/json','x-xgen-account':scope!},body:JSON.stringify(pending.input),signal});
       const body=await r.json() as MediaReply;
       recordReply(pending,body);
-      if(body.id){pending={...pending,id:body.id};save({...current.current,pending});}
+      if(body.id){pending={...pending,id:body.id,status:body.status,error:body.error};save({...current.current,pending});}
       if(!r.ok||body.status==='failed'||body.status==='reserved')throw Error(videoErrors[body.error??body.status]??'提交状态不确定；恢复时只使用本回合编号，不会重复购买。');
     }
     await poll(pending,signal);
@@ -434,6 +437,14 @@ export function VideoExplorer({entry:latestEntry,onBack,onText}:{entry:StudioWor
     if(busy.current||!current.current.pending||!scope||!online)return;
     busy.current=true;startedAt.current=Date.now();setWaitSeconds(0);setError('');setPhase('generating');const abort=new AbortController();controller.current=abort;
     try{await submit(current.current.pending,abort.signal);}catch(e){if(alive.current&&!abort.signal.aborted){setError(e instanceof Error?e.message:'查询失败');setPhase('error');}}finally{busy.current=false;}
+  }
+  function returnToChoices(){
+    const s=current.current,p=s.pending;
+    if(busy.current||p?.status!=='failed')return;
+    const jobs=s.videos?.key===videoKey?s.videos.jobs:{};
+    // Retain the failed billing identity so this action cannot buy itself again.
+    save({...s,pending:undefined,branches:undefined,videos:{key:videoKey,jobs:{...jobs,[p.action]:{...p,status:'failed'}}}});
+    setText('');setError('');setPaused(true);setSeconds(15);setPhase('choices');
   }
   function pauseWaiting(){
     controller.current?.abort();setPaused(true);setPhase('error');
@@ -525,7 +536,7 @@ export function VideoExplorer({entry:latestEntry,onBack,onText}:{entry:StudioWor
       {session.finished&&phase!=='playing'&&<p className="video-brief">当前剧情<button onClick={()=>{save({...current.current,finished:false,choices:threeChoices([])});setPaused(true);setPhase('choices');}}>继续探索</button></p>}
       {(error||saveError)&&<div className="video-brief" role="alert">暂未继续，进度已保留<button onClick={openRecords}>查看详情</button></div>}
       {!online&&<p className="video-brief" role="status">网络已断开，进度保留</p>}
-      {session.pending&&phase==='error'&&<button disabled={!online} onClick={()=>void resume()}>{session.pending.assetUrl?'播放已保存片段':'恢复等待'}</button>}
+      {session.pending&&phase==='error'&&(session.pending.status==='failed'?<><p className="video-brief">本次视频已失败，剧情未推进。</p><button onClick={returnToChoices}>返回选择</button></>:<button disabled={!online} onClick={()=>void resume()}>{session.pending.assetUrl?'播放已保存片段':session.pending.status==='reserved'?'核对原任务':'恢复查询'}</button>)}
     </section>
     <dialog ref={drawer} className="video-records" aria-labelledby="video-records-title" onClose={()=>{drawer.current?.querySelectorAll('video').forEach(v=>v.pause());setDrawerOpen(false);}} onClick={e=>{if(e.target===e.currentTarget){const b=e.currentTarget.getBoundingClientRect();if(e.clientX<b.left||e.clientX>b.right||e.clientY<b.top||e.clientY>b.bottom)e.currentTarget.close();}}}>
       <div className="video-records-heading"><h2 id="video-records-title">剧情记录</h2><button aria-label="关闭剧情记录" onClick={()=>drawer.current?.close()}><X size={22}/></button></div>

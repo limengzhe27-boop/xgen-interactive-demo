@@ -53,7 +53,11 @@ export async function POST(request:Request){
     if(!inserted.length&&(!existing||existing.owner_id!==owner.id||!isFalVideoModel(existing.model)))throw new Error('fal_reservation_failed');
     const claim={status:inserted.length?'claimed':existing!.status};
     const reply=(status:string,reused=false,error?:string)=>account.finish(Response.json({id,status,reused,error,model:existing?.model??FAL_VIDEO_MODEL,...(status==='ready'?{assetUrl:`/api/media/asset/${id}`}:{})},{headers}));
-    if(['ready','queued','reserved','failed'].includes(claim.status))return reply(claim.status,true);
+    if(['ready','queued','reserved','failed'].includes(claim.status)){
+      let error:string|undefined;
+      if(claim.status==='failed')try{error=JSON.parse(existing?.task_id??'{}').error;}catch{/* legacy task */}
+      return reply(claim.status,true,error);
+    }
     if(claim.status!=='claimed')return account.finish(Response.json({error:claim.status},{status:429,headers}));
     const submittedAt=Date.now();
     const result=await falFetch(`https://queue.fal.run/${FAL_VIDEO_MODEL}`,{prompt:input.prompt,duration:FAL_VIDEO_SECONDS,resolution:'768P',enable_safety_checker:true,prompt_expansion_mode:'balanced',...(frame?{image_url:frame}:{})});

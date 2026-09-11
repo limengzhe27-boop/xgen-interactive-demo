@@ -25,6 +25,20 @@ const {startVideo}=await import('../lib/video-autoplay.ts');
 const {compactVideoScriptInput}=await import('../lib/video-script-input.ts');
 const {VideoTimingLog,readVideoTiming}=await import('../lib/video-timing.ts');
 const {VideoScriptCache}=await import('../lib/video-script-cache.ts');
+const {queryVideo}=await import('../lib/video-query.ts');
+test('read-only video queries retry transient failures but not authorization failures',async()=>{
+ const original=globalThis.fetch;let calls=0;
+ try{
+  globalThis.fetch=async(_url,options)=>{assert.notEqual(options.method,'POST');calls++;return new Response('{}',{status:calls===1?503:200});};
+  assert.equal((await queryVideo('/query','guest',new AbortController().signal)).status,200);assert.equal(calls,2);
+  calls=0;globalThis.fetch=async()=>{calls++;return new Response('{}',{status:401});};
+  assert.equal((await queryVideo('/query','guest',new AbortController().signal)).status,401);assert.equal(calls,1);
+  const abort=new AbortController();abort.abort();await assert.rejects(queryVideo('/query','guest',abort.signal));assert.equal(calls,1);
+ }finally{globalThis.fetch=original;}
+ const ui=readFileSync(root+'components/video-explorer.tsx','utf8');
+ assert.match(ui,/p\?\.status!=='failed'/);assert.match(ui,/pending:undefined,branches:undefined,videos:/);
+ assert.match(ui,/返回选择/);assert.match(ui,/核对原任务/);
+});
 test('single-role intro initializes before playback while preparation and countdown keep their gates',()=>{
  const ui=readFileSync(root+'components/video-explorer.tsx','utf8');
  const hydration=ui.slice(ui.indexOf('const a=await fetch'),ui.indexOf('function selectRole'));
