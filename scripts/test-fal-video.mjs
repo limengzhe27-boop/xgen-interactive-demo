@@ -20,6 +20,18 @@ const {videoBranchTurnKey,videoEndingFrame}=await import('../lib/video-prefetch.
 const {VideoBuffer}=await import('../lib/video-buffer.ts');
 const {startVideo}=await import('../lib/video-autoplay.ts');
 const {compactVideoScriptInput}=await import('../lib/video-script-input.ts');
+const {VideoTimingLog,readVideoTiming}=await import('../lib/video-timing.ts');
+test('timings persist per account, bound history, deduplicate server metrics and do not turn interrupted samples into completed ones',()=>{
+ const old=globalThis.localStorage,store=new Map();globalThis.localStorage={getItem:k=>store.get(k),setItem:(k,v)=>store.set(k,v)};
+ try{
+  const log=new VideoTimingLog();log.scope('a');const finish=log.begin('turn','分支1','脚本');finish();finish('失败');assert.equal(log.rows.length,1);assert.equal(log.rows[0].status,'完成');assert.ok(log.rows[0].ms>=0);
+  log.server('turn','分支1',{submittedAt:100,observedCompleteAt:1100,downloadMs:200,storeMs:300});log.server('turn','分支1',{submittedAt:100,observedCompleteAt:1100});assert.equal(log.rows.length,4);
+  log.begin('next','分支2','脚本');const restored=new VideoTimingLog();restored.scope('a');assert.match(restored.rows.at(-1).status,/中断/);assert.equal(restored.rows.at(-1).ms,undefined);
+  log.scope('b');finish();assert.equal(log.rows.length,0);
+  for(let i=0;i<310;i++)log.metric(String(i),'分支','缓存',1);assert.equal(log.rows.length,300);
+  assert.deepEqual(readVideoTiming({downloadMs:-1,storeMs:NaN,submittedAt:100,secret:'no'}),{submittedAt:100});
+ }finally{globalThis.localStorage=old;}
+});
 test('video model input removes duplicate history without dropping story constraints or changing cache keys',()=>{
  const entry=studioWorlds.find(w=>w.id==='yoga-lotus-boundary'),role=entry.world.characters[0].id;
  const source={...initialVideoRole(entry,role),roleId:role,hasFrame:false};
@@ -205,7 +217,9 @@ test('fal submit/query is owner-isolated, idempotent and native-audio gated; no 
   try{
     const [a,b]=await Promise.all([route.POST(req(base)),route.POST(req(base))]);const first=await a.json(),second=await b.json();assert.equal(first.id,second.id);assert.equal(paid,1);
     assert.equal((await query(first.id,other.cookie)).status,404);
-    completed=true;assert.equal((await(await query(first.id)).json()).status,'ready');assert.equal(cdnCredential,false);
+    completed=true;const measured=await(await query(first.id)).json();assert.equal(measured.status,'ready');assert.equal(cdnCredential,false);
+    assert.ok(measured.timing.observedCompleteAt>=measured.timing.submittedAt);assert.ok(measured.timing.downloadMs>=0);assert.ok(measured.timing.storeMs>=0);
+    assert.deepEqual((await(await query(first.id)).json()).timing,measured.timing);
     await route.POST(req(base));assert.equal(paid,1);
     mode='balance';const locked=await(await route.POST(req({...base,turnKey:'test:0002'}))).json();assert.equal(locked.error,'fal_balance_exhausted');await route.POST(req({...base,turnKey:'test:0002'}));assert.equal(paid,2);
     mode='silent';const silent=await(await route.POST(req({...base,turnKey:'test:0003'}))).json();const checked=await(await query(silent.id)).json();assert.equal(checked.error,'fal_missing_native_audio');

@@ -1,4 +1,5 @@
 import sharp from 'sharp/lib/index.js';
+import {readVideoTiming} from '@/lib/video-timing';
 import { requestAccount, sameOrigin } from '@/lib/server-auth';
 import { imageOwner, imageId, storageConfigured, storageFetch } from '@/lib/server-image-store';
 import { findMedia, updateMedia } from '@/lib/server-media-store';
@@ -21,7 +22,8 @@ export async function GET(request:Request){
     asset=await refreshFalVideo(asset);
     let error:string|undefined;
     if(asset.status==='failed')try{error=JSON.parse(asset.task_id??'{}').error;}catch{/* Legacy rows. */}
-    return account.finish(Response.json({id,status:asset.status,model:asset.model,error,...(asset.status==='ready'?{assetUrl:`/api/media/asset/${id}`}:{})},{headers}));
+    let timing={};try{timing=readVideoTiming(JSON.parse(asset.task_id??'{}').timing);}catch{}
+    return account.finish(Response.json({id,status:asset.status,model:asset.model,error,timing,...(asset.status==='ready'?{assetUrl:`/api/media/asset/${id}`}:{})},{headers}));
   }catch(e){return Response.json({error:errorCode(e)},{status:503,headers});}
 }
 export async function POST(request:Request){
@@ -51,10 +53,11 @@ export async function POST(request:Request){
     const reply=(status:string,reused=false,error?:string)=>account.finish(Response.json({id,status,reused,error,model:existing?.model??FAL_VIDEO_MODEL,...(status==='ready'?{assetUrl:`/api/media/asset/${id}`}:{})},{headers}));
     if(['ready','queued','reserved','failed'].includes(claim.status))return reply(claim.status,true);
     if(claim.status!=='claimed')return account.finish(Response.json({error:claim.status},{status:429,headers}));
+    const submittedAt=Date.now();
     const result=await falFetch(`https://queue.fal.run/${FAL_VIDEO_MODEL}`,{prompt:input.prompt,duration:FAL_VIDEO_SECONDS,resolution:'768P',enable_safety_checker:true,prompt_expansion_mode:'balanced',...(frame?{image_url:frame}:{})});
     if(!result.ok){const detail=(await result.json().catch(()=>({})) as {detail?:unknown}).detail;const error=falFailure(result.status,detail);await updateMedia(id,{status:'failed',task_id:JSON.stringify({error})});return reply('failed',false,error);}
     const job=readFalJob(await result.json());
-    await updateMedia(id,{status:'queued',task_id:JSON.stringify(job)});
+    await updateMedia(id,{status:'queued',task_id:JSON.stringify({...job,timing:{submittedAt}})});
     return reply('queued');
   }catch(e){return Response.json({error:errorCode(e),message:'提交状态不确定，不自动重提。请按原回合恢复查询。'},{status:503,headers});}
 }

@@ -1,6 +1,7 @@
 type Buffered={promise:Promise<string>;url?:string;abort:AbortController};
 // Private, page-local only. No service worker or shared HTTP cache of private video.
 export class VideoBuffer {
+  constructor(private measure?:(src:string)=>(status?:string)=>void){}
   private entries=new Map<string,Buffered>();
   peek(src:string){return this.entries.get(src)?.url;}
   playbackSource(src:string){
@@ -23,6 +24,7 @@ export class VideoBuffer {
     if(!/^\/api\/media\/asset\/[a-f0-9]{64}$/.test(src))return Promise.reject(Error('invalid_video_asset'));
     if(this.entries.size>=4)return Promise.reject(Error('video_buffer_full'));
     const abort=new AbortController();
+    const finish=this.measure?.(src);
     const item:Buffered={abort,promise:Promise.resolve('')};
     this.entries.set(src,item);
     item.promise=(async()=>{
@@ -38,8 +40,8 @@ export class VideoBuffer {
           chunks.push(new Uint8Array(part.value));
         }
         if(abort.signal.aborted||!bytes)throw Error('video_buffer_cancelled');
-        item.url=URL.createObjectURL(new Blob(chunks,{type:'video/mp4'}));return item.url;
-      }catch(e){abort.abort();if(this.entries.get(src)===item)this.entries.delete(src);throw e;}
+        item.url=URL.createObjectURL(new Blob(chunks,{type:'video/mp4'}));finish?.('完成');return item.url;
+      }catch(e){finish?.(abort.signal.aborted?'中止／超时':'失败');abort.abort();if(this.entries.get(src)===item)this.entries.delete(src);throw e;}
       finally{clearTimeout(timer);}
     })();return item.promise;
   }

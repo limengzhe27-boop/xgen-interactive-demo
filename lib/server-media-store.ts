@@ -22,9 +22,9 @@ export async function boundedMedia(response: Response, kind: MediaKind) {
   return buffer;
 }
 export const mediaPath = (id: string, kind: MediaKind) => `/storage/v1/object/demo-media-private/${id}.${kind === 'speech' ? 'mp3' : 'mp4'}`;
-export async function saveMedia(asset: Pick<MediaAsset,'id'|'kind'>, buffer: Buffer) {
+export async function saveMedia(asset: Pick<MediaAsset,'id'|'kind'>, buffer: Buffer, taskMetadata?:()=>string) {
   await storageFetch(mediaPath(asset.id, asset.kind), { method:'POST', headers: { 'Content-Type': asset.kind === 'speech' ? 'audio/mpeg' : 'video/mp4', 'x-upsert':'true' }, body: new Uint8Array(buffer) });
-  await updateMedia(asset.id, { status:'ready', bytes:buffer.length });
+  await updateMedia(asset.id, { status:'ready', bytes:buffer.length,...(taskMetadata?{task_id:taskMetadata()}:{}) });
 }
 export async function refreshVideo(asset: MediaAsset) {
   if (asset.kind !== 'video' || asset.status !== 'queued' || !asset.task_id || !/^[A-Za-z0-9_-]{1,160}$/.test(asset.task_id)) return asset;
