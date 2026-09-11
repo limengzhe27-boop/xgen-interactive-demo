@@ -24,6 +24,7 @@ import {VideoBuffer} from '@/lib/video-buffer';
 import {startVideo} from '@/lib/video-autoplay';
 import {VideoTimingLog,type ServerVideoTiming} from '@/lib/video-timing';
 import {VideoTimings} from '@/components/video-timings';
+import {PreparedVideo} from '@/components/prepared-video';
 import { commitVideoTurn, initialVideoRole, threeChoices, videoErrors, videoMotionPrompt, videoTurnRequest, type VideoChoice } from '@/lib/video-exploration';
 
 type Pending={input:FalVideoInput;response:WorldTurnResponse;action:string;id?:string;assetUrl?:string;startedAt?:number};
@@ -78,7 +79,7 @@ export function VideoExplorer({entry:latestEntry,onBack,onText}:{entry:StudioWor
   },[entry.id,embedded]);
   useEffect(()=>{
     if(phase!=='planning'&&phase!=='generating')return;
-    const start=current.current.pending?.startedAt||startedAt.current||Date.now();
+    const start=startedAt.current||Date.now();
     const update=()=>setWaitSeconds(Math.max(0,Math.floor((Date.now()-start)/1000)));
     update();const timer=setInterval(update,1000);
     return()=>clearInterval(timer);
@@ -134,6 +135,7 @@ export function VideoExplorer({entry:latestEntry,onBack,onText}:{entry:StudioWor
     catch(e){finish(signal.aborted?'中止':'失败');throw e;}
   }
   const [playback,setPlayback]=useState({clip:'',src:''});
+  const [warmVideo,setWarmVideo]=useState({clip:'',src:''});
   const [shownClip,setShownClip]=useState('');
   const [holdFrame,setHoldFrame]=useState<string|null>(null);
   const [playbackRetry,setPlaybackRetry]=useState(0);
@@ -147,7 +149,7 @@ export function VideoExplorer({entry:latestEntry,onBack,onText}:{entry:StudioWor
     // Default branch first, one warmup at a time: do not split bandwidth three ways.
     if(online&&visible)void(async()=>{for(const src of JSON.parse(bufferSources) as string[]){
       if(stopped)return;
-      if(src!==session.clip&&src!==playback.clip&&src.startsWith('/api/media/asset/'))await cache.load(src).catch(()=>{/* Selected video can stream if warming fails. */});
+      if(src!==session.clip&&src!==playback.clip&&src.startsWith('/api/media/asset/'))await cache.load(src).then(url=>{if(!stopped&&src===(JSON.parse(bufferSources) as string[]).find(s=>s!==session.clip&&s!==playback.clip))setWarmVideo({clip:src,src:url});}).catch(()=>{/* Selected video can stream if warming fails. */});
     }})();
     return()=>{stopped=true;};
   },[bufferSources,online,visible,session.clip,playback.clip,shownClip]);
@@ -410,7 +412,7 @@ export function VideoExplorer({entry:latestEntry,onBack,onText}:{entry:StudioWor
   }
   async function resume(){
     if(busy.current||!current.current.pending||!scope||!online)return;
-    busy.current=true;setError('');setPhase('generating');const abort=new AbortController();controller.current=abort;
+    busy.current=true;startedAt.current=Date.now();setWaitSeconds(0);setError('');setPhase('generating');const abort=new AbortController();controller.current=abort;
     try{await submit(current.current.pending,abort.signal);}catch(e){if(alive.current&&!abort.signal.aborted){setError(e instanceof Error?e.message:'查询失败');setPhase('error');}}finally{busy.current=false;}
   }
   function pauseWaiting(){
@@ -459,7 +461,7 @@ export function VideoExplorer({entry:latestEntry,onBack,onText}:{entry:StudioWor
     const timer=setInterval(()=>setSeconds(n=>Math.max(0,n-1)),1000);return()=>clearInterval(timer);
   },[ticking]);
   useEffect(()=>{if(seconds===0&&ticking){const timer=setTimeout(()=>{setSeconds(15);autoAction.current();},0);return()=>clearTimeout(timer);}},[seconds,ticking]);
-  // Keep the same HTMLVideoElement across clips so a user's sound permission survives.
+  // Promote a prepared element when available; audio permission fallback remains.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(()=>{void autoStart();},[phase,drawerOpen,playback,session.clip]);
   const choosing=(phase==='choices'||phase==='error'&&!session.pending)&&!!session.state&&!session.finished;
@@ -481,7 +483,7 @@ export function VideoExplorer({entry:latestEntry,onBack,onText}:{entry:StudioWor
     </header>
     <div className="video-explorer-stage">
       {/* oxlint-disable-next-line jsx-a11y/media-has-caption */}
-      {!loading&&session.clip&&playback.src?<video ref={player} src={playback.src} controls={phase==='playing'||phase==='intro'||phase==='ready'} playsInline preload="auto" poster={holdFrame||entry.portraits[session.roleId]||entry.cover}
+      {!loading&&session.clip&&playback.src?<PreparedVideo player={player} src={playback.src} warmSrc={visible&&JSON.parse(bufferSources).includes(warmVideo.clip)?warmVideo.src:''} onPrepared={()=>{decoded();void autoStart();}} controls={phase==='playing'||phase==='intro'||phase==='ready'} playsInline preload="auto" poster={holdFrame||entry.portraits[session.roleId]||entry.cover}
         onLoadedData={decoded} onCanPlay={()=>{decoded();void autoStart();}}
         onWaiting={()=>{if(shownClip===session.clip&&!stallTimer.current)stallTimer.current=timing.current.begin(session.clip,'当前片段','播放中缓冲');}}
         onPause={()=>{setMediaPaused(true);if(phase==='playing'&&!current.current.pending&&playback.clip===current.current.clip&&!player.current?.ended&&!drawer.current?.open)userPaused.current=true;}} onEnded={()=>{if(playback.clip===current.current.clip)ended();}} onPlaying={()=>{decoded();setMediaPaused(false);playing();}} onError={()=>{setError('视频加载失败，成片和进度已保留。可以重新加载，不会重新生成。');setPhase('error');setPaused(true);}} aria-label="当前剧情视频"/>:<Image src={entry.portraits[session.roleId]||entry.cover} alt={roleName||entry.title} width={1280} height={720} unoptimized/>}

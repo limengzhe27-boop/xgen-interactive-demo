@@ -24,6 +24,16 @@ const {VideoBuffer}=await import('../lib/video-buffer.ts');
 const {startVideo}=await import('../lib/video-autoplay.ts');
 const {compactVideoScriptInput}=await import('../lib/video-script-input.ts');
 const {VideoTimingLog,readVideoTiming}=await import('../lib/video-timing.ts');
+const {videoSlots}=await import('../lib/video-slots.ts');
+test('prepared player promotes only matching branches and keeps at most one silent candidate',()=>{
+ const first={active:0,sources:['current','next']};
+ assert.equal(videoSlots(first,'current','next'),first);
+ const promoted=videoSlots(first,'next','next');assert.equal(promoted.active,1);assert.deepEqual(promoted.sources,['','next']);
+ const other=videoSlots(first,'other','next');assert.equal(other.sources[other.active],'other');assert.equal(other.sources[1-other.active],'next');
+ const hidden=videoSlots(first,'current','');assert.deepEqual(hidden.sources,['current','']);
+ const ui=readFileSync(root+'components/prepared-video.tsx','utf8');assert.match(ui,/muted=\{!active\}/);assert.match(ui,/active\?props:\{\}/);assert.doesNotMatch(ui,/\.play\(/);
+ const explorer=readFileSync(root+'components/video-explorer.tsx','utf8');assert.doesNotMatch(explorer,/const start=current\.current\.pending\?\.startedAt/);
+});
 test('timings persist per account, bound history, deduplicate server metrics and do not turn interrupted samples into completed ones',()=>{
  const old=globalThis.localStorage,store=new Map();globalThis.localStorage={getItem:k=>store.get(k),setItem:(k,v)=>store.set(k,v)};
  try{
