@@ -1,6 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {preparePublicationImages} from '../lib/publication-images.ts';
+import {publicationArt,PUBLICATION_PLACEHOLDER,hasPublicationImage} from '../lib/publication-art.ts';
+test('legacy borrowed art is visibly missing and remains eligible for future generation',()=>{
+ const old={cover:'/assets/library-v2/storm-manor-cover.webp',portraits:{a:'/assets/library-v2/storm-manor-cover.webp',b:'/saved/b'}};
+ const clean=publicationArt(old);
+ assert.equal(clean.cover,PUBLICATION_PLACEHOLDER);assert.equal(clean.portraits.a,PUBLICATION_PLACEHOLDER);
+ assert.equal(clean.portraits.b,'/saved/b');assert.equal(hasPublicationImage(clean.cover),false);
+ assert.notEqual(old.cover,PUBLICATION_PLACEHOLDER);
+});
 const entry={id:'test',title:'测试',cover:'',portraits:{a:'/existing.webp'},world:{characters:[{id:'a',name:'甲',identity:'访客',imagePrompt:'蓝衣'},{id:'b',name:'乙',identity:'访客',imagePrompt:'白衣'}],openingScene:{narrative:'两人在门口相遇',presentCharacterIds:['a','b']}}};
 test('publish prepares missing images only and reuses results',async()=>{
  const calls=[];const generate=async input=>{calls.push(input);return {persistent:true,assetUrl:'/saved/'+input.sceneId};};

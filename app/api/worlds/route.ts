@@ -1,6 +1,7 @@
 import { authConfigured, authContext, sameOrigin } from '@/lib/server-auth';
 import { claimImage, findImage, imageId, imageOwner, saveImage, storageFetch } from '@/lib/server-image-store';
 import { publicationWorld } from '@/lib/publication';
+import { publicationArt } from '@/lib/publication-art';
 import publicImages from '@/lib/public-image-manifest.json';
 import { libraryArtPaths } from '@/lib/library-art';
 import { memeArtPaths } from '@/lib/meme-worlds';
@@ -50,7 +51,7 @@ export async function GET(request: Request) {
     const rows = await response.json() as { document: Record<string, unknown> }[];
     return Response.json({ worlds: rows.map(row => {
       const { sourceId: _privateDraftId, ...document } = row.document;
-      return document;
+      return publicationArt(document);
     }) }, { headers: noStore });
   } catch { return Response.json({ error: 'world_catalog_unavailable', worlds: [] }, { status: 503, headers: noStore }); }
 }

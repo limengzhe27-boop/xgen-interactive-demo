@@ -131,7 +131,8 @@ export function StudioHome({ section, worlds, characters, recent, onCreate, onOp
   const mixed = mixGallery(grouped, itemKey, item => item.kind === 'world' ? item.value.id : item.value.worldId);
   const featured = featureHomeItems(mixed, itemKey);
   const freshKeys=new Set(worlds.filter(w=>w.id.startsWith('community-')).slice(0,3).map(w=>'world:'+w.id));
-  const items = isHome && genre === '全部' && kind === 'all' && !query.trim() ? [...featured.filter(item=>freshKeys.has(itemKey(item))),...featured.filter(item=>!freshKeys.has(itemKey(item)))] : mixed;
+  const lead=featured.slice(0,8),rest=featured.slice(8);
+  const items = isHome && genre === '全部' && kind === 'all' && !query.trim() ? [...lead,...rest.filter(item=>freshKeys.has(itemKey(item))),...rest.filter(item=>!freshKeys.has(itemKey(item)))] : mixed;
   const start = () => onCreate(seed);
 
   return <div className="studio-home">

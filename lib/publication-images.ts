@@ -1,8 +1,9 @@
 import type { StudioWorld } from './studio-worlds';
 import { generateSceneImage } from './remote-image-service.ts';
+import { hasPublicationImage } from './publication-art.ts';
+export { hasPublicationImage } from './publication-art.ts';
 
 // Old publication placeholders are not images made for this work.
-export function hasPublicationImage(path?:string){return Boolean(path&&!path.includes('storm-manor')&&!path.includes('storm_manor'));}
 export async function preparePublicationImages(entry:StudioWorld,scope:string,onProgress:(entry:StudioWorld,label:string)=>void,generate=generateSceneImage){
  let next={...entry,portraits:{...entry.portraits}};
  const missing=entry.world.characters.filter(c=>!hasPublicationImage(next.portraits[c.id]));
