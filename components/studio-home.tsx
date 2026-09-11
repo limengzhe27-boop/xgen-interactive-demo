@@ -148,7 +148,7 @@ export function StudioHome({ section, worlds, characters, recent, onCreate, onOp
           <div className="gallery-composer-tools"><div className="gallery-composer-hint" id="gallery-composer-hint"><span>和 Agent 一起构思</span><small>Enter 发送 · Shift + Enter 换行</small></div><Button className="gallery-send" type="submit" aria-label="与 Agent 一起创作"><ArrowUp /></Button></div>
         </form>
       </div>
-      <div className="gallery-prompts" aria-label="创作灵感">{['豪门情感', '职场逆袭', '家族争产', '都市关系'].map(idea => <button key={idea} type="button" onClick={() => setSeed('我想创造一个' + idea + '的小世界，帮我讨论角色、关系和目标。')}>{idea}<ArrowRight /></button>)}<a href="/prologue-comparison">新序章 · 样片对比 ↗</a></div>
+      <div className="gallery-prompts" aria-label="创作灵感">{['豪门情感', '职场逆袭', '家族争产', '都市关系'].map(idea => <button key={idea} type="button" onClick={() => setSeed('我想创造一个' + idea + '的小世界，帮我讨论角色、关系和目标。')}>{idea}<ArrowRight /></button>)}</div>
     </section>}
 
     {section !== 'characters' && (recent.length > 0 || section === 'library') && <GalleryReveal className="gallery-recent">
