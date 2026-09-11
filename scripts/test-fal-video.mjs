@@ -24,6 +24,17 @@ const {VideoBuffer}=await import('../lib/video-buffer.ts');
 const {startVideo}=await import('../lib/video-autoplay.ts');
 const {compactVideoScriptInput}=await import('../lib/video-script-input.ts');
 const {VideoTimingLog,readVideoTiming}=await import('../lib/video-timing.ts');
+const {VideoScriptCache}=await import('../lib/video-script-cache.ts');
+test('exact scripts share in-flight work, isolate keys and retry errors without reusing stale results',async()=>{
+ const cache=new VideoScriptCache();let calls=0,finish;
+ const work=()=>{calls++;return new Promise(resolve=>finish=resolve);};
+ const a=cache.run('full-request',work),b=cache.run('full-request',work);assert.equal(a,b);await Promise.resolve();assert.equal(calls,1);finish({dialogue:'unchanged'});assert.deepEqual(await a,{dialogue:'unchanged'});
+ assert.equal(await cache.run('full-request',work),await a);assert.equal(calls,1);
+ assert.equal(await cache.run('different-role',async()=>2),2);
+ await assert.rejects(cache.run('failed',async()=>{throw Error('failed');}));assert.equal(await cache.run('failed',async()=>3),3);
+ let signal;const pending=cache.run('pending',s=>{signal=s;return new Promise(resolve=>{s.addEventListener('abort',()=>resolve(4));});});await Promise.resolve();cache.clear();assert.equal(signal.aborted,true);await assert.rejects(pending,/Aborted/);
+ assert.equal(await cache.run('full-request',async()=>5),5);
+});
 const {videoSlots}=await import('../lib/video-slots.ts');
 test('prepared player promotes only matching branches and keeps at most one silent candidate',()=>{
  const first={active:0,sources:['current','next']};

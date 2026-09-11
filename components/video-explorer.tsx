@@ -21,6 +21,7 @@ import { migrateWorldState } from '@/lib/world-state-migration';
 import {afterPending,branchKey,compileBranch,type BranchCache,type BranchSource} from '@/lib/video-branch-plans';
 import {videoBranchTurnKey,videoEndingFrame} from '@/lib/video-prefetch';
 import {VideoBuffer} from '@/lib/video-buffer';
+import {VideoScriptCache} from '@/lib/video-script-cache';
 import {startVideo} from '@/lib/video-autoplay';
 import {VideoTimingLog,type ServerVideoTiming} from '@/lib/video-timing';
 import {VideoTimings} from '@/components/video-timings';
@@ -35,6 +36,7 @@ type MediaReply={id?:string;status:string;error?:string;assetUrl?:string;persist
 export function VideoExplorer({entry:latestEntry,onBack,onText}:{entry:StudioWorld;onBack?:()=>void;onText?:()=>void}){
   const [entry,setEntry]=useState(latestEntry);
   const timing=useRef(new VideoTimingLog());
+  const scriptCache=useRef(new VideoScriptCache<WorldTurnResponse>());
   const assetLabels=useRef(new Map<string,{group:string;label:string}>());
   const generationTimers=useRef(new Map<string,(status?:string)=>void>());
   const archiveChecks=useRef(new Map<string,AbortController>());
@@ -46,6 +48,7 @@ export function VideoExplorer({entry:latestEntry,onBack,onText}:{entry:StudioWor
   useEffect(()=>{current.current=session;},[session]);
   const [phase,setPhase]=useState<Phase>(roles.length===1?'intro':'roles'),[scope,setScope]=useState<string|null>(null),[configured,setConfigured]=useState(false);
   const activeScope=useRef(scope);activeScope.current=scope;
+  useEffect(()=>()=>scriptCache.current.clear(),[scope,latestEntry.id]);
   useEffect(()=>{if(scope)timing.current.scope(scope);},[scope]);
   useEffect(()=>()=>{for(const c of archiveChecks.current.values())c.abort();archiveChecks.current.clear();},[scope]);
   useEffect(()=>()=>{firstFrameTimer.current?.('离开页面');stallTimer.current?.('离开页面');selectionTimer.current?.('离开页面');},[]);
@@ -130,9 +133,16 @@ export function VideoExplorer({entry:latestEntry,onBack,onText}:{entry:StudioWor
     const info=trace(pending.action);generationTimers.current.set(pending.input.turnKey,timing.current.begin(info.group,info.label,'视频提交至可用（本页观察）'));
   }
   async function script(source:BranchSource,action:string,signal:AbortSignal){
-    const info=trace(action,source),finish=timing.current.begin(info.group,info.label,'脚本编排（含请求）');
-    try{const result=await createRemoteAIAdapter(scope!).advanceWorld(videoTurnRequest(entry,source.roleId,source.state,source.narrative,source.choices,action),signal);finish();return result;}
-    catch(e){finish(signal.aborted?'中止':'失败');throw e;}
+    if(signal.aborted)throw new DOMException('Aborted','AbortError');
+    const input=videoTurnRequest(entry,source.roleId,source.state,source.narrative,source.choices,action);
+    const key=JSON.stringify([scope,current.current.id,source.hasFrame,input]);
+    const result=await scriptCache.current.run(key,async requestSignal=>{
+      const info=trace(action,source),finish=timing.current.begin(info.group,info.label,'脚本编排（含请求）');
+      try{const response=await createRemoteAIAdapter(scope!).advanceWorld(input,requestSignal);finish();return response;}
+      catch(e){finish(requestSignal.aborted?'中止':'失败');throw e;}
+    });
+    if(signal.aborted)throw new DOMException('Aborted','AbortError');
+    return result;
   }
   const [playback,setPlayback]=useState({clip:'',src:''});
   const [warmVideo,setWarmVideo]=useState({clip:'',src:''});
