@@ -6,12 +6,15 @@ import { fileURLToPath,pathToFileURL } from 'node:url';
 import ts from 'typescript';
 const root=fileURLToPath(new URL('../',import.meta.url));
 registerHooks({resolve(s,c,next){
+  if(s==='next/server.js')return {url:'data:text/javascript,export function after(fn){globalThis.__videoAfter.push(fn)}',shortCircuit:true};
   if(s.startsWith('@/'))for(const suffix of ['.ts','.tsx'])if(existsSync(root+s.slice(2)+suffix))return next(pathToFileURL(root+s.slice(2)+suffix).href,c);
   if(s.startsWith('.')&&c.parentURL?.startsWith('file:'))for(const suffix of ['.ts','.tsx']){const u=new URL(s+suffix,c.parentURL);if(existsSync(u))return next(u.href,c);}
   return next(s,c);
 },load(u,c,next){if(u.startsWith('file:')&&/\.tsx?$/.test(u))return{format:'module',shortCircuit:true,source:ts.transpileModule(readFileSync(new URL(u),'utf8'),{compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText};return next(u,c);}});
 const policy=await import('../lib/fal-video.ts');
+globalThis.__videoAfter=[];
 const route=await import('../app/api/fal-video/route.ts');
+const assetRoute=await import('../app/api/media/asset/[id]/route.ts');
 const {imageOwner}=await import('../lib/server-image-store.ts');
 const {initialVideoRole,threeChoices,videoMotionPrompt,commitVideoTurn,videoTurnRequest}=await import('../lib/video-exploration.ts');
 const {studioWorlds}=await import('../lib/studio-worlds.ts');
@@ -195,7 +198,7 @@ test('fal submit/query is owner-isolated, idempotent and native-audio gated; no 
       const id=u.searchParams.get('id')?.replace('eq.','');if(init.method==='PATCH'){Object.assign(rows.get(id),body);return new Response(null,{status:204});}
       return Response.json(id?[rows.get(id)].filter(Boolean):[]);
     }
-    if(u.pathname.startsWith('/storage/v1/object/'))return Response.json({ok:true});
+    if(u.pathname.startsWith('/storage/v1/object/')){if(mode==='archive-failed')throw Error('storage unavailable');return Response.json({ok:true});}
     if(u.hostname==='queue.fal.run'){
       assert.equal(new Headers(init.headers).get('Authorization'),'Key synthetic-fal');
       if(init.method==='POST'){
@@ -217,7 +220,15 @@ test('fal submit/query is owner-isolated, idempotent and native-audio gated; no 
   try{
     const [a,b]=await Promise.all([route.POST(req(base)),route.POST(req(base))]);const first=await a.json(),second=await b.json();assert.equal(first.id,second.id);assert.equal(paid,1);
     assert.equal((await query(first.id,other.cookie)).status,404);
-    completed=true;const measured=await(await query(first.id)).json();assert.equal(measured.status,'ready');assert.equal(cdnCredential,false);
+    completed=true;const playable=await(await query(first.id)).json();assert.equal(playable.status,'ready');assert.equal(playable.persisting,true);assert.equal(rows.get(first.id).status,'queued');assert.equal(cdnCredential,false);
+    assert.equal(playable.playbackUrl,undefined);
+    const stream=await assetRoute.GET(new Request(origin+playable.assetUrl,{headers:{cookie:owner.cookie,Range:'bytes=0-15'}}),{params:Promise.resolve({id:first.id})});assert.equal(stream.status,200);assert.ok((await stream.arrayBuffer()).byteLength>0);
+    assert.equal((await assetRoute.GET(new Request(origin+playable.assetUrl,{headers:{cookie:other.cookie}}),{params:Promise.resolve({id:first.id})})).status,404);
+    mode='archive-failed';while(globalThis.__videoAfter.length)await globalThis.__videoAfter.shift()();
+    assert.equal(rows.get(first.id).status,'queued');assert.ok(JSON.parse(rows.get(first.id).task_id).audioValidated);assert.equal(paid,1);
+    mode='ok';assert.equal((await(await query(first.id)).json()).persisting,true);
+    while(globalThis.__videoAfter.length)await globalThis.__videoAfter.shift()();
+    const measured=await(await query(first.id)).json();assert.equal(measured.persisting,false);assert.equal(rows.get(first.id).status,'ready');
     assert.ok(measured.timing.observedCompleteAt>=measured.timing.submittedAt);assert.ok(measured.timing.downloadMs>=0);assert.ok(measured.timing.storeMs>=0);
     assert.deepEqual((await(await query(first.id)).json()).timing,measured.timing);
     await route.POST(req(base));assert.equal(paid,1);
@@ -236,5 +247,6 @@ test('fal submit/query is owner-isolated, idempotent and native-audio gated; no 
     const reused=await(await route.POST(req({...base,turnKey:keys[0]}))).json();
     assert.equal(reused.model,'minimax/h3-max/image-to-video');assert.equal(paid,7);
     const recovered=await(await query(legacy.id)).json();assert.equal(recovered.status,'ready');assert.equal(recovered.model,legacy.model);
+    while(globalThis.__videoAfter.length)await globalThis.__videoAfter.shift()();
   }finally{globalThis.fetch=original;}
 });

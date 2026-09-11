@@ -30,12 +30,13 @@ type Pending={input:FalVideoInput;response:WorldTurnResponse;action:string;id?:s
 type Prefetched=Pending&{status:string;error?:string};
 type Session={version:1;id:string;roleId:string;state:WorldState|null;narrative:string;choices:VideoChoice[];clip:string;rounds:number;worldSnapshot?:StudioWorld;pending?:Pending;branches?:BranchCache;videos?:{key:string;jobs:Record<string,Prefetched>};draftAction?:string;finished?:boolean;clips?:{url:string;action:string;narrative?:string}[]};
 type Phase='intro'|'roles'|'choices'|'planning'|'generating'|'ready'|'playing'|'error';
-type MediaReply={id?:string;status:string;error?:string;assetUrl?:string;timing?:ServerVideoTiming};
+type MediaReply={id?:string;status:string;error?:string;assetUrl?:string;persisting?:boolean;timing?:ServerVideoTiming};
 export function VideoExplorer({entry:latestEntry,onBack,onText}:{entry:StudioWorld;onBack?:()=>void;onText?:()=>void}){
   const [entry,setEntry]=useState(latestEntry);
   const timing=useRef(new VideoTimingLog());
   const assetLabels=useRef(new Map<string,{group:string;label:string}>());
   const generationTimers=useRef(new Map<string,(status?:string)=>void>());
+  const archiveChecks=useRef(new Map<string,AbortController>());
   const firstFrameTimer=useRef<((status?:string)=>void)|null>(null),stallTimer=useRef<((status?:string)=>void)|null>(null),selectionTimer=useRef<((status?:string)=>void)|null>(null);
   const prologue=worldPrologue(entry.id,entry.premise,entry.cover);
   const roles=playableCharacters(entry.world,entry.fixedRoleId);
@@ -45,6 +46,7 @@ export function VideoExplorer({entry:latestEntry,onBack,onText}:{entry:StudioWor
   const [phase,setPhase]=useState<Phase>(roles.length===1?'intro':'roles'),[scope,setScope]=useState<string|null>(null),[configured,setConfigured]=useState(false);
   const activeScope=useRef(scope);activeScope.current=scope;
   useEffect(()=>{if(scope)timing.current.scope(scope);},[scope]);
+  useEffect(()=>()=>{for(const c of archiveChecks.current.values())c.abort();archiveChecks.current.clear();},[scope]);
   useEffect(()=>()=>{firstFrameTimer.current?.('离开页面');stallTimer.current?.('离开页面');selectionTimer.current?.('离开页面');},[]);
   useRecordPlay(session.rounds > 0 ? `world:${entry.id}` : null, scope);
   const [enabled,setEnabled]=useState(false),[paused,setPaused]=useState(false),[seconds,setSeconds]=useState(15),[text,setText]=useState(''),[focused,setFocused]=useState(false);
@@ -107,6 +109,19 @@ export function VideoExplorer({entry:latestEntry,onBack,onText}:{entry:StudioWor
     const info=trace(pending.action);
     if(body.assetUrl)assetLabels.current.set(body.assetUrl,info);
     timing.current.server(info.group,info.label,body.timing);
+    // Persistence now finishes after playback is available. Collect its timing
+    // separately without holding the player or submitting a new generation.
+    if(body.persisting&&body.id&&!archiveChecks.current.has(body.id)){
+      const id=body.id,stop=new AbortController();archiveChecks.current.set(id,stop);
+      void(async()=>{try{for(let i=0;i<15&&!stop.signal.aborted;i++){
+        await new Promise<void>(resolve=>{const done=()=>{clearTimeout(timer);stop.signal.removeEventListener('abort',done);resolve();};const timer=setTimeout(done,4000);stop.signal.addEventListener('abort',done,{once:true});});
+        if(stop.signal.aborted||scope!==activeScope.current)return;
+        const r=await fetch(`/api/fal-video?id=${id}`,{headers:{'x-xgen-account':scope!},cache:'no-store',signal:stop.signal});
+        if(!r.ok)return;const next=await r.json() as MediaReply;
+        if(!stop.signal.aborted&&scope===activeScope.current)timing.current.server(info.group,info.label,next.timing);
+        if(!next.persisting)return;
+      }}catch{/* The saved task remains recoverable; never regenerate. */}finally{archiveChecks.current.delete(id);}})();
+    }
     if(body.status==='ready'||body.status==='failed'){generationTimers.current.get(pending.input.turnKey)?.(body.status==='ready'?'完成':'失败');generationTimers.current.delete(pending.input.turnKey);}
   }
   function trackGeneration(pending:Pending){

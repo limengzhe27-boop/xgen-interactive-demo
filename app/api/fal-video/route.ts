@@ -1,9 +1,10 @@
 import sharp from 'sharp/lib/index.js';
+import {after} from 'next/server.js';
 import {readVideoTiming} from '@/lib/video-timing';
 import { requestAccount, sameOrigin } from '@/lib/server-auth';
 import { imageOwner, imageId, storageConfigured, storageFetch } from '@/lib/server-image-store';
 import { findMedia, updateMedia } from '@/lib/server-media-store';
-import { falFetch, refreshFalVideo } from '@/lib/server-fal-video';
+import { falFetch, refreshFalVideo, falPlaybackUrl } from '@/lib/server-fal-video';
 import { FAL_VIDEO_MODEL, FAL_VIDEO_SECONDS, isFalVideoModel, falFailure, readFalInput, readFalJob } from '@/lib/fal-video';
 export const maxDuration=120;
 const headers={'Cache-Control':'private, no-store'};
@@ -19,11 +20,12 @@ export async function GET(request:Request){
     }
     let asset=await findMedia(id);
     if(!asset||asset.owner_id!==owner?.id||!isFalVideoModel(asset.model))return account.finish(Response.json({error:'not_found'},{status:404,headers}));
-    asset=await refreshFalVideo(asset);
+    asset=await refreshFalVideo(asset,work=>after(work));
     let error:string|undefined;
     if(asset.status==='failed')try{error=JSON.parse(asset.task_id??'{}').error;}catch{/* Legacy rows. */}
     let timing={};try{timing=readVideoTiming(JSON.parse(asset.task_id??'{}').timing);}catch{}
-    return account.finish(Response.json({id,status:asset.status,model:asset.model,error,timing,...(asset.status==='ready'?{assetUrl:`/api/media/asset/${id}`}:{})},{headers}));
+    const persisting=!!falPlaybackUrl(asset);
+    return account.finish(Response.json({id,status:persisting?'ready':asset.status,persisting,model:asset.model,error,timing,...(asset.status==='ready'||persisting?{assetUrl:`/api/media/asset/${id}`}:{})},{headers}));
   }catch(e){return Response.json({error:errorCode(e)},{status:503,headers});}
 }
 export async function POST(request:Request){
