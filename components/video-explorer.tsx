@@ -250,7 +250,8 @@ export function VideoExplorer({entry:latestEntry,onBack,onText}:{entry:StudioWor
   },[enabled,scope,online,visible,drawerOpen,videoKey,Boolean(session.pending),session.finished,phase,cachedPlans.length]);
   const preparationRef=useRef(preparationKey);preparationRef.current=preparationKey;
   useEffect(()=>{
-    if(!enabled||!scope||!online||!preparationSource||!preparationKey)return;
+    // Text planning overlaps the opening, independently of the paid-video gate.
+    if(!scope||!online||!preparationSource||!preparationKey)return;
     const source=preparationSource,key=preparationKey,stop=new AbortController();
     const existing=current.current.branches?.key===key?current.current.branches.plans:[];
     const missing=source.choices.filter(c=>!existing.some(p=>p.action===c.label));
@@ -273,7 +274,7 @@ export function VideoExplorer({entry:latestEntry,onBack,onText}:{entry:StudioWor
     // The serialized key covers world version, role, all state, choices and frame mode.
     // Cache writes must not restart incomplete requests or purchase any media.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  },[preparationKey,enabled,scope,online,branchRetry]);
+  },[preparationKey,scope,online,branchRetry]);
   useEffect(()=>{
     alive.current=true;const stop=new AbortController();
     void(async()=>{
@@ -296,7 +297,16 @@ export function VideoExplorer({entry:latestEntry,onBack,onText}:{entry:StudioWor
           if(entry.id==='yoga-lotus-boundary'&&restored.roleId!=='lin'&&restored.rounds===0&&restored.clip===prologue.video)restored={...restored,clip:''};
           current.current=restored;setSession(restored);setPhase(restored.pending?'error':restored.clip?'playing':'choices');setPaused(true);
           if(restored.pending)setError(restored.pending.assetUrl?'视频已保存，点击播放即可继续，无需重新生成。':'已找回未完成的回合。恢复将复用原回合编号，不另建视频任务。');}
-        else{setSession(s=>({...s,id:crypto.randomUUID()}));}
+        else{
+          // Establish the sole viewpoint before playback, not in onEnded.
+          // This unlocks branch preparation during the intro without advancing
+          // the story, purchasing videos or starting its countdown.
+          const initial=roles.length===1?initialVideoRole(entry,roles[0].id):{};
+          const fresh={...current.current,...initial,id:crypto.randomUUID(),roleId:roles.length===1?roles[0].id:''};
+          current.current=fresh;setSession(fresh);
+          try{sessionStorage.setItem(`xgen:video-pilot:v2:${id}:${entry.id}`,JSON.stringify({...fresh,worldSnapshot:entry}));}
+          catch{setSaveError('浏览器未能保存本次进度，请暂勿刷新或关闭此标签页。');}
+        }
         const r=await fetch('/api/fal-video',{headers:{'x-xgen-account':id},cache:'no-store',signal:stop.signal});
         if(!r.ok)throw Error('已读取本机进度，但视频服务状态暂时无法查询');
         const status=await r.json() as {configured?:boolean};if(stop.signal.aborted)return;

@@ -25,6 +25,19 @@ const {startVideo}=await import('../lib/video-autoplay.ts');
 const {compactVideoScriptInput}=await import('../lib/video-script-input.ts');
 const {VideoTimingLog,readVideoTiming}=await import('../lib/video-timing.ts');
 const {VideoScriptCache}=await import('../lib/video-script-cache.ts');
+test('single-role intro initializes before playback while preparation and countdown keep their gates',()=>{
+ const ui=readFileSync(root+'components/video-explorer.tsx','utf8');
+ const hydration=ui.slice(ui.indexOf('const a=await fetch'),ui.indexOf('function selectRole'));
+ assert.match(hydration,/roles.length===1\?initialVideoRole\(entry,roles\[0\].id\)/);
+ assert.match(hydration,/current.current=fresh;setSession\(fresh\)/);
+ assert.match(ui,/if\(!scope\|\|!online\|\|!preparationSource/);
+ assert.match(ui,/if\(!enabled\|\|!scope\|\|!online\|\|!visible\|\|drawerOpen\|\|session.pending/);
+ assert.match(ui,/phase==='choices'&&cachedPlans.some/);
+ assert.match(ui,/if\(current.current.roleId\)setPhase\('choices'\)/);
+ const world=studioWorlds.find(w=>w.fixedRoleId);
+ assert.ok(world);const initial=initialVideoRole(world,world.fixedRoleId);
+ assert.equal(initial.choices.length,3);assert.ok(initial.state);
+});
 test('exact scripts share in-flight work, isolate keys and retry errors without reusing stale results',async()=>{
  const cache=new VideoScriptCache();let calls=0,finish;
  const work=()=>{calls++;return new Promise(resolve=>finish=resolve);};
