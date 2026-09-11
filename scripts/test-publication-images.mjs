@@ -41,3 +41,17 @@ test('a failed cover preserves the portrait for retry and does not finish public
  await preparePublicationImages(partial,'fixture',()=>{},async input=>{assert.equal(input.purpose,'scene');return {persistent:true,assetUrl:'/saved/cover'};});
  assert.equal(calls,2);
 });
+
+test('serialized draft images survive dialog recreation without another portrait request',async()=>{
+ let saved;
+ await assert.rejects(preparePublicationImages(entry,'fixture',next=>{saved=JSON.stringify(next);},async input=>{
+   if(input.purpose==='scene')throw Error('service unavailable');
+   return {persistent:true,assetUrl:'/saved/new-role'};
+ }));
+ const reopened=JSON.parse(saved);
+ const calls=[];
+ await preparePublicationImages(reopened,'fixture',()=>{},async input=>{
+   calls.push(input.purpose);return {persistent:true,assetUrl:'/saved/cover'};
+ });
+ assert.deepEqual(calls,['scene']);
+});

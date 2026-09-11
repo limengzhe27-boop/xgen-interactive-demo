@@ -45,10 +45,12 @@ export function AccountBar({ workspaceControls, onProfile }: { workspaceControls
   </aside>;
 }
 
-export function PublishWorldDialog({ entry, accountScope, onClose, onPublished }: { entry: StudioWorld; accountScope: string; onClose: () => void; onPublished: (entry: StudioWorld) => void }) {
+export function PublishWorldDialog({ entry, accountScope, onClose, onPublished, onImagesPrepared }: { entry: StudioWorld; accountScope: string; onClose: () => void; onPublished: (entry: StudioWorld) => void; onImagesPrepared: (entry: StudioWorld) => void }) {
   const [account, setAccount] = useState<Account | null>(null);
   const [consent, setConsent] = useState(false);
   const prepared = useRef(entry);
+  const alive = useRef(true);
+  useEffect(() => { alive.current=true; return () => { alive.current=false; }; }, []);
   const [progress,setProgress]=useState('');
   const [versionReady, setVersionReady] = useState(false);
   const [expectedUpdatedAt, setExpectedUpdatedAt] = useState<string | null>(null);
@@ -65,7 +67,10 @@ export function PublishWorldDialog({ entry, accountScope, onClose, onPublished }
         const result = await response.json() as { publications: { document: StudioWorld & { sourceId?: string }; updated_at: string }[] };
         const current = result.publications.find(row => row.document.sourceId === entry.id || row.document.id === entry.id);
         if (live) {
-          if(current) prepared.current=reusePublicationArt(prepared.current,current.document);
+          if(current) {
+            prepared.current=reusePublicationArt(prepared.current,current.document);
+            onImagesPrepared(prepared.current);
+          }
           setExpectedUpdatedAt(current?.updated_at ?? null); setVersionReady(true);
         }
       }
@@ -76,7 +81,11 @@ export function PublishWorldDialog({ entry, accountScope, onClose, onPublished }
     if (!consent || !account?.user || !account.canPublish || !versionReady || busy) return;
     setBusy(true); setError('');
     try {
-      const ready=await preparePublicationImages(prepared.current,accountScope,(next,label)=>{prepared.current=next;setProgress(label);});
+      const ready=await preparePublicationImages(prepared.current,accountScope,(next,label)=>{
+        if(!alive.current)throw Error('页面已离开，本次发布已停止。');
+        prepared.current=next;onImagesPrepared(next);setProgress(label);
+      });
+      if(!alive.current)return;
       setProgress('正在发布');
       const response = await fetch('/api/worlds', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-xgen-account': accountScope }, body: JSON.stringify({
         consent: 'publish-world-and-selected-images-v1', sourceId: entry.id, world: entry.world, expectedUpdatedAt,
@@ -84,7 +93,7 @@ export function PublishWorldDialog({ entry, accountScope, onClose, onPublished }
       }) });
       const data = await response.json() as { world?: StudioWorld; message?: string };
       if (!response.ok || !data.world) throw new Error(data.message || '发布未完成，请确认登录状态后重试。');
-      onPublished(data.world);
+      if(alive.current)onPublished(data.world);
     } catch (e) { setError(e instanceof Error ? e.message : '发布未完成。原草稿仍在本机。'); }
     finally { setBusy(false); }
   }

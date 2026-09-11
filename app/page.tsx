@@ -2491,6 +2491,17 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       cover: creatorAssets?.cover || '', portraits, world });
   }
 
+  function rememberPublicationImages(entry: StudioWorld) {
+    if(entry.id!==draftId)throw Error('创作已切换，本次发布已停止。');
+    const assets={cover:entry.cover,portraits:{...entry.portraits}};
+    const data={...JSON.parse(creatorDocumentJSON),creatorAssets:assets} as CreatorDocument['data'];
+    const documents=upsertById(creatorDocuments,{id:draftId,savedAt:Date.now(),data});
+    // Save each returned asset before requesting another one; closing the dialog
+    // or a later cover failure must not discard completed character images.
+    persistStudioSnapshot({version:1,runs:savedRuns,chats:chatSessions,documents,draftId});
+    setCreatorDocuments(documents);setCreatorAssets(assets);
+  }
+
   function newCreator(seed = '', context?: CompanionContext, preserveCurrent = true) {
     cancelCreatorRequest();
     setProposalChanges([]); setCreatorUndo([]); setCreatorChangeNotice(''); setCreatorFocus('');
@@ -2798,7 +2809,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       {view === 'library' && <MyPublications key={accountScope} accountScope={accountScope} drafts={creatorDocuments.map(doc => ({ id: doc.id, title: doc.data.worldTitle }))} onDelete={deleteCreator} onEdit={id => { const doc = creatorDocuments.find(item => item.id === id); if (doc) editCreator(doc); }} onRestore={continuePublished} onRestoreEdition={restorePublishedEdition} onChanged={() => setCatalogRevision(value => value + 1)} />}
       {screen}
       {publicationNotice && <p className="account-bar" role="status">{publicationNotice}</p>}
-      {publicationEntry && <PublishWorldDialog accountScope={accountScope} entry={publicationEntry} onClose={() => setPublicationEntry(null)} onPublished={acceptPublicEdition} />}
+      {publicationEntry && <PublishWorldDialog key={`${accountScope}:${publicationEntry.id}`} accountScope={accountScope} entry={publicationEntry} onClose={() => setPublicationEntry(null)} onImagesPrepared={rememberPublicationImages} onPublished={acceptPublicEdition} />}
       {chatEntry && <CharacterEntry key={`${chatEntry.entry.id}:${chatEntry.targetId}`} entry={chatEntry.entry} identityControl={identityControl} targetId={chatEntry.targetId} persona={playerPersona} onClose={() => setChatEntry(null)} onStart={(session) => { saveChat(session); setActiveChat(session); setChatEntry(null); navigate('chat'); }} />}
     </main>
   );
