@@ -54,7 +54,7 @@ test('author publication lifecycle isolates accounts, detects stale changes and 
     ]}};
     const editor=(await (await route.GET(req('GET',null,'author-a','?mine=true'))).json()).publications[0].document;
     const catalog=(await (await route.GET(req('GET'))).json()).worlds[0];
-    assert.equal(editor.portraits['draft-role-0'],'/assets/after-class-v1/zhou.webp');
+    assert.equal(editor.portraits['draft-role-0'],'/assets/after-class-v1/zhou-story-v2.webp');
     assert.deepEqual(editor.portraits,catalog.portraits);
     assert.equal(editor.sourceId,'draft-a');assert.equal(catalog.sourceId,undefined);
     const artUpdate={...body,expectedUpdatedAt:state.rows[0].updated_at,

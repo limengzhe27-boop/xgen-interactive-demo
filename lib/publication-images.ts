@@ -16,7 +16,7 @@ export async function preparePublicationImages(entry:StudioWorld,scope:string,on
    done++;return result.assetUrl;
  }
  for(const c of missing){
-   next={...next,portraits:{...next.portraits,[c.id]:await image('portrait',`publish-${entry.id}-${c.id}`,creatorPortraitPrompt({name:c.name,identity:c.identity,appearance:c.imagePrompt},entry.title))}};
+   next={...next,portraits:{...next.portraits,[c.id]:await image('portrait',`publish-${entry.id}-${c.id}`,creatorPortraitPrompt({name:c.name,identity:c.identity,appearance:c.imagePrompt,personality:c.persona},entry.title,{scene:entry.world.openingScene.narrative,cast:entry.world.characters.map(r=>({name:r.name,appearance:r.imagePrompt}))}))}};
    onProgress(next,`配图已保存 ${done}/${total}`);
  }
  if(!hasPublicationImage(next.cover)){
