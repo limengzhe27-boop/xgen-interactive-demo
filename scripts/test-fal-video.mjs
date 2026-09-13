@@ -25,6 +25,16 @@ const {startVideo}=await import('../lib/video-autoplay.ts');
 const {compactVideoScriptInput}=await import('../lib/video-script-input.ts');
 const {VideoTimingLog,readVideoTiming}=await import('../lib/video-timing.ts');
 const {VideoScriptCache}=await import('../lib/video-script-cache.ts');
+const {timingGroups,timingCell}=await import('../lib/video-timing-table.ts');
+test('timing table groups branches and batches without inventing missing durations',()=>{
+ const row={id:'1',batch:'a',group:'one',label:'分支1',stage:'脚本',started:20,ms:1000,status:'完成'};
+ const groups=timingGroups([row,{...row,id:'2',stage:'生成',started:10},{...row,id:'3',group:'two'},{...row,id:'4',batch:'b'}]);
+ assert.equal(groups.length,3);assert.equal(groups.find(g=>g.started===10).stages['生成'].length,1);
+ assert.equal(timingCell(undefined),'—');
+ assert.equal(timingCell([row,{...row,status:'失败',ms:3000}]),'1.00秒 · 失败');
+ assert.equal(timingCell([{...row,status:'进行中',ms:undefined}]),'进行中');
+ assert.equal(timingCell([row,row]),'2.00秒（2次合计）');
+});
 const {queryVideo}=await import('../lib/video-query.ts');
 test('read-only video queries retry transient failures but not authorization failures',async()=>{
  const original=globalThis.fetch;let calls=0;
