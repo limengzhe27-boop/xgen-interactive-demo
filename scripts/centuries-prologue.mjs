@@ -4,8 +4,9 @@ import {companyFetch,companyAssetUrl} from '../lib/company-gateway.ts';
 import {videoResult} from '../lib/media-policy.ts';
 import {compileNativeDirectedPrologue} from '../lib/prologue-direction.ts';
 const name=process.argv[3]||'centuries';
-if(!['centuries','spider','spider-v2'].includes(name))throw Error('Unknown plan');
-const reference=name.startsWith('spider')?'spider-under-table/cover.webp':'cultivation-three-centuries/r2.webp';
+const references={centuries:'cultivation-three-centuries/r2.webp',spider:'spider-under-table/cover.webp','spider-v2':'spider-under-table/cover.webp',nightguard:'nightguard-double/cover.webp',finalcircle:'final-circle-future/cover.webp'};
+if(!Object.hasOwn(references,name))throw Error('Unknown plan');
+const reference=references[name];
 const dir=`work/${name}-prologue-20260914`,file=`${dir}/job.json`,action=process.argv[2];
 await mkdir(dir,{recursive:true});let job;
 try{job=JSON.parse(await readFile(file,'utf8'));}catch(e){if(e.code!=='ENOENT')throw e;}
@@ -13,7 +14,7 @@ if(action==='submit'){
  if(job)throw Error('Existing attempt: do not resubmit');
  const plan=JSON.parse(await readFile(`docs/${name}-prologue.plan.json`,'utf8'));
  const direction=JSON.parse(await readFile(`docs/${name}-prologue.direction.json`,'utf8'));
- const prompt=compileNativeDirectedPrologue(plan,direction).shots[0].nativeTextToVideoPrompt+(name.startsWith('spider')?'\n15秒16:9电影微距，参考图保持暖光木桌和刷毛质感，严格蜘蛛眼睛视角。原生同期环境声及计划旁白。必须完整说清玩家是蜘蛛、守护未孵化孩子、清扫危机、最后的选择问题，不能只拍环境。':'\n图片仅为阿蘅外形参考，不作首帧。15秒16:9真人电影，保持参考脸型和红围巾，原生同期音画。');
+ const prompt=compileNativeDirectedPrologue(plan,direction).shots[0].nativeTextToVideoPrompt+'\n15秒16:9。参考图用于保持已指定人物、服装和场景质感，不照搬与分镜不符的封面位置。严格按计划视角。完整原生中文声音与现场动作同步，禁止只有风景或静态推镜。';
  const image='data:image/png;base64,'+(await sharp('public/assets/expansion/'+reference).png().toBuffer()).toString('base64');
  job={status:'submitting',model:'doubao-seedance-2-5-260628',attemptedAt:new Date().toISOString(),prompt,reference,maximumSubmissions:1,review:'Paper self-review only; no completed film yet; exact fees unknown.'};
  const lock=await open(file,'wx');await lock.writeFile(JSON.stringify(job,null,2));await lock.close();

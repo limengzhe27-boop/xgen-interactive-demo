@@ -53,6 +53,8 @@ export const ascensionNativePrologue: WorldPrologue = {
   handoff:'你仍在天门外，未签契、未挥剑。追问逃亡者、检查锁链，或付出剑气斩链，由你决定。',
 };
 export function worldPrologue(worldId: string, publicPremise: string, cover: string): WorldPrologue {
+  if (worldId === 'nightguard-double') return nightguardNativePrologue;
+  if (worldId === 'final-circle-future') return finalcircleNativePrologue;
   if (worldId === 'spider-under-table') return spiderNativePrologue;
   if (worldId === 'emperor-last-decree') return emperorNativePrologue;
   if (worldId === 'surrounded-by-beauties') return beautiesNativePrologue;
@@ -75,6 +77,16 @@ export const spiderNativePrologue: WorldPrologue = {
   video: '/assets/prologues/spider-native-v1/preview.mp4', hasAudio: true, audioOrigin: 'native',
   shots: [{poster:'/assets/expansion/spider-under-table/cover.webp',seconds:15,caption:'桌腿震动，清洁刷正在逼近。身后的卵囊仍完好，通向墙缝的旧丝松了。'}],
   handoff:'刷毛尚未碰到蛛网。试探旧丝、观察刷子的方向，或先固定卵囊，由你决定。',
+};
+export const finalcircleNativePrologue: WorldPrologue = {
+  video:'/assets/prologues/finalcircle-native-v1/preview.mp4',hasAudio:true,audioOrigin:'native',
+  shots:[{poster:'/assets/expansion/final-circle-future/cover.webp',seconds:15,caption:'模拟对战只剩两人，弹匣已空。无线电里的对手自称十分钟后的你，警告你别碰补给。'}],
+  handoff:'来者身份尚未证实，补给未取。核验暗号、观察补给，或追问警告来源，由你决定。',
+};
+export const nightguardNativePrologue: WorldPrologue = {
+  video:'/assets/prologues/nightguard-native-v1/preview.mp4',hasAudio:true,audioOrigin:'native',
+  shots:[{poster:'/assets/expansion/nightguard-double/cover.webp',seconds:15,caption:'夜班第一晚，你还在屋里，监控里的你却先敲了玻璃。新贴纸条警告你不要回答自己的声音。'}],
+  handoff:'你尚未回答或开门。核对画面时间、无声联系何姨，或查看纸条下的旧记录，由你决定。',
 };
 export function prologueDuration(prologue: WorldPrologue) {
   return Math.min(30, prologue.shots.reduce((sum, shot) => sum + shot.seconds, 0));
