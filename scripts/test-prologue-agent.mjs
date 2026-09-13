@@ -25,3 +25,12 @@ void test('missing dramatic material requests revision',()=>{
  assert.deepEqual(readPrologueAgentReply({needsRevision:true,reason:'缺少已确认冲突'},readPrologueAgentInput(brief())),{needsRevision:true,reason:'缺少已确认冲突'});
  assert.match(prologueAgentInstructions,/原生音画同步/);assert.match(prologueAgentInstructions,/不能自动发布/);
 });
+void test('spider revision sends all context and choice cues to native generation',()=>{
+ const p=JSON.parse(readFileSync(new URL('../docs/spider-v2-prologue.plan.json',import.meta.url),'utf8'));
+ const d=JSON.parse(readFileSync(new URL('../docs/spider-v2-prologue.direction.json',import.meta.url),'utf8'));
+ const input=readPrologueAgentInput({title:p.title,publicStory:p.story.throughline,openingState:p.shots[0].startState,constraints:'不替玩家选择',characters:p.characters,perspective:p.story.perspective,povCharacterId:p.story.povCharacterId});
+ const result=readPrologueAgentReply({plan:p,direction:d},input);
+ assert.ok(result);
+ for(const cue of p.audio.cues)assert.ok(result.compiled.shots[0].nativeTextToVideoPrompt.includes(cue.text));
+ assert.equal(result.autoPublishAllowed,false);
+});

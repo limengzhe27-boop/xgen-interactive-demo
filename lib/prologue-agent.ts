@@ -1,6 +1,6 @@
 import { compileNativeDirectedPrologue } from './prologue-direction.ts';
 
-export const PROLOGUE_AGENT_VERSION = 'native-story-camera-2';
+export const PROLOGUE_AGENT_VERSION = 'native-story-handoff-3';
 const object = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
 const text = (v: unknown, max: number) => typeof v === 'string' && v.trim() && v.length <= max ? v.trim() : null;
 
@@ -23,6 +23,7 @@ export function readPrologueAgentInput(value: unknown) {
 }
 
 export const prologueAgentInstructions = `【序章导演 ${PROLOGUE_AGENT_VERSION}】
+前情是下一次选择的依据，不是环境展示。观众仅看视频就应知道谁处于什么原有处境、什么事件改变了它、在乎什么、为何此刻需要决定。身份与动机必须进入实际声画，不只填在recall里。至少两个handoff选项各有片内可见/可听的依据；保留选择结果，不隐藏目标与风险。选角前仅公共冲突，选角后仅该角色已知前情；非人主角可用原生画外叙述交代代入身份，不让动物开口说人话。避免统一句式。蛛丝与刷子微动不是完整故事，须让观众知道自己是守卵囊的蜘蛛、清扫威胁家、旧丝松动影响迁移，再留下如何处理的问题。
 只使用输入的已确认公开剧情。先锁定角色、视角、能力剩余次数、未作出的选择与openingState。不能为刺激添加已解决的救人、毁剑、签约、恋爱承诺或未来秘密。若原前情不足以形成事件，返回 {"needsRevision":true,"reason":"具体缺少的剧情证据"}，不制造已发生事实。
 先拍一场有因果的戏，再拆模型片段：前3秒出现正在发生的矛盾，主体动作有目标、阻力、可见后果，尾帧与互动开场一致。身份可由短对白补充；主要事件必须真的在画面发生，不用人像慢推、反复递物或环境空镜替代，不靠旁白解释未拍到的动作。
 默认20—25秒，最多30秒；每个独立生成片段4—15秒，每段承载一个主要变化，不把跑出、扑倒、拖走、救人、解锁、逃跑都塞入同一段。节拍细到动作起点、目标、阻力、反应和落点，不按提示字数判断质量。固定第一人称只从该角色眼睛看，不切拍其脸或背影。参考肖像只能锁定身份；首帧应容纳主要事件，不能以肖像直接替代动作首帧。
