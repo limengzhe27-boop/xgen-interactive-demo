@@ -3,16 +3,19 @@ import sharp from 'sharp';
 import {companyFetch,companyAssetUrl} from '../lib/company-gateway.ts';
 import {videoResult} from '../lib/media-policy.ts';
 import {compileNativeDirectedPrologue} from '../lib/prologue-direction.ts';
-const dir='work/centuries-prologue-20260914',file=`${dir}/job.json`,action=process.argv[2];
+const name=process.argv[3]||'centuries';
+if(!['centuries','spider'].includes(name))throw Error('Unknown plan');
+const reference=name==='spider'?'spider-under-table/cover.webp':'cultivation-three-centuries/r2.webp';
+const dir=`work/${name}-prologue-20260914`,file=`${dir}/job.json`,action=process.argv[2];
 await mkdir(dir,{recursive:true});let job;
 try{job=JSON.parse(await readFile(file,'utf8'));}catch(e){if(e.code!=='ENOENT')throw e;}
 if(action==='submit'){
  if(job)throw Error('Existing attempt: do not resubmit');
- const plan=JSON.parse(await readFile('docs/centuries-prologue.plan.json','utf8'));
- const direction=JSON.parse(await readFile('docs/centuries-prologue.direction.json','utf8'));
- const prompt=compileNativeDirectedPrologue(plan,direction).shots[0].nativeTextToVideoPrompt+'\n图片仅为阿蘅外形参考，不作首帧。15秒16:9真人电影，保持参考脸型和红围巾，原生同期音画。';
- const image='data:image/png;base64,'+(await sharp('public/assets/expansion/cultivation-three-centuries/r2.webp').png().toBuffer()).toString('base64');
- job={status:'submitting',model:'doubao-seedance-2-5-260628',attemptedAt:new Date().toISOString(),prompt,reference:'cultivation-three-centuries/r2.webp',maximumSubmissions:1,review:'Paper self-review only; no completed film yet; exact fees unknown.'};
+ const plan=JSON.parse(await readFile(`docs/${name}-prologue.plan.json`,'utf8'));
+ const direction=JSON.parse(await readFile(`docs/${name}-prologue.direction.json`,'utf8'));
+ const prompt=compileNativeDirectedPrologue(plan,direction).shots[0].nativeTextToVideoPrompt+(name==='spider'?'\n15秒16:9电影微距，参考图保持暖光木桌和刷毛质感，严格蜘蛛眼睛视角。原生同期环境声及计划旁白。':'\n图片仅为阿蘅外形参考，不作首帧。15秒16:9真人电影，保持参考脸型和红围巾，原生同期音画。');
+ const image='data:image/png;base64,'+(await sharp('public/assets/expansion/'+reference).png().toBuffer()).toString('base64');
+ job={status:'submitting',model:'doubao-seedance-2-5-260628',attemptedAt:new Date().toISOString(),prompt,reference,maximumSubmissions:1,review:'Paper self-review only; no completed film yet; exact fees unknown.'};
  const lock=await open(file,'wx');await lock.writeFile(JSON.stringify(job,null,2));await lock.close();
  try{
   const response=await companyFetch('/videos',{model:job.model,prompt,metadata:{content:[{type:'image_url',role:'reference_image',image_url:{url:image}}],generate_audio:true,duration:15,ratio:'16:9',resolution:'720p',watermark:false}},55000);
