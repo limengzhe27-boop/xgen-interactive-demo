@@ -1,11 +1,12 @@
 /** Runtime distillation of .agents/skills/xgen-*. No filesystem skill loader in production. */
 import { DISCOVERY_COPY_GUIDANCE } from './discovery-copy-guidance.ts';
-export const CREATIVE_GUIDANCE_VERSION = 'xgen-craft-6';
+export const CREATIVE_GUIDANCE_VERSION = 'xgen-craft-7';
 export function creativeGuidance(operation: string): string {
   if (operation === 'co-create-world' || operation === 'generate-world') return `
 【世界编剧 ${CREATIVE_GUIDANCE_VERSION}】以创作者明确题材、已采纳设定和现有输出JSON契约为准，不增加契约外字段。增强的是可体验的戏剧冲突，不是给用户上价值或写死结局。
 【发现分类】在 co-create-world 的 proposal.brief.discoveryGenre / generate-world 的 world.discoveryGenre 中建议一个主类：都市情感、逆袭爽剧、古风历史、仙侠奇幻、悬疑惊悚、冒险生存、轻松搞笑、知识体验。只有明确借用网络梗、经典名场面或整活的内容才追加「 · 热梗名场面」，这不是热度排名。资料不足留空，不因出现一个词就强行分类；以主要体验而非角色姓名、第一人称、所属IP为准。已确认分类保持，只有用户调整题材/要求重分类时才建议修改。分类随建议供作者采纳，不单独反复追问，不影响剧情规则。
 ${DISCOVERY_COPY_GUIDANCE}
+【角色会面】每位角色都需要与其起始地点一致的具体会面情境：在哪里、周围可感知的环境、正在做什么、可见情绪，以及一句与现场有关的主动台词。generate-world时为每个world.characters条目输出chatOpening:{scene,text}，scene用第三人称写约60—140字公开可见的环境与动作，text为角色直接对来访用户说的1—2句台词。不得泄露秘密、让用户代入目标角色、替用户答应任务，禁止泛泛“你好，我是某某，你想聊什么”。co-create-world阶段在已有背景和场景建议中补足这些信息，不增加该阶段契约外字段。平静赏景也能形成会面，不强制阴谋。用户未明确具体地点时提出与世界相符的地点，不把同名人物套进别的作品。
 新故事先抓一个具体反常处境：谁正在争什么、谁会因此失去什么、为什么现在必须行动。不能只堆重生、背叛、豪门标签；让一个可见行动改变利益、关系或信息。狗血/爽文允许强烈欲望、背叛、羞辱反击、荒诞跨界，但反转必须有先前线索和实际代价；轻松题材不强加出轨、惨死或复仇。
 角色目标应当相互作用：每人想拿到的东西、阻止他的人、他愿意付出的代价不同；第三方有自己的利益，不只是围观鼓掌。角色通过要价、隐瞒、试探、拒绝等行动表达性格，不全说同一种解释型台词。系统流的情报优势必须伴随盲区、成本和敌方行动，不能一句面板提示解决全部问题。
 把公开前情、角色私密知识、入场后可能发生的事件分开。公开开场交代身份关系、具体现场、已经发生的冲突和眼下压力，停在尚未作出的选择前。后续任务给方向和可判定条件，不替玩家完成动作、接受感情或注定失败。每个可选角色都要有能从现场起步的独立目标；自带形象是新探索者，不夺取原角色身份或秘密。

@@ -42,7 +42,14 @@ export function CharacterEntry({ entry, targetId, onStart }: { identityControl?:
 
 export function CharacterChat({ initial, accountScope, onSave, onBack }: { initial: ChatSession; accountScope: string; onSave: (session: ChatSession) => void; onBack: () => void }) {
   const remoteAIAdapter = useMemo(() => createRemoteAIAdapter(accountScope), [accountScope]);
-  const [session, setSession] = useState(initial);
+  const [session, setSession] = useState(() => {
+    // Upgrade an unopened legacy encounter; never rewrite a conversation already played.
+    if (initial.turns.length) return initial;
+    const greeting = characterGreeting(initial.entry, initial.targetCharacterId);
+    const narrative = `${greeting.scene}\n\n${greeting.text}`;
+    return { ...initial, greeting, narrative, entry: { ...initial.entry, world: { ...initial.entry.world,
+      openingScene: { ...initial.entry.world.openingScene, narrative } } } };
+  });
   useRecordPlay(session.turns.length ? `character:${session.entry.id}:${session.targetCharacterId}` : null, accountScope);
   const [input, setInput] = useState(initial.draftInput ?? '');
   const [busy, setBusy] = useState(false);
@@ -138,8 +145,8 @@ export function CharacterChat({ initial, accountScope, onSave, onBack }: { initi
     <header className="conversation-header"><button className="flow-control" onClick={onBack} type="button" aria-label="返回"><ArrowLeft /></button><div className="conversation-heading"><img src={session.entry.portraits[target.id] || session.entry.cover} alt="" /><span><strong>{target.name}</strong><small>{session.state.location}</small></span></div></header>
     <div className="conversation-layout"><div className="conversation-main">
     <section ref={messagesRef} className="conversation-messages" aria-label={`与${target.name}的对话记录`} tabIndex={0} onScroll={() => { const area = messagesRef.current; if (area) { followLatest.current = area.scrollHeight - area.scrollTop - area.clientHeight < 80; if (followLatest.current) setUnread(false); } }}>
-      <section className="conversation-inline-profile" aria-label="人物与场景">{profile}{sceneTools}</section>
-      <div className="conversation-opening"><div className="conversation-opening-context">{target.name} · {identity}<br />{place?.name}：{place?.description}</div>{session.greeting ? <><small>{session.greeting.scene}</small><div className="conversation-line"><img src={session.entry.portraits[target.id] || session.entry.cover} alt="" /><div><strong>{target.name}</strong><p>{session.greeting.text}</p></div></div><LocalSpeech accountScope={accountScope} text={session.greeting.text} /></> : <><small>会面开始</small><p>{session.entry.world.openingScene.narrative}</p><LocalSpeech accountScope={accountScope} text={session.entry.world.openingScene.narrative} /></>}</div>
+      <details className="conversation-inline-profile"><summary>人物与场景</summary>{profile}{sceneTools}</details>
+      <div className="conversation-opening">{session.greeting ? <><section className="conversation-encounter" aria-label="初见场景"><span>{place?.name}</span>{session.greeting.scene.split(/\n\s*\n/).map((paragraph, index) => <p key={index}>{paragraph}</p>)}</section><div className="conversation-line"><img src={session.entry.portraits[target.id] || session.entry.cover} alt="" /><div><strong>{target.name}</strong><p>{session.greeting.text}</p></div></div><LocalSpeech accountScope={accountScope} text={session.greeting.text} /></> : <><small>会面开始</small><p>{session.entry.world.openingScene.narrative}</p><LocalSpeech accountScope={accountScope} text={session.entry.world.openingScene.narrative} /></>}</div>
       {session.turns.map((turn, index) => <article className="studio-chat-turn" key={index}>
         <div className="studio-chat-user" aria-label="你发送的消息"><p>{turn.action}</p></div>
         <div className="conversation-response">

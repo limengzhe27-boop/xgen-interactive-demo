@@ -16,6 +16,10 @@
 .conversation-main { display: grid; grid-template-rows: minmax(0, 1fr) auto; min-width: 0; min-height: 0; }
 .conversation-messages { overflow-y: auto; overscroll-behavior: contain; min-height: 0; padding: 28px max(24px, calc((100% - 760px) / 2)); scrollbar-gutter: stable; }
 .conversation-opening { margin: 0 0 28px; }
+.conversation-encounter { max-width: 640px; padding: 14px 18px; border-left: 2px solid var(--color-border); background: var(--color-surface); border-radius: 0 12px 12px 0; margin-bottom: 22px; }
+.conversation-encounter > span { font-size: 12px; color: var(--color-primary); }
+.conversation-encounter p { font-size: 15px; margin: 8px 0; }
+.conversation-inline-profile > summary { cursor: pointer; color: var(--color-text-muted); padding: 8px 0; font-size: 13px; }
 .conversation-opening > small { color: var(--color-text-muted); font-size: 12px; }
 .conversation-opening p, .conversation-narrative p { white-space: pre-wrap; overflow-wrap: anywhere; color: var(--color-text-secondary); font-size: 16px; line-height: 1.8; margin: 8px 0 14px; }
 .conversation-shell .studio-chat-turn { border: 0; padding: 0; margin: 0 0 32px; }

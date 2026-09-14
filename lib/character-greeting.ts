@@ -3,7 +3,6 @@ import type { StudioWorld } from './studio-worlds';
 export type CharacterGreeting = { scene: string; text: string };
 // Authored encounter lines, not quotations from the original IP or model output.
 const openings: Record<string, string> = {
-  李白: '在下李白，字太白。既然来了，便坐一会儿。你是来听诗的，还是有件不便对旁人说的心事？',
   吴月娘: '先坐吧。内宅人多，各有各的性情。你今日想问哪一桩事？',
   潘金莲: '才进这宅门，便有许多称呼、许多脸色要认。你找我，是想听句实话，还是也来教我规矩？',
   刘华强: '找我有事？别站那么远，有话当面说。',
@@ -22,6 +21,12 @@ export function characterGreeting(entry: StudioWorld, targetId: string): Charact
   const role = entry.world.characters.find(item => item.id === targetId);
   if (!role) throw new Error('invalid_conversation_target');
   const place = entry.world.locations.find(item => item.id === role.startLocationId);
+  // World + role identity, never a name-only override across unrelated adaptations.
+  if (role.chatOpening?.scene?.trim() && role.chatOpening?.text?.trim()) return { ...role.chatOpening };
+  if (entry.id === 'libai-moon-debt' && targetId === 'r1') return {
+    scene: '临月酒楼三层，窗外月色落在宫墙上，楼下闭坊鼓催得人心里发紧。李白坐在酒桌旁，手边的笔还没有蘸墨。空白诗笺旁压着一张借据，他看了看纸，又把酒杯放下，嘴角带着一点不肯服软的笑意。见你走近，他将诗笺转了个方向。',
+    text: '酒倒是好酒，只是有人连我该写什么都替我想好了。你说，诗还没落笔，就先定了价，写出来还能算我的么？',
+  };
   let text = openings[role.name];
   if (!text) {
     const tone = role.persona;
@@ -29,7 +34,10 @@ export function characterGreeting(entry: StudioWorld, targetId: string): Charact
       : /活泼|热情|开朗|嘴贫|幽默/.test(tone) ? '正好，有人聊聊了。你想先聊什么？'
       : /古|仙|江湖/.test(entry.genre) ? '既然相见，便不必拘礼。你有何事想与我谈？'
       : '很高兴见到你。你今天有什么想聊的？';
-    text = `我是${role.name}。${question}`;
+    text = place ? `在${place.name}碰面，倒也正好。${question}` : question;
   }
-  return { scene: place ? `${place.name} · ${role.name}与你开始交谈。` : `${role.name}与你开始交谈。`, text };
+  const context = role.publicBackground?.trim();
+  return { scene: [place ? `${place.name}。${place.description}` : entry.world.timeSetting,
+    context ? `${role.name}此刻的处境：${context}` : `${role.name}就在这里。`,
+    `${role.name}注意到你的到来，暂时将目光转向你。`].filter(Boolean).join('\n\n'), text };
 }

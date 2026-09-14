@@ -50,6 +50,7 @@ export type PersonalAgentResponse = {
 };
 
 export type CharacterDefinition = {
+  chatOpening?: { scene: string; text: string };
   playable?: boolean;
   isDefault?: boolean;
   entry?: {

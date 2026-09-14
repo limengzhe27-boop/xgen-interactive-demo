@@ -115,7 +115,10 @@ export function isWorldGenerationResponse(value: unknown): value is WorldGenerat
     && Array.isArray(world.locations)
     && Array.isArray(world.characters)
     && world.characters.length >= 1
-    && world.characters.every(role => isRecord(role) && validCardHook(role.cardHook))
+    && world.characters.every(role => isRecord(role) && validCardHook(role.cardHook)
+      && (role.chatOpening === undefined || (isRecord(role.chatOpening)
+        && typeof role.chatOpening.scene === 'string' && role.chatOpening.scene.trim().length > 0 && role.chatOpening.scene.length <= 2000
+        && typeof role.chatOpening.text === 'string' && role.chatOpening.text.trim().length > 0 && role.chatOpening.text.length <= 1000)))
     && Array.isArray(world.relationships)
     && Array.isArray(world.rules)
     && typeof world.coreEvent === 'string'

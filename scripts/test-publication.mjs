@@ -6,6 +6,12 @@ import { studioWorlds } from '../lib/studio-worlds.ts';
 test('built-in worlds pass publication validation without losing story definitions', () => {
   for (const entry of studioWorlds) assert.deepEqual(publicationWorld(entry.world), entry.world);
 });
+test('published characters retain the authored encounter but no extra encounter fields', () => {
+  const world = structuredClone(studioWorlds[0].world);
+  world.characters[0].chatOpening = { scene: '雨声敲着窗，角色收起桌上的书。', text: '先避一避雨吧。', internal: 'not public' };
+  assert.deepEqual(publicationWorld(world).characters[0].chatOpening,
+    { scene: '雨声敲着窗，角色收起桌上的书。', text: '先避一避雨吧。' });
+});
 test('publication whitelists nested fields, excluding personal memories and conversations', () => {
   const world = structuredClone(studioWorlds[0].world);
   world.agentMemories = ['private']; world.creatorMessages = [{ content: 'private' }];
