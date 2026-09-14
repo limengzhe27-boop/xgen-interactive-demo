@@ -66,3 +66,32 @@ test('shared prologue is a real small MP4 asset, not a temporary model URL',asyn
  assert.equal((await readFile(path)).subarray(4,8).toString(),'ftyp');
  for(const shot of yogaPrologue.shots) assert.ok((await stat(new URL('../public'+shot.poster,import.meta.url))).size>0);
 });
+
+test('after class multi-role prologues are playable native audio with narrative hooks and valid posters',async()=>{
+ const { rolePrologue, afterClassZhouPrologue, afterClassShenPrologue, afterClassLinPrologue } = await import('../lib/world-prologue.ts');
+ const { AFTER_CLASS_ID } = await import('../lib/after-class-entry.ts');
+
+ const roles = [
+   { id: 'draft-role-0', prologue: afterClassZhouPrologue, name: '周野' },
+   { id: 'draft-role-1', prologue: afterClassShenPrologue, name: '沈知夏' },
+   { id: 'draft-role-2', prologue: afterClassLinPrologue, name: '林小满' },
+ ];
+
+ for (const { id, prologue, name } of roles) {
+   const bound = rolePrologue(AFTER_CLASS_ID, id, '', '');
+   assert.equal(bound.video, prologue.video, `role ${name} video mismatch`);
+   assert.equal(bound.audioOrigin, 'native');
+   assert.equal(bound.hasAudio, true);
+   assert.equal(prologueDuration(bound), 15);
+   assert.ok(bound.handoff.length > 10, `role ${name} handoff hook missing`);
+
+   const bytes = await readFile(new URL('../public' + bound.video, import.meta.url));
+   assert.equal(bytes.subarray(4, 8).toString(), 'ftyp');
+   assert.ok(bytes.includes(Buffer.from('soun')), `role ${name} missing native sound atom`);
+   assert.ok(bytes.includes(Buffer.from('mp4a')), `role ${name} missing AAC audio codec`);
+
+   const posterStat = await stat(new URL('../public' + bound.shots[0].poster, import.meta.url));
+   assert.ok(posterStat.size > 1000, `role ${name} poster too small or missing`);
+ }
+});
+

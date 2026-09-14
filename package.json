@@ -7,7 +7,7 @@
   },
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "next build --webpack",
     "start": "next start",
     "eval:world-agent": "node scripts/evaluate-world-agent.mjs",
     "test:world": "node --test scripts/test-world-endings.mjs",

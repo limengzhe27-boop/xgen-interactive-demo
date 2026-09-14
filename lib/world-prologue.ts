@@ -1,3 +1,5 @@
+import { AFTER_CLASS_ID } from './after-class-entry.ts';
+
 export type PrologueShot = { caption: string; poster: string; seconds: number };
 export type WorldPrologue = {
   shots: PrologueShot[]; handoff: string; video?: string; captionsEmbedded?: boolean; hasAudio?: boolean;
@@ -13,6 +15,16 @@ const firstPersonBindings: Record<string, Record<string,()=>WorldPrologue>> = {
   'spider-under-table':{r1:()=>spiderNativePrologue},
   'nightguard-double':{r1:()=>nightguardNativePrologue},
   'final-circle-future':{r1:()=>finalcircleNativePrologue},
+  [AFTER_CLASS_ID]: {
+    'draft-role-0': () => afterClassZhouPrologue,
+    'draft-role-1': () => afterClassShenPrologue,
+    'draft-role-2': () => afterClassLinPrologue,
+  },
+  'after-class': {
+    'draft-role-0': () => afterClassZhouPrologue,
+    'draft-role-1': () => afterClassShenPrologue,
+    'draft-role-2': () => afterClassLinPrologue,
+  },
 };
 export function rolePrologue(worldId:string,roleId:string,publicPremise:string,cover:string):WorldPrologue {
   const binding=firstPersonBindings[worldId]?.[roleId];
@@ -73,6 +85,7 @@ export function worldPrologue(worldId: string, publicPremise: string, cover: str
   if (worldId === 'spider-under-table') return spiderNativePrologue;
   if (worldId === 'emperor-last-decree') return emperorNativePrologue;
   if (worldId === 'surrounded-by-beauties') return beautiesNativePrologue;
+  if (worldId === AFTER_CLASS_ID || worldId === 'after-class') return afterClassLinPrologue;
   return worldId === 'ascension-work-number' ? ascensionNativePrologue : worldId === 'yoga-lotus-boundary' ? yogaAudioPrologue : {
     shots: [{ caption: publicPremise, poster: cover, seconds: 0 }],
     handoff: '先了解这场故事，再选择你要成为的人。',
@@ -111,3 +124,39 @@ export function prologueShotAt(prologue: WorldPrologue, seconds: number) {
   const index = prologue.shots.findIndex(shot => { end += shot.seconds; return seconds < end; });
   return index < 0 ? prologue.shots.length - 1 : index;
 }
+
+export const afterClassZhouPrologue: WorldPrologue = {
+  video: '/assets/after-class-v1/zhou-prologue.mp4',
+  hasAudio: true,
+  audioOrigin: 'native',
+  shots: [{
+    poster: '/assets/after-class-v1/zhou-story-v2.webp',
+    seconds: 15,
+    caption: '放学后的办公室里，沈知夏将作弊卷子扣在桌上，推来钥匙与信封：“今晚七点前拿到红标档案，否则处分明天公布，小满也会知道。”钥匙就在面前。',
+  }],
+  handoff: '钥匙尚未拿起，你还没有答应这桩交易。问清材料到底是什么、断然拒绝承受处分，或者先虚与委蛇拖延时间，由你决定。',
+};
+
+export const afterClassShenPrologue: WorldPrologue = {
+  video: '/assets/after-class-v1/shen-prologue.mp4',
+  hasAudio: true,
+  audioOrigin: 'native',
+  shots: [{
+    poster: '/assets/after-class-v1/shen.webp',
+    seconds: 15,
+    caption: '辞退警告信压在桌角，周野正站在门前。只要让他从档案室拿到那封旧信，就能保住教职并摆脱纠缠；但他若拒绝或声张，一切都将万劫不复。',
+  }],
+  handoff: '周野还在等待你开口，门外似乎有人影晃动。直接亮出作弊证据逼他就范、放软语气许以利益，还是放弃要挟另寻他法，由你决定。',
+};
+
+export const afterClassLinPrologue: WorldPrologue = {
+  video: '/assets/after-class-v1/lin-prologue.mp4',
+  hasAudio: true,
+  audioOrigin: 'native',
+  shots: [{
+    poster: '/assets/after-class-v1/lin.webp',
+    seconds: 15,
+    caption: '黄昏的办公楼走廊，你看见男友周野闪身进了班主任沈知夏的办公室。门缝半掩，沈老师的声音传来：“东西拿到了吗？别忘了你答应过我什么。”你还没推门。',
+  }],
+  handoff: '周野尚未察觉你的存在，办公室门仍半掩着。推门质问、在门外录音听清对话，还是先转身离开，由你决定。',
+};
