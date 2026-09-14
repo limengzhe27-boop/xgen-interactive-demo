@@ -52,6 +52,8 @@ test('read-only video queries retry transient failures but not authorization fai
 test('single-role intro initializes before playback while preparation and countdown keep their gates',()=>{
  const ui=readFileSync(root+'components/video-explorer.tsx','utf8');
  const hydration=ui.slice(ui.indexOf('const a=await fetch'),ui.indexOf('function selectRole'));
+ assert.match(ui,/const enabled=!loading&&configured/);
+ assert.ok(!ui.includes('setEnabled')&&!ui.includes('开启探索'));
  assert.match(hydration,/roles.length===1\?initialVideoRole\(entry,roles\[0\].id\)/);
  assert.match(hydration,/current.current=fresh;setSession\(fresh\)/);
  assert.match(ui,/if\(!scope\|\|!online\|\|!preparationSource/);

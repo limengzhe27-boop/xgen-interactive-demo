@@ -54,8 +54,11 @@ export function VideoExplorer({entry:latestEntry,onBack,onText}:{entry:StudioWor
   useEffect(()=>()=>{for(const c of archiveChecks.current.values())c.abort();archiveChecks.current.clear();},[scope]);
   useEffect(()=>()=>{firstFrameTimer.current?.('离开页面');stallTimer.current?.('离开页面');selectionTimer.current?.('离开页面');},[]);
   useRecordPlay(session.rounds > 0 ? `world:${entry.id}` : null, scope);
-  const [enabled,setEnabled]=useState(false),[paused,setPaused]=useState(false),[seconds,setSeconds]=useState(15),[text,setText]=useState(''),[focused,setFocused]=useState(false);
+  const [paused,setPaused]=useState(false),[seconds,setSeconds]=useState(15),[text,setText]=useState(''),[focused,setFocused]=useState(false);
   const [visible,setVisible]=useState(true),[error,setError]=useState(''),[loading,setLoading]=useState(true);
+  // Entering a video world starts exploration after account/session restoration.
+  // Keep service readiness and idempotent jobs as gates, not a second user click.
+  const enabled=!loading&&configured;
   const [saveError,setSaveError]=useState(''),[waitSeconds,setWaitSeconds]=useState(0);
   const [waitingNote,setWaitingNote]=useState(''),[online,setOnline]=useState(true);
   const [branchStatus,setBranchStatus]=useState(''),[branchRetry,setBranchRetry]=useState(0);
@@ -300,8 +303,8 @@ export function VideoExplorer({entry:latestEntry,onBack,onText}:{entry:StudioWor
           if(restored.pending)setError(restored.pending.assetUrl?'视频已保存，点击播放即可继续，无需重新生成。':'已找回未完成的回合。恢复将复用原回合编号，不另建视频任务。');}
         else{
           // Establish the sole viewpoint before playback, not in onEnded.
-          // This unlocks branch preparation during the intro without advancing
-          // the story, purchasing videos or starting its countdown.
+          // Prepare during the intro; ready service automatically unlocks video
+          // prefetch. Only choosing a branch can commit its story state.
           const initial=roles.length===1?initialVideoRole(entry,roles[0].id):{};
           const fresh={...current.current,...initial,id:crypto.randomUUID(),roleId:roles.length===1?roles[0].id:''};
           current.current=fresh;setSession(fresh);
@@ -521,10 +524,7 @@ export function VideoExplorer({entry:latestEntry,onBack,onText}:{entry:StudioWor
       {session.clip&&shownClip!==session.clip&&<div className="video-transition-cover" aria-label="缓冲视频，保留上一幕"><Image src={holdFrame||entry.portraits[session.roleId]||entry.cover} alt="" width={1280} height={720} unoptimized/><span role="status">正在缓冲画面…</span></div>}
     </div>
     <section ref={controls} className="video-explorer-controls" aria-label="接下来的行动">
-      {!enabled&&<div className="video-explorer-start">
-        <p>播放时提前生成下一层三个分支，每轮最多生成三段视频；未选择的分支也会消耗额度。不发送私人聊天。</p>
-        <button disabled={loading||!configured} onClick={()=>{setEnabled(true);setPaused(false);setSeconds(15);if(!session.clip)ended();else if(player.current?.ended)ended();}}>{loading?'连接中…':configured?'开启探索':'服务暂不可用'}</button>
-      </div>}
+      {!enabled&&<p className="video-brief" role="status">{loading?'正在连接探索…':'视频服务暂不可用，请稍后重新进入。'}</p>}
       {waiting&&<p className="video-brief" role="status">{phase==='planning'?'正在编排你的行动':'正在生成下一幕'} · {waitSeconds}秒</p>}
       {enabled&&(choosing||phase==='roles')&&<div className="video-countdown" data-paused={!ticking}><span>{countdownLabel}</span><progress aria-label={countdownLabel} max={15} value={seconds}/></div>}
       {phase==='roles'&&<div className="video-explorer-choices">{roles.map(role=><button disabled={loading} key={role.id} title={role.identity} onClick={()=>selectRole(role.id)}>{role.name}</button>)}</div>}
