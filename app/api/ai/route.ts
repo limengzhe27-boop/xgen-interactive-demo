@@ -106,7 +106,7 @@ async function callCompany(provider: CompanyProvider, operation: Operation, inpu
     ? { ...(input.presentation?.medium === 'native-video' ? compactVideoScriptInput(input) : { ...input, world: { ...input.world, characters: input.world.characters.map(({ cardHook: _cardHook, ...character }) => character) } }), progression: worldProgression(input), systemView: visibleSystem(input.world, input.selectedRoleId, input.state.completedTaskIds) }
     : input;
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), timeoutMs ?? (operation === 'generate-world' ? 75_000 : 60_000));
+  const timeout = setTimeout(() => controller.abort(), timeoutMs ?? (operation === 'generate-world' ? 85_000 : operation === 'co-create-world' ? 80_000 : 60_000));
   try {
     const response = await fetch(provider.endpoint, {
       method: 'POST',

@@ -8,7 +8,7 @@ test('gateway credentials cannot be redirected or sent to arbitrary configured h
   for(const url of ['http://yibuapi.com','https://evil.test','https://user:pass@yibuapi.com','https://yibuapi.com?key=oops','https://yibuapi.com/custom']) assert.throws(()=>companyGateway({YIBU_BASE_URL:url}));
 });
 test('operator model changes are bounded, no expensive automatic fallback',()=>{
-  assert.equal(companyModel('text',{}),'deepseek-v4-flash');
+  assert.equal(companyModel('text',{}),'deepseek-v4.1-flash');
   assert.equal(companyModel('image',{}),'doubao-seedream-4-0-250828');
   assert.equal(companyModel('speech',{}),'doubao-tts');
   assert.throws(()=>companyModel('video',{YIBU_VIDEO_MODEL:'premium-unapproved'}));
