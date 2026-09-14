@@ -11,7 +11,7 @@ import { WorldProloguePlayer } from '@/components/world-prologue';
 import { VideoExplorer } from '@/components/video-explorer';
 import { RecordPlay } from '@/components/play-counts';
 import './video-explore/video-explore.css';
-import { worldPrologue } from '@/lib/world-prologue';
+import { rolePrologue } from '@/lib/world-prologue';
 import { playableCharacters, characterRecap, applyCharacterEntry } from '@/lib/character-entry';
 import { switchRole } from '@/lib/role-switch';
 import { applyStoryUpgrade } from '@/lib/story-upgrade';
@@ -1794,11 +1794,11 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     return true;
   }
 
-  function beginWorld(adapted?: StudioWorld) {
+  function beginWorld(adapted?: StudioWorld, requestedRoleId?:string) {
     const startingEntry = adapted ?? activeLibrary;
     const startingWorld = startingEntry?.world ?? activeWorldDefinition;
     const startable = playableCharacters(startingWorld, startingEntry?.fixedRoleId);
-    const startId = adapted?.world.entryAdmission?.roleId ?? (startable.some(role => role.id === selectedRole.id) ? selectedRole.id : startable[0]?.id);
+    const startId = adapted?.world.entryAdmission?.roleId ?? (startable.some(role => role.id === requestedRoleId) ? requestedRoleId : startable.some(role => role.id === selectedRole.id) ? selectedRole.id : startable[0]?.id);
     const startingRole = startingEntry ? entryRoles(startingEntry).find(role => role.id === startId) : selectedRole;
     if (!startingRole) return;
     const startingStory = startingEntry ? entryStory(startingEntry, startingRole.id) : currentStory;
@@ -2689,7 +2689,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       if (memories.length >= 24) { setStorageError('记忆已满（24 条），请先删除不再需要的内容。'); return; }
       setMemories(current => [...new Set([...current, memory])]); setMemoryDetails(current => confirmMemoryDetail(current, memory)); setPendingPersonalMemories(current => current.filter(item => item !== memory));
     }} />;
-    if (view === 'prologue' && activeLibrary && !preferText && worldPrologue(activeLibrary.id, activeLibrary.premise, activeLibrary.cover).video) return <VideoExplorer key={`${accountScope}:${activeLibrary.id}`} entry={activeLibrary} onBack={returnToCatalog} onText={() => { setPreferText(true); if (singleRole) beginWorld(); else navigate('roles'); }} />;
+    if (view === 'prologue' && activeLibrary && !preferText && selectableRoles.some(role=>rolePrologue(activeLibrary.id,role.id,activeLibrary.premise,activeLibrary.cover).video)) return <VideoExplorer key={`${accountScope}:${activeLibrary.id}`} entry={activeLibrary} onBack={returnToCatalog} onText={roleId => { setPreferText(true); if (roleId || singleRole) beginWorld(undefined,roleId); else navigate('roles'); }} />;
     if (view === 'chat' && activeChat) return <CharacterChat key={`${accountScope}:${activeChat.id}`} accountScope={accountScope} initial={activeChat} onSave={saveChat} onBack={returnToCatalog} />;
     if (view === 'home' || view === 'library' || view === 'characters') return <StudioHome key={`${accountScope}:${view}`}
       initialBrowse={galleryRestore.browse} returnPosition={galleryRestore.position}

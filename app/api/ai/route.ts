@@ -78,6 +78,7 @@ function getCompanyProvider(): CompanyProvider | null {
 
 operationInstructions['co-create-world'] = operationInstructions['co-create-world'].replace('前置必须可由同一个角色完成，不允许循环依赖。', '前置任务表示世界中已经完成的事件，允许跨角色依赖，不要求同一人完成；保留各自任务归属，不要为了依赖把其他角色的任务强加给玩家。不得引用不存在的任务或形成循环依赖。');
 operationInstructions['advance-world'] += '\n任务的 prerequisiteTaskIds 是世界级已完成事件，可由其他角色完成。依赖其他角色的任务不代表玩家继承其身份、任务或秘密；NPC 按其目标与实际条件推进并提交完成状态，尚未发生的事件不可提前标记完成。';
+operationInstructions['advance-world'] += '\n所有世界探索均采用selectedRoleId的第一人称感知视角，不因多人世界切成全知叙述。可以用“你”称呼玩家，但镜头是该角色的眼睛：看见现场其他角色、自己的手和持物，不从外面拍自己正脸或背影。叙事与image.prompt均遵守此规则，角色肖像不是探索机位。仅描述当前角色可感知或确已获知的信息；换角色只换当前位置与认知，不回退世界时间，不播放原角色私密前情，不代写下一项决定。';
 operationInstructions['advance-world'] += '\nstate.relationshipChanges记录本次体验以来各NPC对体验者的关系变化（键为NPC id，0表示尚无变化，不是默认信任）。它不是全世界共享的好感；对甲帮忙不代表乙也喜欢你。relationshipDeltas仅填写本轮有实际依据的NPC变化，每人-10到10，不能靠数值授权秘密或强迫恋爱。recentTurns包含玩家实际听到的对白，继续兑现已说过的安排，不要忘掉姓名或重新进行第一次自我介绍。';
 
 function isOperation(value: unknown): value is Operation {

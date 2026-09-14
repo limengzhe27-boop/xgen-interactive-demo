@@ -4,6 +4,21 @@ export type WorldPrologue = {
   audioOrigin?: 'native' | 'post';
   message?: { at: number; until: number; sender: string; text: string };
 };
+// Bind a video to its intended viewpoint explicitly. Never infer ownership from
+// the number/order of playable characters or reuse an external camera as POV.
+const firstPersonBindings: Record<string, Record<string,()=>WorldPrologue>> = {
+  'ascension-work-number':{shen:()=>ascensionNativePrologue},
+  'emperor-last-decree':{r1:()=>emperorNativePrologue},
+  'surrounded-by-beauties':{r1:()=>beautiesNativePrologue},
+  'spider-under-table':{r1:()=>spiderNativePrologue},
+  'nightguard-double':{r1:()=>nightguardNativePrologue},
+  'final-circle-future':{r1:()=>finalcircleNativePrologue},
+};
+export function rolePrologue(worldId:string,roleId:string,publicPremise:string,cover:string):WorldPrologue {
+  const binding=firstPersonBindings[worldId]?.[roleId];
+  if(binding)return binding();
+  return {shots:[{caption:publicPremise,poster:cover,seconds:0}],handoff:'从所选角色此刻的处境开始。'};
+}
 export const yogaPrologue: WorldPrologue = {
   video: '/assets/prologues/yoga-v2/prologue.mp4',
   message: {at:17,until:20,sender:'丈夫',text:'幼儿园快关门了，你到底几点去接孩子？'},

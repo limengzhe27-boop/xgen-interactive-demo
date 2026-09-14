@@ -12,6 +12,15 @@ registerHooks({resolve(s,c,next){
   return next(s,c);
 },load(u,c,next){if(u.startsWith('file:')&&/\.tsx?$/.test(u))return{format:'module',shortCircuit:true,source:ts.transpileModule(readFileSync(new URL(u),'utf8'),{compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText};return next(u,c);}});
 const policy=await import('../lib/fal-video.ts');
+const {rolePrologue,worldPrologue}=await import('../lib/world-prologue.ts');
+test('opening clips require an exact role binding, never a universal or external video',()=>{
+ assert.ok(rolePrologue('nightguard-double','r1','','').video);
+ assert.equal(rolePrologue('nightguard-double','r2','','').video,undefined);
+ assert.equal(rolePrologue('nightguard-double','','','').video,undefined);
+ assert.ok(worldPrologue('yoga-lotus-boundary','','').video);
+ assert.equal(rolePrologue('yoga-lotus-boundary','lin','','').video,undefined);
+ assert.equal(rolePrologue('new-world','r1','当前处境','/cover.webp').shots[0].caption,'当前处境');
+});
 globalThis.__videoAfter=[];
 const route=await import('../app/api/fal-video/route.ts');
 const assetRoute=await import('../app/api/media/asset/[id]/route.ts');
@@ -194,7 +203,8 @@ test('immersive actions use icon corners and a closed records dialog without lab
  assert.match(ui,/paused&&online&&visible/);
  assert.match(ui,/entry.portraits\[session.roleId\]\|\|entry.cover/);
  assert.match(ui,/if\(s.clip&&!frame.current\)/);
- assert.match(ui,/clip:roleClip\?\?\(roles.length===1\?current.current.clip:''\)/);
+ assert.match(ui,/clip:roleClip\?\?''/);
+ assert.match(ui,/rolePrologue\(entry.id,roleId,entry.premise,entry.cover\)/);
 });
 test('prepared branches project without committing and match the eventual played state',()=>{
  const entry=studioWorlds.find(w=>w.id==='yoga-lotus-boundary');

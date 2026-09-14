@@ -8,7 +8,7 @@ import type { WorldState } from '@/lib/world-state';
 import type { WorldTurnResponse } from '@/lib/ai-contracts';
 import type { FalVideoInput } from '@/lib/fal-video';
 import { createRemoteAIAdapter } from '@/lib/remote-ai-adapter';
-import { worldPrologue } from '@/lib/world-prologue';
+import { rolePrologue } from '@/lib/world-prologue';
 import { playableCharacters, characterRecap } from '@/lib/character-entry';
 import { switchRole } from '@/lib/role-switch';
 import { applyStoryUpgrade } from '@/lib/story-upgrade';
@@ -34,7 +34,7 @@ type Prefetched=Pending&{status:string;error?:string};
 type Session={version:1;id:string;roleId:string;state:WorldState|null;narrative:string;choices:VideoChoice[];clip:string;rounds:number;worldSnapshot?:StudioWorld;pending?:Pending;branches?:BranchCache;videos?:{key:string;jobs:Record<string,Prefetched>};draftAction?:string;finished?:boolean;clips?:{url:string;action:string;narrative?:string}[]};
 type Phase='intro'|'roles'|'choices'|'planning'|'generating'|'ready'|'playing'|'error';
 type MediaReply={id?:string;status:string;error?:string;assetUrl?:string;persisting?:boolean;timing?:ServerVideoTiming};
-export function VideoExplorer({entry:latestEntry,onBack,onText}:{entry:StudioWorld;onBack?:()=>void;onText?:()=>void}){
+export function VideoExplorer({entry:latestEntry,onBack,onText}:{entry:StudioWorld;onBack?:()=>void;onText?:(roleId?:string)=>void}){
   const [entry,setEntry]=useState(latestEntry);
   const timing=useRef(new VideoTimingLog());
   const scriptCache=useRef(new VideoScriptCache<WorldTurnResponse>());
@@ -42,9 +42,10 @@ export function VideoExplorer({entry:latestEntry,onBack,onText}:{entry:StudioWor
   const generationTimers=useRef(new Map<string,(status?:string)=>void>());
   const archiveChecks=useRef(new Map<string,AbortController>());
   const firstFrameTimer=useRef<((status?:string)=>void)|null>(null),stallTimer=useRef<((status?:string)=>void)|null>(null),selectionTimer=useRef<((status?:string)=>void)|null>(null);
-  const prologue=worldPrologue(entry.id,entry.premise,entry.cover);
   const roles=playableCharacters(entry.world,entry.fixedRoleId);
-  const [session,setSession]=useState<Session>({version:1,id:'',roleId:'',state:null,narrative:entry.world.storyHook||entry.title,choices:[],clip:roles.length===1?(prologue.video??''):'',rounds:0});
+  const opening=rolePrologue(entry.id,roles.length===1?roles[0].id:'',entry.premise,entry.cover);
+  const [session,setSession]=useState<Session>({version:1,id:'',roleId:'',state:null,narrative:entry.world.storyHook||entry.title,choices:[],clip:opening.video??'',rounds:0});
+  const prologue=rolePrologue(entry.id,session.roleId,entry.premise,entry.cover);
   const current=useRef(session);
   useEffect(()=>{current.current=session;},[session]);
   const [phase,setPhase]=useState<Phase>(roles.length===1?'intro':'roles'),[scope,setScope]=useState<string|null>(null),[configured,setConfigured]=useState(false);
@@ -297,8 +298,9 @@ export function VideoExplorer({entry:latestEntry,onBack,onText}:{entry:StudioWor
           restored={...restored,state:migrateWorldState(restored.state!,restored.worldSnapshot?.world)};
           setText(restored.draftAction??restored.pending?.action??'');
           if(restored.worldSnapshot?.id===latestEntry.id)setEntry(restored.worldSnapshot);
-          // An old unplayed universal intro is not valid for another character.
-          if(entry.id==='yoga-lotus-boundary'&&restored.roleId!=='lin'&&restored.rounds===0&&restored.clip===prologue.video)restored={...restored,clip:''};
+          // Legacy opening clips must also match the restored role; never replay
+          // another person's history. Generated continuation clips remain intact.
+          if(restored.clip.startsWith('/assets/prologues/')&&restored.clip!==rolePrologue(entry.id,restored.roleId,entry.premise,entry.cover).video)restored={...restored,clip:'',branches:undefined,videos:undefined};
           current.current=restored;setSession(restored);setPhase(restored.pending?'error':restored.clip?'playing':'choices');setPaused(true);
           if(restored.pending)setError(restored.pending.assetUrl?'视频已保存，点击播放即可继续，无需重新生成。':'已找回未完成的回合。恢复将复用原回合编号，不另建视频任务。');}
         else{
@@ -332,20 +334,24 @@ export function VideoExplorer({entry:latestEntry,onBack,onText}:{entry:StudioWor
   },[]);
   function selectRole(roleId:string){
     if(busy.current)return;
+    const roleClip=rolePrologue(entry.id,roleId,entry.premise,entry.cover).video;
+    if(!roleClip){
+      if(onText){onText(roleId);return;}
+      // Dedicated entry returns to the ordinary character-selection/text flow.
+      window.location.assign(`/?world=${encodeURIComponent(entry.id)}&mode=text`);return;
+    }
     const initial=initialVideoRole(entry,roleId);
     // A public/multi-role camera is not the selected person's first-person camera.
     if(roles.length>1)frame.current=null;
-    // This old clip contains Lin's private experiences, not the husband's knowledge.
-    const roleClip=entry.id==='yoga-lotus-boundary'&&roleId==='lin'&&!current.current.roleId?prologue.video:undefined;
-    save({...current.current,...initial,roleId,clip:roleClip??(roles.length===1?current.current.clip:''),branches:undefined});setPhase(roleClip?'intro':'choices');setSeconds(15);setError('');
+    save({...current.current,...initial,roleId,clip:roleClip??'',branches:undefined,videos:undefined});setPhase(roleClip?'intro':'choices');setSeconds(15);setError('');
   }
   function switchViewpoint(roleId:string){
     const s=current.current;
     if(busy.current||s.pending||!s.state||roleId===s.roleId||!['choices','error'].includes(phase))return;
     try{
       const changed=switchRole(entry.world,s.state,s.roleId,roleId,entry.fixedRoleId);
-      frame.current=null;setPaused(true);setSeconds(15);setText('');setError('');
-      save({...s,...changed,roleId,clip:'',choices:['观察眼前的环境','确认身边有哪些人','查看自己随身的物品'].map((label,i)=>({id:`switch-${i}`,label,intent:label}))});
+      frame.current=null;setHoldFrame(null);setPaused(true);setSeconds(15);setText('');setError('');
+      save({...s,...changed,roleId,clip:'',branches:undefined,videos:undefined,choices:['观察眼前的环境','确认身边有哪些人','查看自己随身的物品'].map((label,i)=>({id:`switch-${i}`,label,intent:label}))});
       setPhase('choices');
     }catch(e){setError(e instanceof Error?e.message:'暂时无法切换角色');}
   }
@@ -489,7 +495,7 @@ export function VideoExplorer({entry:latestEntry,onBack,onText}:{entry:StudioWor
   }
   const autoAction=useRef(()=>{});
   useEffect(()=>{autoAction.current=()=>{if(phase==='roles')selectRole(roles[0].id);else void act(current.current.choices[0]?.label??'',true);};});
-  const ticking=enabled&&!drawerOpen&&!paused&&online&&visible&&!focused&&!text.trim()&&!error&&!session.pending&&!session.finished&&(phase==='roles'||phase==='choices'&&cachedPlans.some(p=>p.action===session.choices[0]?.label));
+  const ticking=enabled&&!drawerOpen&&!paused&&online&&visible&&!focused&&!text.trim()&&!error&&!session.pending&&!session.finished&&(phase==='choices'&&cachedPlans.some(p=>p.action===session.choices[0]?.label));
   useEffect(()=>{
     if(!ticking)return;
     const timer=setInterval(()=>setSeconds(n=>Math.max(0,n-1)),1000);return()=>clearInterval(timer);
@@ -511,7 +517,7 @@ export function VideoExplorer({entry:latestEntry,onBack,onText}:{entry:StudioWor
       <div className="video-corner video-corner-right">
         {soundBlocked&&<button onClick={enableSound} aria-label="开启声音" title="浏览器限制自动出声，点击开启声音"><Volume2 size={21}/></button>}
         <button onClick={togglePause} aria-label={pauseActive?'继续':'暂停'} title={pauseActive?'继续':'暂停'}>{pauseActive?<Play size={21}/>:<Pause size={21}/>}</button>
-        {onText?<button onClick={onText} aria-label="切换图文探索" title="切换图文探索"><MessageSquare size={21}/></button>:<Link href={`/?world=${entry.id}&mode=text`} aria-label="图文探索（另开体验）" title="图文探索（另开体验）"><MessageSquare size={21}/></Link>}
+        {onText?<button onClick={()=>onText(session.roleId||undefined)} aria-label="切换图文探索" title="切换图文探索"><MessageSquare size={21}/></button>:<Link href={`/?world=${entry.id}&mode=text`} aria-label="图文探索（另开体验）" title="图文探索（另开体验）"><MessageSquare size={21}/></Link>}
         <button onClick={openRecords} aria-label="剧情记录" title="剧情记录" aria-haspopup="dialog" aria-expanded={drawerOpen}><History size={21}/></button>
       </div>
     </header>
@@ -526,7 +532,7 @@ export function VideoExplorer({entry:latestEntry,onBack,onText}:{entry:StudioWor
     <section ref={controls} className="video-explorer-controls" aria-label="接下来的行动">
       {!enabled&&<p className="video-brief" role="status">{loading?'正在连接探索…':'视频服务暂不可用，请稍后重新进入。'}</p>}
       {waiting&&<p className="video-brief" role="status">{phase==='planning'?'正在编排你的行动':'正在生成下一幕'} · {waitSeconds}秒</p>}
-      {enabled&&(choosing||phase==='roles')&&<div className="video-countdown" data-paused={!ticking}><span>{countdownLabel}</span><progress aria-label={countdownLabel} max={15} value={seconds}/></div>}
+      {enabled&&choosing&&<div className="video-countdown" data-paused={!ticking}><span>{countdownLabel}</span><progress aria-label={countdownLabel} max={15} value={seconds}/></div>}
       {phase==='roles'&&<div className="video-explorer-choices">{roles.map(role=><button disabled={loading} key={role.id} title={role.identity} onClick={()=>selectRole(role.id)}>{role.name}</button>)}</div>}
       {choosing&&<>
         <div className="video-explorer-choices">{session.choices.map((c,i)=>{const job=session.videos?.key===videoKey?session.videos.jobs[c.label]:undefined;return <button disabled={!enabled||!online||!cachedPlans.some(p=>p.action===c.label)} key={c.id} title={job?.assetUrl?'视频已就绪':job?'视频准备中':c.label} aria-label={c.label} onClick={()=>void act(c.label,true)}><span>{shortAction(c.label)}</span>{job?.assetUrl&&<small>已就绪</small>}{i===0&&ticking&&<em aria-label={`${seconds}秒后自动选择`}>{seconds}</em>}</button>;})}</div>
@@ -552,7 +558,7 @@ export function VideoExplorer({entry:latestEntry,onBack,onText}:{entry:StudioWor
       {session.state&&roles.length>1&&!entry.world.entryAdmission&&<label>切换视角 · 时间不变 <select aria-label="同一存档切换角色" value={session.roleId} disabled={!!session.pending||!['choices','error'].includes(phase)} onChange={e=>switchViewpoint(e.target.value)}>{roles.map(role=><option key={role.id} value={role.id}>{role.name}</option>)}</select></label>}
       <section><h3>当前场景</h3><p>{session.narrative}</p></section>
       {session.roleId&&session.rounds===0&&!session.state?.rolePerspectives&&characterRecap(entry.world,session.roleId).length>0&&<section><h3>角色前情</h3>{characterRecap(entry.world,session.roleId).map((fact,i)=><p key={i}>{fact}</p>)}</section>}
-      {prologue.video&&roles.length===1&&<details><summary>开场视频</summary><video controls preload="none" src={prologue.video} aria-label="回看开场视频"/></details>}
+      {prologue.video&&<details><summary>当前角色前情</summary><video controls preload="none" src={prologue.video} aria-label="回看当前角色前情"/></details>}
       {(session.clips??[]).filter(c=>/^\/api\/media\/asset\/[a-f0-9]{64}$/.test(c.url)).map((c,i)=><details key={c.url}><summary>第 {i+1} 段 · {c.action}</summary><p>{c.narrative??'此旧片段未单独保存文字，请参照当前场景。'}</p><video controls preload="none" src={c.url} aria-label={`回看第${i+1}段`}/></details>)}
       {session.finished&&<RequestStoryUpdate key={`${scope}:${entry.id}`} worldId={entry.id} accountScope={scope??'pending'}/>}
       <details><summary>探索说明</summary><p>每段15秒，播放时预生成下一层三个分支，不递归生成未选择路线。已完成的分支直接播放，未完成的继续等待。进度保存在当前浏览器标签页，刷新后恢复；不是跨设备同步。</p><p>离开或失焦暂停新预生成，已提交的任务不会取消；恢复时复用原任务。未选择的分支也已消耗生成额度。只有选中的视频开始播放后才推进剧情。</p></details>
