@@ -206,6 +206,7 @@ export type CreatorChatMessage = {
 };
 
 export type CreatorAgentRequest = {
+  pendingProposal?: CreatorAgentResponse['proposal'];
   pendingSuggestions?: {section: string; value: unknown}[];
   companionContext?: { confirmedMemories: string[]; conversation: NonNullable<PersonalAgentRequest['conversation']> };
   contractVersion: typeof AI_CONTRACT_VERSION;
@@ -224,6 +225,9 @@ export type CreatorAgentRequest = {
 };
 
 export type CreatorAgentResponse = {
+  /** A real conversation reply with no applicable draft mutation. */
+  discussionOnly?: boolean;
+  proposalIssue?: string;
   reply: string;
   proposal: {
     entryPolicy?: import('./player-persona').EntryPolicy;

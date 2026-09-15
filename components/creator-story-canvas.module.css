@@ -49,6 +49,21 @@
 .person h3 { font-size: 24px; margin: 8px 0 20px; }
 .person h4 { font-size: 12px; color: var(--color-text-secondary); margin: 18px 0 6px; }
 .person p { font-size: 14px; line-height: 1.8; white-space: pre-wrap; }
+.personHeading { display: flex; gap: 16px; align-items: center; margin-bottom: 22px; }
+.personHeading h3 { margin: 5px 0; }
+.personHeading p { margin: 0; color: var(--color-text-secondary); }
+.portrait { width: 76px; height: 90px; border-radius: 12px; background: var(--color-agent-soft); color: var(--color-primary); display: grid; place-items: center; font-size: 36px; flex-shrink: 0; overflow: hidden; }
+.portrait img { width: 100%; height: 100%; object-fit: cover; }
+.personSections { border: 1px solid var(--color-border); border-radius: 13px; padding: 0 18px; margin-bottom: 14px; }
+.inlineField { display: block; padding: 14px 0; border-bottom: 1px solid var(--color-border); }
+.inlineField > span { display: block; color: var(--color-text-secondary); font-size: 12px; margin-bottom: 5px; }
+.inlineField textarea { display: block; width: 100%; min-width: 0; border: 1px solid transparent; background: transparent; border-radius: 5px; padding: 4px; color: var(--color-text); font: 14px/1.7 var(--font-ui); resize: vertical; }
+.inlineField textarea:hover, .inlineField textarea:focus { background: var(--color-agent-soft); }
+.encounter { padding: 14px 0; border-bottom: 1px solid var(--color-border); }
+.personSections details { padding: 14px 0; border-bottom: 1px solid var(--color-border); }
+.personSections details:last-child { border-bottom: 0; }
+.personSections summary { cursor: pointer; color: var(--color-text-secondary); font-size: 13px; }
+.personSections small { color: var(--color-text-secondary); }
 .notice { color: var(--color-primary); font-size: 12px; line-height: 1.8; }
 .footer { flex-shrink: 0; display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 20px; border-top: 1px solid var(--color-border); font-size: 11px; color: var(--color-text-secondary); }
 .footer button, .detailHeading button { flex-shrink: 0; min-height: 44px; }

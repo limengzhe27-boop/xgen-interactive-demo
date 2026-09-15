@@ -2134,6 +2134,13 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       return;
     }
     const baseline = creatorSections();
+    const pendingSections = (creatorProposal ? combineCreatorChanges(baseline, proposalChanges, true)?.after : undefined) as Record<string, unknown> | undefined;
+    const pendingCast = pendingSections?.castAndTasks as { roles: DraftRole[]; tasks: CreatorTaskDraft[] } | undefined;
+    const pendingProposal = creatorProposal && pendingSections && pendingCast ? {
+      ...creatorProposal, title: pendingSections.title as string, premise: pendingSections.premise as string,
+      brief: normalizeCreatorBrief({ ...pendingSections, tasks: pendingCast.tasks } as CreatorBrief),
+      characters: pendingCast.roles.map(role => ({ name: role.name, identity: role.identity, persona: role.personality, relationship: role.relationship, appearance: role.appearance, goal: role.goal, cardHook: role.cardHook })),
+    } : undefined;
     const openingRevision = !!creatorProposal && proposalChanges.length > 0 && creatorOpeningRevision(value);
     const revision = navigationRevision.current;
     const signal = creatorRequest.current.start();
@@ -2145,6 +2152,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     try {
       const response = await runAI((adapter) => adapter.coCreateWorld({
         companionContext: makeCompanionInput(companionContext, memories),
+        pendingProposal,
         contractVersion: AI_CONTRACT_VERSION,
         userMessage: openingRevision ? `${value}\n本轮只调整开场对应的背景与预设事件，其他待采纳建议保持原样。新的开场仍须展示给我确认。` : value,
         conversation,
@@ -2170,6 +2178,11 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       }, signal), false);
       if (!creatorRequest.current.current(signal) || revision !== navigationRevision.current) return;
       setCreatorMessages((current) => [...current, { role: 'agent', content: response.reply } satisfies CreatorChatMessage].slice(-12));
+      if (response.discussionOnly) {
+        setCreatorQuestions(response.nextQuestions.slice(0, 3));
+        setCreatorChangeNotice(response.proposalIssue || '');
+        return; // Keep pending edits and the current canvas; discussion is not a replacement proposal.
+      }
       setCreatorProposal(response.proposal);
       const brief = normalizeCreatorBrief({ ...response.proposal.brief, discoveryGenre: response.proposal.brief.discoveryGenre ?? creatorBrief.discoveryGenre });
       const nextRoles = response.proposal.characters?.length ? identifyProposedRoles(draftRoles, response.proposal.characters.map((role, index) => ({ name: role.name, cardHook: role.cardHook, identity: role.identity, personality: role.persona, relationship: role.relationship, appearance: role.appearance, goal: role.goal ?? draftRoles[index]?.goal ?? '' }))) : draftRoles;
@@ -2803,7 +2816,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
           onSubmitCreatorMessage={submitCreatorMessage}
           onApplyCreatorProposal={applyCreatorProposal}
           onApplyAllCreatorProposals={applyAllCreatorProposals}
-          onEditCreatorProposal={(change, value) => setProposalChanges(current=>current.map(item=>item.key===change.key?{...item,after:value}:item))}
+          onEditCreatorProposal={(change, value) => setProposalChanges(current=>current.some(item=>item.key===change.key) ? current.map(item=>item.key===change.key?{...item,after:value}:item) : [...current, {...change, after:value}])}
           onCreatorProposalProblem={creatorProposalProblem}
           onDismissCreatorProposal={(change) => change ? setProposalChanges((current) => current.filter((item) => item.key !== change.key)) : (setProposalChanges([]), setCreatorProposal(null))}
           onUpdateCreatorBrief={updateCreatorBriefField}
@@ -3185,7 +3198,7 @@ function CreateWorld({
   }, []);
   const taskIssues = creatorTaskIssues(creatorBrief.tasks, draftRoles.length);
   const graphSuggestion = proposalChanges.find(change => change.key === 'storyGraph');
-  const suggested = canvasSuggested && !!creatorProposal && !!graphSuggestion;
+  const suggested = canvasSuggested && !!creatorProposal && proposalChanges.length > 0;
   const preview = suggested ? combineCreatorChanges({ castAndTasks: { roles: draftRoles, tasks: creatorBrief.tasks } }, proposalChanges.filter(change => change.key === 'castAndTasks' || change.target), true)?.after as {castAndTasks?: {roles: DraftRole[]}} | undefined : undefined;
   const canvasRoles = preview?.castAndTasks?.roles ?? draftRoles;
   const canvasGraph = suggested ? graphSuggestion?.after ?? remapCreatorStoryRoles(creatorBrief.storyGraph, draftRoles, canvasRoles) : creatorBrief.storyGraph;
@@ -3218,7 +3231,20 @@ function CreateWorld({
       <nav className="creation-pane-tabs" aria-label="创作视图"><button type="button" aria-pressed={mobilePane === 'chat'} onClick={() => setMobilePane('chat')}>与 Agent 讨论</button><button type="button" aria-pressed={mobilePane === 'canvas'} onClick={() => setMobilePane('canvas')}>故事画布{graphSuggestion ? ' · 新建议' : ''}</button></nav>
       <div className="creation-workbench" data-pane={mobilePane}>
         {discussionPanel}
-        <CreatorStoryCanvas graph={canvasGraph} roles={suggested ? canvasRoles : draftRoles} images={suggested ? canvasImages : roleImages} suggested={suggested} hasSuggestion={!!creatorProposal && proposalChanges.length > 0} busy={creatorAgentThinking || generating} onMode={setCanvasSuggested}
+        <CreatorStoryCanvas title={suggested ? creatorProposal?.title || worldTitle : worldTitle} graph={canvasGraph} roles={suggested ? canvasRoles : draftRoles} images={suggested ? canvasImages : roleImages} suggested={suggested} hasSuggestion={!!creatorProposal && proposalChanges.length > 0} busy={creatorAgentThinking || generating} onMode={setCanvasSuggested}
+          onEditRole={(index, field, value) => {
+            if (!suggested) { onUpdateRole(index, field, value); return; }
+            const cast = proposalChanges.find(change => change.key === 'castAndTasks');
+            if (cast) {
+              const after = cast.after as { roles: DraftRole[]; tasks: CreatorTaskDraft[] };
+              onEditCreatorProposal(cast, { ...after, roles: after.roles.map((role, i) => i === index ? { ...role, [field]: value } : role) });
+            } else {
+              const role = canvasRoles[index];
+              if (!role?.editorId) return;
+              const existing = proposalChanges.find(change => change.target?.kind === 'role' && change.target.id === role.editorId && change.target.field === field);
+              onEditCreatorProposal(existing ?? { key: `role:${role.editorId}:${field}`, label: `${role.name} · 人物设定`, before: draftRoles[index]?.[field] || '', after: value, target: { kind: 'role', id: role.editorId, field } }, value);
+            }
+          }}
           onSave={graph => { if (suggested && graphSuggestion) onEditCreatorProposal(graphSuggestion, graph); else if (!suggested) onUpdateStoryGraph(graph); }}
           onAsk={text => { onCreatorMessage(text); setMobilePane('chat'); document.getElementById('creator-message')?.focus(); }}
           onAdopt={() => { onApplyAllCreatorProposals(proposalChanges); }}

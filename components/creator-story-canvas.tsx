@@ -53,13 +53,15 @@ function NodeDetails({ graph, nodeId, roleId, roleName, suggested, busy, onSave 
   </form>;
 }
 
-export function CreatorStoryCanvas({ graph: inputGraph, roles, images, suggested, busy, hasSuggestion, onMode, onSave, onAsk, onAdopt, onEditRoles }: {
+export function CreatorStoryCanvas({ title, graph: inputGraph, roles, images, suggested, busy, hasSuggestion, onMode, onSave, onAsk, onAdopt, onEditRoles, onEditRole }: {
+  title?: string;
+  onEditRole: (index: number, field: keyof CreatorRoleDraft, value: string) => void;
   graph: unknown; roles: CreatorRoleDraft[]; images: Record<string, string>; suggested: boolean; busy: boolean; hasSuggestion: boolean;
   onMode: (suggested: boolean) => void; onSave: (graph: CreatorStoryGraph) => void; onAsk: (text: string) => void; onAdopt: () => void; onEditRoles: () => void;
 }) {
   const [selectedRole, setSelectedRole] = useState('draft-role-0');
   const [selectedNode, setSelectedNode] = useState('');
-  const [tab, setTab] = useState<'story' | 'roles'>('story');
+  const [tab, setTab] = useState<'story' | 'roles'>('roles');
   const problem = creatorStoryIssues(inputGraph)[0];
   const graph = !problem && isCreatorStoryGraph(inputGraph) ? inputGraph : undefined;
   const roleIds = roles.map((_, i) => `draft-role-${i}`);
@@ -77,11 +79,20 @@ export function CreatorStoryCanvas({ graph: inputGraph, roles, images, suggested
   const width = Math.max(560, ...rows.map(row => row.length * 226 + 24));
   const points = new Map(rows.flatMap((row, y) => row.map((n, x) => [n.id, { x: (width - row.length * 226) / 2 + x * 226 + 10, y: 24 + y * 128 }] as const)));
   return <aside className={styles.root} aria-label="故事创作画布" aria-busy={busy}>
-    <header className={styles.header}><div><small>让想法慢慢成形</small><h2>你的故事画布</h2></div><span className={styles.status}>{suggested ? <Sparkles size={14} /> : <Check size={14} />}{suggested ? '建议 · 尚未采纳' : '当前草稿'}</span></header>
+    <header className={styles.header}><div><small>正在成形的故事</small><h2>{title || '你的故事画布'}</h2></div><span className={styles.status}>{suggested ? <Sparkles size={14} /> : <Check size={14} />}{suggested ? '建议 · 尚未采纳' : '当前草稿'}</span></header>
     <div className={styles.toolbar}><fieldset aria-label="画布内容"><button type="button" aria-pressed={tab === 'story'} onClick={() => setTab('story')}><GitBranch size={16} />故事脉络</button><button type="button" aria-pressed={tab === 'roles'} onClick={() => setTab('roles')}><Users size={16} />人物设定</button></fieldset>{hasSuggestion && <fieldset aria-label="画布版本"><button type="button" aria-pressed={!suggested} onClick={() => onMode(false)}>草稿</button><button type="button" aria-pressed={suggested} onClick={() => onMode(true)}>Agent 建议</button></fieldset>}</div>
     <div className={styles.roles} aria-label="选择角色视角">{roles.map((r, i) => <button key={r.editorId || i} type="button" aria-pressed={roleId === `draft-role-${i}`} onClick={() => { const id = `draft-role-${i}`; setSelectedRole(id); setSelectedNode(graph?.entries.find(e => e.roleId === id)?.nodeId ?? ''); }}><span className={styles.avatar}>{images[`draft-role-${i}`] ? <Image src={images[`draft-role-${i}`]} alt="" width={34} height={34} unoptimized /> : (r.name || '？').slice(0, 1)}</span><span>{r.name || `角色 ${i + 1}`}<small>{graph?.entries.find(e => e.roleId === `draft-role-${i}`) ? graph.nodes.find(n => n.id === graph.entries.find(e => e.roleId === `draft-role-${i}`)?.nodeId)?.title : '入场待设定'}</small></span></button>)}</div>
     <div className={styles.content}>
-      {tab === 'roles' ? <div className={styles.person}><small>人物档案</small><h3>{role?.name || '尚未设定人物'}</h3>{[['身份', role?.identity], ['性格与行为', role?.personality], ['想要什么', role?.goal], ['与其他人的关系', role?.relationship], ['形象与细节', role?.appearance]].map(([label, value]) => <div key={label}><h4>{label}</h4><p>{value || '待补充'}</p></div>)}<Button variant="outline" onClick={onEditRoles}>{suggested ? '在左侧编辑人物建议' : '编辑人物设定'}</Button></div> : graph ? <>
+      {tab === 'roles' ? <div className={styles.person}>
+        <div className={styles.personHeading}><div className={styles.portrait}>{images[roleId] ? <Image src={images[roleId]} alt={role?.name || '角色形象'} width={76} height={90} unoptimized /> : (role?.name || '？').slice(0, 1)}</div><div><small>人物档案</small><h3>{role?.name || '人物正在构思中'}</h3><p>{role?.identity || '说说你想遇见怎样的人，Agent 会在这里整理。'}</p></div></div>
+        {role && <div className={styles.personSections}>
+          {([['姓名', 'name'], ['身份', 'identity'], ['性格与相处', 'personality'], ['此刻想做什么', 'goal'], ['与其他人的关系', 'relationship']] as const).map(([label, field]) => <label className={styles.inlineField} key={`${role.editorId || roleId}-${field}`}><span>{label}</span><textarea aria-label={`编辑${label}`} rows={field === 'name' ? 1 : 2} maxLength={2000} value={role[field] || ''} placeholder="尚未聊到，可继续与 Agent 构思" disabled={busy} onChange={e => onEditRole(roleIndex, field, e.target.value)} /></label>)}
+          <section className={styles.encounter}><h4>角色入场场景</h4><p>{entry?.scene || '还没有确定入场场景。可以先聊眼前发生了什么，不必填完整前情。'}</p>{entry && <Button variant="ghost" size="sm" onClick={() => { setSelectedNode(entry.nodeId); setTab('story'); }}>查看与修改入场<ArrowRight size={14} /></Button>}</section>
+          <details><summary>他知道的事 · 怀疑与误解</summary><h4>已知事实</h4><p>{entry?.knownFacts.join('\n') || '尚未确定'}</p><h4>怀疑与误解</h4><p>{entry?.beliefs.join('\n') || '尚未确定'}</p><small>创作者可见，不会自动全部告知玩家。</small></details>
+          <details><summary>外貌与随身物件</summary><Field label="形象细节" value={role.appearance || ''} onChange={value => onEditRole(roleIndex, 'appearance', value)} /></details>
+        </div>}
+        <Button variant="ghost" onClick={onEditRoles}>更多人物设置</Button>
+      </div> : graph ? <>
         <div className={styles.legend}><span><i />{role?.name || '角色'}的入场</span><span>浅色节点：默认前史</span><span>连线：可能走向</span></div>
         <section className={styles.graphScroll} aria-label="共享故事节点与连线，可滚动"><div className={styles.graph} style={{ width, height: rows.length * 128 + 24 }}>
           <svg width={width} height={rows.length * 128 + 24} aria-hidden="true">{graph.nodes.flatMap(n => n.nextNodeIds.map(next => { const a = points.get(n.id)!, b = points.get(next)!; return <path key={`${n.id}-${next}`} d={`M${a.x + 103},${a.y + 88} C${a.x + 103},${a.y + 112} ${b.x + 103},${b.y - 24} ${b.x + 103},${b.y}`} />; }))}</svg>

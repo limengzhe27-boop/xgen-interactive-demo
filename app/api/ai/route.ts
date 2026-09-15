@@ -9,6 +9,8 @@ import { publicationWorld } from '@/lib/publication';
 import { CHARACTER_ENTRY_GUIDANCE } from '@/lib/character-entry';
 import { prologueAgentInstructions, readPrologueAgentInput, readPrologueAgentReply } from '@/lib/prologue-agent';
 import { repairCreatorProposal } from '@/lib/creator-proposal-repair';
+import { readCreatorResponse, creatorDiscussion } from '@/lib/creator-response';
+import type { CreatorAgentRequest } from '@/lib/ai-contracts';
 import { requestAccount } from '@/lib/server-auth';
 import { companionInstructions, makeCompanionInput, restoreCompanionContext } from '@/lib/companion-context';
 import { guardPersonalAction, personalActionInstructions } from '@/lib/personal-recommendations';
@@ -84,6 +86,16 @@ operationInstructions['co-create-world'] = operationInstructions['co-create-worl
 operationInstructions['advance-world'] += '\n任务的 prerequisiteTaskIds 是世界级已完成事件，可由其他角色完成。依赖其他角色的任务不代表玩家继承其身份、任务或秘密；NPC 按其目标与实际条件推进并提交完成状态，尚未发生的事件不可提前标记完成。';
 operationInstructions['advance-world'] += '\n所有世界探索均采用selectedRoleId的第一人称感知视角，不因多人世界切成全知叙述。可以用“你”称呼玩家，但镜头是该角色的眼睛：看见现场其他角色、自己的手和持物，不从外面拍自己正脸或背影。叙事与image.prompt均遵守此规则，角色肖像不是探索机位。仅描述当前角色可感知或确已获知的信息；换角色只换当前位置与认知，不回退世界时间，不播放原角色私密前情，不代写下一项决定。';
 operationInstructions['advance-world'] += '\nstate.relationshipChanges记录本次体验以来各NPC对体验者的关系变化（键为NPC id，0表示尚无变化，不是默认信任）。它不是全世界共享的好感；对甲帮忙不代表乙也喜欢你。relationshipDeltas仅填写本轮有实际依据的NPC变化，每人-10到10，不能靠数值授权秘密或强迫恋爱。recentTurns包含玩家实际听到的对白，继续兑现已说过的安排，不要忘掉姓名或重新进行第一次自我介绍。';
+
+// Conversation is the primary product. A full world schema is not required on every turn.
+operationInstructions['co-create-world'] = `你是与作者共同创作故事的伙伴，不是让用户填表的审核员。
+承接当前想法，给一个具体场面或有价值的提案，必要时只问一个关键问题。可从人物、关系、场景或一句话开始；不强迫先准备前情、任务、结局。尊重用户题材，不预设成功失败、不强迫和解。不声称已保存、采纳、发布或生成媒体。
+currentDraft是已确认草稿，pendingProposal是包含用户手改的待采纳完整提案，pendingSuggestions是待采纳变更，conversation是交流记录；继续修改以pendingProposal为底稿，不要因未采纳就忘掉正在讨论的人物。只讨论时返回 {"reply":"自然回复","proposal":null,"nextQuestions":[],"readiness":"needs_detail"}。
+当本轮形成具体内容时，同时给可编辑建议；proposal只需包含改变的字段，未返回字段保持不变。支持title、premise、surpriseLevel(1到4)、brief。brief可含coreGoal、successCondition、failureCondition（未讨论不用返回）、complexityLevel(1到4)、difficulties(字符串数组)、scheduledEvents({title,trigger,effect}数组)、tasks、storyGraph。不要为了凑齐字段编造整部剧。
+如果更新人物，proposal.characters返回完整名单（最多5人，保留原顺序和未讨论的人物），每人用{name,identity,persona,relationship,appearance,goal}，值均为字符串，不确定可留空。不要把空白占位“角色1”当真实人物保留。cardHook可选。
+tasks仅在需要时返回完整数组，每项{id,title,description,kind:"main"或"side",assignedRoleIds:[],prerequisiteTaskIds:[],successCondition,difficulty}。沿用旧id；前置允许跨角色，不可循环或引用不存在任务。角色ID是draft-role-0起的名单位置。
+只返回一个JSON对象，reply必须是非空字符串。nextQuestions最多1项，readiness为needs_detail或ready；没有可运行入口时不要称ready。画布可以只有一个开场节点，逐步补充；建议不是已经发生的世界事实。
+${CREATOR_STORY_GRAPH_GUIDANCE}`;
 
 function isOperation(value: unknown): value is Operation {
   return value === 'personal-agent' || value === 'co-create-world' || value === 'generate-world' || value === 'advance-world' || value === 'adapt-persona' || value === 'design-persona' || value === 'plan-prologue';
@@ -242,6 +254,9 @@ async function handlePost(request: Request) {
   const startedAt = Date.now();
   try {
     let output = await callCompany(provider, body.operation, body.input, body.operation === 'advance-world' ? 35_000 : body.operation === 'adapt-persona' || body.operation === 'design-persona' ? 25_000 : undefined);
+    if (body.operation === 'co-create-world') {
+      output = readCreatorResponse(output, body.input as CreatorAgentRequest);
+    }
     if (body.operation === 'plan-prologue' && prologueInput) {
       const plan = readPrologueAgentReply(output, prologueInput);
       return Response.json(plan ?? { error: 'invalid_prologue_plan' }, { status: plan ? 200 : 502,
@@ -250,12 +265,12 @@ async function handlePost(request: Request) {
     if (body.operation !== 'advance-world' && !isValidOutput(body.operation, output)) {
       return Response.json({ error: 'invalid_model_output' }, { status: 502 });
     }
-    if (body.operation === 'co-create-world' && isCreatorAgentResponse(output)) {
+    if (body.operation === 'co-create-world' && isCreatorAgentResponse(output) && !output.discussionOnly) {
       const inputRoles = (body.input as { characters?: unknown[] }).characters;
       const original = output;
       const graphIssues = creatorStoryIssues(original.proposal.brief.storyGraph, Array.from({ length: original.proposal.characters?.length || (Array.isArray(inputRoles) ? inputRoles.length : 0) }, (_, i) => `draft-role-${i}`));
       if (graphIssues.length) return Response.json({ error: 'invalid_creator_story_graph', details: graphIssues[0] }, { status: 502 });
-      output = await repairCreatorProposal(original, Array.isArray(inputRoles) ? inputRoles.length : 0, async (issues) => {
+      try { output = await repairCreatorProposal(original, Array.isArray(inputRoles) ? inputRoles.length : 0, async (issues) => {
         const remainingMs = Math.min(40_000, 105_000 - (Date.now() - startedAt));
         if (remainingMs < 3000) throw new Error('invalid_creator_task_graph');
         return callCompany(provider, 'co-create-world', {
@@ -263,7 +278,9 @@ async function handlePost(request: Request) {
           uncommittedProposal: original,
           validationFeedback: { issues, instruction: '上次建议尚未提交。只修正该建议的任务 id、prerequisiteTaskIds、assignedRoleIds，使引用有效且无循环。保持任务顺序、数量、标题、描述、难度、完成条件及其他所有设定原样；不删除任务，不重写故事。跨角色前置是允许的世界事件，不需要扩大任务归属。返回完整 co-create-world JSON。' },
         }, remainingMs);
-      });
+      }); } catch {
+        output = creatorDiscussion(original.reply, body.input as CreatorAgentRequest, '本轮剧情关联暂未整理完成，原草稿和待采纳建议保持不变；可以继续讨论。');
+      }
     }
     let guardedOutput = body.operation === 'design-persona' ? readPersonaDesignReply(output) : output;
     if (body.operation === 'generate-world' && isWorldGenerationResponse(output)) {
