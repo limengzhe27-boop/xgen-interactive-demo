@@ -9,7 +9,7 @@ import { publicationWorld } from '@/lib/publication';
 import { CHARACTER_ENTRY_GUIDANCE } from '@/lib/character-entry';
 import { prologueAgentInstructions, readPrologueAgentInput, readPrologueAgentReply } from '@/lib/prologue-agent';
 import { repairCreatorProposal } from '@/lib/creator-proposal-repair';
-import { readCreatorResponse, creatorDiscussion } from '@/lib/creator-response';
+import { readCreatorResponse, creatorDiscussion, parseCreatorContent } from '@/lib/creator-response';
 import type { CreatorAgentRequest } from '@/lib/ai-contracts';
 import { requestAccount } from '@/lib/server-auth';
 import { companionInstructions, makeCompanionInput, restoreCompanionContext } from '@/lib/companion-context';
@@ -94,7 +94,7 @@ currentDraft是已确认草稿，pendingProposal是包含用户手改的待采�
 当本轮形成具体内容时，同时给可编辑建议；proposal只需包含改变的字段，未返回字段保持不变。支持title、premise、surpriseLevel(1到4)、brief。brief可含coreGoal、successCondition、failureCondition（未讨论不用返回）、complexityLevel(1到4)、difficulties(字符串数组)、scheduledEvents({title,trigger,effect}数组)、tasks、storyGraph。不要为了凑齐字段编造整部剧。
 如果更新人物，proposal.characters返回完整名单（最多5人，保留原顺序和未讨论的人物），每人用{name,identity,persona,relationship,appearance,goal}，值均为字符串，不确定可留空。不要把空白占位“角色1”当真实人物保留。cardHook可选。
 tasks仅在需要时返回完整数组，每项{id,title,description,kind:"main"或"side",assignedRoleIds:[],prerequisiteTaskIds:[],successCondition,difficulty}。沿用旧id；前置允许跨角色，不可循环或引用不存在任务。角色ID是draft-role-0起的名单位置。
-只返回一个JSON对象，reply必须是非空字符串。nextQuestions最多1项，readiness为needs_detail或ready；没有可运行入口时不要称ready。画布可以只有一个开场节点，逐步补充；建议不是已经发生的世界事实。
+只返回一个JSON对象，先输出reply（非空字符串），再输出proposal，最后nextQuestions和readiness。这样即使长设定中断，作者仍能读到完整对话。nextQuestions最多1项，readiness为needs_detail或ready；没有可运行入口时不要称ready。画布可以只有一个开场节点，逐步补充；建议不是已经发生的世界事实。用户要求整理画布时，有足够场景信息就返回brief.storyGraph，不要只在reply里描述节点而漏掉字段；缺少必要信息时只追问该信息。新提案不要主动定义successCondition/failureCondition或输赢目标，既有未修改字段直接省略。
 ${CREATOR_STORY_GRAPH_GUIDANCE}`;
 
 function isOperation(value: unknown): value is Operation {
@@ -157,9 +157,11 @@ async function callCompany(provider: CompanyProvider, operation: Operation, inpu
     });
     if (!response.ok) throw new Error(response.status === 429 ? 'model_rate_limited' : [401, 403].includes(response.status) ? 'model_access_denied' : 'company_gateway_failed');
     const result = await response.json() as { choices?: { finish_reason?: string; message?: { content?: unknown } }[] };
-    if (result.choices?.[0]?.finish_reason === 'length') throw new Error('model_output_truncated');
     const content = result.choices?.[0]?.message?.content;
     if (typeof content !== 'string' || !content.trim()) throw new Error('Provider returned empty content');
+    const truncated = result.choices?.[0]?.finish_reason === 'length';
+    if (operation === 'co-create-world') return parseCreatorContent(content, truncated);
+    if (truncated) throw new Error('model_output_truncated');
     try { return parseModelJSON(content); } catch { throw new Error('invalid_model_output'); }
   } catch (error) {
     if (controller.signal.aborted) throw new Error('model_timeout');

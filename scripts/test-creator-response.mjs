@@ -1,10 +1,31 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readCreatorResponse } from '../lib/creator-response.ts';
+import { readCreatorResponse, parseCreatorContent } from '../lib/creator-response.ts';
 import { isCreatorAgentResponse } from '../lib/ai-validation.ts';
 
 const input = { characters: [], currentDraft: { title: '原作', premise: '原来的故事', surpriseLevel: 2,
   brief: { coreGoal: '', successCondition: '', failureCondition: '', complexityLevel: 2, tasks: [], difficulties: [], scheduledEvents: [] } } };
+test('creator content accepts fenced and prose-wrapped JSON without changing proposal', () => {
+  const data = {reply:'从谁开始？',proposal:{title:'山中'}};
+  for (const s of [JSON.stringify(data), '```json\n'+JSON.stringify(data)+'\n```', '建议如下：\n'+JSON.stringify(data)]) {
+    assert.deepEqual(parseCreatorContent(s), data);
+  }
+});
+test('truncated or malformed proposal keeps only a complete real reply', () => {
+  const s = '{"reply":"他说：\\"等一下\\"\\n你想怎么办？","proposal":{"characters":[';
+  for (const truncated of [false,true]) {
+    const r = readCreatorResponse(parseCreatorContent(s,truncated),input);
+    assert.equal(r.reply,'他说："等一下"\n你想怎么办？');
+    assert.equal(r.discussionOnly,true);
+    assert.ok(r.proposalIssue);
+    assert.deepEqual(r.proposal,input.currentDraft);
+  }
+});
+test('plain conversation is readable; broken JSON and incomplete reply never become content', () => {
+  assert.equal(parseCreatorContent('我们可以先聊聊他们为什么不愿意继续取经。').reply,'我们可以先聊聊他们为什么不愿意继续取经。');
+  assert.throws(()=>parseCreatorContent('{"reply":"未说完',true),/model_output_truncated/);
+  assert.throws(()=>parseCreatorContent('{"proposal":broken}'),/invalid_model_output/);
+});
 test('discussion does not require a complete proposal', () => {
   const r = readCreatorResponse({ reply: '你更想从谁开始？', proposal: null }, input);
   assert.equal(r.discussionOnly, true);
