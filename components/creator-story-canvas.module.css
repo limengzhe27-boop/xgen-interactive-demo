@@ -34,6 +34,7 @@
 .details fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
 .detailHeading { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 14px; }
 .detailHeading h3 { margin: 4px 0; font-size: 18px; }
+.nodeActions { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
 .detailColumns { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
 .detailColumns section { min-width: 0; }
 .detailColumns h4 { font-size: 13px; font-weight: 600; margin: 0 0 12px; color: var(--color-primary); }

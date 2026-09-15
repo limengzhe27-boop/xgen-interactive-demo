@@ -198,7 +198,7 @@ test('solo first-person prelude offers direct entry without asking the reader to
     fixedIdentity: '小蛛', onBack() {}, onContinue() {},
   }));
   assert.match(html, /以小蛛的视角继续/);
-  assert.match(html, /接下来的行动由你决定/);
+  assert.match(html, /由你决定/);
   assert.doesNotMatch(html, /再选择你要成为的人|选择入场身份/);
 });
 

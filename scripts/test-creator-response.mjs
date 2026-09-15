@@ -139,6 +139,13 @@ test('cold start uses small opening contract; requested or existing graph uses f
   assert.ok(charAdd.includes('最多16个'));
   assert.ok(charAdd.includes('聚焦在 proposal.characters'));
   assert.ok(charAdd.includes('省略 brief.storyGraph'));
+  const composite = creatorGraphGuidance({userMessage:'加悟净并在流沙河阻拦唐僧',currentDraft:{...input.currentDraft,brief:{...input.currentDraft.brief,storyGraph:graph}}});
+  assert.ok(composite.includes('同时涉及人物与剧情事件延伸'));
+  assert.ok(composite.includes('proposal.characters'));
+  assert.ok(composite.includes('brief.storyGraph'));
+  const eventAdd = creatorGraphGuidance({userMessage:'在流沙河发生冲突',currentDraft:{...input.currentDraft,brief:{...input.currentDraft.brief,storyGraph:graph}}});
+  assert.ok(eventAdd.includes('本轮涉及剧情事件延伸'));
+  assert.ok(eventAdd.includes('brief.storyGraph'));
 });
 test('adding characters to existing graph draft preserves existing graph without forced regeneration', () => {
   const role1 = { name: '唐僧', identity: '取经人', persona: '慈悲隐忍', relationship: '', appearance: '', goal: '取经' };

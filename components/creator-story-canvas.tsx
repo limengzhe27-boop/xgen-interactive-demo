@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Image from 'next/image';
-import { GitBranch, MapPin, Users, ArrowRight, Sparkles, Check } from 'lucide-react';
+import { GitBranch, MapPin, Users, ArrowRight, Sparkles, Check, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { CreatorRoleDraft } from '@/lib/creator-changes';
 import { creatorEntryPaths, creatorStoryIssues, isCreatorStoryGraph, type CreatorStoryGraph } from '@/lib/creator-story-graph';
@@ -13,8 +13,9 @@ function Field({ label, value, onChange, rows = 2 }: { label: string; value: str
   return <label className={styles.field}><span>{label}</span><textarea rows={rows} maxLength={3000} value={value} onChange={e => onChange(e.target.value)} /></label>;
 }
 
-function NodeDetails({ graph, nodeId, roleId, roleName, suggested, busy, onSave }: {
+function NodeDetails({ graph, nodeId, roleId, roleName, suggested, busy, onSave, onSelectNode }: {
   graph: CreatorStoryGraph; nodeId: string; roleId: string; roleName: string; suggested: boolean; busy: boolean; onSave: (graph: CreatorStoryGraph) => void;
+  onSelectNode?: (id: string) => void;
 }) {
   const [edited, setEdited] = useState(graph);
   const [notice, setNotice] = useState('');
@@ -26,19 +27,101 @@ function NodeDetails({ graph, nodeId, roleId, roleName, suggested, busy, onSave 
   const updateEntry = (patch: Partial<CreatorStoryGraph['entries'][number]>) => setEdited(g => ({ ...g, entries: g.entries.map(e => e.roleId === roleId ? { ...e, ...patch } : e) }));
   const assign = () => {
     // Moving an entry cannot carry knowledge from a later/different point backwards.
-    setEdited(g => ({ ...g, entries: [...g.entries.filter(e => e.roleId !== roleId), { roleId, nodeId, defaultPath: paths[0] ?? [], knownFacts: [], beliefs: [], scene: '' }] }));
-    setNotice('已选择新入场位置。请补充此刻的认知和场景，再保存；原认知不会自动搬过来。');
+    const nextEntries = [...edited.entries.filter(e => e.roleId !== roleId), { roleId, nodeId, defaultPath: paths[0] ?? [], knownFacts: [], beliefs: [], scene: '' }];
+    const next = { ...edited, entries: nextEntries };
+    setEdited(next);
+    onSave(next);
+    setNotice('已将角色入场移至此处。请补充此处的认知与场景。');
   };
-  return <form className={styles.details} onSubmit={e => { e.preventDefault(); const problems = creatorStoryIssues(edited); if (problems.length) { setNotice(problems[0]); return; } onSave(edited); setNotice('已保存修改。'); }}>
+
+  const handleAddNextNode = () => {
+    const id = `node-${crypto.randomUUID().slice(0, 8)}`;
+    const next = { ...edited, nodes: [...edited.nodes.map(n => n.id === nodeId ? { ...n, nextNodeIds: [...n.nextNodeIds, id] } : n), { id, title: '新的可能走向', location: '', scene: '', worldFacts: [], nextNodeIds: [] }] };
+    const issue = creatorStoryIssues(next)[0];
+    if (issue) { setNotice(issue); return; }
+    setEdited(next);
+    onSave(next);
+    setNotice('已添加新节点，可在此完善走向与场景。');
+    if (onSelectNode) onSelectNode(id);
+  };
+
+  const handleDeleteNode = () => {
+    if (node.id === edited.startNodeId) return;
+    const parentNodes = edited.nodes.filter(n => n.nextNodeIds.includes(nodeId));
+    const childIds = node.nextNodeIds;
+    const nextNodes = edited.nodes
+      .filter(n => n.id !== nodeId)
+      .map(n => {
+        if (n.nextNodeIds.includes(nodeId)) {
+          const reconnected = n.nextNodeIds.filter(id => id !== nodeId);
+          for (const childId of childIds) {
+            if (!reconnected.includes(childId) && childId !== n.id) {
+              reconnected.push(childId);
+            }
+          }
+          return { ...n, nextNodeIds: reconnected };
+        }
+        return n;
+      });
+
+    const fallbackNodeId = parentNodes[0]?.id || edited.startNodeId;
+    const fallbackPaths = creatorEntryPaths({ ...edited, nodes: nextNodes }, fallbackNodeId);
+    const fallbackPath = fallbackPaths[0] || [edited.startNodeId];
+    const nextEntries = edited.entries.map(e => {
+      if (e.nodeId === nodeId) {
+        return { ...e, nodeId: fallbackNodeId, defaultPath: fallbackPath, knownFacts: [], beliefs: [] };
+      }
+      if (e.defaultPath.includes(nodeId)) {
+        const newPaths = creatorEntryPaths({ ...edited, nodes: nextNodes }, e.nodeId);
+        return { ...e, defaultPath: newPaths[0] || [edited.startNodeId] };
+      }
+      return e;
+    });
+
+    const candidateGraph: CreatorStoryGraph = {
+      startNodeId: edited.startNodeId,
+      nodes: nextNodes,
+      entries: nextEntries,
+    };
+
+    const problems = creatorStoryIssues(candidateGraph);
+    if (problems.length) {
+      setNotice(`无法删除此节点：${problems[0]}`);
+      return;
+    }
+    setEdited(candidateGraph);
+    onSave(candidateGraph);
+    setNotice('已删除节点并保留故事连通。');
+    if (onSelectNode) onSelectNode(fallbackNodeId);
+  };
+
+  const handleBlurCapture = (e: import('react').FocusEvent<HTMLFormElement>) => {
+    if (e.currentTarget.contains(e.relatedTarget as Node | null)) return;
+    if (JSON.stringify(edited) !== JSON.stringify(graph)) {
+      const problems = creatorStoryIssues(edited);
+      if (!problems.length) {
+        onSave(edited);
+        setNotice('已自动保存修改。');
+      }
+    }
+  };
+
+  return <form className={styles.details} onBlurCapture={handleBlurCapture} onSubmit={e => { e.preventDefault(); const problems = creatorStoryIssues(edited); if (problems.length) { setNotice(problems[0]); return; } onSave(edited); setNotice('已保存修改。'); }}>
     <fieldset disabled={busy}>
-      <div className={styles.detailHeading}><div><small>节点详情 · {node.id === graph.startNodeId ? '共同起点' : '可能发生的事件'}</small><h3>{node.title}</h3></div><Button type="submit" size="sm">{suggested ? '保存到建议' : '保存到草稿'}</Button></div>
-      <Button type="button" variant="ghost" size="sm" disabled={edited.nodes.length >= 16} onClick={() => {
-        const id = `node-${crypto.randomUUID()}`;
-        const next = { ...edited, nodes: [...edited.nodes.map(n => n.id === nodeId ? { ...n, nextNodeIds: [...n.nextNodeIds, id] } : n), { id, title: '新的可能走向', location: '', scene: '', worldFacts: [], nextNodeIds: [] }] };
-        const issue = creatorStoryIssues(next)[0];
-        if (issue) { setNotice(issue); return; }
-        setEdited(next); onSave(next);
-      }}>添加后续节点<ArrowRight size={14} /></Button>
+      <div className={styles.detailHeading}>
+        <div><small>节点详情 · {node.id === graph.startNodeId ? '共同起点' : '可能发生的事件'}</small><h3>{node.title}</h3></div>
+        <Button type="submit" size="sm">{suggested ? '保存到建议' : '保存到草稿'}</Button>
+      </div>
+      <div className={styles.nodeActions}>
+        <Button type="button" variant="outline" size="sm" disabled={edited.nodes.length >= 16} onClick={handleAddNextNode}>
+          添加后续节点<ArrowRight size={14} />
+        </Button>
+        {node.id !== edited.startNodeId && (
+          <Button type="button" variant="ghost" size="sm" onClick={handleDeleteNode} style={{ color: 'var(--color-error)' }}>
+            <Trash2 size={14} />删除此节点
+          </Button>
+        )}
+      </div>
       <div className={styles.detailColumns}>
         <section><h4>此刻的世界</h4><Field label="节点名称" value={node.title} rows={1} onChange={title => updateNode({ title })} /><Field label="时间与地点" value={node.location} rows={1} onChange={location => updateNode({ location })} /><Field label="场景与当前动作" value={node.scene} onChange={scene => updateNode({ scene })} /><Field label="客观事实 · 每行一条" value={node.worldFacts.join('\n')} onChange={v => updateNode({ worldFacts: lines(v) })} /></section>
         <section><h4>{roleName} · 如何进入</h4>{atEntry ? <>
@@ -98,7 +181,7 @@ export function CreatorStoryCanvas({ title, graph: inputGraph, roles, images, su
           <svg width={width} height={rows.length * 128 + 24} aria-hidden="true">{graph.nodes.flatMap(n => n.nextNodeIds.map(next => { const a = points.get(n.id)!, b = points.get(next)!; return <path key={`${n.id}-${next}`} d={`M${a.x + 103},${a.y + 88} C${a.x + 103},${a.y + 112} ${b.x + 103},${b.y - 24} ${b.x + 103},${b.y}`} />; }))}</svg>
           {graph.nodes.map(n => { const p = points.get(n.id)!; const names = graph.entries.filter(e => e.nodeId === n.id).map(e => roles[roleIds.indexOf(e.roleId)]?.name).filter(Boolean); return <button type="button" key={n.id} className={styles.node} style={{ left: p.x, top: p.y }} aria-pressed={nodeId === n.id} data-entry={entry?.nodeId === n.id} data-prior={entry?.defaultPath.includes(n.id) && entry.nodeId !== n.id} onClick={() => setSelectedNode(n.id)}><small>{n.id === graph.startNodeId ? '共同开场' : names.length ? `${names.join('、')}入场` : '可能走向'}</small><strong>{n.title}</strong><span><MapPin size={12} />{n.location || '地点待补充'}</span></button>; })}
         </div></section>
-        <NodeDetails key={`${nodeId}/${roleId}/${JSON.stringify(graph)}`} graph={graph} nodeId={nodeId} roleId={roleId} roleName={role?.name || '所选角色'} suggested={suggested} busy={busy} onSave={onSave} />
+        <NodeDetails key={`${nodeId}/${roleId}/${JSON.stringify(graph)}`} graph={graph} nodeId={nodeId} roleId={roleId} roleName={role?.name || '所选角色'} suggested={suggested} busy={busy} onSave={onSave} onSelectNode={setSelectedNode} />
       </> : <div className={styles.empty}><GitBranch size={32} /><h3>{busy ? 'Agent 正在整理故事结构' : '从一个场景，长出整个故事'}</h3><p>{problem || '先聊聊人物在哪里、发生了什么。Agent 的故事节点与角色入场建议，会出现在这里。'}</p><Button variant="outline" disabled={busy} onClick={() => onAsk('请根据已有设定整理故事画布：共同开场、可能的后续分支，以及每个角色从哪个节点入场、当时知道什么。不要改变我已确认的人物和事件；不确定的地方先问我。')}>和 Agent 整理画布<ArrowRight size={16} /></Button><Button variant="ghost" disabled={busy || suggested} onClick={() => onSave({ startNodeId: 'opening', nodes: [{ id: 'opening', title: '共同开场', location: '', scene: '', worldFacts: [], nextNodeIds: [] }], entries: [] })}>先手动建立开场</Button></div>}
     </div>
     <footer className={styles.footer}>
