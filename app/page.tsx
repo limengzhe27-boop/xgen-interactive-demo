@@ -2204,7 +2204,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
           setCreatorMessages(current => [...current, {role:'agent',content:result}].slice(-12) as CreatorChatMessage[]);
         }
       } else setProposalChanges(nextChanges);
-      setCreatorChangeNotice('');
+      setCreatorChangeNotice(response.proposalIssue || '');
       setCreatorQuestions(response.nextQuestions.slice(0, 3));
     } catch (error) {
       if (!creatorRequest.current.current(signal) || revision !== navigationRevision.current) return;

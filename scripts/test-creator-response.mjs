@@ -2,6 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readCreatorResponse, parseCreatorContent } from '../lib/creator-response.ts';
 import { isCreatorAgentResponse } from '../lib/ai-validation.ts';
+import { normalizeCreatorGraphIds } from '../lib/creator-normalization.ts';
+import { creatorStoryIssues } from '../lib/creator-story-graph.ts';
+import { creatorGraphGuidance } from '../lib/creator-guidance.ts';
 
 const input = { characters: [], currentDraft: { title: '原作', premise: '原来的故事', surpriseLevel: 2,
   brief: { coreGoal: '', successCondition: '', failureCondition: '', complexityLevel: 2, tasks: [], difficulties: [], scheduledEvents: [] } } };
@@ -66,4 +69,70 @@ test('continued discussion preserves pending user-edited suggestions', () => {
   assert.equal(r.proposal.title, '手改标题');
   assert.equal(r.proposal.premise, '尚未采纳的开场');
   assert.equal(r.proposal.brief.coreGoal, '新的动机');
+});
+
+const role = {name:'旅人',identity:'旅人',persona:'谨慎',relationship:'',appearance:'',goal:'找路'};
+const graph = {startNodeId:'opening',nodes:[{id:'opening',title:'城门',location:'门口',scene:'守卫拦路',worldFacts:[],nextNodeIds:[]}],
+  entries:[{roleId:'draft-role-0',nodeId:'opening',defaultPath:['opening'],knownFacts:[],beliefs:[],scene:'你停在城门'}]};
+test('invalid new graph does not discard valid roles, title or premise', () => {
+  const r=readCreatorResponse({reply:'先把人物给你',proposal:{title:'旅人',premise:'城门前',characters:[role],brief:{storyGraph:{nodes:[]}}}},input);
+  assert.equal(r.discussionOnly,false);
+  assert.equal(r.proposal.title,'旅人');
+  assert.deepEqual(r.proposal.characters,[role]);
+  assert.equal(r.proposal.brief.storyGraph,undefined);
+  assert.ok(r.proposalIssue);
+  assert.ok(isCreatorAgentResponse(r));
+});
+test('invalid graph update preserves the pending edited graph without mutating input', () => {
+  const pendingProposal={...input.currentDraft,characters:[role],brief:{...input.currentDraft.brief,storyGraph:graph}};
+  const before=JSON.stringify(pendingProposal);
+  const r=readCreatorResponse({reply:'改了名称',proposal:{title:'新名',brief:{storyGraph:{nodes:[]}}}},{...input,pendingProposal});
+  assert.equal(r.discussionOnly,false);
+  assert.deepEqual(r.proposal.brief.storyGraph,graph);
+  assert.equal(JSON.stringify(pendingProposal),before);
+});
+test('bad graph plus changed roster cannot transfer old role knowledge to a different person', () => {
+  const pendingProposal={...input.currentDraft,characters:[role],brief:{...input.currentDraft.brief,storyGraph:graph}};
+  const r=readCreatorResponse({reply:'换一个角色',proposal:{characters:[{...role,name:'守卫'}],brief:{storyGraph:{nodes:[]}}}},{...input,pendingProposal});
+  assert.equal(r.discussionOnly,true);
+  assert.match(r.proposalIssue,/人物名单/);
+});
+test('Chinese node IDs remap every edge, start, entry and default path without collisions', () => {
+  const g={startNodeId:'城门',nodes:[{...graph.nodes[0],id:'城门',nextNodeIds:['node-1']},{...graph.nodes[0],id:'node-1',nextNodeIds:[]}],
+    entries:[{...graph.entries[0],nodeId:'node-1',defaultPath:['城门','node-1']}]};
+  const before=JSON.stringify(g), n=normalizeCreatorGraphIds(g);
+  assert.equal(n.startNodeId,'node-2');
+  assert.deepEqual(n.entries[0].defaultPath,['node-2','node-1']);
+  assert.deepEqual(creatorStoryIssues(n,['draft-role-0']),[]);
+  assert.equal(JSON.stringify(g),before);
+});
+test('normalization never repairs dangling edges or duplicate IDs by inventing associations', () => {
+  const g={...graph,startNodeId:'城门',nodes:[{...graph.nodes[0],id:'城门',nextNodeIds:['node-1']}],entries:[]};
+  const n=normalizeCreatorGraphIds(g);
+  assert.equal(n.startNodeId,'node-2');
+  assert.ok(creatorStoryIssues(n).length);
+  assert.ok(creatorStoryIssues(normalizeCreatorGraphIds({...g,nodes:[g.nodes[0],g.nodes[0]]})).length);
+});
+test('explicit aliases and numeric strings normalize without overriding canonical fields', () => {
+  const {persona,...rest}=role;
+  const r=readCreatorResponse({reply:'人物',proposal:{surpriseLevel:'3',characters:[{...rest,personality:'好奇',cardHook:'等一下\n陪我走一段'}],brief:{complexityLevel:'2',tasks:[{id:'t1',title:'找路',description:'找路',kind:'支线',assignedRoleIds:['draft-role-0'],prerequisiteTaskIds:[],successCondition:'找到道路',difficulty:'迷雾'}]}}},input);
+  assert.equal(r.discussionOnly,false);
+  assert.equal(r.proposal.characters[0].persona,'好奇');
+  assert.equal(r.proposal.characters[0].cardHook,'等一下 陪我走一段');
+  assert.equal(r.proposal.brief.tasks[0].kind,'side');
+  assert.equal(r.proposal.surpriseLevel,3);
+  const canonical=readCreatorResponse({reply:'人物',proposal:{characters:[{...role,personality:'另一个值'}]}},input);
+  assert.equal(canonical.proposal.characters[0].persona,'谨慎');
+});
+test('unknown enum or number remains rejected rather than silently assigned meaning', () => {
+  assert.equal(readCreatorResponse({reply:'建议',proposal:{brief:{complexityLevel:'困难'}}},input).discussionOnly,true);
+  const r=readCreatorResponse({reply:'建议',proposal:{brief:{tasks:[{id:'t1',title:'任务',description:'任务',kind:'核心',prerequisiteTaskIds:[],successCondition:'条件',difficulty:''}]}}},input);
+  assert.equal(r.discussionOnly,true);
+});
+test('cold start uses small opening contract; requested or existing graph uses full guidance', () => {
+  const light=creatorGraphGuidance({userMessage:'我想写师徒各怀鬼胎'});
+  assert.ok(!light.includes('最多16个'));
+  assert.ok(light.includes('不必等用户点击按钮'));
+  assert.ok(creatorGraphGuidance({userMessage:'帮我整理画布'}).includes('最多16个'));
+  assert.ok(creatorGraphGuidance({userMessage:'继续',currentDraft:{...input.currentDraft,brief:{...input.currentDraft.brief,storyGraph:graph}}}).includes('最多16个'));
 });
