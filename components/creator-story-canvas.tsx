@@ -53,11 +53,11 @@ function NodeDetails({ graph, nodeId, roleId, roleName, suggested, busy, onSave 
   </form>;
 }
 
-export function CreatorStoryCanvas({ title, graph: inputGraph, roles, images, suggested, busy, hasSuggestion, onMode, onSave, onAsk, onAdopt, onEditRoles, onEditRole }: {
+export function CreatorStoryCanvas({ title, graph: inputGraph, roles, images, suggested, busy, hasSuggestion, onMode, onSave, onAsk, onAdopt, onDismiss, onEditRoles, onEditRole }: {
   title?: string;
   onEditRole: (index: number, field: keyof CreatorRoleDraft, value: string) => void;
   graph: unknown; roles: CreatorRoleDraft[]; images: Record<string, string>; suggested: boolean; busy: boolean; hasSuggestion: boolean;
-  onMode: (suggested: boolean) => void; onSave: (graph: CreatorStoryGraph) => void; onAsk: (text: string) => void; onAdopt: () => void; onEditRoles: () => void;
+  onMode: (suggested: boolean) => void; onSave: (graph: CreatorStoryGraph) => void; onAsk: (text: string) => void; onAdopt: () => void; onDismiss?: () => void; onEditRoles: () => void;
 }) {
   const [selectedRole, setSelectedRole] = useState('draft-role-0');
   const [selectedNode, setSelectedNode] = useState('');
@@ -101,6 +101,12 @@ export function CreatorStoryCanvas({ title, graph: inputGraph, roles, images, su
         <NodeDetails key={`${nodeId}/${roleId}/${JSON.stringify(graph)}`} graph={graph} nodeId={nodeId} roleId={roleId} roleName={role?.name || '所选角色'} suggested={suggested} busy={busy} onSave={onSave} />
       </> : <div className={styles.empty}><GitBranch size={32} /><h3>{busy ? 'Agent 正在整理故事结构' : '从一个场景，长出整个故事'}</h3><p>{problem || '先聊聊人物在哪里、发生了什么。Agent 的故事节点与角色入场建议，会出现在这里。'}</p><Button variant="outline" disabled={busy} onClick={() => onAsk('请根据已有设定整理故事画布：共同开场、可能的后续分支，以及每个角色从哪个节点入场、当时知道什么。不要改变我已确认的人物和事件；不确定的地方先问我。')}>和 Agent 整理画布<ArrowRight size={16} /></Button><Button variant="ghost" disabled={busy || suggested} onClick={() => onSave({ startNodeId: 'opening', nodes: [{ id: 'opening', title: '共同开场', location: '', scene: '', worldFacts: [], nextNodeIds: [] }], entries: [] })}>先手动建立开场</Button></div>}
     </div>
-    <footer className={styles.footer}><span>{suggested ? '修改建议后再采纳，才会写入草稿。' : '画布描述作者框架，不是玩家存档；切换视角不会推进时间。'}</span>{hasSuggestion && suggested && <Button size="sm" disabled={busy} onClick={onAdopt}>采纳本轮建议</Button>}</footer>
+    <footer className={styles.footer}>
+      <span>{suggested ? '修改建议后再采纳，才会写入草稿。' : '画布描述作者框架，不是玩家存档；切换视角不会推进时间。'}</span>
+      {hasSuggestion && suggested && <div className={styles.footerButtons}>
+        {onDismiss && <Button type="button" variant="outline" size="sm" disabled={busy} onClick={onDismiss}>放弃建议</Button>}
+        <Button type="button" size="sm" disabled={busy} onClick={onAdopt}>采纳本轮建议</Button>
+      </div>}
+    </footer>
   </aside>;
 }

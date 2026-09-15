@@ -53,7 +53,7 @@ import { MyPublications } from '@/components/my-publications';
 import { reconcileLocalArt } from '@/lib/catalog-art';
 import { RequestStoryUpdate } from '@/components/request-story-update';
 import { publicationDraft, historicalPublicationDraft } from '@/lib/restore-publication';
-import { appendStory, continuationSummary, type ContinuationDraft } from '@/lib/story-continuation';
+import { appendStory, continuationSummary, ensureStoryGraph, type ContinuationDraft } from '@/lib/story-continuation';
 import { AccountBoundary } from '@/components/account-boundary';
 import { CloudWorkspace } from '@/components/cloud-workspace';
 import { applyPendingWorkspace, restoredImage, workspaceKeys } from '@/lib/cloud-workspace';
@@ -2226,8 +2226,24 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
   function beginContinuation() {
     if (!generatedWorld || creatorAgentThinking || worldGenerating) return;
     const base = materializeCreatorWorld();
+    if (!base.storyGraph) {
+      base.storyGraph = ensureStoryGraph(base);
+      setGeneratedWorld(base);
+    }
     setContinuation({ base }); setCreatorProposal(null); setProposalChanges([]);
     setCreatorQuestions([]); setCreatorMessage('');
+    if (!creatorBrief.storyGraph && base.storyGraph) {
+      setCreatorBrief(current => ({
+        ...current,
+        storyGraph: {
+          ...base.storyGraph!,
+          entries: base.storyGraph!.entries.map(e => ({
+            ...e,
+            roleId: `draft-role-${base.characters.findIndex(role => role.id === e.roleId)}`
+          }))
+        }
+      }));
+    }
     setCreatorMessages(current => [...current, { role: 'agent', content: '我们接着这个故事写。告诉我后面发生什么，或想加入谁；原人物和已写剧情会保留，新内容先给你确认。' }].slice(-12) as CreatorChatMessage[]);
   }
 
@@ -2818,7 +2834,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
           onApplyAllCreatorProposals={applyAllCreatorProposals}
           onEditCreatorProposal={(change, value) => setProposalChanges(current=>current.some(item=>item.key===change.key) ? current.map(item=>item.key===change.key?{...item,after:value}:item) : [...current, {...change, after:value}])}
           onCreatorProposalProblem={creatorProposalProblem}
-          onDismissCreatorProposal={(change) => change ? setProposalChanges((current) => current.filter((item) => item.key !== change.key)) : (setProposalChanges([]), setCreatorProposal(null))}
+          onDismissCreatorProposal={(change) => change ? setProposalChanges((current) => current.filter((item) => item.key !== change.key)) : (setProposalChanges([]), setCreatorProposal(null), setCreatorChangeNotice('已放弃本轮建议，现有草稿保持不变。'))}
           onUpdateCreatorBrief={updateCreatorBriefField}
           onUpdateStoryGraph={graph => { const problem = creatorStoryIssues(graph, draftRoles.map((_, i) => `draft-role-${i}`))[0]; if (problem) { setCreatorChangeNotice(problem); return; } setCreatorBrief(current => ({ ...current, storyGraph: graph })); setGenerated(false); setCreatorChangeNotice('已保存故事画布，其他设定不变。'); }}
           onComplexity={(value) => setCreatorBrief((current) => ({ ...current, complexityLevel: normalizeSurpriseLevel(value) }))}
@@ -2834,6 +2850,9 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
           onBack={() => navigate(creatorReturnView.current)}
           onPublish={publishCreatorWorld}
           onShare={preparePublicWorld}
+          continuation={continuation}
+          onAcceptContinuation={acceptContinuation}
+          onDismissContinuation={() => { cancelCreatorRequest(); setContinuation(current => current ? { base: current.base } : undefined); setCreatorChangeNotice('已放弃本次续写提案，原故事保持不变。'); }}
           continuationPanel={<>{generatedWorld ? <div className="creation-next">{continuation ? <><span>正在续写 · 原故事保留</span>{continuation.proposal && <Button disabled={creatorAgentThinking} onClick={acceptContinuation}>确认加入草稿</Button>}<Button variant="outline" onClick={() => { cancelCreatorRequest(); setContinuation(undefined); setCreatorChangeNotice('已退出续写，未确认的提案不会写入草稿。'); }}>退出续写</Button></> : <Button variant="outline" disabled={creatorAgentThinking} onClick={beginContinuation}>继续写后续</Button>}</div> : null}<StoryEditionHistory editions={releaseHistory} disabled={creatorAgentThinking||worldGenerating} onRestore={restoreStoryEdition}/></>}
         />
       );
@@ -3130,7 +3149,13 @@ function CreateWorld({
   onBack,
   onPublish,
   onShare,
+  continuation,
+  onAcceptContinuation,
+  onDismissContinuation,
 }: {
+  continuation?: ContinuationDraft;
+  onAcceptContinuation?: () => void;
+  onDismissContinuation?: () => void;
   continuationPanel?: import('react').ReactNode;
   step: number;
   roles: DraftRole[];
@@ -3196,12 +3221,32 @@ function CreateWorld({
     fetch('/api/account', { cache: 'no-store' }).then((response) => response.ok ? response.json() : null).then((account: unknown) => { if (active) setCanPublish(Boolean(account && typeof account === 'object' && 'canPublish' in account && account.canPublish === true)); }).catch(() => {});
     return () => { active = false; };
   }, []);
+  const continuationActive = Boolean(continuation?.proposal?.world);
+  const continuationGraph = continuationActive && continuation?.proposal?.world?.storyGraph ? {
+    ...continuation.proposal.world.storyGraph,
+    entries: continuation.proposal.world.storyGraph.entries.map(e => ({
+      ...e,
+      roleId: `draft-role-${continuation.proposal!.world.characters.findIndex(c => c.id === e.roleId)}`,
+    })),
+  } : undefined;
+  const continuationRoles: DraftRole[] = continuationActive ? continuation!.proposal!.world.characters.map((c) => ({
+    editorId: c.id,
+    name: c.name,
+    identity: c.identity,
+    personality: c.persona,
+    appearance: c.imagePrompt,
+    relationship: c.publicBackground,
+    goal: c.goal,
+    cardHook: c.cardHook,
+  })) : draftRoles;
+
   const taskIssues = creatorTaskIssues(creatorBrief.tasks, draftRoles.length);
   const graphSuggestion = proposalChanges.find(change => change.key === 'storyGraph');
-  const suggested = canvasSuggested && !!creatorProposal && proposalChanges.length > 0;
-  const preview = suggested ? combineCreatorChanges({ castAndTasks: { roles: draftRoles, tasks: creatorBrief.tasks } }, proposalChanges.filter(change => change.key === 'castAndTasks' || change.target), true)?.after as {castAndTasks?: {roles: DraftRole[]}} | undefined : undefined;
-  const canvasRoles = preview?.castAndTasks?.roles ?? draftRoles;
-  const canvasGraph = suggested ? graphSuggestion?.after ?? remapCreatorStoryRoles(creatorBrief.storyGraph, draftRoles, canvasRoles) : creatorBrief.storyGraph;
+  const hasSuggestion = Boolean((creatorProposal && proposalChanges.length > 0) || continuationActive);
+  const suggested = canvasSuggested && hasSuggestion;
+  const preview = (suggested && !continuationActive) ? combineCreatorChanges({ castAndTasks: { roles: draftRoles, tasks: creatorBrief.tasks } }, proposalChanges.filter(change => change.key === 'castAndTasks' || change.target), true)?.after as {castAndTasks?: {roles: DraftRole[]}} | undefined : undefined;
+  const canvasRoles = continuationActive ? continuationRoles : (preview?.castAndTasks?.roles ?? draftRoles);
+  const canvasGraph = continuationActive ? (continuationGraph ?? creatorBrief.storyGraph) : (suggested ? graphSuggestion?.after ?? remapCreatorStoryRoles(creatorBrief.storyGraph, draftRoles, canvasRoles) : creatorBrief.storyGraph);
   const canvasImages = suggested ? Object.fromEntries(canvasRoles.flatMap((role, i) => { const original = draftRoles.findIndex(old => old.editorId === role.editorId && portraitCacheKey(old) === portraitCacheKey(role)); return original >= 0 && roleImages[`draft-role-${original}`] ? [[`draft-role-${i}`, roleImages[`draft-role-${original}`]]] : []; })) : roleImages;
   const discussionPanel = (
             <section className="creator-agent-panel" aria-label="与创作 Agent 讨论">
@@ -3210,7 +3255,7 @@ function CreateWorld({
                 {creatorMessages.map((item, index) => <p key={`${item.role}-${index}`} data-role={item.role}>{item.role === 'agent' && <small>创作 Agent</small>}<span>{item.content}</span></p>)}
                 {creatorAgentThinking ? <p data-role="agent"><small>Agent</small><span>正在把你的想法和已有设定放在一起考虑……</span></p> : null}
               <div className="creator-question-chips">{creatorQuestions.slice(0, 1).map((question) => <button type="button" key={question} disabled={creatorAgentThinking} onClick={() => { onCreatorMessage(question); document.getElementById('creator-message')?.focus(); }}>{question}</button>)}</div>
-              {(creatorProposal && proposalChanges.length > 0 || creatorUndo.length > 0 || creatorChangeNotice) && <details className="flow-disclosure creation-proposals" open={Boolean(creatorProposal && proposalChanges.length)}><summary>{creatorProposal && proposalChanges.length ? `${proposalChanges.length} 项建议，可一键采纳或直接修改` : '最近修改与撤销'}</summary><CreatorProposalReview changes={creatorProposal ? proposalChanges : []} undo={creatorUndo} notice={creatorChangeNotice} busy={creatorAgentThinking || generating} onApply={onApplyCreatorProposal} onApplyAll={onApplyAllCreatorProposals} onEdit={onEditCreatorProposal} onDismiss={onDismissCreatorProposal} problemFor={onCreatorProposalProblem} /></details>}
+              {creatorChangeNotice ? <p className="creator-notice-chip" style={{ margin: '8px 0', padding: '6px 12px', borderRadius: 8, background: 'var(--color-bg-secondary)', color: 'var(--color-text-secondary)', fontSize: 12, lineHeight: 1.5 }}>{creatorChangeNotice}</p> : null}
               </div>
               <div className="creation-compose-area">
                 {continuationPanel}
@@ -3228,12 +3273,12 @@ function CreateWorld({
     <div className="flow-page creation-flow">
       <Sheet open={settingsOpen} onOpenChange={setSettingsOpen}>
       <header className="flow-toolbar"><button className="flow-control" type="button" onClick={onBack}><ArrowLeft />返回</button><h1>一起创作</h1><SheetTrigger className="flow-control">编辑设定</SheetTrigger></header>
-      <nav className="creation-pane-tabs" aria-label="创作视图"><button type="button" aria-pressed={mobilePane === 'chat'} onClick={() => setMobilePane('chat')}>与 Agent 讨论</button><button type="button" aria-pressed={mobilePane === 'canvas'} onClick={() => setMobilePane('canvas')}>故事画布{graphSuggestion ? ' · 新建议' : ''}</button></nav>
+      <nav className="creation-pane-tabs" aria-label="创作视图"><button type="button" aria-pressed={mobilePane === 'chat'} onClick={() => setMobilePane('chat')}>与 Agent 讨论</button><button type="button" aria-pressed={mobilePane === 'canvas'} onClick={() => setMobilePane('canvas')}>故事画布{(graphSuggestion || continuationActive) ? ' · 新建议' : ''}</button></nav>
       <div className="creation-workbench" data-pane={mobilePane}>
         {discussionPanel}
-        <CreatorStoryCanvas title={suggested ? creatorProposal?.title || worldTitle : worldTitle} graph={canvasGraph} roles={suggested ? canvasRoles : draftRoles} images={suggested ? canvasImages : roleImages} suggested={suggested} hasSuggestion={!!creatorProposal && proposalChanges.length > 0} busy={creatorAgentThinking || generating} onMode={setCanvasSuggested}
+        <CreatorStoryCanvas title={suggested ? (continuationActive ? (continuation?.proposal?.world?.title || worldTitle) : (creatorProposal?.title || worldTitle)) : worldTitle} graph={canvasGraph} roles={suggested ? canvasRoles : draftRoles} images={suggested ? canvasImages : roleImages} suggested={suggested} hasSuggestion={hasSuggestion} busy={creatorAgentThinking || generating} onMode={setCanvasSuggested}
           onEditRole={(index, field, value) => {
-            if (!suggested) { onUpdateRole(index, field, value); return; }
+            if (!suggested || continuationActive) { onUpdateRole(index, field, value); return; }
             const cast = proposalChanges.find(change => change.key === 'castAndTasks');
             if (cast) {
               const after = cast.after as { roles: DraftRole[]; tasks: CreatorTaskDraft[] };
@@ -3247,8 +3292,22 @@ function CreateWorld({
           }}
           onSave={graph => { if (suggested && graphSuggestion) onEditCreatorProposal(graphSuggestion, graph); else if (!suggested) onUpdateStoryGraph(graph); }}
           onAsk={text => { onCreatorMessage(text); setMobilePane('chat'); document.getElementById('creator-message')?.focus(); }}
-          onAdopt={() => { onApplyAllCreatorProposals(proposalChanges); }}
-          onEditRoles={() => { if (suggested) { setMobilePane('chat'); document.querySelector('.creation-proposals')?.scrollIntoView({ block: 'nearest' }); } else { onStep(1); setSettingsOpen(true); } }} />
+          onAdopt={() => {
+            if (continuationActive) {
+              onAcceptContinuation?.();
+            } else {
+              onApplyAllCreatorProposals(proposalChanges);
+            }
+          }}
+          onDismiss={() => {
+            if (continuationActive) {
+              onDismissContinuation?.();
+            } else {
+              onDismissCreatorProposal();
+              setCanvasSuggested(false);
+            }
+          }}
+          onEditRoles={() => { onStep(1); setSettingsOpen(true); }} />
       </div>
       <SheetContent className="flow-drawer creator-settings-drawer" showCloseButton={false}>
       <div className="flow-drawer-heading"><SheetTitle>世界设定</SheetTitle><SheetClose className="flow-control" aria-label="关闭世界设定"><X /></SheetClose></div>

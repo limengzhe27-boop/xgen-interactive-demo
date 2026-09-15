@@ -67,3 +67,13 @@ test('restored editor has valid positional role assignments and a separate saved
   draft.generatedWorld.title = '未发布草稿';
   assert.equal(draft.releasedEntry.world.title, base.title);
 });
+
+test('continuation automatically synthesizes and preserves storyGraph DAG', () => {
+  const result = appendStory(base, proposal());
+  assert.ok(result.storyGraph);
+  assert.equal(result.storyGraph.startNodeId, 'opening');
+  assert.ok(result.storyGraph.nodes.some(n => n.id === 'sequel-task' && n.title === '后续线索'));
+  const draft = publicationDraft({ ...studioWorlds[0], world: result }).data;
+  assert.ok(draft.creatorBrief.storyGraph);
+  assert.ok(draft.creatorBrief.storyGraph.nodes.some(n => n.id === 'sequel-task'));
+});
