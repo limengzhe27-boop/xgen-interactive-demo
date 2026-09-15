@@ -42,22 +42,26 @@ export function readCreatorResponse(value: unknown, input: CreatorAgentRequest):
   }
   const pending = input.pendingProposal;
   const base = pending && isCreatorAgentResponse({ reply: 'pending', proposal: pending, nextQuestions: [], readiness: 'needs_detail' }) ? pending : input.currentDraft;
-  const { proposal: p, notices } = normalizeCreatorProposal(value.proposal, base.brief.storyGraph?.nodes.map(n => n.id));
-  const brief = { ...base.brief, ...(record(p.brief) ? p.brief : {}) };
-  const count = Array.isArray(p.characters) ? p.characters.length : ('characters' in base ? base.characters?.length : undefined) ?? input.characters.length;
+  const { proposal: p, notices } = normalizeCreatorProposal(value.proposal, base.brief?.storyGraph?.nodes.map(n => n.id));
+  const brief = { ...(base.brief ?? {}), ...(record(p.brief) ? p.brief : {}) };
+  const count = Array.isArray(p.characters) ? p.characters.length : ('characters' in base ? base.characters?.length : undefined) ?? input.characters?.length ?? 0;
   const roleIds = Array.from({ length: count }, (_, i) => `draft-role-${i}`);
   const graphIssues = creatorStoryIssues(brief.storyGraph, roleIds);
   if (graphIssues.length) {
-    const oldRoles = 'characters' in base ? base.characters ?? input.characters : input.characters;
-    if (base.brief.storyGraph && Array.isArray(p.characters) && base.brief.storyGraph.entries.some(entry => {
+    const oldRoles = 'characters' in base ? base.characters ?? input.characters ?? [] : input.characters ?? [];
+    if (base.brief?.storyGraph && Array.isArray(p.characters) && base.brief.storyGraph.entries.some(entry => {
       const index = Number(entry.roleId.replace('draft-role-', ''));
       const proposed = (p.characters as unknown[])[index];
       return !record(proposed) || proposed.name !== oldRoles[index]?.name;
     })) return creatorDiscussion(value.reply, input,
       '本轮画布关联不完整，同时人物名单发生了变化；为避免把旧角色的认知绑定给另一个人，原画布和待采纳内容已保留，请先整理人物对应关系。');
     // Reject only the new graph. Never erase a previously edited/confirmed graph.
-    if (base.brief.storyGraph) brief.storyGraph = base.brief.storyGraph;
-    else delete brief.storyGraph;
+    if (base.brief?.storyGraph) {
+      const validEntries = base.brief.storyGraph.entries.filter(e => roleIds.includes(e.roleId));
+      const filteredGraph = { ...base.brief.storyGraph, entries: validEntries };
+      if (creatorStoryIssues(filteredGraph, roleIds).length === 0) brief.storyGraph = filteredGraph;
+      else delete brief.storyGraph;
+    } else delete brief.storyGraph;
     notices.push(`画布建议暂未更新：${graphIssues[0]} 其他有效建议仍可查看和采纳。`);
     const otherFields = Object.keys(p).some(k => k !== 'brief')
       || (record(p.brief) && Object.keys(p.brief).some(k => k !== 'storyGraph'));
@@ -69,7 +73,13 @@ export function readCreatorResponse(value: unknown, input: CreatorAgentRequest):
     readiness: value.readiness === 'ready' && !graphIssues.length ? 'ready' : 'needs_detail' };
   if (!isCreatorAgentResponse(response)) return creatorDiscussion(value.reply, input,
     '本轮设定建议未能整理完整，原草稿和待采纳建议保持不变；可以继续讨论。');
-  const issues = creatorStoryIssues(response.proposal.brief.storyGraph, roleIds);
-  if (issues.length) return creatorDiscussion(value.reply, input, `画布建议暂未写入：${issues[0]} 原草稿保持不变。`);
+  if (response.proposal.brief.storyGraph) {
+    const issues = creatorStoryIssues(response.proposal.brief.storyGraph, roleIds);
+    if (issues.length) {
+      delete response.proposal.brief.storyGraph;
+      notices.push(`画布建议暂未写入：${issues[0]} 原草稿保持不变。`);
+      response.proposalIssue = notices.join(' ');
+    }
+  }
   return response;
 }

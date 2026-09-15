@@ -135,4 +135,30 @@ test('cold start uses small opening contract; requested or existing graph uses f
   assert.ok(light.includes('不必等用户点击按钮'));
   assert.ok(creatorGraphGuidance({userMessage:'帮我整理画布'}).includes('最多16个'));
   assert.ok(creatorGraphGuidance({userMessage:'继续',currentDraft:{...input.currentDraft,brief:{...input.currentDraft.brief,storyGraph:graph}}}).includes('最多16个'));
+  const charAdd = creatorGraphGuidance({userMessage:'继续补充悟空悟净',currentDraft:{...input.currentDraft,brief:{...input.currentDraft.brief,storyGraph:graph}}});
+  assert.ok(charAdd.includes('最多16个'));
+  assert.ok(charAdd.includes('聚焦在 proposal.characters'));
+  assert.ok(charAdd.includes('省略 brief.storyGraph'));
 });
+test('adding characters to existing graph draft preserves existing graph without forced regeneration', () => {
+  const role1 = { name: '唐僧', identity: '取经人', persona: '慈悲隐忍', relationship: '', appearance: '', goal: '取经' };
+  const role2 = { name: '沙僧', identity: '卷帘大将', persona: '沉默戒备', relationship: '', appearance: '', goal: '脱罪' };
+  const currentDraft = {
+    ...input.currentDraft,
+    characters: [role1, role2],
+    brief: { ...input.currentDraft.brief, storyGraph: graph },
+  };
+  const role3 = { name: '孙悟空', identity: '齐天大圣', persona: '桀骜敏锐', relationship: '', appearance: '', goal: '解脱紧箍' };
+  const r = readCreatorResponse({
+    reply: '已为你构思孙悟空的设定。',
+    proposal: {
+      characters: [role1, role2, role3],
+    },
+  }, { ...input, currentDraft });
+  assert.ok(isCreatorAgentResponse(r));
+  assert.equal(r.discussionOnly, false);
+  assert.equal(r.proposal.characters.length, 3);
+  assert.equal(r.proposal.characters[2].name, '孙悟空');
+  assert.deepEqual(r.proposal.brief.storyGraph, graph);
+});
+

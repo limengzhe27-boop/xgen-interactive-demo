@@ -44,14 +44,18 @@ async function callRemote<T>(
       model_rate_limited: '公司模型当前请求过多，请稍后重试。',
       model_not_configured: '服务端尚未配置文字模型，请联系维护者。',
       model_access_denied: '公司模型访问被拒绝，请维护者检查网关权限与额度。',
+      company_gateway_failed: '上游模型服务暂时繁忙或响应中断，未覆盖草稿。请等待数秒后重试。',
       account_changed_or_unavailable: '登录状态发生变化或暂时无法验证，请刷新后重试。',
     };
     if (operation === 'advance-world') {
       messages.model_timeout = '模型响应超时，本次没有推进剧情。输入已保留，请稍后重试。';
       messages.invalid_model_output = '模型回复格式不完整，本次没有推进剧情。输入已保留，可以重试。';
       messages.model_output_truncated = '模型回复被截断，本次没有推进剧情。输入已保留，可以重试。';
+      messages.company_gateway_failed = '上游模型服务响应中断，本次没有推进剧情。输入已保留，请稍后重试。';
     }
-    throw new Error(messages[body.error || ''] || `创作服务暂时不可用（${response.status}），你的内容已保留。`);
+    const details = (body as { details?: string }).details;
+    const fallback = details ? `创作服务暂时不可用（${response.status}）：${details}` : `创作服务暂时不可用（${response.status}），你的内容已保留。`;
+    throw new Error(messages[body.error || ''] || fallback);
   }
   const body: unknown = await response.json();
   if (!validate(body)) throw new Error('模型回复格式不完整，内容未提交，输入已保留。');

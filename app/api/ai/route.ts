@@ -268,7 +268,10 @@ async function handlePost(request: Request) {
       const inputRoles = (body.input as { characters?: unknown[] }).characters;
       const original = output;
       const graphIssues = creatorStoryIssues(original.proposal.brief.storyGraph, Array.from({ length: original.proposal.characters?.length || (Array.isArray(inputRoles) ? inputRoles.length : 0) }, (_, i) => `draft-role-${i}`));
-      if (graphIssues.length) return Response.json({ error: 'invalid_creator_story_graph', details: graphIssues[0] }, { status: 502 });
+      if (graphIssues.length) {
+        delete original.proposal.brief.storyGraph;
+        original.proposalIssue = (original.proposalIssue ? `${original.proposalIssue} ` : '') + `画布建议暂未写入：${graphIssues[0]} 其他有效建议已保留。`;
+      }
       try { output = await repairCreatorProposal(original, Array.isArray(inputRoles) ? inputRoles.length : 0, async (issues) => {
         const remainingMs = Math.min(40_000, 105_000 - (Date.now() - startedAt));
         if (remainingMs < 3000) throw new Error('invalid_creator_task_graph');
