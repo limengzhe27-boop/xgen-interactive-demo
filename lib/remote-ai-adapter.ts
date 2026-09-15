@@ -37,6 +37,7 @@ async function callRemote<T>(
     const messages: Record<string, string> = {
       invalid_continuation: '本次后续没有形成有效的新剧情，或引用了不存在的人物与地点。原故事未改动，请补充后续再试。',
       invalid_creator_task_graph: '这次 AI 方案包含无效或循环任务关联，尚未作为可采纳建议展示。你的草稿未被覆盖，请让 Agent 重新整理任务关系。',
+      invalid_creator_story_graph: '这次画布的角色或入场路径未能正确对应，未覆盖草稿。请让 Agent 重新整理画布。',
       model_output_truncated: '这次角色与任务较多，模型输出被截断，未覆盖你的草稿。请重试，或先讨论角色再细化任务。',
       invalid_model_output: '模型返回的设定格式不完整，未覆盖你的草稿。可以重试或手动编辑。',
       model_timeout: '模型响应超时，未覆盖你的草稿。请稍后重试。',

@@ -29,6 +29,7 @@ export function publicationDraft(entry: StudioWorld & { sourceId?: string }) {
       objective: index === 0 ? world.openingScene.narrative : location.description, turningPoint: '' };
   });
   const brief: CreatorBrief = {
+    ...(world.storyGraph ? { storyGraph: { ...world.storyGraph, entries: world.storyGraph.entries.map(e => ({ ...e, roleId: `draft-role-${world.characters.findIndex(role => role.id === e.roleId)}` })) } } : {}),
     discoveryGenre: world.discoveryGenre,
     coreGoal: (world.goals.find(goal => goal.scope === 'world') ?? world.goals[0])?.title ?? world.coreEvent,
     successCondition: storyDirections(world.endingConditions).primary?.description ?? '',

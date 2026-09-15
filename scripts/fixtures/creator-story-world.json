@@ -1,0 +1,12 @@
+{
+  "id": "test-world", "title": "书店测试", "premise": "两个人准备读书会。", "timeSetting": "下午", "coreEvent": "等待决定", "surpriseLevel": 1,
+  "locations": [{ "id": "shop", "name": "书店", "description": "木桌", "connectedLocationIds": [] }],
+  "characters": [
+    { "id": "person-a", "name": "许宁", "identity": "店员", "persona": "细心", "publicBackground": "负责读书会", "privateKnowledge": [], "secrets": [], "goal": "准备读书会", "startLocationId": "shop", "imagePrompt": "短发" },
+    { "id": "person-b", "name": "陈禾", "identity": "志愿者", "persona": "开朗", "publicBackground": "稍后到来", "privateKnowledge": [], "secrets": [], "goal": "参与读书会", "startLocationId": "shop", "imagePrompt": "长发" }
+  ],
+  "relationships": [], "rules": [], "goals": [{ "id": "g", "title": "准备", "description": "准备", "scope": "world", "requiredTaskIds": ["t"] }],
+  "tasks": [{ "id": "t", "title": "准备", "description": "准备", "kind": "main", "assignedRoleIds": ["person-a"], "prerequisiteTaskIds": [], "successCondition": "准备好", "difficulty": "时间有限" }],
+  "difficultyConstraints": [], "scheduledEvents": [], "endingConditions": [{ "id": "e", "description": "读书会开始", "requiredTaskIds": ["t"], "requiredFacts": [] }],
+  "openingScene": { "locationId": "shop", "narrative": "你来到书店。", "presentCharacterIds": ["person-a"], "choices": [{ "id": "look", "label": "观察", "intent": "观察" }] }
+}

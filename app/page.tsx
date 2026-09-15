@@ -101,6 +101,8 @@ import { normalizeSurpriseLevel } from '@/lib/surprise-engine';
 import { preserveCreatorDetails, preserveCreatorFramework } from '@/lib/creator-framework';
 import { applyCreatorChange, combineCreatorChanges, creatorConfirmation, creatorOpeningRevision, creatorChanges, ensureCreatorRoleIds, identifyProposedRoles, type CreatorChange } from '@/lib/creator-changes';
 import { CreatorProposalReview } from '@/components/creator-proposal-review';
+import { CreatorStoryCanvas } from '@/components/creator-story-canvas';
+import { creatorStoryIssues, isCreatorStoryGraph, remapCreatorStoryRoles, type CreatorStoryGraph } from '@/lib/creator-story-graph';
 import { CreatorTaskEditor } from '@/components/creator-task-editor';
 import { creatorTaskIssues } from '@/lib/creator-task-graph';
 import type { CreatorDetailBaseline } from '@/lib/creator-framework';
@@ -707,6 +709,7 @@ function briefTasksToWorldTasks(tasks: CreatorTaskDraft[], roleIds: string[]): W
 
 function normalizeCreatorBrief(brief: CreatorBrief): CreatorBrief {
   return {
+    ...(isCreatorStoryGraph(brief.storyGraph) && !creatorStoryIssues(brief.storyGraph).length ? { storyGraph: brief.storyGraph } : {}),
     discoveryGenre: validDiscoveryGenre(brief.discoveryGenre) ? brief.discoveryGenre : '',
     coreGoal: brief.coreGoal?.trim() || '',
     successCondition: brief.successCondition?.trim() || '',
@@ -854,6 +857,7 @@ function buildCreatorWorld(
   const roleMainIds = (id: string) => creatorTasks.filter((task) => task.kind === 'main' && (!task.assignedRoleIds.length || task.assignedRoleIds.includes(id))).map((task) => task.id);
   return {
     ...nextWorld,
+    storyGraph: normalizedBrief.storyGraph,
     id: baseWorld?.id || 'draft-generated-world',
     discoveryGenre: creatorBrief.discoveryGenre === undefined ? baseWorld?.discoveryGenre : normalizedBrief.discoveryGenre,
     title: safeTitle,
@@ -2055,7 +2059,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     if (draftRoles.length <= 2) return;
     setEntryPolicy(current => ({ ...current, allowedRoleIds: current.allowedRoleIds.filter(id => id !== `draft-role-${index}`).map(id => { const n = Number(id.replace('draft-role-', '')); return n > index ? `draft-role-${n - 1}` : id; }) }));
     // Index-based legacy IDs must be rebased with the cast, including assignments.
-    setCreatorBrief((current) => ({ ...current, tasks: current.tasks.filter((task) => !(task.assignedRoleIds?.length === 1 && task.assignedRoleIds[0] === `draft-role-${index}`)).map((task) => ({ ...task,
+    setCreatorBrief((current) => ({ ...current, storyGraph: remapCreatorStoryRoles(current.storyGraph, draftRoles, draftRoles.filter((_, i) => i !== index)), tasks: current.tasks.filter((task) => !(task.assignedRoleIds?.length === 1 && task.assignedRoleIds[0] === `draft-role-${index}`)).map((task) => ({ ...task,
       assignedRoleIds: task.assignedRoleIds?.filter((id) => id !== `draft-role-${index}`).map((id) => { const n = Number(id.replace('draft-role-', '')); return n > index ? `draft-role-${n - 1}` : id; }),
     })).map((task, _, tasks) => ({ ...task, prerequisiteTaskIds: task.prerequisiteTaskIds.filter((id) => tasks.some((candidate) => candidate.id === id)) })) }));
     Object.keys(roleImageRequestRef.current).forEach((id) => { roleImageRequestRef.current[id] += 1; });
@@ -2169,11 +2173,12 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       setCreatorProposal(response.proposal);
       const brief = normalizeCreatorBrief({ ...response.proposal.brief, discoveryGenre: response.proposal.brief.discoveryGenre ?? creatorBrief.discoveryGenre });
       const nextRoles = response.proposal.characters?.length ? identifyProposedRoles(draftRoles, response.proposal.characters.map((role, index) => ({ name: role.name, cardHook: role.cardHook, identity: role.identity, personality: role.persona, relationship: role.relationship, appearance: role.appearance, goal: role.goal ?? draftRoles[index]?.goal ?? '' }))) : draftRoles;
+      if (!brief.storyGraph) brief.storyGraph = remapCreatorStoryRoles(creatorBrief.storyGraph, draftRoles, nextRoles);
       const nextChanges = creatorChanges(baseline, { ...brief, entryPolicy: response.proposal.entryPolicy ?? entryPolicy, surpriseLevel: response.proposal.surpriseLevel ?? surprise, title: response.proposal.title, premise: response.proposal.premise, castAndTasks: { roles: nextRoles, tasks: brief.tasks } }, {
-        discoveryGenre: '剧情分类', entryPolicy: '身份入场与能力规则',
+        storyGraph: '故事画布与角色入场', discoveryGenre: '剧情分类', entryPolicy: '身份入场与能力规则',
         surpriseLevel: '意外程度',
         title: '世界名称', premise: '背景与冲突', castAndTasks: '人物动机与剧情节点', coreGoal: '故事主要走向', successCondition: '预期走向', failureCondition: '其他走向', complexityLevel: '世界复杂度', difficulties: '世界级困难', scheduledEvents: '预设事件',
-      }).map(change => change.key === 'entryPolicy' ? { ...change, roleOrder: draftRoles.map(role => role.editorId!), referenceLabels: Object.fromEntries(draftRoles.map((role, index) => [`draft-role-${index}`, role.name || `角色 ${index + 1}`])) } : change);
+      }).map(change => change.key === 'storyGraph' ? { ...change, roleOrder: nextRoles.map(role => role.editorId!) } : change.key === 'entryPolicy' ? { ...change, roleOrder: draftRoles.map(role => role.editorId!), referenceLabels: Object.fromEntries(draftRoles.map((role, index) => [`draft-role-${index}`, role.name || `角色 ${index + 1}`])) } : change);
       if (openingRevision) {
         const opening = (change: CreatorChange) => ['premise', 'scheduledEvents'].includes(change.key);
         const unchanged = proposalChanges.filter(change => !opening(change));
@@ -2272,6 +2277,11 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     if (change.key === 'entryPolicy' && (JSON.stringify(change.roleOrder) !== JSON.stringify(draftRoles.map(role => role.editorId)) || restoreEntryPolicy(undo ? change.before : change.after).allowedRoleIds.some(id => !draftRoles.some((_, index) => id === `draft-role-${index}`)))) return '角色名单已变化或引用了不存在的角色，请重新讨论入场规则。';
     const next = applyCreatorChange(creatorSections(), change, undo);
     if (!next) return '相关字段或角色名单已有新修改，未覆盖。请保留手改或重新讨论。';
+    const graphCast = next.castAndTasks as { roles: DraftRole[] };
+    if (change.key === 'storyGraph' && JSON.stringify(change.roleOrder) !== JSON.stringify(graphCast.roles.map(role => role.editorId))) return '画布关联的角色名单已变化，请一并采纳本轮建议；旧画布不能覆盖新的角色关联。';
+    const graphToCheck = change.key === 'castAndTasks' ? remapCreatorStoryRoles(next.storyGraph as CreatorStoryGraph | undefined, draftRoles, graphCast.roles) : next.storyGraph;
+    const graphProblem = creatorStoryIssues(graphToCheck, graphCast.roles.map((_, i) => `draft-role-${i}`))[0];
+    if (graphProblem) return graphProblem;
     if (change.key === '__all' || change.key === 'castAndTasks' || change.target?.kind === 'task') {
       const cast = next.castAndTasks as { roles: DraftRole[]; tasks: CreatorTaskDraft[] };
       const problems = creatorTaskIssues(cast.tasks, cast.roles.length);
@@ -2289,6 +2299,10 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     }
     const next = combined.after as Record<string, unknown>;
     next.tasks = (next.castAndTasks as {tasks: CreatorTaskDraft[]}).tasks;
+    const finalRoles = (next.castAndTasks as {roles: DraftRole[]}).roles;
+    const graphChange = changes.find(change => change.key === 'storyGraph');
+    if (graphChange && JSON.stringify(graphChange.roleOrder) !== JSON.stringify(finalRoles.map(role => role.editorId))) return '角色名单已经变化，请重新整理画布建议后采纳。';
+    if (!graphChange) next.storyGraph = remapCreatorStoryRoles(creatorBrief.storyGraph, draftRoles, finalRoles);
     if (!changes.some(change => change.key === 'entryPolicy')) {
       const cast = next.castAndTasks as {roles: DraftRole[]};
       next.entryPolicy = {...entryPolicy, allowedRoleIds: entryPolicy.allowedRoleIds.flatMap(id => {
@@ -2313,7 +2327,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     if (change.key === '__all') {
       setWorldTitle(next.title as string); setWorldSeed(next.premise as string);
       setSurprise(next.surpriseLevel as number); setEntryPolicy(restoreEntryPolicy(next.entryPolicy));
-      setCreatorBrief({...creatorBrief, discoveryGenre: next.discoveryGenre as string, coreGoal: next.coreGoal as string, successCondition: next.successCondition as string, failureCondition: next.failureCondition as string, complexityLevel: next.complexityLevel as CreatorBrief['complexityLevel'], difficulties: next.difficulties as string[], scheduledEvents: next.scheduledEvents as CreatorBrief['scheduledEvents'], tasks: (next.castAndTasks as {tasks: CreatorTaskDraft[]}).tasks});
+      setCreatorBrief({...creatorBrief, storyGraph: next.storyGraph as CreatorStoryGraph | undefined, discoveryGenre: next.discoveryGenre as string, coreGoal: next.coreGoal as string, successCondition: next.successCondition as string, failureCondition: next.failureCondition as string, complexityLevel: next.complexityLevel as CreatorBrief['complexityLevel'], difficulties: next.difficulties as string[], scheduledEvents: next.scheduledEvents as CreatorBrief['scheduledEvents'], tasks: (next.castAndTasks as {tasks: CreatorTaskDraft[]}).tasks});
     }
     if (change.key === 'title') setWorldTitle(next.title as string);
     else if (change.key === 'entryPolicy') setEntryPolicy(restoreEntryPolicy(next.entryPolicy));
@@ -2336,7 +2350,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
         if (change.key !== '__all') setEntryPolicy(current => ({ ...current, allowedRoleIds: current.allowedRoleIds.flatMap(id => { const old = draftRoles[Number(id.replace('draft-role-', ''))]; const index = cast.roles.findIndex(role => old && role.editorId === old.editorId); return index < 0 ? [] : [`draft-role-${index}`]; }) }));
       }
       setDraftRoles(cast.roles);
-      setCreatorBrief((current) => ({ ...current, tasks: cast.tasks }));
+      setCreatorBrief((current) => ({ ...current, ...(change.key === 'castAndTasks' ? { storyGraph: remapCreatorStoryRoles(current.storyGraph, draftRoles, cast.roles) } : {}), tasks: cast.tasks }));
     } else setCreatorBrief((current) => ({ ...current, [change.key]: next[change.key] }));
     setGenerated(false);
     if (undo) setCreatorUndo((items) => items.filter((item) => item !== change));
@@ -2409,7 +2423,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
         creatorBrief: effectiveBrief,
       }, signal));
       if (!creatorRequest.current.current(signal)) return;
-      const normalizedWorld = normalizeGeneratedWorld(response.world, draftRoles);
+      const normalizedWorld = { ...normalizeGeneratedWorld(response.world, draftRoles), storyGraph: effectiveBrief.storyGraph };
       const generatedDraftRoles = draftRoles.map((role, index) => ({ ...role, cardHook: role.cardHook ?? normalizedWorld.characters[index]?.cardHook, goal: role.goal || normalizedWorld.characters[index]?.goal || '', appearance: role.appearance || normalizedWorld.characters[index]?.imagePrompt || '' }));
       setCreatorDetailBaseline({ roles: generatedDraftRoles, outline: response.storyOutline });
       setGeneratedWorld({ ...normalizedWorld, discoveryGenre: effectiveBrief.discoveryGenre || normalizedWorld.discoveryGenre, entryPolicy: restoreEntryPolicy(entryPolicy) });
@@ -2477,7 +2491,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     const worldDetails = generatedWorld
       ? preserveCreatorDetails(generatedWorld, preserveCreatorFramework(generatedWorld, edited, effectiveBrief.tasks.filter((task) => task.assignedRoleIds !== undefined).map((task) => task.id)), creatorDetailBaseline ?? nextBaseline, nextBaseline)
       : edited;
-    const world = { ...worldDetails, entryPolicy: restoreEntryPolicy(entryPolicy) };
+    const world = { ...worldDetails, ...(effectiveBrief.storyGraph ? { storyGraph: { ...effectiveBrief.storyGraph, entries: effectiveBrief.storyGraph.entries.map(entry => ({ ...entry, roleId: worldDetails.characters[Number(entry.roleId.replace('draft-role-', ''))]?.id ?? entry.roleId })) } } : {}), entryPolicy: restoreEntryPolicy(entryPolicy) };
     setCreatorDetailBaseline(nextBaseline);
     setWorldTitle(safeTitle);
     setWorldSeed(safeSeed);
@@ -2793,6 +2807,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
           onCreatorProposalProblem={creatorProposalProblem}
           onDismissCreatorProposal={(change) => change ? setProposalChanges((current) => current.filter((item) => item.key !== change.key)) : (setProposalChanges([]), setCreatorProposal(null))}
           onUpdateCreatorBrief={updateCreatorBriefField}
+          onUpdateStoryGraph={graph => { const problem = creatorStoryIssues(graph, draftRoles.map((_, i) => `draft-role-${i}`))[0]; if (problem) { setCreatorChangeNotice(problem); return; } setCreatorBrief(current => ({ ...current, storyGraph: graph })); setGenerated(false); setCreatorChangeNotice('已保存故事画布，其他设定不变。'); }}
           onComplexity={(value) => setCreatorBrief((current) => ({ ...current, complexityLevel: normalizeSurpriseLevel(value) }))}
           onAddCreatorTask={addCreatorTask}
           onRemoveCreatorTask={removeCreatorTask}
@@ -3088,6 +3103,7 @@ function CreateWorld({
   onCreatorProposalProblem,
   onDismissCreatorProposal,
   onUpdateCreatorBrief,
+  onUpdateStoryGraph,
   onComplexity,
   onAddCreatorTask,
   onRemoveCreatorTask,
@@ -3112,6 +3128,7 @@ function CreateWorld({
   worldTitle: string;
   worldSeed: string;
   creatorBrief: CreatorBrief;
+  onUpdateStoryGraph: (graph: CreatorStoryGraph) => void;
   creatorMessages: CreatorChatMessage[];
   companionPanel: import('react').ReactNode;
   creatorMessage: string;
@@ -3155,6 +3172,8 @@ function CreateWorld({
   onShare: () => void;
 }) {
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [canvasSuggested, setCanvasSuggested] = useState(true);
+  const [mobilePane, setMobilePane] = useState<'chat' | 'canvas'>('chat');
   const [canPublish, setCanPublish] = useState(false);
   const conversationLog = useRef<HTMLDivElement>(null);
   const followConversation = useRef(true);
@@ -3165,6 +3184,12 @@ function CreateWorld({
     return () => { active = false; };
   }, []);
   const taskIssues = creatorTaskIssues(creatorBrief.tasks, draftRoles.length);
+  const graphSuggestion = proposalChanges.find(change => change.key === 'storyGraph');
+  const suggested = canvasSuggested && !!creatorProposal && !!graphSuggestion;
+  const preview = suggested ? combineCreatorChanges({ castAndTasks: { roles: draftRoles, tasks: creatorBrief.tasks } }, proposalChanges.filter(change => change.key === 'castAndTasks' || change.target), true)?.after as {castAndTasks?: {roles: DraftRole[]}} | undefined : undefined;
+  const canvasRoles = preview?.castAndTasks?.roles ?? draftRoles;
+  const canvasGraph = suggested ? graphSuggestion?.after ?? remapCreatorStoryRoles(creatorBrief.storyGraph, draftRoles, canvasRoles) : creatorBrief.storyGraph;
+  const canvasImages = suggested ? Object.fromEntries(canvasRoles.flatMap((role, i) => { const original = draftRoles.findIndex(old => old.editorId === role.editorId && portraitCacheKey(old) === portraitCacheKey(role)); return original >= 0 && roleImages[`draft-role-${original}`] ? [[`draft-role-${i}`, roleImages[`draft-role-${original}`]]] : []; })) : roleImages;
   const discussionPanel = (
             <section className="creator-agent-panel" aria-label="与创作 Agent 讨论">
               <div className="creator-agent-heading"><span><Sparkles /></span><div><small>还是我，陪你创作</small><strong>{worldTitle || '从一个念头，开始另一种人生。'}</strong></div></div>
@@ -3190,7 +3215,15 @@ function CreateWorld({
     <div className="flow-page creation-flow">
       <Sheet open={settingsOpen} onOpenChange={setSettingsOpen}>
       <header className="flow-toolbar"><button className="flow-control" type="button" onClick={onBack}><ArrowLeft />返回</button><h1>一起创作</h1><SheetTrigger className="flow-control">编辑设定</SheetTrigger></header>
-      {discussionPanel}
+      <nav className="creation-pane-tabs" aria-label="创作视图"><button type="button" aria-pressed={mobilePane === 'chat'} onClick={() => setMobilePane('chat')}>与 Agent 讨论</button><button type="button" aria-pressed={mobilePane === 'canvas'} onClick={() => setMobilePane('canvas')}>故事画布{graphSuggestion ? ' · 新建议' : ''}</button></nav>
+      <div className="creation-workbench" data-pane={mobilePane}>
+        {discussionPanel}
+        <CreatorStoryCanvas graph={canvasGraph} roles={suggested ? canvasRoles : draftRoles} images={suggested ? canvasImages : roleImages} suggested={suggested} hasSuggestion={!!creatorProposal && proposalChanges.length > 0} busy={creatorAgentThinking || generating} onMode={setCanvasSuggested}
+          onSave={graph => { if (suggested && graphSuggestion) onEditCreatorProposal(graphSuggestion, graph); else if (!suggested) onUpdateStoryGraph(graph); }}
+          onAsk={text => { onCreatorMessage(text); setMobilePane('chat'); document.getElementById('creator-message')?.focus(); }}
+          onAdopt={() => { onApplyAllCreatorProposals(proposalChanges); }}
+          onEditRoles={() => { if (suggested) { setMobilePane('chat'); document.querySelector('.creation-proposals')?.scrollIntoView({ block: 'nearest' }); } else { onStep(1); setSettingsOpen(true); } }} />
+      </div>
       <SheetContent className="flow-drawer creator-settings-drawer" showCloseButton={false}>
       <div className="flow-drawer-heading"><SheetTitle>世界设定</SheetTitle><SheetClose className="flow-control" aria-label="关闭世界设定"><X /></SheetClose></div>
       <SheetDescription>这里可以直接修改；关闭后，接着和同一个 Agent 聊。</SheetDescription>

@@ -244,10 +244,24 @@
 .companion-about h2, .companion-page .personal-pending h2 { font: 600 1rem/1.8 var(--font-ui); }
 .companion-page .personal-pending { margin: 20px 0; padding: 12px 16px; background: var(--color-agent-soft); border-radius: 16px; }
 .companion-page .personal-pending article > div { display: flex; gap: 8px; }
-.creation-flow.flow-page { height: 100dvh; min-height: 440px; max-width: none; margin: 0; padding: 0 32px; display: flex; flex-direction: column; }
+.creation-flow.flow-page { height: 100dvh; min-height: 440px; max-width: none; margin: 0; padding: 0 24px; display: flex; flex-direction: column; }
 .studio-frame:has(.creation-flow) > .account-bar { display: none; }
 .creation-flow .flow-toolbar { flex-shrink: 0; padding: 12px 0; margin: 0; }
 .creation-flow .creator-agent-panel { position: static; width: min(100%, 920px); flex: 1; min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; padding: 0; background: transparent; border: 0; box-shadow: none; }
+.creation-workbench { display: grid; grid-template-columns: minmax(320px, .85fr) minmax(0, 1.4fr); gap: 24px; flex: 1; min-height: 0; width: 100%; max-width: 1800px; margin-inline: auto; }
+.creation-workbench .creator-agent-panel { width: 100%; min-width: 0; }
+.creation-workbench .creator-agent-heading { padding-top: 16px; }
+.creation-workbench .creator-conversation > p { max-width: 92%; }
+.creation-workbench .creator-conversation > p[data-role=creator] { max-width: 80%; }
+.creation-workbench .creation-compose-area { padding-bottom: max(18px, env(safe-area-inset-bottom)); }
+.creation-pane-tabs { display: none; }
+@media(max-width: 760px) {
+  .creation-pane-tabs { display: flex; gap: 8px; padding-bottom: 12px; }
+  .creation-pane-tabs button { flex: 1; min-height: 44px; border: 1px solid var(--color-border); border-radius: 10px; background: transparent; color: var(--color-text-secondary); }
+  .creation-pane-tabs button[aria-pressed=true] { background: var(--color-agent-soft); color: var(--color-primary); border-color: var(--color-primary); }
+  .creation-workbench { display: flex; flex-direction: column; gap: 0; }
+  .creation-workbench[data-pane=chat] > aside, .creation-workbench[data-pane=canvas] > .creator-agent-panel { display: none; }
+}
 .creation-flow .creator-agent-heading { margin: 0; padding: 8px 8px 12px; }
 .creation-flow .creator-agent-heading strong { font: 500 1.2rem/1.7 var(--font-ui); overflow-wrap: anywhere; }
 .creation-flow .creator-conversation { display: block; min-height: 0; max-height: none; margin: 0; padding: 20px 8px; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }

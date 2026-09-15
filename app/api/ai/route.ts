@@ -3,6 +3,7 @@ import { STORY_PROGRESSION_GUIDANCE } from '@/lib/story-progression-guidance';
 import { characterChatGuidance, characterChatContract } from '@/lib/character-chat-guidance';
 import { exactChatRecall } from '@/lib/chat-memory';
 import { creativeGuidance } from '@/lib/creative-guidance';
+import { CREATOR_STORY_GRAPH_GUIDANCE, creatorStoryIssues } from '@/lib/creator-story-graph';
 import { appendStory, CONTINUATION_GUIDANCE } from '@/lib/story-continuation';
 import { publicationWorld } from '@/lib/publication';
 import { CHARACTER_ENTRY_GUIDANCE } from '@/lib/character-entry';
@@ -51,6 +52,9 @@ for (const op of ['co-create-world','generate-world','advance-world'] as const) 
 operationInstructions['advance-world'] += '\n同一存档可切换角色。以 state.clock/location/characterStates 为当前时刻与位置，不重新应用角色 entry，不把切换视为行动或新开局。state.inventory/clues/knownSecrets/eventLedger 只属于当前角色；全局 committedFacts/taskNotes/任务进度是世界真相，不等于角色已知。没有获知途径不得在对白或画面泄露。';
 const videoTurnContract = operationInstructions['advance-world'];
 for (const op of ['co-create-world', 'generate-world', 'advance-world'] as const) operationInstructions[op] += creativeGuidance(op);
+operationInstructions['co-create-world'] += CREATOR_STORY_GRAPH_GUIDANCE;
+operationInstructions['advance-world'] += '\nworld.storyGraph 是作者的可能走向与角色新存档入场框架，绝不是已发生历史。后续节点事实、其他分支事实、其他角色的入场认知不得自动写入当前存档或当前角色知识。只以当前存档实际发生的事实推进，已有存档换角色不使用默认前史跳时间。';
+operationInstructions['generate-world'] += '\n若 creatorBrief.storyGraph 存在，这是作者已采纳的故事画布，必须保留节点与角色关联。它表达可能走向而不是玩家已完成的事件，不能把所有分支都写成共同前史。';
 operationInstructions['generate-world'] += CONTINUATION_GUIDANCE + CHARACTER_ENTRY_GUIDANCE;
 
 operationInstructions['advance-world'] += '\n对白按发言顺序逐条返回：每条 dialogue 只能属于一个 characterId，禁止将多人台词拼在一个人的 text 中。正文 narrative 侧重场景与行动，角色直接发言放入 dialogue，避免上下重复整段对白；visibleToRoleIds 按实际可知范围填写，不因角色出现就让所有人发言，不替玩家编造未表达的台词。';
@@ -249,6 +253,8 @@ async function handlePost(request: Request) {
     if (body.operation === 'co-create-world' && isCreatorAgentResponse(output)) {
       const inputRoles = (body.input as { characters?: unknown[] }).characters;
       const original = output;
+      const graphIssues = creatorStoryIssues(original.proposal.brief.storyGraph, Array.from({ length: original.proposal.characters?.length || (Array.isArray(inputRoles) ? inputRoles.length : 0) }, (_, i) => `draft-role-${i}`));
+      if (graphIssues.length) return Response.json({ error: 'invalid_creator_story_graph', details: graphIssues[0] }, { status: 502 });
       output = await repairCreatorProposal(original, Array.isArray(inputRoles) ? inputRoles.length : 0, async (issues) => {
         const remainingMs = Math.min(40_000, 105_000 - (Date.now() - startedAt));
         if (remainingMs < 3000) throw new Error('invalid_creator_task_graph');

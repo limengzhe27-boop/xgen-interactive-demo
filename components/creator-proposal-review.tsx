@@ -29,7 +29,7 @@ export function CreatorProposalReview({ changes, undo, notice, busy, onApply, on
       const problem = problemFor(change);
       return <details key={change.key} className="creator-change-card"><summary>{change.label}{problem && <small>待处理</small>}</summary>
         {change.key === 'castAndTasks' && <p>此项涉及角色名单或任务结构，需连同关联任务一起确认。</p>}
-        <SuggestionEditor value={change.after} field={change.target?.kind==='role'?change.target.field:change.key} references={change.referenceLabels} busy={busy} onChange={value=>onEdit(change,value)}/>
+        {change.key === 'storyGraph' ? <p>故事节点、角色入场与认知已呈现在画布。点击画布节点可查看和修改；采纳使用修改后的内容。</p> : <SuggestionEditor value={change.after} field={change.target?.kind==='role'?change.target.field:change.key} references={change.referenceLabels} busy={busy} onChange={value=>onEdit(change,value)}/>}
         {problem && <p className="creator-change-problem">{problem}</p>}
         <div className="creator-change-actions"><Button disabled={busy || !!problem} onClick={() => onApply(change)}>采纳</Button></div>
       </details>;

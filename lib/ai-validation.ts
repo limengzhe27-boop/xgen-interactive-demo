@@ -11,6 +11,7 @@ import { validEntryPolicy, validPersonaAdmission } from './player-persona.ts';
 import { validCardHook } from './character-card.ts';
 import { validWorldSystem } from './world-system.ts';
 import { validDiscoveryGenre } from './discovery-category.ts';
+import { creatorStoryIssues } from './creator-story-graph.ts';
 
 function validOptionalSystem(world: Record<string, unknown>) {
   if (world.system === undefined) return true;
@@ -27,6 +28,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function isCreatorBrief(value: unknown) {
   if (!isRecord(value)
     || (value.discoveryGenre !== undefined && !validDiscoveryGenre(value.discoveryGenre))
+    || (value.storyGraph !== undefined && creatorStoryIssues(value.storyGraph).length > 0)
     || typeof value.coreGoal !== 'string'
     || typeof value.successCondition !== 'string'
     || typeof value.failureCondition !== 'string'

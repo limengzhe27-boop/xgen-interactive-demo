@@ -4,10 +4,12 @@ import { validWorldSystem } from './world-system.ts';
 import { validDiscoveryGenre } from './discovery-category.ts';
 import { validCardHook } from './character-card.ts';
 import { validCharacterEntries } from './character-entry.ts';
+import { creatorStoryIssues } from './creator-story-graph.ts';
 
 type Shape = 'string' | 'number' | 'boolean' | { [key: string]: Shape } | [Shape];
 const texts: Shape = ['string'];
 const schema: Shape = {
+  'storyGraph?': { startNodeId: 'string', nodes: [{ id: 'string', title: 'string', location: 'string', scene: 'string', worldFacts: texts, nextNodeIds: texts }], entries: [{ roleId: 'string', nodeId: 'string', defaultPath: texts, knownFacts: texts, beliefs: texts, scene: 'string' }] },
   'storyHook?': 'string',
   'discoveryGenre?': 'string',
   id: 'string', title: 'string', premise: 'string', timeSetting: 'string', coreEvent: 'string', surpriseLevel: 'number',
@@ -55,6 +57,7 @@ export function publicationWorld(value: unknown): WorldDefinition {
     return result;
   };
   const roles = ids(world.characters), places = ids(world.locations), tasks = ids(world.tasks);
+  if (creatorStoryIssues(world.storyGraph, [...roles]).length) throw new Error('invalid_creator_story_graph');
   if (world.system && !validWorldSystem(world.system, [...roles], [...tasks])) throw new Error('invalid_world_system');
   if (world.entryPolicy && (!validEntryPolicy(world.entryPolicy) || world.entryPolicy.allowedRoleIds.some(id => !roles.has(id)))) throw new Error('invalid_entry_policy');
   ids(world.goals); ids(world.rules); ids(world.scheduledEvents); ids(world.endingConditions);

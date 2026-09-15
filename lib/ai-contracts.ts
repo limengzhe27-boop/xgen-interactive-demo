@@ -137,6 +137,8 @@ export type ScheduledWorldEvent = {
 };
 
 export type WorldDefinition = {
+  /** Creator's possible story directions, never the current save's event history. */
+  storyGraph?: import('./creator-story-graph').CreatorStoryGraph;
   storyHook?: string;
   discoveryGenre?: string;
   system?: import('./world-system').WorldSystem;
@@ -187,6 +189,7 @@ export type CreatorTaskDraft = {
 };
 
 export type CreatorBrief = {
+  storyGraph?: import('./creator-story-graph').CreatorStoryGraph;
   discoveryGenre?: string;
   coreGoal: string;
   successCondition: string;
