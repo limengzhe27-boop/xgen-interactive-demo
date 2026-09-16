@@ -5,7 +5,7 @@ import Image from 'next/image';
 import { GitBranch, MapPin, Users, ArrowRight, Sparkles, Check, Trash2, GitFork, X as CloseIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { CreatorRoleDraft } from '@/lib/creator-changes';
-import { creatorEntryPaths, creatorStoryIssues, isCreatorStoryGraph, type CreatorStoryGraph } from '@/lib/creator-story-graph';
+import { creatorEntryPaths, creatorEntryContext, possibilityRoleId, creatorStoryIssues, isCreatorStoryGraph, type CreatorStoryGraph } from '@/lib/creator-story-graph';
 import styles from './creator-story-canvas.module.css';
 
 const lines = (s: string) => s.split('\n').map(x => x.trim()).filter(Boolean);
@@ -13,7 +13,8 @@ function Field({ label, value, onChange, rows = 2 }: { label: string; value: str
   return <label className={styles.field}><span>{label}</span><textarea rows={rows} maxLength={3000} value={value} onChange={e => onChange(e.target.value)} /></label>;
 }
 
-function NodeDetails({ graph, nodeId, roleId, roleName, suggested, busy, onSave, onSelectNode, onAsk }: {
+function NodeDetails({ graph, nodeId, roleId, roleName, roles, suggested, busy, onSave, onSelectNode, onAsk }: {
+  roles: CreatorRoleDraft[];
   graph: CreatorStoryGraph; nodeId: string; roleId: string; roleName: string; suggested: boolean; busy: boolean; onSave: (graph: CreatorStoryGraph) => void;
   onSelectNode?: (id: string) => void;
   onAsk: (text: string) => void;
@@ -256,7 +257,60 @@ function NodeDetails({ graph, nodeId, roleId, roleName, suggested, busy, onSave,
           <Field label="已知事实 · 每行一条" value={entry.knownFacts.join('\n')} onChange={v => updateEntry({ knownFacts: lines(v) })} />
           <Field label="怀疑与误解 · 不等于事实" value={entry.beliefs.join('\n')} onChange={v => updateEntry({ beliefs: lines(v) })} />
           <Field label="玩家看到的第一人称入场" value={entry.scene} rows={3} onChange={scene => updateEntry({ scene })} />
-        </> : <div className={styles.entryEmpty}><p>{entry ? `首次体验从「${graph.nodes.find(n => n.id === entry.nodeId)?.title}」开始，不会因为查看这个事件而改变。` : '这个角色尚未指定首次入场位置。'}</p><p>后续事件不需要重新设置入场。角色是否参与、获知什么，由故事条件与体验中的行动决定；无需预先写完全部对白。</p><details><summary>调整首次入场位置</summary><p>仅在希望这个角色从此事件开始体验时调整。原入场认知会清空，需重新确认。</p><Button type="button" variant="outline" disabled={!roleId || !paths.length} onClick={assign}>将首次入场改到这里<ArrowRight size={16} /></Button></details></div>}</section>
+        </> : <div className={styles.entryEmpty}>
+          {(() => {
+            const rolePossibilities = (node.possibilities ?? []).filter(p => possibilityRoleId(p, roles.map((r, i) => ({ id: `draft-role-${i}`, name: r.name }))) === roleId);
+
+            return (
+              <>
+                <p style={{ margin: '0 0 8px', lineHeight: 1.6 }}>
+                  {creatorEntryContext(edited, roleId, nodeId)}
+                </p>
+                <p style={{ margin: '0 0 10px', fontSize: 12, color: 'var(--color-text-secondary)', lineHeight: 1.5 }}>
+                  角色在此事件中的参与、获知与选择，由故事走向与现场行动推演。
+                </p>
+
+                {rolePossibilities.length > 0 ? (
+                  <div style={{ margin: '10px 0', padding: '10px 12px', background: 'var(--color-surface)', borderRadius: 8, border: '1px solid var(--color-border)' }}>
+                    <strong style={{ fontSize: 12, color: 'var(--color-text)', display: 'block', marginBottom: 6 }}>
+                      「{roleName}」在此事件中的可能行动与反应：
+                    </strong>
+                    {rolePossibilities.map((p, idx) => (
+                      <div key={idx} style={{ fontSize: 12, lineHeight: 1.6, padding: '4px 0', borderBottom: idx < rolePossibilities.length - 1 ? '1px dashed var(--color-border)' : 'none' }}>
+                        {p.condition && <span style={{ color: 'var(--color-text-secondary)', marginRight: 4 }}>【条件：{p.condition}】</span>}
+                        <strong style={{ color: 'var(--color-text)' }}>{p.action || '未具体填写行动'}</strong>
+                        {p.consequence && <span style={{ color: 'var(--color-primary)' }}> → {p.consequence}</span>}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p style={{ margin: '8px 0', fontSize: 12, color: 'var(--color-text-secondary)' }}>
+                    当前事件暂未配置「{roleName}」的专属可能行动。
+                  </p>
+                )}
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={(node.possibilities?.length ?? 0) >= 6}
+                  onClick={() => updateNode({ possibilities: [...(node.possibilities ?? []), { actor: roleName, roleId, action: '', consequence: '' }] })}
+                >
+                  + 为「{roleName}」补充此事件的可能行动
+                </Button>
+                {(node.possibilities?.length ?? 0) >= 6 && <p>已达上限 6 项。可修改已有可能性；确有不同事件时再新建分支节点。</p>}
+
+                <details style={{ marginTop: 14 }}>
+                  <summary>将「{roleName}」的首次入场调整到这里</summary>
+                  <p style={{ margin: '6px 0', fontSize: 12 }}>仅在希望该角色从本事件开始体验时调整。原入场认知会清空，需重新确认。</p>
+                  <Button type="button" variant="outline" size="sm" disabled={!roleId || !paths.length} onClick={assign}>
+                    将首次入场改到这里<ArrowRight size={14} />
+                  </Button>
+                </details>
+              </>
+            );
+          })()}
+        </div>}</section>
       </div>
       <details>
         <summary>可能的行动与代价 · 可选</summary>
@@ -266,12 +320,14 @@ function NodeDetails({ graph, nodeId, roleId, roleName, suggested, busy, onSave,
         <Field label="什么情况下可能发生" value={node.trigger ?? ''} onChange={trigger => updateNode({ trigger })} />
         {(node.possibilities ?? []).map((possibility, index) => <div key={index}>
           <Field label="什么情况下适用 · 可选" value={possibility.condition ?? ''} onChange={condition => updateNode({ possibilities: node.possibilities!.map((p, i) => i === index ? { ...p, condition } : p) })} />
-          <Field label="谁可能参与" rows={1} value={possibility.actor} onChange={actor => updateNode({ possibilities: node.possibilities!.map((p, i) => i === index ? { ...p, actor } : p) })} />
+          <label className={styles.field}><span>行动归属 · 不等于已经在场</span><select value={possibilityRoleId(possibility, roles.map((r, i) => ({ id: `draft-role-${i}`, name: r.name }))) ?? ''} onChange={e => updateNode({ possibilities: node.possibilities!.map((p, i) => i === index ? { ...p, roleId: e.target.value || null, actor: e.target.value ? roles[Number(e.target.value.replace('draft-role-', ''))].name : p.actor } : p) })}><option value="">未绑定角色 / 自由描述</option>{roles.map((r, i) => <option key={r.editorId || i} value={`draft-role-${i}`}>{r.name || `角色 ${i + 1}`}</option>)}</select></label>
+          <Field label="参与者描述 · 修改后需重新确认归属" rows={1} value={possibility.actor} onChange={actor => updateNode({ possibilities: node.possibilities!.map((p, i) => i === index ? { ...p, actor, roleId: null } : p) })} />
           <Field label="可能采取什么行动" value={possibility.action} onChange={action => updateNode({ possibilities: node.possibilities!.map((p, i) => i === index ? { ...p, action } : p) })} />
           <Field label="可能获得什么、付出什么，或引起谁的反应" value={possibility.consequence} onChange={consequence => updateNode({ possibilities: node.possibilities!.map((p, i) => i === index ? { ...p, consequence } : p) })} />
           <Button type="button" variant="outline" onClick={() => updateNode({ possibilities: node.possibilities!.filter((_, i) => i !== index) })}>移除这项可能性</Button>
         </div>)}
         <Button type="button" variant="outline" disabled={(node.possibilities?.length ?? 0) >= 6} onClick={() => updateNode({ possibilities: [...(node.possibilities ?? []), { actor: '', action: '', consequence: '' }] })}>添加一种可能</Button>
+        {(node.possibilities?.length ?? 0) >= 6 && <p>已达上限 6 项。可修改已有可能性；确有不同事件时再新建分支节点。</p>}
       </details>
       {notice && <output className={styles.notice}>{notice}</output>}
     </fieldset>
@@ -306,7 +362,14 @@ export function CreatorStoryCanvas({ title, graph: inputGraph, roles, images, su
   return <aside className={styles.root} aria-label="故事创作画布" aria-busy={busy}>
     <header className={styles.header}><div><small>正在成形的故事</small><h2>{title || '你的故事画布'}</h2></div><span className={styles.status}>{suggested ? <Sparkles size={14} /> : <Check size={14} />}{suggested ? '建议 · 尚未采纳' : '当前草稿'}</span></header>
     <div className={styles.toolbar}><fieldset aria-label="画布内容"><button type="button" aria-pressed={tab === 'story'} onClick={() => setTab('story')}><GitBranch size={16} />故事脉络</button><button type="button" aria-pressed={tab === 'roles'} onClick={() => setTab('roles')}><Users size={16} />人物设定</button></fieldset>{hasSuggestion && <fieldset aria-label="画布版本"><button type="button" aria-pressed={!suggested} onClick={() => onMode(false)}>草稿</button><button type="button" aria-pressed={suggested} onClick={() => onMode(true)}>Agent 建议</button></fieldset>}</div>
-    <div className={styles.roles} aria-label="选择角色视角">{roles.map((r, i) => <button key={r.editorId || i} type="button" aria-pressed={roleId === `draft-role-${i}`} onClick={() => { const id = `draft-role-${i}`; setSelectedRole(id); setSelectedNode(graph?.entries.find(e => e.roleId === id)?.nodeId ?? ''); }}><span className={styles.avatar}>{images[`draft-role-${i}`] ? <Image src={images[`draft-role-${i}`]} alt="" width={34} height={34} unoptimized /> : (r.name || '？').slice(0, 1)}</span><span>{r.name || `角色 ${i + 1}`}<small>{graph?.entries.find(e => e.roleId === `draft-role-${i}`) ? graph.nodes.find(n => n.id === graph.entries.find(e => e.roleId === `draft-role-${i}`)?.nodeId)?.title : '入场待设定'}</small></span></button>)}</div>
+    <div className={styles.roles} aria-label="选择角色视角">{roles.map((r, i) => <button key={r.editorId || i} type="button" aria-pressed={roleId === `draft-role-${i}`} onClick={() => {
+      const id = `draft-role-${i}`;
+      setSelectedRole(id);
+      // 切换角色时保持当前选中的故事分支与事件点，不强制跳转到新角色的首次入场节点
+      if (nodeId && graph?.nodes.some(n => n.id === nodeId)) {
+        setSelectedNode(nodeId);
+      }
+    }}><span className={styles.avatar}>{images[`draft-role-${i}`] ? <Image src={images[`draft-role-${i}`]} alt="" width={34} height={34} unoptimized /> : (r.name || '？').slice(0, 1)}</span><span>{r.name || `角色 ${i + 1}`}<small>{graph?.entries.find(e => e.roleId === `draft-role-${i}`) ? graph.nodes.find(n => n.id === graph.entries.find(e => e.roleId === `draft-role-${i}`)?.nodeId)?.title : '入场待设定'}</small></span></button>)}</div>
     <div className={styles.content}>
       {tab === 'roles' ? <div className={styles.person}>
         <div className={styles.personHeading}><div className={styles.portrait}>{images[roleId] ? <Image src={images[roleId]} alt={role?.name || '角色形象'} width={76} height={90} unoptimized /> : (role?.name || '？').slice(0, 1)}</div><div><small>人物档案</small><h3>{role?.name || '人物正在构思中'}</h3><p>{role?.identity || '说说你想遇见怎样的人，Agent 会在这里整理。'}</p></div></div>
@@ -323,7 +386,7 @@ export function CreatorStoryCanvas({ title, graph: inputGraph, roles, images, su
           <svg width={width} height={rows.length * 128 + 24} aria-hidden="true">{graph.nodes.flatMap(n => n.nextNodeIds.map(next => { const a = points.get(n.id)!, b = points.get(next)!; return <path key={`${n.id}-${next}`} d={`M${a.x + 103},${a.y + 88} C${a.x + 103},${a.y + 112} ${b.x + 103},${b.y - 24} ${b.x + 103},${b.y}`} />; }))}</svg>
           {graph.nodes.map(n => { const p = points.get(n.id)!; const names = graph.entries.filter(e => e.nodeId === n.id).map(e => roles[roleIds.indexOf(e.roleId)]?.name).filter(Boolean); return <button type="button" key={n.id} className={styles.node} style={{ left: p.x, top: p.y }} aria-pressed={nodeId === n.id} data-entry={entry?.nodeId === n.id} data-prior={entry?.defaultPath.includes(n.id) && entry.nodeId !== n.id} onClick={() => setSelectedNode(n.id)}><small>{n.id === graph.startNodeId ? '共同开场' : names.length ? `${names.join('、')}入场` : '可能走向'}</small><strong>{n.title}</strong><span><MapPin size={12} />{n.location || '地点待补充'}</span></button>; })}
         </div></section>
-        <NodeDetails key={`${suggested ? 'proposal' : 'draft'}/${nodeId}/${roleId}`} graph={graph} nodeId={nodeId} roleId={roleId} roleName={role?.name || '所选角色'} suggested={suggested} busy={busy} onSave={onSave} onSelectNode={setSelectedNode} onAsk={onAsk} />
+        <NodeDetails key={`${suggested ? 'proposal' : 'draft'}/${nodeId}/${roleId}`} graph={graph} nodeId={nodeId} roleId={roleId} roleName={role?.name || '所选角色'} roles={roles} suggested={suggested} busy={busy} onSave={onSave} onSelectNode={setSelectedNode} onAsk={onAsk} />
       </> : <div className={styles.empty}><GitBranch size={32} /><h3>{busy ? 'Agent 正在整理故事结构' : '从一个场景，长出整个故事'}</h3><p>{problem || '先聊聊人物在哪里、发生了什么。Agent 的故事节点与角色入场建议，会出现在这里。'}</p><Button variant="outline" disabled={busy} onClick={() => onAsk('请根据已有设定整理故事画布：共同开场、可能的后续分支，以及每个角色从哪个节点入场、当时知道什么。不要改变我已确认的人物和事件；不确定的地方先问我。')}>和 Agent 整理画布<ArrowRight size={16} /></Button><Button variant="ghost" disabled={busy || suggested} onClick={() => onSave({ startNodeId: 'opening', nodes: [{ id: 'opening', title: '共同开场', location: '', scene: '', worldFacts: [], nextNodeIds: [] }], entries: [] })}>先手动建立开场</Button></div>}
     </div>
     <footer className={styles.footer}>

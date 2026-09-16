@@ -4,6 +4,7 @@ import type {
   CreatorAgentResponse,
   PersonalAgentRequest,
   PersonalAgentResponse,
+  StreamChunk,
   WorldGenerationRequest,
   WorldGenerationResponse,
   WorldTurnRequest,
@@ -24,10 +25,15 @@ async function callRemote<T>(
   validate: (value: unknown) => value is T,
   signal?: AbortSignal,
   accountScope = 'guest',
+  onChunk?: (chunk: StreamChunk) => void,
 ): Promise<T> {
   const response = await fetch('/api/ai', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-xgen-account': accountScope },
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'text/event-stream, application/json',
+      'x-xgen-account': accountScope,
+    },
     body: JSON.stringify({ operation, input }),
     cache: 'no-store',
     signal,
@@ -57,6 +63,82 @@ async function callRemote<T>(
     const fallback = details ? `创作服务暂时不可用（${response.status}）：${details}` : `创作服务暂时不可用（${response.status}），你的内容已保留。`;
     throw new Error(messages[body.error || ''] || fallback);
   }
+
+  const contentType = response.headers.get('content-type') || '';
+  if (contentType.includes('text/event-stream') && response.body) {
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let finalResult: unknown = null;
+    let streamError: string | null = null;
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        let boundaryIndex;
+        while ((boundaryIndex = buffer.indexOf('\n\n')) !== -1) {
+          const message = buffer.slice(0, boundaryIndex);
+          buffer = buffer.slice(boundaryIndex + 2);
+
+          let eventType = 'message';
+          let eventData = '';
+
+          for (const line of message.split('\n')) {
+            const trimmed = line.trim();
+            if (trimmed.startsWith('event:')) {
+              eventType = trimmed.slice(6).trim();
+            } else if (trimmed.startsWith('data:')) {
+              eventData = trimmed.slice(5).trim();
+            }
+          }
+
+          if (eventType === 'chunk') {
+            try {
+              const chunkObj = JSON.parse(eventData) as StreamChunk;
+              onChunk?.(chunkObj);
+            } catch {
+              onChunk?.({ delta: eventData, text: eventData });
+            }
+          } else if (eventType === 'final') {
+            try {
+              finalResult = JSON.parse(eventData);
+            } catch {
+              streamError = 'invalid_model_output';
+            }
+          } else if (eventType === 'error') {
+            try {
+              const errObj = JSON.parse(eventData) as { error?: string };
+              streamError = errObj.error || 'company_gateway_failed';
+            } catch {
+              streamError = eventData || 'company_gateway_failed';
+            }
+          }
+        }
+      }
+    } finally {
+      reader.releaseLock();
+    }
+
+    if (streamError) {
+      const messages: Record<string, string> = {
+        model_timeout: '模型响应超时，未覆盖你的草稿。请稍后重试。',
+        model_rate_limited: '公司模型当前请求过多，请稍后重试。',
+        model_not_configured: '服务端尚未配置文字模型，请联系维护者。',
+        model_access_denied: '公司模型访问被拒绝，请维护者检查网关权限与额度。',
+        invalid_model_output: '模型返回的设定格式不完整，未覆盖你的草稿。可以重试或手动编辑。',
+        company_gateway_failed: '上游模型服务暂时繁忙或响应中断，未覆盖草稿。请等待数秒后重试。',
+      };
+      throw new Error(messages[streamError] || `创作服务暂时不可用：${streamError}`);
+    }
+    if (!finalResult || !validate(finalResult)) {
+      throw new Error('模型回复格式不完整，内容未提交，输入已保留。');
+    }
+    return finalResult;
+  }
+
   const body: unknown = await response.json();
   if (!validate(body)) throw new Error('模型回复格式不完整，内容未提交，输入已保留。');
   return body;
@@ -65,22 +147,23 @@ async function callRemote<T>(
 class RemoteAIAdapter implements AIAdapter {
   private accountScope: string;
   constructor(accountScope = 'guest') { this.accountScope = accountScope; }
-  talkToPersonalAgent(input: PersonalAgentRequest): Promise<PersonalAgentResponse> {
-    return callRemote('personal-agent', input, isPersonalAgentResponse, undefined, this.accountScope);
+  talkToPersonalAgent(input: PersonalAgentRequest, signal?: AbortSignal, onChunk?: (chunk: StreamChunk) => void): Promise<PersonalAgentResponse> {
+    return callRemote('personal-agent', input, isPersonalAgentResponse, signal, this.accountScope, onChunk);
   }
 
-  coCreateWorld(input: CreatorAgentRequest, signal?: AbortSignal): Promise<CreatorAgentResponse> {
-    return callRemote('co-create-world', input, isCreatorAgentResponse, signal, this.accountScope);
+  coCreateWorld(input: CreatorAgentRequest, signal?: AbortSignal, onChunk?: (chunk: StreamChunk) => void): Promise<CreatorAgentResponse> {
+    return callRemote('co-create-world', input, isCreatorAgentResponse, signal, this.accountScope, onChunk);
   }
 
-  generateWorld(input: WorldGenerationRequest, signal?: AbortSignal): Promise<WorldGenerationResponse> {
-    return callRemote('generate-world', input, isWorldGenerationResponse, signal, this.accountScope);
+  generateWorld(input: WorldGenerationRequest, signal?: AbortSignal, onChunk?: (chunk: StreamChunk) => void): Promise<WorldGenerationResponse> {
+    return callRemote('generate-world', input, isWorldGenerationResponse, signal, this.accountScope, onChunk);
   }
 
-  advanceWorld(input: WorldTurnRequest, signal?: AbortSignal): Promise<WorldTurnResponse> {
-    return callRemote('advance-world', input, isWorldTurnResponse, signal, this.accountScope);
+  advanceWorld(input: WorldTurnRequest, signal?: AbortSignal, onChunk?: (chunk: StreamChunk) => void): Promise<WorldTurnResponse> {
+    return callRemote('advance-world', input, isWorldTurnResponse, signal, this.accountScope, onChunk);
   }
 }
+
 
 export const remoteAIAdapter: AIAdapter = new RemoteAIAdapter();
 export const createRemoteAIAdapter = (scope: string): AIAdapter => new RemoteAIAdapter(scope);

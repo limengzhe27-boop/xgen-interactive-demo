@@ -341,9 +341,15 @@ export type WorldTurnResponse = {
   ending: { reached: boolean; endingId?: string; outcome?: 'success' | 'failure'; canContinue: boolean };
 };
 
+export type StreamChunk = {
+  delta: string;
+  text: string;
+};
+
 export interface AIAdapter {
-  talkToPersonalAgent(input: PersonalAgentRequest): Promise<PersonalAgentResponse>;
-  coCreateWorld(input: CreatorAgentRequest, signal?: AbortSignal): Promise<CreatorAgentResponse>;
-  generateWorld(input: WorldGenerationRequest, signal?: AbortSignal): Promise<WorldGenerationResponse>;
-  advanceWorld(input: WorldTurnRequest, signal?: AbortSignal): Promise<WorldTurnResponse>;
+  talkToPersonalAgent(input: PersonalAgentRequest, signal?: AbortSignal, onChunk?: (chunk: StreamChunk) => void): Promise<PersonalAgentResponse>;
+  coCreateWorld(input: CreatorAgentRequest, signal?: AbortSignal, onChunk?: (chunk: StreamChunk) => void): Promise<CreatorAgentResponse>;
+  generateWorld(input: WorldGenerationRequest, signal?: AbortSignal, onChunk?: (chunk: StreamChunk) => void): Promise<WorldGenerationResponse>;
+  advanceWorld(input: WorldTurnRequest, signal?: AbortSignal, onChunk?: (chunk: StreamChunk) => void): Promise<WorldTurnResponse>;
 }
+

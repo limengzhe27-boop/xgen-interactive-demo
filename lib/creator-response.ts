@@ -1,6 +1,6 @@
 import type { CreatorAgentRequest, CreatorAgentResponse } from './ai-contracts.ts';
 import { isCreatorAgentResponse } from './ai-validation.ts';
-import { creatorStoryIssues, isCreatorStoryGraph, preserveEventIntent } from './creator-story-graph.ts';
+import { creatorStoryIssues, isCreatorStoryGraph, preserveEventIntent, bindCreatorActors } from './creator-story-graph.ts';
 import { normalizeCreatorProposal } from './creator-normalization.ts';
 import { appendCreatorGraph, creatorAppendRequested } from './creator-append.ts';
 
@@ -50,6 +50,8 @@ export function readCreatorResponse(value: unknown, input: CreatorAgentRequest):
   const { proposal: p, notices } = normalizeCreatorProposal(value.proposal, base.brief?.storyGraph?.nodes.map(n => n.id));
   if (record(p.brief) && isCreatorStoryGraph(p.brief.storyGraph)) {
     p.brief.storyGraph = preserveEventIntent(p.brief.storyGraph, base.brief?.storyGraph);
+    const cast = Array.isArray(p.characters) ? p.characters : ('characters' in base ? base.characters : undefined) ?? input.characters ?? [];
+    p.brief.storyGraph = bindCreatorActors(p.brief.storyGraph as import('./creator-story-graph.ts').CreatorStoryGraph, cast.map((r, i) => ({ id: `draft-role-${i}`, name: record(r) && typeof r.name === 'string' ? r.name : '' })));
   }
   if (creatorAppendRequested(input.userMessage)) {
     if (base.brief?.storyGraph) {

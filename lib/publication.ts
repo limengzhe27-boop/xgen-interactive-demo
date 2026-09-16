@@ -6,10 +6,10 @@ import { validCardHook } from './character-card.ts';
 import { validCharacterEntries } from './character-entry.ts';
 import { creatorStoryIssues } from './creator-story-graph.ts';
 
-type Shape = 'string' | 'number' | 'boolean' | { [key: string]: Shape } | [Shape];
+type Shape = 'string' | 'nullable-string' | 'number' | 'boolean' | { [key: string]: Shape } | [Shape];
 const texts: Shape = ['string'];
 const schema: Shape = {
-  'storyGraph?': { startNodeId: 'string', nodes: [{ id: 'string', title: 'string', location: 'string', scene: 'string', worldFacts: texts, nextNodeIds: texts, 'eventIntent?': 'string', 'trigger?': 'string', 'possibilities?': [{ actor: 'string', action: 'string', consequence: 'string', 'condition?': 'string' }] }], entries: [{ roleId: 'string', nodeId: 'string', defaultPath: texts, knownFacts: texts, beliefs: texts, scene: 'string' }] },
+  'storyGraph?': { startNodeId: 'string', nodes: [{ id: 'string', title: 'string', location: 'string', scene: 'string', worldFacts: texts, nextNodeIds: texts, 'eventIntent?': 'string', 'trigger?': 'string', 'possibilities?': [{ actor: 'string', 'roleId?': 'nullable-string', action: 'string', consequence: 'string', 'condition?': 'string' }] }], entries: [{ roleId: 'string', nodeId: 'string', defaultPath: texts, knownFacts: texts, beliefs: texts, scene: 'string' }] },
   'storyHook?': 'string',
   'discoveryGenre?': 'string',
   id: 'string', title: 'string', premise: 'string', timeSetting: 'string', coreEvent: 'string', surpriseLevel: 'number',
@@ -28,6 +28,7 @@ const schema: Shape = {
 };
 
 function select(value: unknown, shape: Shape): unknown {
+  if (shape === 'nullable-string') return value === null ? null : select(value, 'string');
   if (typeof shape === 'string') {
     if (typeof value !== shape || (typeof value === 'string' && value.length > 10000) || (typeof value === 'number' && !Number.isFinite(value))) throw new Error('invalid_world');
     return value;

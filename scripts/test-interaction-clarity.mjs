@@ -34,3 +34,11 @@ test('canvas publishes valid changes without delayed writes or graph-dependent r
   assert.ok(!source.includes('setTimeout'));
   assert.ok(source.includes("suggested ? 'proposal' : 'draft'"));
 });
+test('switching character preserves the active branch/event point instead of jumping back to entry', () => {
+  const source = readFileSync(new URL('../components/creator-story-canvas.tsx', import.meta.url), 'utf8');
+  assert.ok(source.includes('if (nodeId && graph?.nodes.some(n => n.id === nodeId))'));
+  assert.ok(source.includes('setSelectedNode(nodeId)'));
+  assert.ok(!source.includes("setSelectedNode(graph?.entries.find(e => e.roleId === id)?.nodeId ?? '')"));
+  assert.ok(source.includes('+ 为「{roleName}」补充此事件的可能行动'));
+});
+

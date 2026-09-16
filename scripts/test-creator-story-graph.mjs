@@ -64,7 +64,7 @@ test('publication whitelist retains only graph fields and restore rebases role I
   assert.deepEqual(world.storyGraph.nodes[1].possibilities, g.nodes[1].possibilities);
   const restored = publicationDraft({ id: 'test-world', title: world.title, genre: '', premise: world.premise, cover: '', portraits: {}, world });
   assert.deepEqual(restored.data.creatorBrief.storyGraph.entries.map(e => e.roleId), ['draft-role-0', 'draft-role-1']);
-  assert.deepEqual(restored.data.creatorBrief.storyGraph.nodes[1], g.nodes[1]);
+  assert.deepEqual(restored.data.creatorBrief.storyGraph.nodes[1], { ...g.nodes[1], possibilities: g.nodes[1].possibilities.map(p => ({ ...p, roleId: null })) });
 });
 test('event possibilities remain optional and bounded without changing entry or facts', () => {
   const g = graph();

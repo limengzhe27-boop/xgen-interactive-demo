@@ -104,7 +104,7 @@ import { preserveCreatorDetails, preserveCreatorFramework } from '@/lib/creator-
 import { applyCreatorChange, combineCreatorChanges, creatorConfirmation, creatorOpeningRevision, creatorChanges, ensureCreatorRoleIds, identifyProposedRoles, type CreatorChange } from '@/lib/creator-changes';
 import { CreatorProposalReview } from '@/components/creator-proposal-review';
 import { CreatorStoryCanvas } from '@/components/creator-story-canvas';
-import { creatorStoryIssues, isCreatorStoryGraph, remapCreatorStoryRoles, type CreatorStoryGraph } from '@/lib/creator-story-graph';
+import { creatorStoryIssues, isCreatorStoryGraph, remapCreatorStoryRoles, mapCreatorStoryRoleIds, bindCreatorActors, type CreatorStoryGraph } from '@/lib/creator-story-graph';
 import { CreatorTaskEditor } from '@/components/creator-task-editor';
 import { creatorTaskIssues } from '@/lib/creator-task-graph';
 import type { CreatorDetailBaseline } from '@/lib/creator-framework';
@@ -1026,6 +1026,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
   }]);
   const [creatorMessage, setCreatorMessage] = useState('');
   const [creatorAgentThinking, setCreatorAgentThinking] = useState(false);
+  const [creatorStreamingReply, setCreatorStreamingReply] = useState('');
   const [creatorProposal, setCreatorProposal] = useState<CreatorAgentResponse['proposal'] | null>(null);
   const [proposalChanges, setProposalChanges] = useState<CreatorChange[]>([]);
   const [creatorUndo, setCreatorUndo] = useState<CreatorChange[]>([]);
@@ -1934,12 +1935,20 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     };
     const generationController = new AbortController();
     generationControllerRef.current = generationController;
+    let didStream = false;
     responseTimerRef.current = window.setTimeout(() => {
       responseTimerRef.current = null;
-      void runAI((adapter) => adapter.advanceWorld(request, generationController.signal), false).then((response) => {
+      void runAI((adapter) => adapter.advanceWorld(request, generationController.signal, (chunk) => {
+        if (generationController.signal.aborted) return;
+        if (chunk.text) {
+          didStream = true;
+          setNarrative(`${preservedText}${chunk.text}`);
+        }
+      }), false).then((response) => {
         if (generationController.signal.aborted) return;
         generationControllerRef.current = null;
         if (!response.actionDecision.allowed) {
+          setNarrative(preservedText);
           const rejected = {
             allowed: false,
             reason: response.actionDecision.reason,
@@ -2015,7 +2024,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
           }));
           setIsThinking(false);
         };
-        if (!liveMode) {
+        if (!liveMode || didStream) {
           setNarrative(fullNarrative);
           finishTurn();
           return;
@@ -2034,6 +2043,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       }).catch((error: unknown) => {
         if (error instanceof DOMException && error.name === 'AbortError') return;
         generationControllerRef.current = null;
+        if (preservedText) setNarrative(preservedText);
         setActionFeedback({ allowed: false, serviceFailure: true, reason: actionServiceError(error), suggestion: '上方保留的是上一幕，不是这次行动的结果。输入已保留，可以重试同一行动。' });
         setFreeAction(current => current || nextAction);
         setIsThinking(false);
@@ -2042,6 +2052,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
   }
 
   function updateDraftRole(index: number, key: keyof DraftRole, value: string) {
+    if (key === 'name') setCreatorBrief(current => ({ ...current, storyGraph: remapCreatorStoryRoles(current.storyGraph, draftRoles, draftRoles.map((r, i) => i === index ? { ...r, name: value } : r)) }));
     setDraftRoles((current) => current.map((role, roleIndex) => (roleIndex === index ? { ...role, [key]: value } : role)));
     if (key === 'name' || key === 'identity' || key === 'personality' || key === 'appearance') {
       const roleId = `draft-role-${index}`;
@@ -2178,7 +2189,10 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
           surpriseLevel: normalizeSurpriseLevel(surprise),
           brief: normalizeCreatorBrief(creatorBrief),
         },
-      }, signal), false);
+      }, signal, (chunk) => {
+        if (!creatorRequest.current.current(signal) || revision !== navigationRevision.current) return;
+        if (chunk.text) setCreatorStreamingReply(chunk.text);
+      }), false);
       if (!creatorRequest.current.current(signal) || revision !== navigationRevision.current) return;
       if (creatorAppendRequested(value) && latestCreatorSections.current !== JSON.stringify(baseline)) {
         setCreatorMessages(current => [...current, { role: 'agent', content: '生成期间设定有新修改，本轮没有覆盖你的手改。请基于当前画布重新追加。' } satisfies CreatorChatMessage].slice(-12));
@@ -2239,7 +2253,10 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       setCreatorMessage(value);
       setCreatorMessages((current) => [...current, { role: 'agent', content: error instanceof Error ? error.message : '这轮创作暂时失败，你的内容已保留，请稍后重试。' } satisfies CreatorChatMessage].slice(-12));
     } finally {
-      if (creatorRequest.current.current(signal)) setCreatorAgentThinking(false);
+      if (creatorRequest.current.current(signal)) {
+        setCreatorStreamingReply('');
+        setCreatorAgentThinking(false);
+      }
     }
   }
 
@@ -2264,13 +2281,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     if (!creatorBrief.storyGraph && base.storyGraph) {
       setCreatorBrief(current => ({
         ...current,
-        storyGraph: {
-          ...base.storyGraph!,
-          entries: base.storyGraph!.entries.map(e => ({
-            ...e,
-            roleId: `draft-role-${base.characters.findIndex(role => role.id === e.roleId)}`
-          }))
-        }
+        storyGraph: mapCreatorStoryRoleIds(base.storyGraph!, id => { const i = base.characters.findIndex(role => role.id === id); return i >= 0 ? `draft-role-${i}` : undefined; })
       }));
     }
     setCreatorMessages(current => [...current, { role: 'agent', content: '我们接着这个故事写。告诉我后面发生什么，或想加入谁；原人物和已写剧情会保留，新内容先给你确认。' }].slice(-12) as CreatorChatMessage[]);
@@ -2552,7 +2563,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     const worldDetails = generatedWorld
       ? preserveCreatorDetails(generatedWorld, preserveCreatorFramework(generatedWorld, edited, effectiveBrief.tasks.filter((task) => task.assignedRoleIds !== undefined).map((task) => task.id)), creatorDetailBaseline ?? nextBaseline, nextBaseline)
       : edited;
-    const world = { ...worldDetails, ...(effectiveBrief.storyGraph ? { storyGraph: { ...effectiveBrief.storyGraph, entries: effectiveBrief.storyGraph.entries.map(entry => ({ ...entry, roleId: worldDetails.characters[Number(entry.roleId.replace('draft-role-', ''))]?.id ?? entry.roleId })) } } : {}), entryPolicy: restoreEntryPolicy(entryPolicy) };
+    const world = { ...worldDetails, ...(effectiveBrief.storyGraph ? { storyGraph: mapCreatorStoryRoleIds(bindCreatorActors(effectiveBrief.storyGraph, draftRoles.map((r, i) => ({ id: `draft-role-${i}`, name: r.name }))), id => worldDetails.characters[Number(id.replace('draft-role-', ''))]?.id) } : {}), entryPolicy: restoreEntryPolicy(entryPolicy) };
     setCreatorDetailBaseline(nextBaseline);
     setWorldTitle(safeTitle);
     setWorldSeed(safeSeed);
@@ -2844,6 +2855,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
           companionPanel={<CompanionContextPanel context={companionContext} memoryCount={memories.length} busy={creatorAgentThinking || worldGenerating} onChange={setCompanionContext} onPersonal={() => navigate('personal')} />}
           creatorMessage={creatorMessage}
           creatorAgentThinking={creatorAgentThinking}
+          creatorStreamingReply={creatorStreamingReply}
           creatorProposal={creatorProposal}
           proposalChanges={proposalChanges}
           creatorUndo={creatorUndo}
@@ -3148,6 +3160,7 @@ function CreateWorld({
   companionPanel,
   creatorMessage,
   creatorAgentThinking,
+  creatorStreamingReply = '',
   creatorProposal,
   proposalChanges, creatorUndo, creatorChangeNotice, onCreatorFocus,
   creatorQuestions,
@@ -3205,6 +3218,7 @@ function CreateWorld({
   companionPanel: import('react').ReactNode;
   creatorMessage: string;
   creatorAgentThinking: boolean;
+  creatorStreamingReply?: string;
   creatorProposal: CreatorAgentResponse['proposal'] | null;
   proposalChanges: CreatorChange[];
   creatorUndo: CreatorChange[];
@@ -3249,20 +3263,14 @@ function CreateWorld({
   const [canPublish, setCanPublish] = useState(false);
   const conversationLog = useRef<HTMLDivElement>(null);
   const followConversation = useRef(true);
-  useEffect(() => { if (conversationLog.current && followConversation.current) conversationLog.current.scrollTop = conversationLog.current.scrollHeight; }, [creatorMessages.length, creatorAgentThinking]);
+  useEffect(() => { if (conversationLog.current && followConversation.current) conversationLog.current.scrollTop = conversationLog.current.scrollHeight; }, [creatorMessages.length, creatorAgentThinking, creatorStreamingReply]);
   useEffect(() => {
     let active = true;
     fetch('/api/account', { cache: 'no-store' }).then((response) => response.ok ? response.json() : null).then((account: unknown) => { if (active) setCanPublish(Boolean(account && typeof account === 'object' && 'canPublish' in account && account.canPublish === true)); }).catch(() => {});
     return () => { active = false; };
   }, []);
   const continuationActive = Boolean(continuation?.proposal?.world);
-  const continuationGraph = continuationActive && continuation?.proposal?.world?.storyGraph ? {
-    ...continuation.proposal.world.storyGraph,
-    entries: continuation.proposal.world.storyGraph.entries.map(e => ({
-      ...e,
-      roleId: `draft-role-${continuation.proposal!.world.characters.findIndex(c => c.id === e.roleId)}`,
-    })),
-  } : undefined;
+  const continuationGraph = continuationActive && continuation?.proposal?.world?.storyGraph ? mapCreatorStoryRoleIds(continuation.proposal.world.storyGraph, id => { const i = continuation.proposal!.world.characters.findIndex(c => c.id === id); return i >= 0 ? `draft-role-${i}` : undefined; }) : undefined;
   const continuationRoles: DraftRole[] = continuationActive ? continuation!.proposal!.world.characters.map((c) => ({
     editorId: c.id,
     name: c.name,
@@ -3287,7 +3295,7 @@ function CreateWorld({
               <div className="creator-agent-heading"><span><Sparkles /></span><div><small>还是我，陪你创作</small><strong>{worldTitle || '从一个念头，开始另一种人生。'}</strong></div></div>
               <div className="creator-conversation" ref={conversationLog} role="log" aria-live="polite" aria-busy={creatorAgentThinking} onScroll={(event) => { const el = event.currentTarget; followConversation.current = el.scrollHeight - el.scrollTop - el.clientHeight < 100; }}>
                 {creatorMessages.map((item, index) => <p key={`${item.role}-${index}`} data-role={item.role}>{item.role === 'agent' && <small>创作 Agent</small>}<span>{item.content}</span></p>)}
-                {creatorAgentThinking ? <p data-role="agent"><small>Agent</small><span>正在把你的想法和已有设定放在一起考虑……</span></p> : null}
+                {creatorAgentThinking ? <p data-role="agent"><small>Agent</small><span>{creatorStreamingReply || '正在把你的想法和已有设定放在一起考虑……'}</span></p> : null}
               <div className="creator-question-chips">{creatorQuestions.slice(0, 1).map((question) => <button type="button" key={question} disabled={creatorAgentThinking} onClick={() => { onCreatorMessage(question); document.getElementById('creator-message')?.focus(); }}>{question}</button>)}</div>
               {creatorChangeNotice ? <p className="creator-notice-chip" style={{ margin: '8px 0', padding: '6px 12px', borderRadius: 8, background: 'var(--color-bg-secondary)', color: 'var(--color-text-secondary)', fontSize: 12, lineHeight: 1.5 }}>{creatorChangeNotice}</p> : null}
               </div>

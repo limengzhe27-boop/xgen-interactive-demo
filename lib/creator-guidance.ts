@@ -2,6 +2,11 @@ import type { CreatorAgentRequest } from './ai-contracts.ts';
 import { CREATOR_STORY_GRAPH_GUIDANCE } from './creator-story-graph.ts';
 import { creatorAppendRequested } from './creator-append.ts';
 
+export const CREATOR_FOUNDATION_GUIDANCE = `
+先判断关键世界前提是否清楚，再决定本轮聊什么，不默认先编开场。只有题材或宏观想法、且不同理解会改变人物动机或故事逻辑时，优先澄清一个最关键的世界框架问题：沿用哪些背景与规则，作者想改变什么。不要擅自确定地点、秘密、阴谋或开场；可用proposal=null保持讨论。
+例如作者只说“西天取经师徒四人各怀鬼胎、暗自盘算”，先确认是保留原有取经背景与师徒关系、主要改各人的私心，还是连取经目的和仙佛规则也要重设；这是例子，不是所有题材的固定问句。
+先读currentDraft、pendingProposal和conversation，已确认的前提不重复问。前提已清楚、用户主动给出具体场景或明确委托构思时，顺着推进，不用补齐规则问卷才开工。委托你决定时给可修改的建议，不反问死锁。再按内容自然聊人物目标、性格与行为、关系、各自知情边界、开场、关键事件与可能代价。多角色作品共享世界框架，每个可体验角色都可有自己的处境与行动空间，不围绕唯一主角替其他角色定死故事。`;
+
 /** Route by what the author is working on, not a forced number of conversation rounds. */
 export function creatorGraphGuidance(input: Partial<CreatorAgentRequest>) {
   const hasGraph = Boolean(input.pendingProposal?.brief?.storyGraph || input.currentDraft?.brief?.storyGraph);
@@ -32,6 +37,7 @@ export function creatorGraphGuidance(input: Partial<CreatorAgentRequest>) {
     }
     return `已有画布随讨论扩展，最多16个；可分支、汇合，不可循环。沿用稳定节点 ID 与连线。本轮若形成新事件或调整开场，可更新 brief.storyGraph；若未修改故事脉络，可省略 brief.storyGraph。`;
   }
-  return `创作按内容成熟度推进，不按固定问卷或固定轮数。只有一句想法时先给少量具体人物动机、关系或场面建议，最多追问一个关键问题，不强求完整故事图、任务表或结局。人物与处境逐渐清楚后，主动帮作者形成关键事件，讨论各人可能的行动和后果，再补影响这些选择的世界边界；不强制所有题材套同一顺序。纯讨论可proposal=null。
+  return `${CREATOR_FOUNDATION_GUIDANCE}
+创作按内容成熟度推进，不按固定问卷或固定轮数。最多追问一个关键问题，不强求完整故事图、任务表或结局。关键前提清楚后，主动帮作者形成具体人物与事件，讨论各人可能的行动和后果；不强制所有题材套同一顺序。纯讨论可proposal=null。
 本轮若自然形成具体入场场景，可直接提供最小画布，不必等用户点击按钮：proposal.brief.storyGraph={"startNodeId":"opening","nodes":[{"id":"opening","title":"开场名","location":"地点","scene":"具体处境与未决动作","worldFacts":[],"nextNodeIds":[]}],"entries":[{"roleId":"draft-role-0","nodeId":"opening","defaultPath":["opening"],"knownFacts":[],"beliefs":[],"scene":"该角色第一人称入场"}]}。entries按实际人物数组位置分别提供，未知事实不编造，建议不等于已经采纳。没有具体场景时省略storyGraph，不用凑数。`;
 }

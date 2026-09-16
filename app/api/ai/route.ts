@@ -11,7 +11,7 @@ import { CHARACTER_ENTRY_GUIDANCE } from '@/lib/character-entry';
 import { prologueAgentInstructions, readPrologueAgentInput, readPrologueAgentReply } from '@/lib/prologue-agent';
 import { repairCreatorProposal } from '@/lib/creator-proposal-repair';
 import { readCreatorResponse, creatorDiscussion, parseCreatorContent } from '@/lib/creator-response';
-import { creatorGraphGuidance } from '@/lib/creator-guidance';
+import { creatorGraphGuidance, CREATOR_FOUNDATION_GUIDANCE } from '@/lib/creator-guidance';
 import type { CreatorAgentRequest } from '@/lib/ai-contracts';
 import { requestAccount } from '@/lib/server-auth';
 import { companionInstructions, makeCompanionInput, restoreCompanionContext } from '@/lib/companion-context';
@@ -89,7 +89,8 @@ operationInstructions['advance-world'] += '\nstate.relationshipChanges记录本�
 
 // Conversation is the primary product. A full world schema is not required on every turn.
 operationInstructions['co-create-world'] = `你是与作者共同创作故事的伙伴，不是让用户填表的审核员。
-承接当前想法，给一个具体场面或有价值的提案，必要时只问一个关键问题。可从人物、关系、场景或一句话开始；不强迫先准备前情、任务、结局。尊重用户题材，不预设成功失败、不强迫和解。不声称已保存、采纳、发布或生成媒体。
+${CREATOR_FOUNDATION_GUIDANCE}
+承接当前想法，必要时只问一个关键问题，不要求每轮给具体场面。可从人物、关系、场景或一句话开始；不强迫先准备前情、任务、结局。尊重用户题材，不预设成功失败、不强迫和解。不声称已保存、采纳、发布或生成媒体。
 currentDraft是已确认草稿，pendingProposal是包含用户手改的待采纳完整提案，pendingSuggestions是待采纳变更，conversation是交流记录；继续修改以pendingProposal为底稿，不要因未采纳就忘掉正在讨论的人物。只讨论时返回 {"reply":"自然回复","proposal":null,"nextQuestions":[],"readiness":"needs_detail"}。
 当本轮形成具体内容时，同时给可编辑建议；proposal只需包含改变的字段，未返回字段保持不变。支持title、premise、surpriseLevel(1到4)、brief。brief可含coreGoal、successCondition、failureCondition（未讨论不用返回）、complexityLevel(1到4)、difficulties(字符串数组)、scheduledEvents({title,trigger,effect}数组)、tasks、storyGraph。不要为了凑齐字段编造整部剧。
 如果更新人物，proposal.characters返回完整名单（最多5人，保留原顺序和未讨论的人物），每人用{name,identity,persona,relationship,appearance,goal}，值均为字符串，不确定可留空。不要把空白占位“角色1”当真实人物保留。cardHook可选。
@@ -116,13 +117,56 @@ function parseModelJSON(content: string): unknown {
   return JSON.parse(normalized);
 }
 
-async function callCompany(provider: CompanyProvider, operation: Operation, input: unknown, timeoutMs?: number): Promise<unknown> {
+function extractStreamingField(buffer: string, fieldName: string): string {
+  const marker = `"${fieldName}":`;
+  const idx = buffer.indexOf(marker);
+  if (idx === -1) return '';
+  const afterMarker = buffer.slice(idx + marker.length).trimStart();
+  if (!afterMarker.startsWith('"')) return '';
+  const contentStart = afterMarker.slice(1);
+  let result = '';
+  let escaped = false;
+  for (let i = 0; i < contentStart.length; i++) {
+    const char = contentStart[i];
+    if (escaped) {
+      if (char === 'n') result += '\n';
+      else if (char === 'r') result += '\r';
+      else if (char === 't') result += '\t';
+      else if (char === '"') result += '"';
+      else if (char === '\\') result += '\\';
+      else if (char === 'u' && i + 4 < contentStart.length) {
+        result += String.fromCharCode(parseInt(contentStart.slice(i + 1, i + 5), 16));
+        i += 4;
+      } else {
+        result += char;
+      }
+      escaped = false;
+    } else if (char === '\\') {
+      escaped = true;
+    } else if (char === '"') {
+      break;
+    } else {
+      result += char;
+    }
+  }
+  return result;
+}
+
+async function callCompany(
+  provider: CompanyProvider,
+  operation: Operation,
+  input: unknown,
+  timeoutMs?: number,
+  onStreamChunk?: (delta: string, accumulated: string) => void,
+): Promise<unknown> {
   const isChat = operation === 'advance-world' && isWorldTurnRequest(input) && input.interaction?.mode === 'character-chat';
   const runtimeInput = operation === 'advance-world' && isWorldTurnRequest(input)
     ? { ...(input.presentation?.medium === 'native-video' ? compactVideoScriptInput(input) : { ...input, world: { ...input.world, characters: input.world.characters.map(({ cardHook: _cardHook, ...character }) => character) } }), progression: worldProgression(input), systemView: visibleSystem(input.world, input.selectedRoleId, input.state.completedTaskIds) }
     : input;
+  const isStreaming = Boolean(onStreamChunk);
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), timeoutMs ?? (operation === 'generate-world' ? 85_000 : operation === 'co-create-world' ? 80_000 : 60_000));
+  const defaultTimeout = isStreaming ? 75_000 : (operation === 'generate-world' ? 85_000 : operation === 'co-create-world' ? 80_000 : 60_000);
+  const timeout = setTimeout(() => controller.abort(), timeoutMs ?? defaultTimeout);
   try {
     const response = await fetch(provider.endpoint, {
       method: 'POST',
@@ -149,7 +193,7 @@ async function callCompany(provider: CompanyProvider, operation: Operation, inpu
         ],
         response_format: { type: 'json_object' },
         thinking: { type: 'disabled' },
-        stream: false,
+        stream: isStreaming,
         temperature: operation === 'advance-world' || operation === 'co-create-world' ? 0.7 : 0.5,
         max_tokens: operation === 'plan-prologue' ? 10000 : operation === 'adapt-persona' ? 900 : operation === 'generate-world' ? 5600 : operation === 'co-create-world' ? 6000 : 2800,
       }),
@@ -157,10 +201,52 @@ async function callCompany(provider: CompanyProvider, operation: Operation, inpu
       redirect: 'error',
     });
     if (!response.ok) throw new Error(response.status === 429 ? 'model_rate_limited' : [401, 403].includes(response.status) ? 'model_access_denied' : 'company_gateway_failed');
-    const result = await response.json() as { choices?: { finish_reason?: string; message?: { content?: unknown } }[] };
-    const content = result.choices?.[0]?.message?.content;
-    if (typeof content !== 'string' || !content.trim()) throw new Error('Provider returned empty content');
-    const truncated = result.choices?.[0]?.finish_reason === 'length';
+
+    let content = '';
+    let truncated = false;
+
+    if (isStreaming && response.body) {
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let streamBuffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        streamBuffer += decoder.decode(value, { stream: true });
+        const lines = streamBuffer.split('\n');
+        streamBuffer = lines.pop() ?? '';
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed.startsWith('data:')) continue;
+          const dataStr = trimmed.slice(5).trim();
+          if (dataStr === '[DONE]') continue;
+          try {
+            const parsed = JSON.parse(dataStr);
+            const choice = parsed.choices?.[0];
+            const delta = choice?.delta?.content;
+            if (typeof delta === 'string') {
+              content += delta;
+              onStreamChunk?.(delta, content);
+            }
+            if (choice?.finish_reason === 'length') {
+              truncated = true;
+            }
+          } catch {
+            // Ignore malformed chunk
+          }
+        }
+      }
+    } else {
+      const result = await response.json() as { choices?: { finish_reason?: string; message?: { content?: unknown } }[] };
+      const nonStreamContent = result.choices?.[0]?.message?.content;
+      if (typeof nonStreamContent !== 'string' || !nonStreamContent.trim()) throw new Error('Provider returned empty content');
+      content = nonStreamContent;
+      truncated = result.choices?.[0]?.finish_reason === 'length';
+    }
+
+    if (!content.trim()) throw new Error('Provider returned empty content');
     if (operation === 'co-create-world') return parseCreatorContent(content, truncated);
     if (truncated) throw new Error('model_output_truncated');
     try { return parseModelJSON(content); } catch { throw new Error('invalid_model_output'); }
@@ -255,107 +341,189 @@ async function handlePost(request: Request) {
   }
   if (!provider) return Response.json({ error: 'model_not_configured' }, { status: 503 });
   const startedAt = Date.now();
-  try {
-    let output = await callCompany(provider, body.operation, body.input, body.operation === 'advance-world' ? 35_000 : body.operation === 'adapt-persona' || body.operation === 'design-persona' ? 25_000 : body.operation === 'co-create-world' ? 30_000 : undefined);
-    if (body.operation === 'co-create-world') {
-      output = readCreatorResponse(output, body.input as CreatorAgentRequest);
-    }
-    if (body.operation === 'plan-prologue' && prologueInput) {
-      const plan = readPrologueAgentReply(output, prologueInput);
-      return Response.json(plan ?? { error: 'invalid_prologue_plan' }, { status: plan ? 200 : 502,
-        headers: { 'Cache-Control': 'no-store', 'X-AI-Provider': 'yibu' } });
-    }
-    if (body.operation !== 'advance-world' && !isValidOutput(body.operation, output)) {
-      return Response.json({ error: 'invalid_model_output' }, { status: 502 });
-    }
-    if (body.operation === 'co-create-world' && isCreatorAgentResponse(output) && !output.discussionOnly) {
-      const inputRoles = (body.input as { characters?: unknown[] }).characters;
-      const original = output;
-      const graphIssues = creatorStoryIssues(original.proposal.brief.storyGraph, Array.from({ length: original.proposal.characters?.length || (Array.isArray(inputRoles) ? inputRoles.length : 0) }, (_, i) => `draft-role-${i}`));
-      if (graphIssues.length) {
-        delete original.proposal.brief.storyGraph;
-        original.proposalIssue = (original.proposalIssue ? `${original.proposalIssue} ` : '') + `画布建议暂未写入：${graphIssues[0]} 其他有效建议已保留。`;
+  const wantsStream = request.headers.get('accept')?.includes('text/event-stream');
+
+  if (wantsStream) {
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream({
+      async start(streamController) {
+        const sendEvent = (event: string, data: unknown) => {
+          try {
+            const payload = typeof data === 'string' ? data : JSON.stringify(data);
+            streamController.enqueue(encoder.encode(`event: ${event}\ndata: ${payload}\n\n`));
+          } catch {
+            // Client closed stream
+          }
+        };
+
+        try {
+          const onStreamChunk = (delta: string, accumulated: string) => {
+            const field = (body.operation === 'co-create-world' || body.operation === 'personal-agent') ? 'reply' : 'narrative';
+            const text = extractStreamingField(accumulated, field);
+            sendEvent('chunk', { delta, text });
+          };
+
+          const guardedOutput = await processAIOperation(
+            provider,
+            body as { operation: Operation; input: unknown },
+            continuationBase,
+            adaptationInput,
+            prologueInput,
+            startedAt,
+            onStreamChunk,
+          );
+
+          sendEvent('final', guardedOutput);
+        } catch (error) {
+          const code = error instanceof Error && ['invalid_creator_task_graph', 'model_timeout', 'model_output_truncated', 'invalid_model_output', 'model_rate_limited', 'model_access_denied', 'invalid_task_transition', 'premature_ending', 'unauthorized_player_movement', 'repeated_narrative', 'player_perspective_drift', 'chat_target_missing', 'invalid_continuation', 'invalid_prologue_plan', 'invalid_adaptation_suggestion', 'recommendation_outside_catalogue', 'invalid_personal_message'].includes(error.message)
+            ? error.message : 'company_gateway_failed';
+          console.warn('ai_request_failed', { operation: body.operation, code, elapsedMs: Date.now() - startedAt });
+          sendEvent('error', { error: code });
+        } finally {
+          try { streamController.close(); } catch {}
+        }
       }
-      try { output = await repairCreatorProposal(original, Array.isArray(inputRoles) ? inputRoles.length : 0, async (issues) => {
+    });
+
+    return new Response(stream, {
+      headers: {
+        'Content-Type': 'text/event-stream; charset=utf-8',
+        'Cache-Control': 'no-cache, no-transform',
+        'Connection': 'keep-alive',
+        'X-Accel-Buffering': 'no',
+        'X-AI-Provider': 'yibu',
+      },
+    });
+  }
+
+  try {
+    const guardedOutput = await processAIOperation(
+      provider,
+      body as { operation: Operation; input: unknown },
+      continuationBase,
+      adaptationInput,
+      prologueInput,
+      startedAt,
+    );
+    return Response.json(guardedOutput, {
+      headers: { 'Cache-Control': 'no-store', 'X-AI-Provider': 'yibu', 'Server-Timing': `ai;dur=${Date.now() - startedAt}` },
+    });
+  } catch (error) {
+    const code = error instanceof Error && ['invalid_creator_task_graph', 'model_timeout', 'model_output_truncated', 'invalid_model_output', 'model_rate_limited', 'model_access_denied', 'invalid_task_transition', 'premature_ending', 'unauthorized_player_movement', 'repeated_narrative', 'player_perspective_drift', 'chat_target_missing', 'invalid_continuation', 'invalid_prologue_plan', 'invalid_adaptation_suggestion', 'recommendation_outside_catalogue', 'invalid_personal_message'].includes(error.message)
+      ? error.message : 'company_gateway_failed';
+    console.warn('ai_request_failed', { operation: body.operation, code, elapsedMs: Date.now() - startedAt });
+    return Response.json({ error: code }, { status: 502 });
+  }
+}
+
+async function processAIOperation(
+  provider: CompanyProvider,
+  body: { operation: Operation; input: unknown },
+  continuationBase: ReturnType<typeof publicationWorld> | undefined,
+  adaptationInput: ReturnType<typeof readPersonaAdaptationRequest>,
+  prologueInput: ReturnType<typeof readPrologueAgentInput>,
+  startedAt: number,
+  onStreamChunk?: (delta: string, accumulated: string) => void,
+): Promise<unknown> {
+  const isStreaming = Boolean(onStreamChunk);
+  const timeoutMs = isStreaming
+    ? (body.operation === 'advance-world' || body.operation === 'co-create-world' ? 70_000 : 75_000)
+    : (body.operation === 'advance-world' ? 35_000 : body.operation === 'adapt-persona' || body.operation === 'design-persona' ? 25_000 : body.operation === 'co-create-world' ? 30_000 : undefined);
+
+  let output = await callCompany(provider, body.operation, body.input, timeoutMs, onStreamChunk);
+  if (body.operation === 'co-create-world') {
+    output = readCreatorResponse(output, body.input as CreatorAgentRequest);
+  }
+  if (body.operation === 'plan-prologue' && prologueInput) {
+    const plan = readPrologueAgentReply(output, prologueInput);
+    if (!plan) throw new Error('invalid_prologue_plan');
+    return plan;
+  }
+  if (body.operation !== 'advance-world' && !isValidOutput(body.operation, output)) {
+    throw new Error('invalid_model_output');
+  }
+  if (body.operation === 'co-create-world' && isCreatorAgentResponse(output) && !output.discussionOnly) {
+    const inputRoles = (body.input as { characters?: unknown[] }).characters;
+    const original = output;
+    const graphIssues = creatorStoryIssues(original.proposal.brief.storyGraph, Array.from({ length: original.proposal.characters?.length || (Array.isArray(inputRoles) ? inputRoles.length : 0) }, (_, i) => `draft-role-${i}`));
+    if (graphIssues.length) {
+      delete original.proposal.brief.storyGraph;
+      original.proposalIssue = (original.proposalIssue ? `${original.proposalIssue} ` : '') + `画布建议暂未写入：${graphIssues[0]} 其他有效建议已保留。`;
+    }
+    try {
+      output = await repairCreatorProposal(original, Array.isArray(inputRoles) ? inputRoles.length : 0, async (issues) => {
         const elapsed = Date.now() - startedAt;
-        const remainingMs = Math.min(20_000, 35_000 - elapsed);
-        if (elapsed > 18_000 || remainingMs < 6000) throw new Error('invalid_creator_task_graph');
+        const remainingMs = Math.min(20_000, (isStreaming ? 65_000 : 35_000) - elapsed);
+        if (elapsed > (isStreaming ? 50_000 : 18_000) || remainingMs < 6000) throw new Error('invalid_creator_task_graph');
         return callCompany(provider, 'co-create-world', {
           ...body.input as object,
           uncommittedProposal: original,
           validationFeedback: { issues, instruction: '上次建议尚未提交。只修正该建议的任务 id、prerequisiteTaskIds、assignedRoleIds，使引用有效且无循环。保持任务顺序、数量、标题、描述、难度、完成条件及其他所有设定原样；不删除任务，不重写故事。跨角色前置是允许的世界事件，不需要扩大任务归属。返回完整 co-create-world JSON。' },
         }, remainingMs);
-      }); } catch {
-        output = creatorDiscussion(original.reply, body.input as CreatorAgentRequest, '本轮剧情关联暂未整理完成，原草稿和待采纳建议保持不变；可以继续讨论。');
-      }
+      });
+    } catch {
+      output = creatorDiscussion(original.reply, body.input as CreatorAgentRequest, '本轮剧情关联暂未整理完成，原草稿和待采纳建议保持不变；可以继续讨论。');
     }
-    let guardedOutput = body.operation === 'design-persona' ? readPersonaDesignReply(output) : output;
-    if (body.operation === 'generate-world' && isWorldGenerationResponse(output)) {
-      try { output = { ...output, world: publicationWorld(output.world) }; guardedOutput = output; }
-      catch { return Response.json({ error: 'invalid_model_output' }, { status: 502 }); }
-    }
-    if (continuationBase && isWorldGenerationResponse(output)) {
-      if (output.unresolvedQuestions.length && !output.world.tasks.some(task => !continuationBase!.tasks.some(old => old.id === task.id))) guardedOutput = { ...output, world: continuationBase };
-      else {
-        try { guardedOutput = { ...output, world: appendStory(continuationBase, output.world) }; }
-        catch { return Response.json({ error: 'invalid_continuation' }, { status: 502 }); }
-      }
-    }
-    if (adaptationInput) {
-      let suggestion = readPersonaAdaptationSuggestion(output, adaptationInput);
-      const remainingMs = Math.min(15_000, 40_000 - (Date.now() - startedAt));
-      if (!suggestion && adaptationInput.policy.abilityMode === 'agent-judge' && remainingMs >= 3000) {
-        const repaired = await callCompany(provider, 'adapt-persona', {...adaptationInput,
-          rejectedSuggestion: output,
-          validationFeedback: '这份建议尚未展示、未授权。请修正为最多3项不重复、每项200字以内的能力；名称：范围与限制。世界不允许超常能力时必须拒绝读心等魔法，包括有限读心、取得同意后读心；最多改成普通表情观察且可能误判。不要在summary或limitations里重新授予被拒能力。无法适配可以grantedAbilities=[]并明确原因。返回完整JSON。',
-        }, remainingMs);
-        suggestion = readPersonaAdaptationSuggestion(repaired, adaptationInput);
-      }
-      if (!suggestion) return Response.json({ error: 'invalid_adaptation_suggestion' }, { status: 502 });
-      guardedOutput = suggestion;
-    }
-    if (body.operation === 'personal-agent' && isPersonalAgentResponse(output)) {
-      const catalogue = (body.input as { availableWorldIds?: unknown }).availableWorldIds;
-      if (!Array.isArray(catalogue) || output.recommendations.some((item) => !catalogue.includes(item.worldId))) {
-        return Response.json({ error: 'recommendation_outside_catalogue' }, { status: 502 });
-      }
-      const userMessage = (body.input as { userMessage?: unknown }).userMessage;
-      if (typeof userMessage !== 'string') return Response.json({ error: 'invalid_personal_message' }, { status: 400 });
-      guardedOutput = guardPersonalAction(output, userMessage, catalogue.filter((id): id is string => typeof id === 'string'));
-    }
-    if (body.operation === 'advance-world' && isWorldTurnRequest(body.input)) {
-      try {
-        if (!isWorldTurnResponse(output)) throw new Error('invalid_model_output');
-        guardedOutput = enforceWorldTurnGuardrails(body.input, output);
-      } catch (error) {
-        const remainingMs = Math.min(20_000, 55_000 - (Date.now() - startedAt));
-        if (!(error instanceof Error) || remainingMs < 3000) throw error;
-        const repaired = await callCompany(provider, body.operation, {
-          ...body.input,
-          validationFeedback: {
-            code: error.message,
-            instruction: error.message === 'invalid_model_output'
-              ? '刚才的 JSON 不符合必需输出结构，尚未提交。请从原始 state 重写本次回应，逐一提供 actionDecision、narrative、dialogue（数组，每条含 characterId/text/visibleToRoleIds）、statePatch（含 committedFacts 数组）、nextChoices（数组）、image、goalProgress、ending，不省略字段，不用 null 替代数组；character-chat 必须包含在场目标人物的可见回应。'
-              : error.message === 'chat_target_missing'
-              ? '这是与interaction.targetCharacterId的直接对话，目标角色在场，但输出缺少可见回应。请重写本轮，将该角色的回应放入dialogue，characterId必须等于targetCharacterId，visibleToRoleIds包含selectedRoleId。如果人物选择沉默，可用括号写可观察的非语言回应，不替玩家说话。'
-              : error.message === 'player_perspective_drift'
-              ? '体验者就是selectedRoleId这个角色，不是向该角色发话的旁观者。重写本次回应，不得出现所选角色听到你的话这种自我对话，不追加玩家未授权动作。'
-              : error.message === 'repeated_narrative'
-              ? '上一轮输出与recentTurns中的正文大面积重复，尚未提交。请直接回答本次userAction，承接已完成的事情而非重演旧动作或旧对话。描述此刻的新反馈；即使环境未变化，也要说明重复询问得到的当下回应。不要通过替玩家行动或制造新危机凑字数。'
-              : '上一轮输出未提交，请从原始state重新回应本次userAction。不得复述未提交结果。只能完成已有前置已满足的任务；已不可逆改变的节点不可凭空复原；只触发未展示且满足条件的结局。若玩家说留在原地，locationId必须保持原state.location或对应地点id，禁止在正文中代替玩家移动或承诺。',
-          },
-        }, remainingMs);
-        if (!isWorldTurnResponse(repaired)) return Response.json({ error: 'invalid_model_output' }, { status: 502 });
-        guardedOutput = enforceWorldTurnGuardrails(body.input, repaired);
-      }
-    }
-    return Response.json(guardedOutput, {
-      headers: { 'Cache-Control': 'no-store', 'X-AI-Provider': 'yibu', 'Server-Timing': `ai;dur=${Date.now() - startedAt}` },
-    });
-  } catch (error) {
-    const code = error instanceof Error && ['invalid_creator_task_graph', 'model_timeout', 'model_output_truncated', 'invalid_model_output', 'model_rate_limited', 'model_access_denied', 'invalid_task_transition', 'premature_ending', 'unauthorized_player_movement', 'repeated_narrative', 'player_perspective_drift', 'chat_target_missing'].includes(error.message)
-      ? error.message : 'company_gateway_failed';
-    console.warn('ai_request_failed', { operation: body.operation, code, elapsedMs: Date.now() - startedAt });
-    return Response.json({ error: code }, { status: 502 });
   }
+  let guardedOutput = body.operation === 'design-persona' ? readPersonaDesignReply(output) : output;
+  if (body.operation === 'generate-world' && isWorldGenerationResponse(output)) {
+    try { output = { ...output, world: publicationWorld(output.world) }; guardedOutput = output; }
+    catch { throw new Error('invalid_model_output'); }
+  }
+  if (continuationBase && isWorldGenerationResponse(output)) {
+    if (output.unresolvedQuestions.length && !output.world.tasks.some(task => !continuationBase!.tasks.some(old => old.id === task.id))) guardedOutput = { ...output, world: continuationBase };
+    else {
+      try { guardedOutput = { ...output, world: appendStory(continuationBase, output.world) }; }
+      catch { throw new Error('invalid_continuation'); }
+    }
+  }
+  if (adaptationInput) {
+    let suggestion = readPersonaAdaptationSuggestion(output, adaptationInput);
+    const remainingMs = Math.min(15_000, 40_000 - (Date.now() - startedAt));
+    if (!suggestion && adaptationInput.policy.abilityMode === 'agent-judge' && remainingMs >= 3000) {
+      const repaired = await callCompany(provider, 'adapt-persona', {...adaptationInput,
+        rejectedSuggestion: output,
+        validationFeedback: '这份建议尚未展示、未授权。请修正为最多3项不重复、每项200字以内的能力；名称：范围与限制。世界不允许超常能力时必须拒绝读心等魔法，包括有限读心、取得同意后读心；最多改成普通表情观察且可能误判。不要在summary或limitations里重新授予被拒能力。无法适配可以grantedAbilities=[]并明确原因。返回完整JSON。',
+      }, remainingMs);
+      suggestion = readPersonaAdaptationSuggestion(repaired, adaptationInput);
+    }
+    if (!suggestion) throw new Error('invalid_adaptation_suggestion');
+    guardedOutput = suggestion;
+  }
+  if (body.operation === 'personal-agent' && isPersonalAgentResponse(output)) {
+    const catalogue = (body.input as { availableWorldIds?: unknown }).availableWorldIds;
+    if (!Array.isArray(catalogue) || output.recommendations.some((item) => !catalogue.includes(item.worldId))) {
+      throw new Error('recommendation_outside_catalogue');
+    }
+    const userMessage = (body.input as { userMessage?: unknown }).userMessage;
+    if (typeof userMessage !== 'string') throw new Error('invalid_personal_message');
+    guardedOutput = guardPersonalAction(output, userMessage, catalogue.filter((id): id is string => typeof id === 'string'));
+  }
+  if (body.operation === 'advance-world' && isWorldTurnRequest(body.input)) {
+    try {
+      if (!isWorldTurnResponse(output)) throw new Error('invalid_model_output');
+      guardedOutput = enforceWorldTurnGuardrails(body.input, output);
+    } catch (error) {
+      const remainingMs = Math.min(20_000, (isStreaming ? 70_000 : 55_000) - (Date.now() - startedAt));
+      if (!(error instanceof Error) || remainingMs < 3000) throw error;
+      const repaired = await callCompany(provider, body.operation, {
+        ...body.input,
+        validationFeedback: {
+          code: error.message,
+          instruction: error.message === 'invalid_model_output'
+            ? '刚才的 JSON 不符合必需输出结构，尚未提交。请从原始 state 重写本次回应，逐一提供 actionDecision、narrative、dialogue（数组，每条含 characterId/text/visibleToRoleIds）、statePatch（含 committedFacts 数组）、nextChoices（数组）、image、goalProgress、ending，不省略字段，不用 null 替代数组；character-chat 必须包含在场目标人物的可见回应。'
+            : error.message === 'chat_target_missing'
+            ? '这是与interaction.targetCharacterId的直接对话，目标角色在场，但输出缺少可见回应。请重写本轮，将该角色的回应放入dialogue，characterId必须等于targetCharacterId，visibleToRoleIds包含selectedRoleId。如果人物选择沉默，可用括号写可观察的非语言回应，不替玩家说话。'
+            : error.message === 'player_perspective_drift'
+            ? '体验者就是selectedRoleId这个角色，不是向该角色发话的旁观者。重写本次回应，不得出现所选角色听到你的话这种自我对话，不追加玩家未授权动作。'
+            : error.message === 'repeated_narrative'
+            ? '上一轮输出与recentTurns中的正文大面积重复，尚未提交。请直接回答本次userAction，承接已完成的事情而非重演旧动作或旧对话。描述此刻的新反馈；即使环境未变化，也要说明重复询问得到的当下回应。不要通过替玩家行动或制造新危机凑字数。'
+            : '上一轮输出未提交，请从原始state重新回应本次userAction。不得复述未提交结果。只能完成已有前置已满足的任务；已不可逆改变的节点不可凭空复原；只触发未展示且满足条件的结局。若玩家说留在原地，locationId必须保持原state.location或对应地点id，禁止在正文中代替玩家移动或承诺。',
+        },
+      }, remainingMs);
+      if (!isWorldTurnResponse(repaired)) throw new Error('invalid_model_output');
+      guardedOutput = enforceWorldTurnGuardrails(body.input, repaired);
+    }
+  }
+  return guardedOutput;
 }

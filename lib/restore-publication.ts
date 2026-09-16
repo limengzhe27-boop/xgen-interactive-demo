@@ -2,6 +2,7 @@ import { storyDirections } from './story-directions.ts';
 import type { CreatorBrief, CreatorChatMessage, StoryOutlineBeat } from './ai-contracts';
 import type { StudioWorld } from './studio-worlds';
 import { publicationWorld } from './publication.ts';
+import { mapCreatorStoryRoleIds, bindCreatorActors } from './creator-story-graph.ts';
 
 // A historical revision becomes an independent draft, never an implicit rollback
 // or a replacement for the author's current work. Do not retain sourceId.
@@ -29,7 +30,7 @@ export function publicationDraft(entry: StudioWorld & { sourceId?: string }) {
       objective: index === 0 ? world.openingScene.narrative : location.description, turningPoint: '' };
   });
   const brief: CreatorBrief = {
-    ...(world.storyGraph ? { storyGraph: { ...world.storyGraph, entries: world.storyGraph.entries.map(e => ({ ...e, roleId: `draft-role-${world.characters.findIndex(role => role.id === e.roleId)}` })) } } : {}),
+    ...(world.storyGraph ? { storyGraph: mapCreatorStoryRoleIds(bindCreatorActors(world.storyGraph, world.characters), id => { const i = world.characters.findIndex(role => role.id === id); return i >= 0 ? `draft-role-${i}` : undefined; }) } : {}),
     discoveryGenre: world.discoveryGenre,
     coreGoal: (world.goals.find(goal => goal.scope === 'world') ?? world.goals[0])?.title ?? world.coreEvent,
     successCondition: storyDirections(world.endingConditions).primary?.description ?? '',

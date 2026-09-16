@@ -1,7 +1,7 @@
 /** Authoring data, not a record of events that have happened in a player's save. */
 export type CreatorStoryGraph = {
   startNodeId: string;
-  nodes: { id: string; title: string; location: string; scene: string; worldFacts: string[]; nextNodeIds: string[]; eventIntent?: 'possible' | 'key_event'; trigger?: string; possibilities?: { actor: string; action: string; consequence: string; condition?: string }[] }[];
+  nodes: { id: string; title: string; location: string; scene: string; worldFacts: string[]; nextNodeIds: string[]; eventIntent?: 'possible' | 'key_event'; trigger?: string; possibilities?: { actor: string; roleId?: string | null; action: string; consequence: string; condition?: string }[] }[];
   entries: { roleId: string; nodeId: string; defaultPath: string[]; knownFacts: string[]; beliefs: string[]; scene: string }[];
 };
 
@@ -17,7 +17,7 @@ export function isCreatorStoryGraph(v: unknown): v is CreatorStoryGraph {
       && (n.trigger === undefined || text(n.trigger))
       && (n.eventIntent === undefined || n.eventIntent === 'possible' || n.eventIntent === 'key_event')
       && (n.possibilities === undefined || (Array.isArray(n.possibilities) && n.possibilities.length <= 6
-        && n.possibilities.every(p => record(p) && text(p.actor) && text(p.action) && text(p.consequence) && (p.condition === undefined || text(p.condition))))))
+        && n.possibilities.every(p => record(p) && text(p.actor) && (p.roleId === undefined || p.roleId === null || id(p.roleId)) && text(p.action) && text(p.consequence) && (p.condition === undefined || text(p.condition))))))
     && Array.isArray(v.entries) && v.entries.length <= 20 && v.entries.every(e => record(e) && id(e.roleId) && id(e.nodeId)
       && list(e.defaultPath) && e.defaultPath.every(id) && list(e.knownFacts) && list(e.beliefs) && text(e.scene));
 }
@@ -30,6 +30,7 @@ export function creatorStoryIssues(value: unknown, roleIds?: string[]): string[]
   if (nodes.size !== graph.nodes.length) return ['故事节点 ID 重复。'];
   if (!nodes.has(graph.startNodeId)) return ['共同开场节点不存在。'];
   for (const n of graph.nodes) {
+    if (roleIds && n.possibilities?.some(p => p.roleId && !roleIds.includes(p.roleId))) return ['可能行动引用了不存在的角色。'];
     if (!n.title.trim()) return ['请为每个节点填写简短标题。'];
     if (new Set(n.nextNodeIds).size !== n.nextNodeIds.length || n.nextNodeIds.some(next => !nodes.has(next))) return [`「${n.title}」的连线重复或指向不存在的节点。`];
   }
@@ -59,13 +60,54 @@ export function creatorStoryIssues(value: unknown, roleIds?: string[]): string[]
   return [];
 }
 
-export function remapCreatorStoryRoles(graph: CreatorStoryGraph | undefined, before: { editorId?: string }[], after: { editorId?: string }[]) {
+/** Undefined = legacy descriptive actor; null = explicitly unbound. Never substring-match. */
+export function possibilityRoleId(p: NonNullable<CreatorStoryGraph['nodes'][number]['possibilities']>[number], roles: { id: string; name: string }[]) {
+  if (p.roleId !== undefined) return roles.some(r => r.id === p.roleId) ? p.roleId : null;
+  const matches = roles.filter(r => r.name.trim() && r.name.trim() === p.actor.trim());
+  return matches.length === 1 ? matches[0].id : null;
+}
+
+export function bindCreatorActors(graph: CreatorStoryGraph, roles: { id: string; name: string }[]): CreatorStoryGraph {
+  return { ...graph, nodes: graph.nodes.map(n => n.possibilities ? { ...n, possibilities: n.possibilities.map(p => p.roleId !== undefined ? p : { ...p, roleId: possibilityRoleId(p, roles) }) } : n) };
+}
+
+/** Shared by publication, restoration and cast reorder; IDs must travel together. */
+export function mapCreatorStoryRoleIds(graph: CreatorStoryGraph, map: (id: string) => string | undefined): CreatorStoryGraph {
+  return { ...graph, entries: graph.entries.flatMap(e => { const roleId = map(e.roleId); return roleId ? [{ ...e, roleId }] : []; }),
+    nodes: graph.nodes.map(n => n.possibilities ? { ...n, possibilities: n.possibilities.map(p => p.roleId ? { ...p, roleId: map(p.roleId) ?? null } : p) } : n) };
+}
+
+export function remapCreatorStoryRoles(graph: CreatorStoryGraph | undefined, before: { editorId?: string; name?: string }[], after: { editorId?: string; name?: string }[]) {
   if (!graph) return undefined;
-  return { ...graph, entries: graph.entries.flatMap(entry => {
-    const old = before[Number(entry.roleId.replace('draft-role-', ''))];
+  const bound = bindCreatorActors(graph, before.map((r, i) => ({ id: `draft-role-${i}`, name: r.name ?? '' })));
+  return mapCreatorStoryRoleIds(bound, roleId => {
+    const old = before[Number(roleId.replace('draft-role-', ''))];
     const index = after.findIndex(role => old?.editorId && role.editorId === old.editorId);
-    return index < 0 ? [] : [{ ...entry, roleId: `draft-role-${index}` }];
-  }) };
+    return index < 0 ? undefined : `draft-role-${index}`;
+  });
+}
+
+/** Exact DAG reachability, not a bounded list of sampled paths and not runtime state. */
+export function creatorEntryContext(graph: CreatorStoryGraph, roleId: string, nodeId: string): string {
+  const entry = graph.entries.find(e => e.roleId === roleId);
+  if (!entry) return '尚未指定首次入场位置；不能据此判断此事件中的参与或知情。';
+  const title = graph.nodes.find(n => n.id === entry.nodeId)?.title ?? '入场点';
+  const reaches = (start: string, target: string, blocked?: string): boolean => {
+    const queue = [start], seen = new Set<string>();
+    while (queue.length) {
+      const current = queue.pop()!;
+      if (current === blocked || seen.has(current)) continue;
+      if (current === target) return true;
+      seen.add(current);
+      queue.push(...(graph.nodes.find(n => n.id === current)?.nextNodeIds ?? []));
+    }
+    return false;
+  };
+  if (entry.nodeId === nodeId) return `首次体验从「${title}」开始。`;
+  if (reaches(entry.nodeId, nodeId)) return reaches(graph.startNodeId, nodeId, entry.nodeId)
+    ? `部分设计路径经过「${title}」，另一些不经过。汇合不合并各路经历；实际是否已登场须看体验记录，当前在场与知情仍未确定。`
+    : `设计路径上「${title}」在此事件之前；更早入场不等于此刻在场、参与或知情，需由具体设定和体验记录判断。`;
+  return `首次体验从「${title}」开始；当前查看的是其他节点，不会迁移入场或授予该角色这里的信息。`;
 }
 
 /** One valid path only; the creator may choose a different route explicitly. */
@@ -93,6 +135,7 @@ export function preserveEventIntent(graph: CreatorStoryGraph, base?: CreatorStor
 }
 
 export const CREATOR_STORY_GRAPH_GUIDANCE = OPEN_STORY_DIRECTIONS + `
+可能行动可用roleId绑定其行动者，使用同一份角色名单的draft-role-N；actor保留可读描述。被提及、受影响或被攻击的人不是行动者。多人、路人或归属不明时roleId=null，不能凭名字子串认领。沿用已有绑定，角色改名不改变身份；返回人物名单时须同步所有角色引用。新增事件不代表所有早入场角色都在场或知情，汇合也不合并互斥前史。
 每个事件节点可选提供 trigger（什么条件下可能发生）和 possibilities（最多6项，每项含 actor 人物称呼、action 可能行动、consequence 可能收益/代价/他人反应，均为字符串）。这些是作者的可能性设计，不是已发生事实、不要求作者填完，也不代表玩家只能选这些行动。actor只是描述，不是角色ID或入场绑定。获得授权构思时主动补充有意义的局面变化，不反复要求用户编写完整剧本；不要把可能后果写入worldFacts。未聊到的部分省略即可。
 创作画布（co-create-world 新增允许字段 proposal.brief.storyGraph）：有了人物和具体场景，就同时提供可编辑画布；只有抽象想法时先共同构思，不强迫补全。无须用户另填表。沿用 currentDraft.brief.storyGraph 和 pendingSuggestions 中稳定的节点 ID；仅修改用户要求的部分。不要把所有内容都复制成互不相干的角色时间线。开始可以只有1个开场节点，随讨论扩展，最多16个；可分支、汇合，不可循环。支持多分支树状与网状走向：同一个节点可包含多个 nextNodeIds（如 nextNodeIds: ["branch_a", "branch_b"] 分叉为多条互斥或并行走向），不同分支亦可汇合至同一节点（汇合不可成环）。不是固定通关成功/失败路线。
 JSON格式：{"startNodeId":"opening","nodes":[{"id":"opening","title":"共同开场","location":"地点","scene":"当前场景与未决动作","worldFacts":["此刻已成立的客观事实"],"nextNodeIds":["branch_a","branch_b"]},{"id":"branch_a","title":"分支A：正面突破","location":"地点","scene":"采取正面行动的场景","worldFacts":["分支A成立的事实"],"nextNodeIds":[]},{"id":"branch_b","title":"分支B：暗中潜伏","location":"地点","scene":"采取潜伏行动的场景","worldFacts":["分支B成立的事实"],"nextNodeIds":[]}],"entries":[{"roleId":"draft-role-0","nodeId":"opening","defaultPath":["opening"],"knownFacts":["该角色此刻已知的事实"],"beliefs":["尚未证实的怀疑"],"scene":"第一人称可感知的场景、处境与未决问题"},{"roleId":"draft-role-1","nodeId":"branch_a","defaultPath":["opening","branch_a"],"knownFacts":[],"beliefs":[],"scene":"后登场角色看到的当时现场"}]}。
