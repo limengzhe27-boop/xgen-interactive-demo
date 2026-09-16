@@ -168,4 +168,12 @@ test('adding characters to existing graph draft preserves existing graph without
   assert.equal(r.proposal.characters[2].name, '孙悟空');
   assert.deepEqual(r.proposal.brief.storyGraph, graph);
 });
+test('creator append guidance distinguishes between empty canvas and existing canvas', () => {
+  const emptyGuide = creatorGraphGuidance({ userMessage: '请构思并添加下一个事件' });
+  assert.ok(emptyGuide.includes('建立初始故事画布'));
+  assert.ok(emptyGuide.includes('opening'));
+  const existGuide = creatorGraphGuidance({ userMessage: '请构思并添加下一个事件', currentDraft: { ...input.currentDraft, brief: { ...input.currentDraft.brief, storyGraph: graph } } });
+  assert.ok(existGuide.includes('本轮作者明确委托追加事件'));
+  assert.ok(existGuide.includes('沿用原节点ID'));
+});
 

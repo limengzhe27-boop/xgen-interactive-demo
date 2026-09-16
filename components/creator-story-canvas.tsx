@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import { GitBranch, MapPin, Users, ArrowRight, Sparkles, Check, Trash2, GitFork, X as CloseIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -20,6 +20,25 @@ function NodeDetails({ graph, nodeId, roleId, roleName, suggested, busy, onSave,
 }) {
   const [edited, setEdited] = useState(graph);
   const [notice, setNotice] = useState('');
+  const lastSavedGraphRef = useRef(JSON.stringify(graph));
+
+  useEffect(() => {
+    const graphStr = JSON.stringify(graph);
+    if (graphStr !== lastSavedGraphRef.current) {
+      lastSavedGraphRef.current = graphStr;
+      setEdited(graph);
+    }
+  }, [graph]);
+
+  // Publish valid edits to the parent immediately. No pending timer can be
+  // discarded on node switches or resurrect a draft after external undo.
+  const saveEdit = (next: CreatorStoryGraph) => {
+    setEdited(next);
+    const problems = creatorStoryIssues(next);
+    if (problems.length) { setNotice(problems[0]); return; }
+    lastSavedGraphRef.current = JSON.stringify(next);
+    onSave(next);
+  };
   const node = edited.nodes.find(n => n.id === nodeId)!;
   const entry = edited.entries.find(e => e.roleId === roleId);
   const atEntry = entry?.nodeId === nodeId;
@@ -37,8 +56,8 @@ function NodeDetails({ graph, nodeId, roleId, roleName, suggested, busy, onSave,
     return creatorStoryIssues(testGraph).length === 0;
   });
 
-  const updateNode = (patch: Partial<typeof node>) => setEdited(g => ({ ...g, nodes: g.nodes.map(n => n.id === nodeId ? { ...n, ...patch } : n) }));
-  const updateEntry = (patch: Partial<CreatorStoryGraph['entries'][number]>) => setEdited(g => ({ ...g, entries: g.entries.map(e => e.roleId === roleId ? { ...e, ...patch } : e) }));
+  const updateNode = (patch: Partial<typeof node>) => saveEdit({ ...edited, nodes: edited.nodes.map(n => n.id === nodeId ? { ...n, ...patch } : n) });
+  const updateEntry = (patch: Partial<CreatorStoryGraph['entries'][number]>) => saveEdit({ ...edited, entries: edited.entries.map(e => e.roleId === roleId ? { ...e, ...patch } : e) });
   const assign = () => {
     // Moving an entry cannot carry knowledge from a later/different point backwards.
     const nextEntries = [...edited.entries.filter(e => e.roleId !== roleId), { roleId, nodeId, defaultPath: paths[0] ?? [], knownFacts: [], beliefs: [], scene: '' }];
@@ -190,18 +209,22 @@ function NodeDetails({ graph, nodeId, roleId, roleName, suggested, busy, onSave,
           ) : (
             childNodes.map((child, idx) => (
               <span key={child.id} className={styles.branchChip}>
-                <span onClick={() => onSelectNode?.(child.id)}>
+                <button
+                  type="button"
+                  className={styles.branchChipLink}
+                  onClick={() => onSelectNode?.(child.id)}
+                >
                   分支 {idx + 1}：{child.title || '未命名'} →
-                </span>
-                <span
-                  role="button"
-                  tabIndex={0}
+                </button>
+                <button
+                  type="button"
                   className={styles.branchChipClose}
                   title="断开此分支连线"
+                  aria-label={`断开与「${child.title || '分支'}」的连线`}
                   onClick={e => { e.stopPropagation(); handleDisconnectChild(child.id); }}
                 >
                   <CloseIcon size={10} />
-                </span>
+                </button>
               </span>
             ))
           )}
@@ -297,7 +320,7 @@ export function CreatorStoryCanvas({ title, graph: inputGraph, roles, images, su
           <svg width={width} height={rows.length * 128 + 24} aria-hidden="true">{graph.nodes.flatMap(n => n.nextNodeIds.map(next => { const a = points.get(n.id)!, b = points.get(next)!; return <path key={`${n.id}-${next}`} d={`M${a.x + 103},${a.y + 88} C${a.x + 103},${a.y + 112} ${b.x + 103},${b.y - 24} ${b.x + 103},${b.y}`} />; }))}</svg>
           {graph.nodes.map(n => { const p = points.get(n.id)!; const names = graph.entries.filter(e => e.nodeId === n.id).map(e => roles[roleIds.indexOf(e.roleId)]?.name).filter(Boolean); return <button type="button" key={n.id} className={styles.node} style={{ left: p.x, top: p.y }} aria-pressed={nodeId === n.id} data-entry={entry?.nodeId === n.id} data-prior={entry?.defaultPath.includes(n.id) && entry.nodeId !== n.id} onClick={() => setSelectedNode(n.id)}><small>{n.id === graph.startNodeId ? '共同开场' : names.length ? `${names.join('、')}入场` : '可能走向'}</small><strong>{n.title}</strong><span><MapPin size={12} />{n.location || '地点待补充'}</span></button>; })}
         </div></section>
-        <NodeDetails key={`${nodeId}/${roleId}/${JSON.stringify(graph)}`} graph={graph} nodeId={nodeId} roleId={roleId} roleName={role?.name || '所选角色'} suggested={suggested} busy={busy} onSave={onSave} onSelectNode={setSelectedNode} onAsk={onAsk} />
+        <NodeDetails key={`${suggested ? 'proposal' : 'draft'}/${nodeId}/${roleId}`} graph={graph} nodeId={nodeId} roleId={roleId} roleName={role?.name || '所选角色'} suggested={suggested} busy={busy} onSave={onSave} onSelectNode={setSelectedNode} onAsk={onAsk} />
       </> : <div className={styles.empty}><GitBranch size={32} /><h3>{busy ? 'Agent 正在整理故事结构' : '从一个场景，长出整个故事'}</h3><p>{problem || '先聊聊人物在哪里、发生了什么。Agent 的故事节点与角色入场建议，会出现在这里。'}</p><Button variant="outline" disabled={busy} onClick={() => onAsk('请根据已有设定整理故事画布：共同开场、可能的后续分支，以及每个角色从哪个节点入场、当时知道什么。不要改变我已确认的人物和事件；不确定的地方先问我。')}>和 Agent 整理画布<ArrowRight size={16} /></Button><Button variant="ghost" disabled={busy || suggested} onClick={() => onSave({ startNodeId: 'opening', nodes: [{ id: 'opening', title: '共同开场', location: '', scene: '', worldFacts: [], nextNodeIds: [] }], entries: [] })}>先手动建立开场</Button></div>}
     </div>
     <footer className={styles.footer}>

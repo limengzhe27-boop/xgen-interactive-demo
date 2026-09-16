@@ -1,6 +1,6 @@
 import type { CreatorAgentRequest, CreatorAgentResponse } from './ai-contracts.ts';
 import { isCreatorAgentResponse } from './ai-validation.ts';
-import { creatorStoryIssues } from './creator-story-graph.ts';
+import { creatorStoryIssues, isCreatorStoryGraph } from './creator-story-graph.ts';
 import { normalizeCreatorProposal } from './creator-normalization.ts';
 import { appendCreatorGraph, creatorAppendRequested } from './creator-append.ts';
 
@@ -48,13 +48,30 @@ export function readCreatorResponse(value: unknown, input: CreatorAgentRequest):
   const pending = input.pendingProposal;
   const base = pending && isCreatorAgentResponse({ reply: 'pending', proposal: pending, nextQuestions: [], readiness: 'needs_detail' }) ? pending : input.currentDraft;
   const { proposal: p, notices } = normalizeCreatorProposal(value.proposal, base.brief?.storyGraph?.nodes.map(n => n.id));
-  if (creatorAppendRequested(input.userMessage) && base.brief?.storyGraph) {
-    const result = appendCreatorGraph(base.brief.storyGraph, record(p.brief) ? p.brief.storyGraph : undefined, input.userMessage);
-    if (!result.graph) return creatorDiscussion(result.issue!, input, result.issue);
-    // The author authorized a graph append, not adoption of unrelated pending suggestions.
-    return { reply: `已构思新事件：${result.added!.map(n => `「${n.title}」`).join('、')}。`,
-      discussionOnly: false, proposal: { ...base, brief: { ...base.brief, storyGraph: result.graph } },
-      nextQuestions: [], readiness: 'needs_detail' };
+  if (creatorAppendRequested(input.userMessage)) {
+    if (base.brief?.storyGraph) {
+      const result = appendCreatorGraph(base.brief.storyGraph, record(p.brief) ? p.brief.storyGraph : undefined, input.userMessage);
+      if (!result.graph) return creatorDiscussion(result.issue!, input, result.issue);
+      // The author authorized a graph append, not adoption of unrelated pending suggestions.
+      return { reply: `已构思新事件：${result.added!.map(n => `「${n.title}」`).join('、')}。`,
+        discussionOnly: false, proposal: { ...base, brief: { ...base.brief, storyGraph: result.graph } },
+        nextQuestions: [], readiness: 'needs_detail' };
+    }
+    const count = Array.isArray(p.characters) ? p.characters.length : ('characters' in base ? base.characters?.length : undefined) ?? input.characters?.length ?? 0;
+    const roleIds = Array.from({ length: count }, (_, i) => `draft-role-${i}`);
+    if (record(p.brief) && isCreatorStoryGraph(p.brief.storyGraph) && !creatorStoryIssues(p.brief.storyGraph, roleIds).length) {
+      const brief = { ...base.brief, ...p.brief, storyGraph: p.brief.storyGraph };
+      const response: CreatorAgentResponse = {
+        reply: `已构思初始画布：${p.brief.storyGraph.nodes.map(n => `「${n.title}」`).join('、')}。请查看并采纳建议后写入草稿。`,
+        discussionOnly: false,
+        proposal: { ...base, ...p, brief },
+        nextQuestions: [],
+        readiness: 'needs_detail',
+      };
+      if (isCreatorAgentResponse(response)) return response;
+    }
+    return creatorDiscussion('本轮没有返回可写入的事件节点，画布未改动。请重试追加事件。', input,
+      '没有返回节点数据，不将对话中的“已添加”当作完成。');
   }
   const brief = { ...base.brief, ...(record(p.brief) ? p.brief : {}) };
   const count = Array.isArray(p.characters) ? p.characters.length : ('characters' in base ? base.characters?.length : undefined) ?? input.characters?.length ?? 0;

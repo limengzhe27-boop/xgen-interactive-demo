@@ -1,5 +1,6 @@
 import { AI_CONTRACT_VERSION } from '@/lib/ai-contracts';
 import { STORY_PROGRESSION_GUIDANCE } from '@/lib/story-progression-guidance';
+import { INTERACTION_CLARITY_GUIDANCE } from '@/lib/interaction-clarity';
 import { characterChatGuidance, characterChatContract } from '@/lib/character-chat-guidance';
 import { exactChatRecall } from '@/lib/chat-memory';
 import { creativeGuidance } from '@/lib/creative-guidance';
@@ -50,6 +51,7 @@ const operationInstructions: Record<Operation, string> = {
 };
 // Shared by text and video, before the video contract is captured.
 for (const op of ['generate-world','advance-world'] as const) operationInstructions[op] += STORY_PROGRESSION_GUIDANCE;
+operationInstructions['advance-world'] += INTERACTION_CLARITY_GUIDANCE;
 // Video has its own 15-second direction below; do not also ask for long illustrated prose.
 operationInstructions['advance-world'] += '\n同一存档可切换角色。以 state.clock/location/characterStates 为当前时刻与位置，不重新应用角色 entry，不把切换视为行动或新开局。state.inventory/clues/knownSecrets/eventLedger 只属于当前角色；全局 committedFacts/taskNotes/任务进度是世界真相，不等于角色已知。没有获知途径不得在对白或画面泄露。';
 const videoTurnContract = operationInstructions['advance-world'];
@@ -253,7 +255,7 @@ async function handlePost(request: Request) {
   if (!provider) return Response.json({ error: 'model_not_configured' }, { status: 503 });
   const startedAt = Date.now();
   try {
-    let output = await callCompany(provider, body.operation, body.input, body.operation === 'advance-world' ? 35_000 : body.operation === 'adapt-persona' || body.operation === 'design-persona' ? 25_000 : undefined);
+    let output = await callCompany(provider, body.operation, body.input, body.operation === 'advance-world' ? 35_000 : body.operation === 'adapt-persona' || body.operation === 'design-persona' ? 25_000 : body.operation === 'co-create-world' ? 30_000 : undefined);
     if (body.operation === 'co-create-world') {
       output = readCreatorResponse(output, body.input as CreatorAgentRequest);
     }
@@ -274,8 +276,9 @@ async function handlePost(request: Request) {
         original.proposalIssue = (original.proposalIssue ? `${original.proposalIssue} ` : '') + `画布建议暂未写入：${graphIssues[0]} 其他有效建议已保留。`;
       }
       try { output = await repairCreatorProposal(original, Array.isArray(inputRoles) ? inputRoles.length : 0, async (issues) => {
-        const remainingMs = Math.min(40_000, 105_000 - (Date.now() - startedAt));
-        if (remainingMs < 3000) throw new Error('invalid_creator_task_graph');
+        const elapsed = Date.now() - startedAt;
+        const remainingMs = Math.min(20_000, 35_000 - elapsed);
+        if (elapsed > 18_000 || remainingMs < 6000) throw new Error('invalid_creator_task_graph');
         return callCompany(provider, 'co-create-world', {
           ...body.input as object,
           uncommittedProposal: original,

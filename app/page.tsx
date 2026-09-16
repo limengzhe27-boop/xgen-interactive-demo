@@ -4,6 +4,7 @@
 import { SyntheticEvent, useEffect, useEffectEvent, useRef, useState } from 'react';
 import { WorldSystemPanel } from '@/components/world-system-panel';
 import { storyDirections } from '@/lib/story-directions';
+import { actionServiceError, visibleInteractionGoal, actionLabel } from '@/lib/interaction-clarity';
 import { reusePublicationArt } from '@/lib/reuse-publication-art';
 import { creatorPortraitPrompt } from '@/lib/creator-image-prompts';
 import { rebaseCreatorAcceptance } from '@/lib/creator-changes';
@@ -1009,7 +1010,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
   const [endingDecision, setEndingDecision] = useState('');
   const [freeAction, setFreeAction] = useState('');
   const [worldState, setWorldState] = useState(() => createInitialWorldState('storm', roles[0].id, roles[0].secret, roleStoryBeats[roles[0].id][0].location));
-  const [actionFeedback, setActionFeedback] = useState<ActionValidation | null>(null);
+  const [actionFeedback, setActionFeedback] = useState<(ActionValidation & { serviceFailure?: boolean }) | null>(null);
   const [lastIncident, setLastIncident] = useState<WorldIncident | null>(null);
   const [imageTask, setImageTask] = useState<ImageTask>(() => createInitialImageTask(legacyArt['storm-manor'].cover));
   const [isThinking, setIsThinking] = useState(false);
@@ -1916,7 +1917,6 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     // Ordinary dialogue need not cancel an image request that may already be billed.
     setActionFeedback(null);
     setLastIncident(null);
-    setLastAction(nextAction);
     setFreeAction('');
     setIsThinking(true);
     const nextTurn = turn + 1;
@@ -1951,6 +1951,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
           setIsThinking(false);
           return;
         }
+        setLastAction(nextAction);
         applyImageDirective(response.image, {
           turn: nextTurn,
           sceneTitle: currentStory[nextTurn]?.title ?? '阶段结局',
@@ -2033,11 +2034,11 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       }).catch((error: unknown) => {
         if (error instanceof DOMException && error.name === 'AbortError') return;
         generationControllerRef.current = null;
-        setActionFeedback({ allowed: false, reason: '世界暂时没有成功回应这个行动。', suggestion: '请重试，或选择另一种行动。' });
+        setActionFeedback({ allowed: false, serviceFailure: true, reason: actionServiceError(error), suggestion: '上方保留的是上一幕，不是这次行动的结果。输入已保留，可以重试同一行动。' });
         setFreeAction(current => current || nextAction);
         setIsThinking(false);
       });
-    }, liveMode ? 140 : 680);
+    }, 0);
   }
 
   function updateDraftRole(index: number, key: keyof DraftRole, value: string) {
@@ -3048,7 +3049,7 @@ function PlayWorld({
   relation: number;
   clock: string;
   location: string;
-  actionFeedback: ActionValidation | null;
+  actionFeedback: (ActionValidation & { serviceFailure?: boolean }) | null;
   surpriseLevel: number;
   incident: WorldIncident | null;
   imageTask: ImageTask;
@@ -3064,6 +3065,7 @@ function PlayWorld({
   const mainTasks = tasks.filter((task) => task.kind === 'main');
   const completedMainTasks = mainTasks.filter((task) => completedTaskIds.includes(task.id));
   const currentTask = currentPlayableTask(tasks, completedTaskIds, failedTaskIds);
+  const visibleGoal = visibleInteractionGoal(currentTask?.title, goal?.title, role.goal);
   const system = visibleSystem(world, role.id, completedTaskIds);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [category, setCategory] = useState('tasks');
@@ -3114,15 +3116,16 @@ function PlayWorld({
           }) : beat.dialogue && <blockquote>{!beat.dialogue.includes('\n') && speakingRole && <RolePortrait role={speakingRole} />}<div><strong>{beat.dialogue.includes('\n') ? '历史对白 · 旧存档未保留逐句人物' : beat.speaker}</strong><p>“{beat.dialogue}”</p></div></blockquote>)}
         </section>
         <section className="flow-action-area" aria-label="你的行动">
-          <div className="flow-current-goal"><Target /><p>当前目标：{currentTask?.title || goal?.title || role.goal}</p>{system && <SheetTrigger className="flow-control flow-system-entry" onClick={() => setCategory('system')}><Sparkles />{system.name}</SheetTrigger>}</div>
-          {actionFeedback && <output className="action-feedback"><strong>行动尚未推进</strong><span>{actionFeedback.reason}</span>{actionFeedback.suggestion && <small>{actionFeedback.suggestion}</small>}</output>}
+          {visibleGoal && <div className="flow-current-goal"><Target /><p>你此刻想做的：{visibleGoal}</p></div>}
+          {system && <SheetTrigger className="flow-control flow-system-entry" onClick={() => setCategory('system')}><Sparkles />{system.name}</SheetTrigger>}
+          {actionFeedback && <output className="action-feedback" aria-live="polite"><strong>{actionFeedback.serviceFailure ? '这次响应未完成 · 进度保留' : '这次行动未执行'}</strong><span>{actionFeedback.reason}</span>{actionFeedback.suggestion && <small>{actionFeedback.suggestion}</small>}{actionFeedback.serviceFailure && freeAction.trim() && <button type="button" className="flow-control" disabled={isThinking} onClick={() => onAction(freeAction)}>重试输入中的行动</button>}</output>}
+          {!isThinking && <div className="flow-choice-list" aria-label="接下来可以怎么做">{beat.choices.map((choice, index) => <button className="flow-control" key={`${turn}-${choice.label}`} type="button" onClick={() => onAction(choice.label)}><span>{String(index + 1).padStart(2, '0')}</span>{actionLabel(choice.label, role.name)}<ArrowRight /></button>)}</div>}
           <div className="flow-composer">
             <label className="sr-only" htmlFor="free-action">你想怎么做？</label>
             <MessageTextarea ref={composerRef} id="free-action" value={freeAction} onChange={event => onFreeAction(event.target.value)} onSend={() => onAction(freeAction)} placeholder={`以${role.name}的身份，说说你准备怎么做……`} disabled={isThinking && !liveMode} />
             <Button className="primary-action" disabled={!freeAction.trim() || (isThinking && !liveMode)} onClick={() => onAction(freeAction)}>{isThinking && !liveMode ? <LoaderCircle className="is-spinning" /> : <Send />}{isThinking ? liveMode ? '介入' : '回应中' : '发送'}</Button>
           </div>
           <div className="flow-action-meta"><output>{isThinking ? liveMode ? '世界正在展开，可以介入后续' : '世界正在回应，请稍候…' : 'Enter 发送 · Shift + Enter 换行'}</output></div>
-          <details className="flow-disclosure flow-inspiration" key={`choices-${turn}`}><summary>不知道怎么做？看行动灵感</summary><p>点击后直接执行，也可以在上方输入自己的行动。</p><div className="flow-choice-list">{beat.choices.map((choice, index) => <button className="flow-control" key={`${turn}-${choice.label}`} type="button" disabled={isThinking && !liveMode} onClick={() => onAction(choice.label)}><span>{String(index + 1).padStart(2, '0')}</span>{choice.label}<ArrowRight /></button>)}</div></details>
         </section>
       </div>
       </Sheet>
