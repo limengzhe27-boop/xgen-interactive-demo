@@ -20,6 +20,7 @@ import { readStoryEditions, recordStoryEdition, assertEditionHistory, type Story
 import { StoryEditionHistory } from '@/components/story-edition-history';
 import { visibleSystem } from '@/lib/world-system';
 import { CreatorRequest } from '@/lib/creator-request';
+import { appendCreatorGraph, creatorAppendRequested } from '@/lib/creator-append';
 import { STORY_CATEGORIES, validDiscoveryGenre } from '@/lib/discovery-category';
 import { restoreCreatorSession, type CreatorSession } from '@/lib/creator-session';
 import { currentPlayableTask, taskDisplayStatus } from '@/lib/experience-flow';
@@ -973,6 +974,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
   };
   const remoteAIAdapter = createRemoteAIAdapter(accountScope);
   const creatorRequest = useRef(new CreatorRequest());
+  const latestCreatorSections = useRef('');
   useEffect(() => () => creatorRequest.current.cancel(), []);
   const [view, setView] = useState<View>('home');
   const [preferText, setPreferText] = useState(false);
@@ -2177,11 +2179,33 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
         },
       }, signal), false);
       if (!creatorRequest.current.current(signal) || revision !== navigationRevision.current) return;
+      if (creatorAppendRequested(value) && latestCreatorSections.current !== JSON.stringify(baseline)) {
+        setCreatorMessages(current => [...current, { role: 'agent', content: '生成期间设定有新修改，本轮没有覆盖你的手改。请基于当前画布重新追加。' } satisfies CreatorChatMessage].slice(-12));
+        return;
+      }
       setCreatorMessages((current) => [...current, { role: 'agent', content: response.reply } satisfies CreatorChatMessage].slice(-12));
       if (response.discussionOnly) {
         setCreatorQuestions(response.nextQuestions.slice(0, 3));
         setCreatorChangeNotice(response.proposalIssue || '');
         return; // Keep pending edits and the current canvas; discussion is not a replacement proposal.
+      }
+      if (creatorAppendRequested(value) && creatorBrief.storyGraph && !proposalChanges.length) {
+        const result = appendCreatorGraph(creatorBrief.storyGraph, response.proposal.brief.storyGraph, value);
+        if (result.graph) {
+          const change: CreatorChange = { key: 'storyGraph', label: '追加故事事件', before: creatorBrief.storyGraph,
+            after: result.graph, roleOrder: draftRoles.map(role => role.editorId!) };
+          const problem = creatorProposalProblem(change);
+          if (!problem) {
+            if (!applyCreatorProposal(change)) return;
+            setCreatorMessages(current => [...current, { role: 'agent', content: `已将${result.added!.map(n => `「${n.title}」`).join('、')}写入画布，原节点、角色入场与认知保持不变。可在最近修改中撤销；尚未发布。` } satisfies CreatorChatMessage].slice(-12));
+            setCreatorQuestions([]);
+            return;
+          }
+          setCreatorChangeNotice(problem);
+          return;
+        }
+        setCreatorChangeNotice(result.issue || '没有新增节点，画布未改动。');
+        return;
       }
       setCreatorProposal(response.proposal);
       const brief = normalizeCreatorBrief({ ...response.proposal.brief, discoveryGenre: response.proposal.brief.discoveryGenre ?? creatorBrief.discoveryGenre });
@@ -2204,7 +2228,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
           setCreatorMessages(current => [...current, {role:'agent',content:result}].slice(-12) as CreatorChatMessage[]);
         }
       } else setProposalChanges(nextChanges);
-      setCreatorChangeNotice(response.proposalIssue || '');
+      setCreatorChangeNotice(response.proposalIssue || (creatorAppendRequested(value) && proposalChanges.length ? '新事件已整理到建议画布。当前还有未采纳内容，请确认后一起采纳，避免自动写入其他未确认设定。' : ''));
       setCreatorQuestions(response.nextQuestions.slice(0, 3));
     } catch (error) {
       if (!creatorRequest.current.current(signal) || revision !== navigationRevision.current) return;
@@ -2218,6 +2242,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
   function creatorSections(): Record<string, unknown> {
     return { ...creatorBrief, entryPolicy, surpriseLevel: surprise, title: worldTitle, premise: worldSeed, castAndTasks: { roles: draftRoles, tasks: creatorBrief.tasks } };
   }
+  useEffect(() => { latestCreatorSections.current = JSON.stringify(creatorSections()); });
 
   function continuationFingerprint() {
     return JSON.stringify({ worldTitle, worldSeed, draftRoles, creatorBrief, generatedStoryOutline, generatedWorld, entryPolicy, surprise });
@@ -2350,9 +2375,9 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
   function applyCreatorProposal(change: CreatorChange, undo = false) {
     if (!undo) change = rebaseCreatorAcceptance(creatorSections(), change);
     const problem = creatorProposalProblem(change, undo);
-    if (problem) { setCreatorChangeNotice(problem); return; }
+    if (problem) { setCreatorChangeNotice(problem); return false; }
     const next = applyCreatorChange(creatorSections(), change, undo);
-    if (!next) { setCreatorChangeNotice(`「${change.label}」已有新的手动修改，未覆盖。请重新讨论或手动调整。`); return; }
+    if (!next) { setCreatorChangeNotice(`「${change.label}」已有新的手动修改，未覆盖。请重新讨论或手动调整。`); return false; }
     if (change.key === '__all') {
       setWorldTitle(next.title as string); setWorldSeed(next.premise as string);
       setSurprise(next.surpriseLevel as number); setEntryPolicy(restoreEntryPolicy(next.entryPolicy));
@@ -2385,6 +2410,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     if (undo) setCreatorUndo((items) => items.filter((item) => item !== change));
     else { setProposalChanges((items) => items.filter((item) => item.key !== change.key)); setCreatorUndo((items) => [...items, change].slice(-12)); }
     setCreatorChangeNotice(`${undo ? '已撤销' : '已采纳'}「${change.label}」，其他设定保持不变。`);
+    return true;
   }
 
   function updateCreatorBriefField(key: keyof Pick<CreatorBrief, 'discoveryGenre' | 'coreGoal' | 'successCondition' | 'failureCondition'>, value: string) {

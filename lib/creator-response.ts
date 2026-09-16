@@ -2,6 +2,7 @@ import type { CreatorAgentRequest, CreatorAgentResponse } from './ai-contracts.t
 import { isCreatorAgentResponse } from './ai-validation.ts';
 import { creatorStoryIssues } from './creator-story-graph.ts';
 import { normalizeCreatorProposal } from './creator-normalization.ts';
+import { appendCreatorGraph, creatorAppendRequested } from './creator-append.ts';
 
 const record = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
 
@@ -35,6 +36,10 @@ export function creatorDiscussion(reply: string, input: CreatorAgentRequest, pro
 /** Omitted fields mean unchanged, not blank. Supplied invalid fields are never adopted. */
 export function readCreatorResponse(value: unknown, input: CreatorAgentRequest): CreatorAgentResponse | null {
   if (!record(value) || typeof value.reply !== 'string' || !value.reply.trim()) return null;
+  if (creatorAppendRequested(input.userMessage) && !record(value.proposal)) {
+    return creatorDiscussion('本轮没有返回可写入的事件节点，画布未改动。请重试追加事件。', input,
+      '没有返回节点数据，不将对话中的“已添加”当作完成。');
+  }
   if (value.proposal === undefined || value.proposal === null) return creatorDiscussion(value.reply, input,
     typeof value.proposalIssue === 'string' ? value.proposalIssue : undefined);
   if (!record(value.proposal) || (value.proposal.brief !== undefined && !record(value.proposal.brief))) {
@@ -43,7 +48,15 @@ export function readCreatorResponse(value: unknown, input: CreatorAgentRequest):
   const pending = input.pendingProposal;
   const base = pending && isCreatorAgentResponse({ reply: 'pending', proposal: pending, nextQuestions: [], readiness: 'needs_detail' }) ? pending : input.currentDraft;
   const { proposal: p, notices } = normalizeCreatorProposal(value.proposal, base.brief?.storyGraph?.nodes.map(n => n.id));
-  const brief = { ...(base.brief ?? {}), ...(record(p.brief) ? p.brief : {}) };
+  if (creatorAppendRequested(input.userMessage) && base.brief?.storyGraph) {
+    const result = appendCreatorGraph(base.brief.storyGraph, record(p.brief) ? p.brief.storyGraph : undefined, input.userMessage);
+    if (!result.graph) return creatorDiscussion(result.issue!, input, result.issue);
+    // The author authorized a graph append, not adoption of unrelated pending suggestions.
+    return { reply: `已构思新事件：${result.added!.map(n => `「${n.title}」`).join('、')}。`,
+      discussionOnly: false, proposal: { ...base, brief: { ...base.brief, storyGraph: result.graph } },
+      nextQuestions: [], readiness: 'needs_detail' };
+  }
+  const brief = { ...base.brief, ...(record(p.brief) ? p.brief : {}) };
   const count = Array.isArray(p.characters) ? p.characters.length : ('characters' in base ? base.characters?.length : undefined) ?? input.characters?.length ?? 0;
   const roleIds = Array.from({ length: count }, (_, i) => `draft-role-${i}`);
   const graphIssues = creatorStoryIssues(brief.storyGraph, roleIds);

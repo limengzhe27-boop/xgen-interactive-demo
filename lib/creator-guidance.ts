@@ -1,8 +1,11 @@
 import type { CreatorAgentRequest } from './ai-contracts.ts';
 import { CREATOR_STORY_GRAPH_GUIDANCE } from './creator-story-graph.ts';
+import { creatorAppendRequested } from './creator-append.ts';
 
 /** Route by what the author is working on, not a forced number of conversation rounds. */
 export function creatorGraphGuidance(input: Partial<CreatorAgentRequest>) {
+  if (creatorAppendRequested(input.userMessage)) return `${CREATOR_STORY_GRAPH_GUIDANCE}
+本轮作者明确委托追加事件，请执行而不是再次询问同一个选择题。依据当前画布构思至少一个真正的新节点并返回完整 storyGraph，不得只在reply声称已添加。沿用原节点ID、内容、连线、startNodeId和全部entries；entries仅表示首次入场，不是角色在每个事件中的状态，追加事件绝不迁移入口或改写入场认知。本轮只追加画布，不修改人物或其他设定。用户指定父节点时从该节点连接；未指定且存在多个末端时说明选择的延伸位置。新节点应有具体局面变化、人物行动空间和可能后果，不必写完后续故事或提前替玩家作决定。reply描述提案内容，不宣称已保存；写入结果由程序反馈。nextQuestions返回空数组。`;
   const requested = /画布|节点|分支|入场|开场|前情|故事脉络|剧情走向/.test(input.userMessage || '')
     || input.editingContext?.focusedField === 'storyGraph';
   const roleDiscussion = /角色|人物|性格|动机|关系|名字|姓名|形象|外观|补充|加人|悟净|悟空|八戒|唐僧/.test(input.userMessage || '')

@@ -13,9 +13,10 @@ function Field({ label, value, onChange, rows = 2 }: { label: string; value: str
   return <label className={styles.field}><span>{label}</span><textarea rows={rows} maxLength={3000} value={value} onChange={e => onChange(e.target.value)} /></label>;
 }
 
-function NodeDetails({ graph, nodeId, roleId, roleName, suggested, busy, onSave, onSelectNode }: {
+function NodeDetails({ graph, nodeId, roleId, roleName, suggested, busy, onSave, onSelectNode, onAsk }: {
   graph: CreatorStoryGraph; nodeId: string; roleId: string; roleName: string; suggested: boolean; busy: boolean; onSave: (graph: CreatorStoryGraph) => void;
   onSelectNode?: (id: string) => void;
+  onAsk: (text: string) => void;
 }) {
   const [edited, setEdited] = useState(graph);
   const [notice, setNotice] = useState('');
@@ -157,11 +158,12 @@ function NodeDetails({ graph, nodeId, roleId, roleName, suggested, busy, onSave,
         <Button type="submit" size="sm">{suggested ? '保存到建议' : '保存到草稿'}</Button>
       </div>
       <div className={styles.nodeActions}>
+        <Button type="button" variant="outline" size="sm" disabled={edited.nodes.length >= 16} onClick={() => onAsk(`请构思并添加一个新事件节点，接在「${node.title}」（节点ID：${node.id}）之后${node.nextNodeIds.length ? '，作为另一条可能走向，保留已有后续' : ''}。请给出具体局面变化、人物可采取的行动与可能后果，保留原节点和所有角色首次入场。`)}><Sparkles size={14} />让 Agent 接着「{node.title}」构思</Button>
         <Button type="button" variant="outline" size="sm" disabled={edited.nodes.length >= 16} onClick={handleAddNextNode}>
           {node.nextNodeIds.length > 0 ? (
             <><GitFork size={14} />为此节点添加平行分支（第 {node.nextNodeIds.length + 1} 条走向）</>
           ) : (
-            <><ArrowRight size={14} />添加后续走向</>
+            <><ArrowRight size={14} />手动添加后续走向</>
           )}
         </Button>
         {node.id !== edited.startNodeId && (
@@ -283,7 +285,7 @@ export function CreatorStoryCanvas({ title, graph: inputGraph, roles, images, su
           <svg width={width} height={rows.length * 128 + 24} aria-hidden="true">{graph.nodes.flatMap(n => n.nextNodeIds.map(next => { const a = points.get(n.id)!, b = points.get(next)!; return <path key={`${n.id}-${next}`} d={`M${a.x + 103},${a.y + 88} C${a.x + 103},${a.y + 112} ${b.x + 103},${b.y - 24} ${b.x + 103},${b.y}`} />; }))}</svg>
           {graph.nodes.map(n => { const p = points.get(n.id)!; const names = graph.entries.filter(e => e.nodeId === n.id).map(e => roles[roleIds.indexOf(e.roleId)]?.name).filter(Boolean); return <button type="button" key={n.id} className={styles.node} style={{ left: p.x, top: p.y }} aria-pressed={nodeId === n.id} data-entry={entry?.nodeId === n.id} data-prior={entry?.defaultPath.includes(n.id) && entry.nodeId !== n.id} onClick={() => setSelectedNode(n.id)}><small>{n.id === graph.startNodeId ? '共同开场' : names.length ? `${names.join('、')}入场` : '可能走向'}</small><strong>{n.title}</strong><span><MapPin size={12} />{n.location || '地点待补充'}</span></button>; })}
         </div></section>
-        <NodeDetails key={`${nodeId}/${roleId}/${JSON.stringify(graph)}`} graph={graph} nodeId={nodeId} roleId={roleId} roleName={role?.name || '所选角色'} suggested={suggested} busy={busy} onSave={onSave} onSelectNode={setSelectedNode} />
+        <NodeDetails key={`${nodeId}/${roleId}/${JSON.stringify(graph)}`} graph={graph} nodeId={nodeId} roleId={roleId} roleName={role?.name || '所选角色'} suggested={suggested} busy={busy} onSave={onSave} onSelectNode={setSelectedNode} onAsk={onAsk} />
       </> : <div className={styles.empty}><GitBranch size={32} /><h3>{busy ? 'Agent 正在整理故事结构' : '从一个场景，长出整个故事'}</h3><p>{problem || '先聊聊人物在哪里、发生了什么。Agent 的故事节点与角色入场建议，会出现在这里。'}</p><Button variant="outline" disabled={busy} onClick={() => onAsk('请根据已有设定整理故事画布：共同开场、可能的后续分支，以及每个角色从哪个节点入场、当时知道什么。不要改变我已确认的人物和事件；不确定的地方先问我。')}>和 Agent 整理画布<ArrowRight size={16} /></Button><Button variant="ghost" disabled={busy || suggested} onClick={() => onSave({ startNodeId: 'opening', nodes: [{ id: 'opening', title: '共同开场', location: '', scene: '', worldFacts: [], nextNodeIds: [] }], entries: [] })}>先手动建立开场</Button></div>}
     </div>
     <footer className={styles.footer}>
