@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Image from 'next/image';
-import { GitBranch, MapPin, Users, ArrowRight, Sparkles, Check, Trash2 } from 'lucide-react';
+import { GitBranch, MapPin, Users, ArrowRight, Sparkles, Check, Trash2, GitFork, X as CloseIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { CreatorRoleDraft } from '@/lib/creator-changes';
 import { creatorEntryPaths, creatorStoryIssues, isCreatorStoryGraph, type CreatorStoryGraph } from '@/lib/creator-story-graph';
@@ -23,6 +23,19 @@ function NodeDetails({ graph, nodeId, roleId, roleName, suggested, busy, onSave,
   const entry = edited.entries.find(e => e.roleId === roleId);
   const atEntry = entry?.nodeId === nodeId;
   const paths = creatorEntryPaths(edited, nodeId);
+  const childNodes = edited.nodes.filter(n => node.nextNodeIds.includes(n.id));
+  const parentNodes = edited.nodes.filter(n => n.nextNodeIds.includes(node.id));
+  const candidateMergeNodes = edited.nodes.filter(n =>
+    n.id !== node.id &&
+    !node.nextNodeIds.includes(n.id)
+  ).filter(n => {
+    const testGraph = {
+      ...edited,
+      nodes: edited.nodes.map(item => item.id === node.id ? { ...item, nextNodeIds: [...item.nextNodeIds, n.id] } : item),
+    };
+    return creatorStoryIssues(testGraph).length === 0;
+  });
+
   const updateNode = (patch: Partial<typeof node>) => setEdited(g => ({ ...g, nodes: g.nodes.map(n => n.id === nodeId ? { ...n, ...patch } : n) }));
   const updateEntry = (patch: Partial<CreatorStoryGraph['entries'][number]>) => setEdited(g => ({ ...g, entries: g.entries.map(e => e.roleId === roleId ? { ...e, ...patch } : e) }));
   const assign = () => {
@@ -41,8 +54,39 @@ function NodeDetails({ graph, nodeId, roleId, roleName, suggested, busy, onSave,
     if (issue) { setNotice(issue); return; }
     setEdited(next);
     onSave(next);
-    setNotice('已添加新节点，可在此完善走向与场景。');
+    setNotice(node.nextNodeIds.length > 0 ? '已为此节点添加新的平行分支走向。' : '已添加后续走向节点，可在此完善场景。');
     if (onSelectNode) onSelectNode(id);
+  };
+
+  const handleDisconnectChild = (childId: string) => {
+    const next = {
+      ...edited,
+      nodes: edited.nodes.map(item => item.id === node.id ? { ...item, nextNodeIds: item.nextNodeIds.filter(id => id !== childId) } : item),
+    };
+    const issues = creatorStoryIssues(next);
+    if (issues.length) {
+      setNotice(`无法断开此分支连线：${issues[0]}`);
+      return;
+    }
+    setEdited(next);
+    onSave(next);
+    setNotice('已断开连线。');
+  };
+
+  const handleConnectExisting = (targetId: string) => {
+    if (!targetId) return;
+    const next = {
+      ...edited,
+      nodes: edited.nodes.map(item => item.id === node.id ? { ...item, nextNodeIds: [...item.nextNodeIds, targetId] } : item),
+    };
+    const issues = creatorStoryIssues(next);
+    if (issues.length) {
+      setNotice(`无法汇合到该节点：${issues[0]}`);
+      return;
+    }
+    setEdited(next);
+    onSave(next);
+    setNotice(`已将走向汇合至「${edited.nodes.find(item => item.id === targetId)?.title || targetId}」`);
   };
 
   const handleDeleteNode = () => {
@@ -114,12 +158,70 @@ function NodeDetails({ graph, nodeId, roleId, roleName, suggested, busy, onSave,
       </div>
       <div className={styles.nodeActions}>
         <Button type="button" variant="outline" size="sm" disabled={edited.nodes.length >= 16} onClick={handleAddNextNode}>
-          添加后续节点<ArrowRight size={14} />
+          {node.nextNodeIds.length > 0 ? (
+            <><GitFork size={14} />为此节点添加平行分支（第 {node.nextNodeIds.length + 1} 条走向）</>
+          ) : (
+            <><ArrowRight size={14} />添加后续走向</>
+          )}
         </Button>
         {node.id !== edited.startNodeId && (
           <Button type="button" variant="ghost" size="sm" onClick={handleDeleteNode} style={{ color: 'var(--color-error)' }}>
             <Trash2 size={14} />删除此节点
           </Button>
+        )}
+      </div>
+      <div className={styles.branchNavigation}>
+        {parentNodes.length > 0 && (
+          <div className={styles.branchList}>
+            <span>上级走向：</span>
+            {parentNodes.map(p => (
+              <button type="button" key={p.id} className={styles.branchChip} onClick={() => onSelectNode?.(p.id)}>
+                ← {p.title || '未命名'}
+              </button>
+            ))}
+          </div>
+        )}
+        <div className={styles.branchList}>
+          <span>后续分支（{childNodes.length}条）：</span>
+          {childNodes.length === 0 ? (
+            <small className={styles.branchEmpty}>尚未设置后续走向，可点击上方按钮添加。</small>
+          ) : (
+            childNodes.map((child, idx) => (
+              <span key={child.id} className={styles.branchChip}>
+                <span onClick={() => onSelectNode?.(child.id)}>
+                  分支 {idx + 1}：{child.title || '未命名'} →
+                </span>
+                <span
+                  role="button"
+                  tabIndex={0}
+                  className={styles.branchChipClose}
+                  title="断开此分支连线"
+                  onClick={e => { e.stopPropagation(); handleDisconnectChild(child.id); }}
+                >
+                  <CloseIcon size={10} />
+                </span>
+              </span>
+            ))
+          )}
+        </div>
+        {candidateMergeNodes.length > 0 && (
+          <div className={styles.mergeAction}>
+            <label className={styles.mergeLabel}>
+              <span>汇合走向：</span>
+              <select
+                value=""
+                disabled={busy}
+                onChange={e => handleConnectExisting(e.target.value)}
+              >
+                <option value="">连线到已有节点（分支汇合）…</option>
+                {candidateMergeNodes.map(cand => (
+                  <option key={cand.id} value={cand.id}>
+                    汇合至：{cand.title || cand.id}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
         )}
       </div>
       <div className={styles.detailColumns}>
