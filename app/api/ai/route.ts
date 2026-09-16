@@ -55,6 +55,7 @@ operationInstructions['advance-world'] += '\n同一存档可切换角色。以 s
 const videoTurnContract = operationInstructions['advance-world'];
 for (const op of ['generate-world', 'advance-world'] as const) operationInstructions[op] += creativeGuidance(op);
 operationInstructions['advance-world'] += '\nworld.storyGraph 是作者的可能走向与角色新存档入场框架，绝不是已发生历史。后续节点事实、其他分支事实、其他角色的入场认知不得自动写入当前存档或当前角色知识。只以当前存档实际发生的事实推进，已有存档换角色不使用默认前史跳时间。';
+operationInstructions['advance-world'] += '\n节点的trigger和possibilities是可选的作者意图：根据实际存档判断条件是否成立，再结合玩家行动和人物动机推演可能的收益、代价及他人反应。不得把这些建议当作已经发生的事实，不强迫玩家执行action，不限制玩家只能选择列出的行动，不自动向角色泄露consequence；字段缺失也应正常推进。';
 operationInstructions['generate-world'] += '\n若 creatorBrief.storyGraph 存在，这是作者已采纳的故事画布，必须保留节点与角色关联。它表达可能走向而不是玩家已完成的事件，不能把所有分支都写成共同前史。';
 operationInstructions['generate-world'] += CONTINUATION_GUIDANCE + CHARACTER_ENTRY_GUIDANCE;
 

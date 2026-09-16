@@ -55,9 +55,27 @@ test('publication whitelist retains only graph fields and restore rebases role I
   // Use a repository fixture, never create or publish a real user's world.
   const source = JSON.parse(readFileSync(new URL('../scripts/fixtures/creator-story-world.json', import.meta.url), 'utf8'));
   const g = graph(); g.entries[0].roleId = 'person-a'; g.entries[1].roleId = 'person-b';
+  g.nodes[1].trigger = '有人质疑邀请函';
+  g.nodes[1].possibilities = [{ actor: '来访者', action: '公开邀请函', consequence: '获得解释，也暴露自己的来意' }];
   g.privateChat = 'must not be public';
   const world = publicationWorld({ ...source, storyGraph: g });
   assert.equal(world.storyGraph.privateChat, undefined);
+  assert.deepEqual(world.storyGraph.nodes[1].possibilities, g.nodes[1].possibilities);
   const restored = publicationDraft({ id: 'test-world', title: world.title, genre: '', premise: world.premise, cover: '', portraits: {}, world });
   assert.deepEqual(restored.data.creatorBrief.storyGraph.entries.map(e => e.roleId), ['draft-role-0', 'draft-role-1']);
+  assert.deepEqual(restored.data.creatorBrief.storyGraph.nodes[1], g.nodes[1]);
+});
+test('event possibilities remain optional and bounded without changing entry or facts', () => {
+  const g = graph();
+  assert.equal(isCreatorStoryGraph(g), true);
+  const entries = structuredClone(g.entries), facts = structuredClone(g.nodes[0].worldFacts);
+  g.nodes[0].possibilities = [{ actor: '', action: '', consequence: '' }];
+  g.nodes[0].trigger = '';
+  assert.equal(isCreatorStoryGraph(g), true);
+  assert.deepEqual(g.entries, entries);
+  assert.deepEqual(g.nodes[0].worldFacts, facts);
+  g.nodes[0].possibilities = Array(7).fill({ actor: '', action: '', consequence: '' });
+  assert.equal(isCreatorStoryGraph(g), false);
+  g.nodes[0].possibilities = [{ actor: '来访者', action: {}, consequence: '' }];
+  assert.equal(isCreatorStoryGraph(g), false);
 });

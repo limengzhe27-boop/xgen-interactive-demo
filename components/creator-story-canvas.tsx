@@ -235,6 +235,18 @@ function NodeDetails({ graph, nodeId, roleId, roleName, suggested, busy, onSave,
           <Field label="玩家看到的第一人称入场" value={entry.scene} rows={3} onChange={scene => updateEntry({ scene })} />
         </> : <div className={styles.entryEmpty}><p>{entry ? `首次体验从「${graph.nodes.find(n => n.id === entry.nodeId)?.title}」开始，不会因为查看这个事件而改变。` : '这个角色尚未指定首次入场位置。'}</p><p>后续事件不需要重新设置入场。角色是否参与、获知什么，由故事条件与体验中的行动决定；无需预先写完全部对白。</p><details><summary>调整首次入场位置</summary><p>仅在希望这个角色从此事件开始体验时调整。原入场认知会清空，需重新确认。</p><Button type="button" variant="outline" disabled={!roleId || !paths.length} onClick={assign}>将首次入场改到这里<ArrowRight size={16} /></Button></details></div>}</section>
       </div>
+      <details>
+        <summary>可能的行动与代价 · 可选</summary>
+        <p>不必写完整剧情。这里只记录可能性；实际如何发生，由体验中的选择与世界状态决定，不改变角色首次入场。</p>
+        <Field label="什么情况下可能发生" value={node.trigger ?? ''} onChange={trigger => updateNode({ trigger })} />
+        {(node.possibilities ?? []).map((possibility, index) => <div key={index}>
+          <Field label="谁可能参与" rows={1} value={possibility.actor} onChange={actor => updateNode({ possibilities: node.possibilities!.map((p, i) => i === index ? { ...p, actor } : p) })} />
+          <Field label="可能采取什么行动" value={possibility.action} onChange={action => updateNode({ possibilities: node.possibilities!.map((p, i) => i === index ? { ...p, action } : p) })} />
+          <Field label="可能获得什么、付出什么，或引起谁的反应" value={possibility.consequence} onChange={consequence => updateNode({ possibilities: node.possibilities!.map((p, i) => i === index ? { ...p, consequence } : p) })} />
+          <Button type="button" variant="outline" onClick={() => updateNode({ possibilities: node.possibilities!.filter((_, i) => i !== index) })}>移除这项可能性</Button>
+        </div>)}
+        <Button type="button" variant="outline" disabled={(node.possibilities?.length ?? 0) >= 6} onClick={() => updateNode({ possibilities: [...(node.possibilities ?? []), { actor: '', action: '', consequence: '' }] })}>添加一种可能</Button>
+      </details>
       {notice && <output className={styles.notice}>{notice}</output>}
     </fieldset>
   </form>;
