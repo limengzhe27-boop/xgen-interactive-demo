@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { creatorStoryIssues, creatorEntryPaths, remapCreatorStoryRoles, isCreatorStoryGraph } from '../lib/creator-story-graph.ts';
+import { creatorStoryIssues, creatorEntryPaths, remapCreatorStoryRoles, isCreatorStoryGraph, preserveEventIntent } from '../lib/creator-story-graph.ts';
 import { creatorChanges, combineCreatorChanges, applyCreatorChange } from '../lib/creator-changes.ts';
 import { publicationWorld } from '../lib/publication.ts';
 import { publicationDraft } from '../lib/restore-publication.ts';
@@ -56,7 +56,8 @@ test('publication whitelist retains only graph fields and restore rebases role I
   const source = JSON.parse(readFileSync(new URL('../scripts/fixtures/creator-story-world.json', import.meta.url), 'utf8'));
   const g = graph(); g.entries[0].roleId = 'person-a'; g.entries[1].roleId = 'person-b';
   g.nodes[1].trigger = '有人质疑邀请函';
-  g.nodes[1].possibilities = [{ actor: '来访者', action: '公开邀请函', consequence: '获得解释，也暴露自己的来意' }];
+  g.nodes[1].eventIntent = 'key_event';
+  g.nodes[1].possibilities = [{ actor: '来访者', action: '公开邀请函', consequence: '获得解释，也暴露自己的来意', condition: '来访者愿意公开' }];
   g.privateChat = 'must not be public';
   const world = publicationWorld({ ...source, storyGraph: g });
   assert.equal(world.storyGraph.privateChat, undefined);
@@ -78,4 +79,16 @@ test('event possibilities remain optional and bounded without changing entry or 
   assert.equal(isCreatorStoryGraph(g), false);
   g.nodes[0].possibilities = [{ actor: '来访者', action: {}, consequence: '' }];
   assert.equal(isCreatorStoryGraph(g), false);
+});
+test('model cannot promote possible events or erase author key-event intent', () => {
+  const base = graph(); base.nodes[1].eventIntent = 'key_event';
+  const proposed = graph(); proposed.nodes[0].eventIntent = 'key_event'; proposed.nodes[1].eventIntent = 'possible';
+  const safe = preserveEventIntent(proposed, base);
+  assert.equal(safe.nodes[0].eventIntent, undefined);
+  assert.equal(safe.nodes[1].eventIntent, 'key_event');
+  assert.equal(preserveEventIntent(proposed).nodes[0].eventIntent, undefined);
+  assert.deepEqual(safe.entries, base.entries);
+  assert.deepEqual(safe.nodes[0].worldFacts, base.nodes[0].worldFacts);
+  proposed.nodes[0].eventIntent = 'always_random';
+  assert.equal(isCreatorStoryGraph(proposed), false);
 });

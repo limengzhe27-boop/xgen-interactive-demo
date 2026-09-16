@@ -260,9 +260,12 @@ function NodeDetails({ graph, nodeId, roleId, roleName, suggested, busy, onSave,
       </div>
       <details>
         <summary>可能的行动与代价 · 可选</summary>
-        <p>不必写完整剧情。这里只记录可能性；实际如何发生，由体验中的选择与世界状态决定，不改变角色首次入场。</p>
+        <p>多个方向不是必选其一：条件未满足可以都不发生，玩家也能走出新的方向。无需写完所有分支，不改变首次入场。</p>
+        {node.id !== edited.startNodeId && <label className={styles.field}><span>事件性质</span><select value={node.eventIntent ?? 'possible'} onChange={e => updateNode({ eventIntent: e.target.value as 'possible' | 'key_event' })}><option value="possible">可能发生 · 随行动与条件推演</option><option value="key_event">作者指定的关键事件 · 希望最终发生</option></select></label>}
+        {node.eventIntent === 'key_event' && <p>这是你指定的故事方向，不是已发生事实。发生方式、时机和后果仍开放，不替玩家决定行动，也不绕过世界规则。</p>}
         <Field label="什么情况下可能发生" value={node.trigger ?? ''} onChange={trigger => updateNode({ trigger })} />
         {(node.possibilities ?? []).map((possibility, index) => <div key={index}>
+          <Field label="什么情况下适用 · 可选" value={possibility.condition ?? ''} onChange={condition => updateNode({ possibilities: node.possibilities!.map((p, i) => i === index ? { ...p, condition } : p) })} />
           <Field label="谁可能参与" rows={1} value={possibility.actor} onChange={actor => updateNode({ possibilities: node.possibilities!.map((p, i) => i === index ? { ...p, actor } : p) })} />
           <Field label="可能采取什么行动" value={possibility.action} onChange={action => updateNode({ possibilities: node.possibilities!.map((p, i) => i === index ? { ...p, action } : p) })} />
           <Field label="可能获得什么、付出什么，或引起谁的反应" value={possibility.consequence} onChange={consequence => updateNode({ possibilities: node.possibilities!.map((p, i) => i === index ? { ...p, consequence } : p) })} />

@@ -9,7 +9,7 @@ import { creatorStoryIssues } from './creator-story-graph.ts';
 type Shape = 'string' | 'number' | 'boolean' | { [key: string]: Shape } | [Shape];
 const texts: Shape = ['string'];
 const schema: Shape = {
-  'storyGraph?': { startNodeId: 'string', nodes: [{ id: 'string', title: 'string', location: 'string', scene: 'string', worldFacts: texts, nextNodeIds: texts, 'trigger?': 'string', 'possibilities?': [{ actor: 'string', action: 'string', consequence: 'string' }] }], entries: [{ roleId: 'string', nodeId: 'string', defaultPath: texts, knownFacts: texts, beliefs: texts, scene: 'string' }] },
+  'storyGraph?': { startNodeId: 'string', nodes: [{ id: 'string', title: 'string', location: 'string', scene: 'string', worldFacts: texts, nextNodeIds: texts, 'eventIntent?': 'string', 'trigger?': 'string', 'possibilities?': [{ actor: 'string', action: 'string', consequence: 'string', 'condition?': 'string' }] }], entries: [{ roleId: 'string', nodeId: 'string', defaultPath: texts, knownFacts: texts, beliefs: texts, scene: 'string' }] },
   'storyHook?': 'string',
   'discoveryGenre?': 'string',
   id: 'string', title: 'string', premise: 'string', timeSetting: 'string', coreEvent: 'string', surpriseLevel: 'number',

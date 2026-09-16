@@ -1,7 +1,7 @@
 /** Authoring data, not a record of events that have happened in a player's save. */
 export type CreatorStoryGraph = {
   startNodeId: string;
-  nodes: { id: string; title: string; location: string; scene: string; worldFacts: string[]; nextNodeIds: string[]; trigger?: string; possibilities?: { actor: string; action: string; consequence: string }[] }[];
+  nodes: { id: string; title: string; location: string; scene: string; worldFacts: string[]; nextNodeIds: string[]; eventIntent?: 'possible' | 'key_event'; trigger?: string; possibilities?: { actor: string; action: string; consequence: string; condition?: string }[] }[];
   entries: { roleId: string; nodeId: string; defaultPath: string[]; knownFacts: string[]; beliefs: string[]; scene: string }[];
 };
 
@@ -15,8 +15,9 @@ export function isCreatorStoryGraph(v: unknown): v is CreatorStoryGraph {
     && v.nodes.every(n => record(n) && id(n.id) && text(n.title, 100) && text(n.location, 200) && text(n.scene)
       && list(n.worldFacts) && list(n.nextNodeIds) && n.nextNodeIds.every(id)
       && (n.trigger === undefined || text(n.trigger))
+      && (n.eventIntent === undefined || n.eventIntent === 'possible' || n.eventIntent === 'key_event')
       && (n.possibilities === undefined || (Array.isArray(n.possibilities) && n.possibilities.length <= 6
-        && n.possibilities.every(p => record(p) && text(p.actor) && text(p.action) && text(p.consequence)))))
+        && n.possibilities.every(p => record(p) && text(p.actor) && text(p.action) && text(p.consequence) && (p.condition === undefined || text(p.condition))))))
     && Array.isArray(v.entries) && v.entries.length <= 20 && v.entries.every(e => record(e) && id(e.roleId) && id(e.nodeId)
       && list(e.defaultPath) && e.defaultPath.every(id) && list(e.knownFacts) && list(e.beliefs) && text(e.scene));
 }
@@ -78,7 +79,20 @@ export function creatorEntryPaths(graph: CreatorStoryGraph, target: string): str
   return result;
 }
 
-export const CREATOR_STORY_GRAPH_GUIDANCE = `
+export const OPEN_STORY_DIRECTIONS = `
+多个后续节点和possibilities是开放参考，不是必须随机挑选一个的封闭答案库。先根据玩家实际行动、角色动机与存档事实判断条件；可能暂时都不发生，也可产生符合世界边界的新走向。连线只表示可能衔接，不表示自动触发；互斥走向不能同时提交为事实，非互斥事件可以先后发生。只有一个走向也不等于必然发生。
+事件eventIntent缺省为possible；key_event表示作者明确指定希望最终发生的关键事件，不是当前已发生事实，也不是强迫玩家执行某个动作。时机、方式、知情者和后果保持开放；不得绕过世界硬规则或伪造玩家决定来达成关键事件，条件不足先保持未发生。创作Agent不能自行把可能事件升级为key_event，需要作者在画布的事件性质中明确选择。
+构思关键局面时优先提供2～3个有实质差异的可能方向，不为每个小动作硬凑分支，不一次写完整故事。局面不同用后续节点表达；同一局面的应对方式用possibilities表达，每项可用condition说明何时适用，保留actor/action/consequence。讨论未决可能性，不把这些可能行为和后果写成已发生的worldFacts。`;
+
+/** Only the author's editor selection can promote an event to a key event. */
+export function preserveEventIntent(graph: CreatorStoryGraph, base?: CreatorStoryGraph): CreatorStoryGraph {
+  return { ...graph, nodes: graph.nodes.map(({ eventIntent: _modelIntent, ...node }) => {
+    const intent = base?.nodes.find(old => old.id === node.id)?.eventIntent;
+    return intent ? { ...node, eventIntent: intent } : node;
+  }) };
+}
+
+export const CREATOR_STORY_GRAPH_GUIDANCE = OPEN_STORY_DIRECTIONS + `
 每个事件节点可选提供 trigger（什么条件下可能发生）和 possibilities（最多6项，每项含 actor 人物称呼、action 可能行动、consequence 可能收益/代价/他人反应，均为字符串）。这些是作者的可能性设计，不是已发生事实、不要求作者填完，也不代表玩家只能选这些行动。actor只是描述，不是角色ID或入场绑定。获得授权构思时主动补充有意义的局面变化，不反复要求用户编写完整剧本；不要把可能后果写入worldFacts。未聊到的部分省略即可。
 创作画布（co-create-world 新增允许字段 proposal.brief.storyGraph）：有了人物和具体场景，就同时提供可编辑画布；只有抽象想法时先共同构思，不强迫补全。无须用户另填表。沿用 currentDraft.brief.storyGraph 和 pendingSuggestions 中稳定的节点 ID；仅修改用户要求的部分。不要把所有内容都复制成互不相干的角色时间线。开始可以只有1个开场节点，随讨论扩展，最多16个；可分支、汇合，不可循环。支持多分支树状与网状走向：同一个节点可包含多个 nextNodeIds（如 nextNodeIds: ["branch_a", "branch_b"] 分叉为多条互斥或并行走向），不同分支亦可汇合至同一节点（汇合不可成环）。不是固定通关成功/失败路线。
 JSON格式：{"startNodeId":"opening","nodes":[{"id":"opening","title":"共同开场","location":"地点","scene":"当前场景与未决动作","worldFacts":["此刻已成立的客观事实"],"nextNodeIds":["branch_a","branch_b"]},{"id":"branch_a","title":"分支A：正面突破","location":"地点","scene":"采取正面行动的场景","worldFacts":["分支A成立的事实"],"nextNodeIds":[]},{"id":"branch_b","title":"分支B：暗中潜伏","location":"地点","scene":"采取潜伏行动的场景","worldFacts":["分支B成立的事实"],"nextNodeIds":[]}],"entries":[{"roleId":"draft-role-0","nodeId":"opening","defaultPath":["opening"],"knownFacts":["该角色此刻已知的事实"],"beliefs":["尚未证实的怀疑"],"scene":"第一人称可感知的场景、处境与未决问题"},{"roleId":"draft-role-1","nodeId":"branch_a","defaultPath":["opening","branch_a"],"knownFacts":[],"beliefs":[],"scene":"后登场角色看到的当时现场"}]}。

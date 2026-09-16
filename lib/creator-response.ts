@@ -1,6 +1,6 @@
 import type { CreatorAgentRequest, CreatorAgentResponse } from './ai-contracts.ts';
 import { isCreatorAgentResponse } from './ai-validation.ts';
-import { creatorStoryIssues, isCreatorStoryGraph } from './creator-story-graph.ts';
+import { creatorStoryIssues, isCreatorStoryGraph, preserveEventIntent } from './creator-story-graph.ts';
 import { normalizeCreatorProposal } from './creator-normalization.ts';
 import { appendCreatorGraph, creatorAppendRequested } from './creator-append.ts';
 
@@ -48,6 +48,9 @@ export function readCreatorResponse(value: unknown, input: CreatorAgentRequest):
   const pending = input.pendingProposal;
   const base = pending && isCreatorAgentResponse({ reply: 'pending', proposal: pending, nextQuestions: [], readiness: 'needs_detail' }) ? pending : input.currentDraft;
   const { proposal: p, notices } = normalizeCreatorProposal(value.proposal, base.brief?.storyGraph?.nodes.map(n => n.id));
+  if (record(p.brief) && isCreatorStoryGraph(p.brief.storyGraph)) {
+    p.brief.storyGraph = preserveEventIntent(p.brief.storyGraph, base.brief?.storyGraph);
+  }
   if (creatorAppendRequested(input.userMessage)) {
     if (base.brief?.storyGraph) {
       const result = appendCreatorGraph(base.brief.storyGraph, record(p.brief) ? p.brief.storyGraph : undefined, input.userMessage);

@@ -4,7 +4,7 @@ import { INTERACTION_CLARITY_GUIDANCE } from '@/lib/interaction-clarity';
 import { characterChatGuidance, characterChatContract } from '@/lib/character-chat-guidance';
 import { exactChatRecall } from '@/lib/chat-memory';
 import { creativeGuidance } from '@/lib/creative-guidance';
-import { creatorStoryIssues } from '@/lib/creator-story-graph';
+import { creatorStoryIssues, OPEN_STORY_DIRECTIONS } from '@/lib/creator-story-graph';
 import { appendStory, CONTINUATION_GUIDANCE } from '@/lib/story-continuation';
 import { publicationWorld } from '@/lib/publication';
 import { CHARACTER_ENTRY_GUIDANCE } from '@/lib/character-entry';
@@ -52,6 +52,7 @@ const operationInstructions: Record<Operation, string> = {
 // Shared by text and video, before the video contract is captured.
 for (const op of ['generate-world','advance-world'] as const) operationInstructions[op] += STORY_PROGRESSION_GUIDANCE;
 operationInstructions['advance-world'] += INTERACTION_CLARITY_GUIDANCE;
+for (const op of ['co-create-world', 'generate-world', 'advance-world'] as const) operationInstructions[op] += OPEN_STORY_DIRECTIONS;
 // Video has its own 15-second direction below; do not also ask for long illustrated prose.
 operationInstructions['advance-world'] += '\n同一存档可切换角色。以 state.clock/location/characterStates 为当前时刻与位置，不重新应用角色 entry，不把切换视为行动或新开局。state.inventory/clues/knownSecrets/eventLedger 只属于当前角色；全局 committedFacts/taskNotes/任务进度是世界真相，不等于角色已知。没有获知途径不得在对白或画面泄露。';
 const videoTurnContract = operationInstructions['advance-world'];
