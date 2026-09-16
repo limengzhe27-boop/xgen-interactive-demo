@@ -228,12 +228,12 @@ function NodeDetails({ graph, nodeId, roleId, roleName, suggested, busy, onSave,
       </div>
       <div className={styles.detailColumns}>
         <section><h4>此刻的世界</h4><Field label="节点名称" value={node.title} rows={1} onChange={title => updateNode({ title })} /><Field label="时间与地点" value={node.location} rows={1} onChange={location => updateNode({ location })} /><Field label="场景与当前动作" value={node.scene} onChange={scene => updateNode({ scene })} /><Field label="客观事实 · 每行一条" value={node.worldFacts.join('\n')} onChange={v => updateNode({ worldFacts: lines(v) })} /></section>
-        <section><h4>{roleName} · 如何进入</h4>{atEntry ? <>
+        <section><h4>{roleName} · {atEntry ? '首次入场' : '与此事件的关系'}</h4>{atEntry ? <>
           <label className={styles.field}><span>新存档的默认前史</span><select value={JSON.stringify(entry.defaultPath)} onChange={e => { updateEntry({ defaultPath: JSON.parse(e.target.value), knownFacts: [], beliefs: [], scene: '' }); setNotice('前史路径已改变，请重新确认该角色的认知与入场，不沿用另一条分支的信息。'); }}>{paths.map(path => <option key={path.join('/')} value={JSON.stringify(path)}>{path.map(id => graph.nodes.find(n => n.id === id)?.title).join(' → ')}</option>)}</select></label>
           <Field label="已知事实 · 每行一条" value={entry.knownFacts.join('\n')} onChange={v => updateEntry({ knownFacts: lines(v) })} />
           <Field label="怀疑与误解 · 不等于事实" value={entry.beliefs.join('\n')} onChange={v => updateEntry({ beliefs: lines(v) })} />
           <Field label="玩家看到的第一人称入场" value={entry.scene} rows={3} onChange={scene => updateEntry({ scene })} />
-        </> : <div className={styles.entryEmpty}><p>{entry ? `这个角色当前从「${graph.nodes.find(n => n.id === entry.nodeId)?.title}」进入。` : '这个角色尚未指定入场位置。'}</p><p>晚登场角色可以从这里开始。其认知需要单独设定，不会自动获得全部世界事实。</p><Button type="button" variant="outline" disabled={!roleId || !paths.length} onClick={assign}>从此处入场<ArrowRight size={16} /></Button></div>}</section>
+        </> : <div className={styles.entryEmpty}><p>{entry ? `首次体验从「${graph.nodes.find(n => n.id === entry.nodeId)?.title}」开始，不会因为查看这个事件而改变。` : '这个角色尚未指定首次入场位置。'}</p><p>后续事件不需要重新设置入场。角色是否参与、获知什么，由故事条件与体验中的行动决定；无需预先写完全部对白。</p><details><summary>调整首次入场位置</summary><p>仅在希望这个角色从此事件开始体验时调整。原入场认知会清空，需重新确认。</p><Button type="button" variant="outline" disabled={!roleId || !paths.length} onClick={assign}>将首次入场改到这里<ArrowRight size={16} /></Button></details></div>}</section>
       </div>
       {notice && <output className={styles.notice}>{notice}</output>}
     </fieldset>

@@ -2123,7 +2123,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
 
   async function discussCreator(value: string) {
     if (!value || creatorAgentThinking || worldGenerating) return;
-    if (continuation) { await discussContinuation(value); return; }
+    if (continuation && !(creatorAppendRequested(value) && creatorBrief.storyGraph && !continuation.proposal)) { await discussContinuation(value); return; }
     const confirmation = creatorConfirmation(value);
     if (confirmation) {
       let reply = '当前没有待采纳的建议。可以直接编辑世界设定，或告诉我新的想法。';
@@ -2197,6 +2197,9 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
           const problem = creatorProposalProblem(change);
           if (!problem) {
             if (!applyCreatorProposal(change)) return;
+            // Continue editing the existing private draft; the published world is untouched.
+            // Do not leave a stale legacy continuation base after a canvas append/undo.
+            if (continuation) setContinuation(undefined);
             setCreatorMessages(current => [...current, { role: 'agent', content: `已将${result.added!.map(n => `「${n.title}」`).join('、')}写入画布，原节点、角色入场与认知保持不变。可在最近修改中撤销；尚未发布。` } satisfies CreatorChatMessage].slice(-12));
             setCreatorQuestions([]);
             return;
@@ -2292,7 +2295,9 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
         storySeed: value, surpriseLevel: base.surpriseLevel, creatorBrief: normalizeCreatorBrief(creatorBrief),
       }, signal), false);
       if (!creatorRequest.current.current(signal) || revision !== navigationRevision.current) return;
-      if (!response.world.tasks.some(task => !base.tasks.some(old => old.id === task.id))) {
+      if (!response.world.tasks.some(task => !base.tasks.some(old => old.id === task.id))
+        && !response.world.characters.some(role => !base.characters.some(old => old.id === role.id))
+        && !response.world.storyGraph?.nodes.some(node => !base.storyGraph?.nodes.some(old => old.id === node.id))) {
         setCreatorMessages(current => [...current, { role: 'agent', content: response.unresolvedQuestions.join('\n') || '你希望后面具体发生什么？补充一句就好。' }].slice(-12) as CreatorChatMessage[]);
         return;
       }

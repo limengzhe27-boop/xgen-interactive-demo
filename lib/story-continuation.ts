@@ -184,7 +184,9 @@ export function appendStory(baseInput: WorldDefinition, proposedInput: WorldDefi
   const characters = additions(base.characters, proposed.characters);
   const locations = additions(base.locations, proposed.locations);
   const tasks = additions(base.tasks, proposed.tasks);
-  if (!tasks.length&&!characters.length) throw new Error('没有新的剧情或人物，请说明接下来发生什么，或想加入谁；原故事未改动。');
+  const baseGraph = ensureStoryGraph(base);
+  const hasNewGraphNode = proposed.storyGraph?.nodes.some(node => !baseGraph.nodes.some(old => old.id === node.id));
+  if (!tasks.length && !characters.length && !hasNewGraphNode) throw new Error('没有新的剧情或人物，请说明接下来发生什么，或想加入谁；原故事未改动。');
   // New locations must be reachable; only add graph edges, never remove old paths.
   const mergedLocations = base.locations.map(place => ({ ...place, connectedLocationIds: [...new Set([
     ...place.connectedLocationIds,
@@ -192,6 +194,9 @@ export function appendStory(baseInput: WorldDefinition, proposedInput: WorldDefi
   ])] }));
   const relationships = proposed.relationships.filter(relation => !base.relationships.some(old => old.fromCharacterId === relation.fromCharacterId && old.toCharacterId === relation.toCharacterId));
   const storyGraph = mergeContinuationStoryGraph(base, proposed, tasks, characters);
+  if (!tasks.length && !characters.length && !storyGraph.nodes.some(node => !baseGraph.nodes.some(old => old.id === node.id))) {
+    throw new Error('新事件未能安全连接到原故事，草稿未改动。');
+  }
   const next = { ...base,
     characters: [...base.characters, ...characters], locations: [...mergedLocations, ...locations],
     tasks: [...base.tasks, ...tasks], relationships: [...base.relationships, ...relationships],
@@ -209,6 +214,7 @@ export function appendStory(baseInput: WorldDefinition, proposedInput: WorldDefi
 export function continuationSummary(base: WorldDefinition, next: WorldDefinition): string[] {
   const fresh = <T extends { id: string }>(old: T[], items: T[]) => items.filter(item => !old.some(previous => previous.id === item.id));
   return [
+    ...fresh(ensureStoryGraph(base).nodes, next.storyGraph?.nodes ?? []).map(node => `事件：${node.title}`),
     ...fresh(base.tasks, next.tasks).map(task => `剧情：${task.title}`),
     ...fresh(base.characters, next.characters).map(role => `人物：${role.name}`),
     ...fresh(base.locations, next.locations).map(place => `地点：${place.name}`),

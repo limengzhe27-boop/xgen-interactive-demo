@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { appendStory, continuationSummary } from '../lib/story-continuation.ts';
+import { appendStory, continuationSummary, ensureStoryGraph } from '../lib/story-continuation.ts';
 import { publicationWorld } from '../lib/publication.ts';
 import { publicationDraft, historicalPublicationDraft } from '../lib/restore-publication.ts';
 import { restoreCreatorSession } from '../lib/creator-session.ts';
@@ -8,6 +8,28 @@ import { studioWorlds } from '../lib/studio-worlds.ts';
 import { playableCharacters } from '../lib/character-entry.ts';
 
 const base = publicationWorld(studioWorlds[0].world);
+test('canvas-only continuation preserves original tasks, opening and role entries',()=>{
+ const original=structuredClone(base), next=structuredClone(base);
+ const graph=ensureStoryGraph(base);
+ const leaf=graph.nodes.find(n=>!n.nextNodeIds.length);
+ leaf.nextNodeIds.push('canvas-only-event');
+ graph.nodes.push({id:'canvas-only-event',title:'新线索',location:leaf.location,scene:'一封信改变了眼前的处境',worldFacts:[],nextNodeIds:[]});
+ next.storyGraph=graph;
+ next.storyGraph.entries[0].nodeId='canvas-only-event';
+ next.storyGraph.entries[0].defaultPath=[graph.startNodeId,'canvas-only-event'];
+ const result=appendStory(base,next);
+ assert.deepEqual(base,original);
+ assert.deepEqual(result.tasks,base.tasks);
+ assert.deepEqual(result.openingScene,base.openingScene);
+ assert.deepEqual(result.storyGraph.entries,ensureStoryGraph(base).entries);
+ assert.ok(result.storyGraph.nodes.some(n=>n.id==='canvas-only-event'));
+ assert.ok(continuationSummary(base,result).includes('事件：新线索'));
+});
+test('disconnected canvas-only continuation cannot report success',()=>{
+ const next=structuredClone(base);next.storyGraph=ensureStoryGraph(base);
+ next.storyGraph.nodes.push({id:'isolated',title:'断开的事件',location:'远处',scene:'未连接',worldFacts:[],nextNodeIds:[]});
+ assert.throws(()=>appendStory(base,next),/invalid_creator_story_graph|未能安全连接/);
+});
 test('a new playable character can be appended without inventing extra tasks',()=>{
  const next=structuredClone(base);
  next.characters.push({...next.characters[0],id:'new-visitor',name:'新访客',isDefault:false,playable:true});
