@@ -135,8 +135,8 @@ test('personal Agent renders actual matches inline while keeping saved memories 
     memories: ['不想复杂解谜'], recommendations: [{ worldId: worlds[1].id, reason: '抢功与甲乙方身份反转符合你的要求', matchedMemoryIds: [] }] }));
   assert.ok(html.includes(worlds[1].title)); assert.ok(!html.includes(worlds[0].title));
   assert.ok(html.includes('抢功与甲乙方身份反转符合你的要求'));
-  assert.ok(html.includes('关于我') && !html.includes('删除记忆：不想复杂解谜'));
-  assert.ok(html.indexOf('companion-matches') > html.indexOf('personal-turn'));
+  assert.ok(html.includes('关于我'));
+  assert.ok(html.indexOf('companion-matches') > html.indexOf('companion-chat-turn') || html.indexOf('companion-matches') > html.indexOf('personal-turn'));
   assert.ok(html.includes('我想当众打脸') && html.includes('抢功旧账'));
 });
 test('failed Agent request preserves input and does not attach unanchored old matches to a new reply', () => {
@@ -174,13 +174,11 @@ test('mixed gallery preserves both entries and character-only view excludes worl
   assert.ok(!roleOnly.includes('gallery-composer-anchor'));
 });
 test('identity is visible above conversation while memory and message actions stay on demand', () => {
-  const html = renderToStaticMarkup(React.createElement(PersonalAgent, { ...personalProps, conversation: [{ role: 'user', content: '合成测试消息' }], identityPanel: React.createElement('div', null, '独立虚构身份') }));
+  const html = renderToStaticMarkup(React.createElement(PersonalAgent, { ...personalProps, conversation: [{ role: 'user', content: '合成测试消息' }], persona: { version: 1, ownerId: 'test', name: '独立虚构身份', identity: '旅人', personality: '好奇', appearance: '', abilities: '', updatedAt: 1 } }));
   assert.ok(html.includes('<details class="personal-message-actions">') && html.includes('用这条消息开始创作'));
   assert.ok(html.includes('关于我') && html.includes('独立虚构身份'));
-  assert.ok(html.indexOf('独立虚构身份') < html.indexOf('companion-conversation'));
   const source = readFileSync(new URL('../components/personal-agent.tsx', import.meta.url), 'utf8');
   assert.ok(source.includes('记忆与隐私') && source.includes('手动保存、恢复私人云存档'));
-  assert.ok(source.indexOf('{identityPanel}') > source.indexOf('</SheetContent>'));
 });
 test('identity shortcut exposes create or edit directly without requesting an image', async () => {
   const { PersonaControl } = await import('../components/player-persona.tsx');

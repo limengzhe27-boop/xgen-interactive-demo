@@ -21,9 +21,10 @@ export function ProfilePage({ persona, identityControl, profile, onProfile, memo
     <nav className="profile-switch" aria-label="个人空间"><button className="flow-control" aria-current={section === 'profile' ? 'page' : undefined} disabled={editing} onClick={() => setSection('profile')}>我的资料</button><button className="flow-control" aria-current={section === 'persona' ? 'page' : undefined} disabled={editing} onClick={() => setSection('persona')}>虚拟形象</button></nav>
     {section === 'profile' ? <>
       <section className="profile-section"><div className="profile-heading"><h2>关于真实的我</h2>{!editing && <button className="flow-control" disabled={busy} onClick={() => { setDraft(profile); setEditing(true); setNotice(''); }}>编辑资料</button>}</div>
+      <p className="profile-note">这些资料用于个人 Agent 的交流，不会自动带入虚拟角色，不会自动同步或公开。</p>
       {editing ? <form className="profile-edit" onSubmit={e => { e.preventDefault(); onProfile(draft); setEditing(false); setNotice('已更新资料；如需跨设备使用，请手动保存云端存档。'); }}>
         {Object.entries(fields).map(([key, label]) => <label key={key}>{label}<textarea maxLength={600} value={draft[key as keyof UserProfile]} onChange={e => setDraft(current => ({ ...current, [key]: e.target.value }))} /></label>)}
-        <p className="profile-note">这些资料用于个人 Agent 的交流，不会自动带入虚拟角色或公开。</p><div><button className="flow-control" type="submit" disabled={busy}>保存资料</button><button className="flow-control" type="button" onClick={() => setEditing(false)}>取消</button></div>
+        <div><button className="flow-control" type="submit" disabled={busy}>保存资料</button><button className="flow-control" type="button" onClick={() => setEditing(false)}>取消</button></div>
       </form> : <dl className="profile-persona">{Object.entries(fields).map(([key, label]) => <div key={key}><dt>{label}</dt><dd>{profile[key as keyof UserProfile] || '尚未填写'}</dd></div>)}</dl>}
       {notice && <output>{notice}</output>}</section>
       <section className="profile-section"><h2>聊天记忆</h2><p className="profile-note">与你手动填写的资料分开管理。历史条目未记录来源，不推断它们由谁填写。</p>
