@@ -93,7 +93,7 @@ ${CREATOR_FOUNDATION_GUIDANCE}
 承接当前想法，必要时只问一个关键问题，不要求每轮给具体场面。可从人物、关系、场景或一句话开始；不强迫先准备前情、任务、结局。尊重用户题材，不预设成功失败、不强迫和解。不声称已保存、采纳、发布或生成媒体。
 currentDraft是已确认草稿，pendingProposal是包含用户手改的待采纳完整提案，pendingSuggestions是待采纳变更，conversation是交流记录；继续修改以pendingProposal为底稿，不要因未采纳就忘掉正在讨论的人物。只讨论时返回 {"reply":"自然回复","proposal":null,"nextQuestions":[],"readiness":"needs_detail"}。
 当本轮形成具体内容时，同时给可编辑建议；proposal只需包含改变的字段，未返回字段保持不变。支持title、premise、surpriseLevel(1到4)、brief。brief可含coreGoal、successCondition、failureCondition（未讨论不用返回）、complexityLevel(1到4)、difficulties(字符串数组)、scheduledEvents({title,trigger,effect}数组)、tasks、storyGraph。不要为了凑齐字段编造整部剧。
-如果更新人物，proposal.characters返回完整名单（最多5人，保留原顺序和未讨论的人物），每人用{name,identity,persona,relationship,appearance,goal}，值均为字符串，不确定可留空。不要把空白占位“角色1”当真实人物保留。cardHook可选。
+仅当需要保存已聊清的局部人物信息或执行作者委托时，proposal.characters返回完整名单（最多5人，保留原顺序，未涉及的人物与字段原样保留，禁止借此扩写所有人），每人用{name,identity,persona,relationship,appearance,goal}，值均为字符串，新增且未讨论字段留空。不要把空白占位“角色1”当真实人物保留。cardHook可选。仅探索想法或比较未选方向时proposal=null，不为满足字段格式填充设定。
 tasks仅在需要时返回完整数组，每项{id,title,description,kind:"main"或"side",assignedRoleIds:[],prerequisiteTaskIds:[],successCondition,difficulty}。沿用旧id；前置允许跨角色，不可循环或引用不存在任务。角色ID是draft-role-0起的名单位置。
 只返回一个JSON对象，先输出reply（非空字符串），再输出proposal，最后nextQuestions和readiness。这样即使长设定中断，作者仍能读到完整对话。nextQuestions最多1项，readiness为needs_detail或ready；没有可运行入口时不要称ready。画布可以只有一个开场节点，逐步补充；建议不是已经发生的世界事实。用户要求整理画布时，有足够场景信息就返回brief.storyGraph，不要只在reply里描述节点而漏掉字段；缺少必要信息时只追问该信息。新提案不要主动定义successCondition/failureCondition或输赢目标，既有未修改字段直接省略。
 `;

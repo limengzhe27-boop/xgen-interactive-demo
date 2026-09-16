@@ -2,6 +2,14 @@ import type { CreatorAgentRequest } from './ai-contracts.ts';
 import { CREATOR_STORY_GRAPH_GUIDANCE } from './creator-story-graph.ts';
 import { creatorAppendRequested } from './creator-append.ts';
 
+export const CREATOR_COAUTHORING_GUIDANCE = `
+【共创节奏，优先于字段齐全】默认是和作者讨论，不是收到一句想法就交一套成品。先辨别本轮意图：探索想法、补充已确定设定、征求少量建议、明确委托构思执行、修改已有内容。上一轮委托不代表以后每轮都授权代写；“我想创建一个世界”“师徒四人各怀鬼胎”只是方向，不是授权把全部人物与剧情填满。
+普通讨论每轮只推进作者当前关注的一个话题（可以涉及相关的多个人），不强行轮流问完每个字段。先承接作者刚说的具体内容，再指出其中一个值得深入的关系或矛盾，必要时问一个具体、容易回答的问题。不要只说“你想怎么设定”，也不要替作者先写好答案再让其确认。问题要随回答变化，已回答的不重问；有明确指令就执行，不以保持参与感为由强迫每轮问问题。
+区分三类内容：作者明确表达/确认的内容，可提炼为局部可编辑建议；Agent自行提出的可能方向，清楚说“可以考虑”，普通讨论先放在reply里供比较，不写成已确认设定；尚未讨论的细节留空或沿用原值，不用套路补全。用户没灵感或征求建议时给2～3个短且有差异的方向，允许都不选，不同时扩写整份人物档案。
+proposal=null是正常有效的讨论结果，不是失败；有明确新信息时则只整理这部分，不能连续只聊天而不沉淀。用户说“沙僧想保护家人”，可以更新沙僧的动机，不能顺便编出他的信件、其他三人的秘密或开场阴谋。只提到四个人的名字，可以保留名字和已明确身份，其余留空。返回完整角色名单只是防止丢人，不等于补全每个人的全部字段；未涉及的角色与字段逐字保留，不因主题相似自动重写。
+作者明确说“你来构思”“按这个添加”“不要再问，直接写”时，在其指定范围内充分完成、给可修改建议，不再卡在反问；只委托一个人物或事件不等于授权重写整个世界。未经作者采纳的建议不能称为已确定；实际保存与添加以程序结果为准。
+普通讨论不因出现“开场”“节点”“角色”等词就自动建图。只有具体内容已聊清、作者要求整理已有内容，或明确委托构思时，才提供相应画布增量。右侧是对讨论的沉淀，不是用大批新设定抢走作者的决定权。`;
+
 export const CREATOR_FOUNDATION_GUIDANCE = `
 先判断关键世界前提是否清楚，再决定本轮聊什么，不默认先编开场。只有题材或宏观想法、且不同理解会改变人物动机或故事逻辑时，优先澄清一个最关键的世界框架问题：沿用哪些背景与规则，作者想改变什么。不要擅自确定地点、秘密、阴谋或开场；可用proposal=null保持讨论。
 例如作者只说“西天取经师徒四人各怀鬼胎、暗自盘算”，先确认是保留原有取经背景与师徒关系、主要改各人的私心，还是连取经目的和仙佛规则也要重设；这是例子，不是所有题材的固定问句。
@@ -9,6 +17,10 @@ export const CREATOR_FOUNDATION_GUIDANCE = `
 
 /** Route by what the author is working on, not a forced number of conversation rounds. */
 export function creatorGraphGuidance(input: Partial<CreatorAgentRequest>) {
+  return CREATOR_COAUTHORING_GUIDANCE + '\n' + creatorGraphStructureGuidance(input);
+}
+
+function creatorGraphStructureGuidance(input: Partial<CreatorAgentRequest>) {
   const hasGraph = Boolean(input.pendingProposal?.brief?.storyGraph || input.currentDraft?.brief?.storyGraph);
   if (creatorAppendRequested(input.userMessage)) {
     if (!hasGraph) {
@@ -27,13 +39,13 @@ export function creatorGraphGuidance(input: Partial<CreatorAgentRequest>) {
   if (requested) return CREATOR_STORY_GRAPH_GUIDANCE;
   if (hasGraph) {
     if (roleDiscussion && eventDiscussion) {
-      return `已有画布随讨论扩展，最多16个；可分支、汇合，不可循环。沿用稳定节点 ID 与连线。本轮同时涉及人物与剧情事件延伸：请在 proposal.characters 中返回完整角色名单（保留原角色顺序与已有设定，新角色追加在后）；同时若产生新事件节点，请在 brief.storyGraph 中严格沿用已有所有节点 ID 与原有连线结构不变，在末尾或分支追加 1 个新后续节点并连接，可提供新角色入场 entry，切勿推翻或重写已有节点。`;
+      return `已有画布随讨论扩展，最多16个；可分支、汇合，不可循环。沿用稳定节点 ID 与连线。本轮提及人物与事件，不等于要求都补全。仅当形成明确人物修改时在 proposal.characters 返回完整角色名单（保留原角色顺序、未涉及字段与已有设定，新角色追加在后）；仅当作者确认新事件内容或委托构思时，才在 brief.storyGraph 中沿用已有节点与连线追加相应节点。纯讨论可proposal=null，不为当前界面强行生成。`;
     }
     if (roleDiscussion) {
-      return `已有画布随讨论扩展，最多16个；可分支、汇合，不可循环。沿用稳定节点 ID 与连线。本轮重点在讨论或增补人物（如角色设定、性格、动机）：请聚焦在 proposal.characters 中返回完整名单（保留原角色顺序与已有设定，新角色追加在后）。本轮无需重写整张画布或为所有角色重新编写入场前情，直接省略 brief.storyGraph，原草稿画布将安全保留。新角色的具体入场节点可在后续轮次自然安排，避免单次输出过长导致超时。`;
+      return `已有画布随讨论扩展，最多16个；可分支、汇合，不可循环。沿用稳定节点 ID 与连线。本轮重点在讨论或增补人物（如角色设定、性格、动机）：只有形成明确修改时才在 proposal.characters 返回完整名单（保留原角色顺序，未讨论字段原样保留，新角色追加在后），不把完整名单误当成完整设定。纯讨论可proposal=null。本轮无需重写整张画布或为所有角色重新编写入场前情，直接省略 brief.storyGraph，原草稿画布将安全保留。新角色的具体入场节点可在后续轮次自然安排。`;
     }
     if (eventDiscussion) {
-      return `已有画布随讨论扩展，最多16个；可分支、汇合，不可循环。沿用稳定节点 ID 与原有连线结构。本轮涉及剧情事件延伸：若要求多分支或不同选择，可为指定父节点追加 2 个及以上的并列分支节点（如该节点的 nextNodeIds 数组包含多个新节点 ID）；若为单线延伸，在末尾追加 1 个新后续节点；不可破坏已有连线，若未修改故事脉络，可省略 brief.storyGraph。`;
+      return `已有画布随讨论扩展，最多16个；可分支、汇合，不可循环。沿用稳定节点 ID 与原有连线结构。本轮涉及事件话题，但讨论可能性不等于授权添加。作者确认内容、要求整理或明确委托时才返回对应brief.storyGraph；若请求多分支可追加并列节点，单线延伸则追加后续节点。不可破坏已有连线；尚在讨论的方向先在reply说明，省略brief.storyGraph或返回proposal=null。`;
     }
     return `已有画布随讨论扩展，最多16个；可分支、汇合，不可循环。沿用稳定节点 ID 与连线。本轮若形成新事件或调整开场，可更新 brief.storyGraph；若未修改故事脉络，可省略 brief.storyGraph。`;
   }
