@@ -3402,28 +3402,55 @@ function CreateWorld({
       <label htmlFor="world-title">世界名称</label>
       <Input id="world-title" value={worldTitle} onChange={(event) => onWorldTitle(event.target.value)} placeholder="可以暂时不填" />
       <div className="discovery-genre-control">
-        <label htmlFor="discovery-genre">剧情分类</label>
-        <div className="discovery-genre-row">
-          <NativeSelect
-            id="discovery-genre"
-            className="discovery-genre-select"
-            value={(creatorBrief.discoveryGenre || '').split(' · ')[0]}
-            onChange={event => onUpdateCreatorBrief('discoveryGenre', event.target.value + (event.target.value && creatorBrief.discoveryGenre?.includes('热梗名场面') ? ' · 热梗名场面' : ''))}
-          >
-            <NativeSelectOption value="">尚未确定</NativeSelectOption>
-            {STORY_CATEGORIES.map(category => <NativeSelectOption key={category} value={category}>{category}</NativeSelectOption>)}
-          </NativeSelect>
+        <div className="discovery-genre-heading">
+          <label htmlFor="discovery-genre-group">剧情分类</label>
+          <span className="discovery-genre-current">
+            {creatorBrief.discoveryGenre ? `当前：${creatorBrief.discoveryGenre}` : '尚未确定'}
+          </span>
+        </div>
+        <div id="discovery-genre-group" className="genre-chip-group" role="radiogroup" aria-label="选择剧情分类">
+          {STORY_CATEGORIES.map(category => {
+            const isSelected = (creatorBrief.discoveryGenre || '').split(' · ')[0] === category;
+            return (
+              <button
+                key={category}
+                type="button"
+                className="genre-chip"
+                role="radio"
+                aria-checked={isSelected}
+                data-selected={isSelected}
+                onClick={() => {
+                  if (isSelected) {
+                    onUpdateCreatorBrief('discoveryGenre', '');
+                  } else {
+                    const hasMeme = creatorBrief.discoveryGenre?.includes('热梗名场面');
+                    onUpdateCreatorBrief('discoveryGenre', category + (hasMeme ? ' · 热梗名场面' : ''));
+                  }
+                }}
+              >
+                {category}
+              </button>
+            );
+          })}
+        </div>
+        <div className="discovery-genre-footer">
           <label className="genre-meme-option" data-disabled={!creatorBrief.discoveryGenre} title={!creatorBrief.discoveryGenre ? '先选择一个主分类后，方可开启热梗收录' : undefined}>
             <input
               type="checkbox"
               disabled={!creatorBrief.discoveryGenre}
               checked={!!creatorBrief.discoveryGenre?.includes('热梗名场面')}
-              onChange={event => onUpdateCreatorBrief('discoveryGenre', (creatorBrief.discoveryGenre || '').split(' · ')[0] + (event.target.checked ? ' · 热梗名场面' : ''))}
+              onChange={event => {
+                const base = (creatorBrief.discoveryGenre || '').split(' · ')[0];
+                if (!base) return;
+                onUpdateCreatorBrief('discoveryGenre', base + (event.target.checked ? ' · 热梗名场面' : ''));
+              }}
             />
             <span>同时收录到热梗名场面</span>
           </label>
+          <small className="discovery-genre-hint">
+            {!creatorBrief.discoveryGenre ? '点击上方标签选择，再次点击可取消；也可由 Agent 建议。' : '再次点击可取消选中；Agent 建议时会自动高亮。'}
+          </small>
         </div>
-        <small className="discovery-genre-hint">{!creatorBrief.discoveryGenre ? '可自选主类，也可由 Agent 在讨论中建议。选择主类后可开启热梗名场面收录。' : 'Agent 可在此建议剧情分类，你也可以随时修改。'}</small>
       </div>
       <label htmlFor="world-seed">世界背景与当下冲突</label>
       <Textarea id="world-seed" value={worldSeed} onChange={(event) => onWorldSeed(event.target.value)} placeholder="写清之前发生了什么，角色们现在面对什么。" />
