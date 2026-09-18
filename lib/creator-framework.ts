@@ -2,7 +2,7 @@ import { storyDirections } from './story-directions.ts';
 import type { StoryOutlineBeat, WorldDefinition } from '@/lib/ai-contracts';
 
 export type CreatorDetailBaseline = {
-  roles: { name: string; identity: string; personality: string; appearance: string; relationship: string; goal?: string; cardHook?: string }[];
+  roles: { publicIntroduction?: string; name: string; identity: string; personality: string; appearance: string; relationship: string; goal?: string; cardHook?: string }[];
   outline: StoryOutlineBeat[];
 };
 
@@ -31,6 +31,7 @@ export function preserveCreatorDetails(base: WorldDefinition, edited: WorldDefin
     const previous = before.roles[index]; const next = after.roles[index];
     if (!previous || !next) return character;
     return { ...character,
+      ...(next.publicIntroduction !== previous.publicIntroduction ? { publicIntroduction: next.publicIntroduction } : {}),
       name: next.name !== previous.name ? next.name : character.name,
       ...(next.cardHook !== previous.cardHook ? { cardHook: next.cardHook } : {}),
       identity: next.identity !== previous.identity ? next.identity : character.identity,

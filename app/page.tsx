@@ -165,6 +165,7 @@ type StoryBeat = {
 };
 
 type DraftRole = {
+  publicIntroduction?: string;
   cardHook?: string;
   editorId?: string;
   goal?: string;
@@ -597,6 +598,7 @@ function normalizeGeneratedWorld(world: WorldDefinition, drafts: DraftRole[]): W
       id: `draft-role-${index}`,
       name: drafts[index]?.name.trim() || character.name,
       cardHook: drafts[index]?.cardHook ?? character.cardHook,
+      publicIntroduction: drafts[index]?.publicIntroduction ?? character.publicIntroduction,
       identity: drafts[index]?.identity.trim() || character.identity,
       persona: drafts[index]?.personality.trim() || character.persona,
       goal: drafts[index]?.goal?.trim() || character.goal,
@@ -912,6 +914,7 @@ function buildCreatorWorld(
         identity: role.identity,
         persona: role.personality,
         cardHook: role.cardHook,
+        publicIntroduction: drafts[index]?.publicIntroduction ?? existing?.publicIntroduction,
         publicBackground: role.publicStory,
         privateKnowledge: existing?.privateKnowledge ?? [role.secret],
         secrets: existing?.secrets ?? [role.secret],
@@ -2496,7 +2499,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       }, signal));
       if (!creatorRequest.current.current(signal)) return;
       const normalizedWorld = { ...normalizeGeneratedWorld(response.world, draftRoles), storyGraph: effectiveBrief.storyGraph };
-      const generatedDraftRoles = draftRoles.map((role, index) => ({ ...role, cardHook: role.cardHook ?? normalizedWorld.characters[index]?.cardHook, goal: role.goal || normalizedWorld.characters[index]?.goal || '', appearance: role.appearance || normalizedWorld.characters[index]?.imagePrompt || '' }));
+      const generatedDraftRoles = draftRoles.map((role, index) => ({ ...role, publicIntroduction: role.publicIntroduction ?? normalizedWorld.characters[index]?.publicIntroduction, cardHook: role.cardHook ?? normalizedWorld.characters[index]?.cardHook, goal: role.goal || normalizedWorld.characters[index]?.goal || '', appearance: role.appearance || normalizedWorld.characters[index]?.imagePrompt || '' }));
       setCreatorDetailBaseline({ roles: generatedDraftRoles, outline: response.storyOutline });
       setGeneratedWorld({ ...normalizedWorld, discoveryGenre: effectiveBrief.discoveryGenre || normalizedWorld.discoveryGenre, entryPolicy: restoreEntryPolicy(entryPolicy) });
       setGeneratedStoryOutline(response.storyOutline);
@@ -2522,6 +2525,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       setWorldTitle(normalizedWorld.title);
       setWorldSeed(normalizedWorld.premise);
       setDraftRoles((current) => current.map((role, index) => ({ ...role,
+        publicIntroduction: role.publicIntroduction ?? normalizedWorld.characters[index]?.publicIntroduction,
         cardHook: role.cardHook ?? normalizedWorld.characters[index]?.cardHook,
         goal: role.goal || normalizedWorld.characters[index]?.goal || '',
         appearance: role.appearance || normalizedWorld.characters[index]?.imagePrompt || '',
@@ -3280,6 +3284,7 @@ function CreateWorld({
     relationship: c.publicBackground,
     goal: c.goal,
     cardHook: c.cardHook,
+    publicIntroduction: c.publicIntroduction,
   })) : draftRoles;
 
   const taskIssues = creatorTaskIssues(creatorBrief.tasks, draftRoles.length);
@@ -3381,6 +3386,7 @@ function CreateWorld({
                   <div className="draft-field"><label htmlFor={`role-name-${index}`}>角色名称</label><Input id={`role-name-${index}`} value={role.name} onChange={(event) => onUpdateRole(index, 'name', event.target.value)} placeholder="例如：许知遥" /></div>
                   <div className="draft-field full-field"><label htmlFor={`role-hook-${index}`}>卡片标题 · 一句让人想点进来的话</label><Input id={`role-hook-${index}`} maxLength={60} value={role.cardHook ?? ''} onChange={(event) => onUpdateRole(index, 'cardHook', event.target.value)} placeholder="例如：别急着走，陪我喝完这杯" /><small>不限定句式，简短即可。可自己写或让 Agent 建议；清空后只展示图片，姓名仍可搜索。</small></div>
                   <div className="draft-field"><label htmlFor={`role-identity-${index}`}>身份</label><Input id={`role-identity-${index}`} value={role.identity} onChange={(event) => onUpdateRole(index, 'identity', event.target.value)} placeholder="例如：民俗学研究生" /></div>
+                  <div className="draft-field full-field"><label htmlFor={`role-public-${index}`}>公开介绍 · 聊天页展示（可选）</label><Textarea id={`role-public-${index}`} maxLength={1200} value={role.publicIntroduction ?? ''} onChange={(event) => onUpdateRole(index, 'publicIntroduction', event.target.value)} placeholder="介绍体验者可以提前知道的身份与相处特点，不填写秘密、隐藏目标或私密认知。" /><small>{role.publicIntroduction === undefined ? '尚未单独设置，将沿用已有公开背景；填写后以这里为准。' : '以这里为准；清空会隐藏介绍，不会重新展示旧背景。'} 此项不改变角色的内在设定，也不会重新生成图片。</small></div>
                   <div className="draft-field full-field"><label htmlFor={`role-personality-${index}`}>性格与行为倾向</label><Input id={`role-personality-${index}`} value={role.personality} onChange={(event) => onUpdateRole(index, 'personality', event.target.value)} placeholder="例如：理性、好奇，但害怕欠人情" /></div>
                   <div className="draft-field full-field"><label htmlFor={`role-appearance-${index}`}>固定外观（用于保持连续）</label><Input id={`role-appearance-${index}`} value={role.appearance} onChange={(event) => onUpdateRole(index, 'appearance', event.target.value)} placeholder="例如：齐肩黑发、墨绿色防风外套、随身携带旧笔记本" /></div>
                   <div className="draft-field full-field"><label htmlFor={`role-relationship-${index}`}>与其他角色的关系</label><Input id={`role-relationship-${index}`} value={role.relationship} onChange={(event) => onUpdateRole(index, 'relationship', event.target.value)} placeholder="例如：受上一任守塔人委托保护许知遥" /></div>

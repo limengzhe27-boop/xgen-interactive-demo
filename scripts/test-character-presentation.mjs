@@ -4,6 +4,32 @@ import { characterPublicIntroduction, initialConversationSuggestions, validChara
 import { directConversationEntry, restoreConversationOpening } from '../lib/studio-session.ts';
 import { publicationWorld } from '../lib/publication.ts';
 import { studioWorlds } from '../lib/studio-worlds.ts';
+import { identifyProposedRoles } from '../lib/creator-changes.ts';
+import { publicationDraft } from '../lib/restore-publication.ts';
+import { preserveCreatorDetails } from '../lib/creator-framework.ts';
+
+test('explicit empty public introduction hides legacy background', () => {
+  assert.equal(characterPublicIntroduction({ publicIntroduction: '', publicBackground: '旧介绍' }), '');
+});
+test('author public introduction survives cast proposals and restored publications', () => {
+  const before = [{ editorId: 'stable', name: '甲', publicIntroduction: '作者介绍' }];
+  assert.equal(identifyProposedRoles(before, [{ name: '甲' }])[0].publicIntroduction, '作者介绍');
+  assert.equal(identifyProposedRoles(before, [{ name: '改名' }])[0].publicIntroduction, '作者介绍');
+  const entry = structuredClone(studioWorlds[0]);
+  entry.world.characters[0].publicIntroduction = '';
+  assert.equal(publicationDraft(entry).data.draftRoles[0].publicIntroduction, '');
+});
+test('manual introduction update preserves internal character and authored meeting', () => {
+  const base = structuredClone(studioWorlds[0].world);
+  base.characters[0].publicIntroduction = '旧介绍';
+  const roles = base.characters.map(c => ({ name: c.name, identity: c.identity, personality: c.persona,
+    appearance: c.imagePrompt, relationship: c.publicBackground, goal: c.goal, publicIntroduction: c.publicIntroduction }));
+  const next = structuredClone(roles); next[0].publicIntroduction = '';
+  const result = preserveCreatorDetails(base, base, { roles, outline: [] }, { roles: next, outline: [] });
+  assert.equal(result.characters[0].publicIntroduction, '');
+  assert.equal(result.characters[0].persona, base.characters[0].persona);
+  assert.deepEqual(result.characters[0].chatOpening, base.characters[0].chatOpening);
+});
 
 test('public presentation never falls back to private persona, goals or knowledge', () => {
   const role = { persona: 'PRIVATE_PERSONA', secrets: ['SECRET'], privateKnowledge: ['KNOWLEDGE'], goal: 'PRIVATE_GOAL' };

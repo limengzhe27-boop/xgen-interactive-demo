@@ -23,7 +23,7 @@ export function publicationDraft(entry: StudioWorld & { sourceId?: string }) {
   ].filter(key => Object.hasOwn(entry, key)).map(key => [key, entry[key as keyof StudioWorld]]))) as StudioWorld;
   releasedEntry.world = structuredClone(world);
   const roles = world.characters.map(role => ({ editorId: role.id, name: role.name, identity: role.identity,
-    personality: role.persona, appearance: role.imagePrompt, relationship: role.publicBackground, goal: role.goal, cardHook: role.cardHook }));
+    personality: role.persona, appearance: role.imagePrompt, relationship: role.publicBackground, goal: role.goal, cardHook: role.cardHook, publicIntroduction: role.publicIntroduction }));
   const outline: StoryOutlineBeat[] = Array.from({ length: Math.max(3, Math.min(world.locations.length, 6)) }, (_, index) => {
     const location = world.locations[index] ?? world.locations.find(place => place.id === world.openingScene.locationId) ?? world.locations[0];
     return { id: `restored-outline-${index}`, title: location.name, location: location.name,

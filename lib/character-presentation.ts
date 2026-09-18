@@ -4,7 +4,7 @@ import type { CharacterGreeting } from './character-greeting';
 // Legacy content falls back only to fields already designated public. No secret
 // keyword filtering: private prose must never become public by accident.
 export function characterPublicIntroduction(role: CharacterDefinition): string {
-  return role.publicIntroduction?.trim() || role.publicBackground?.trim() || '';
+  return role.publicIntroduction !== undefined ? role.publicIntroduction.trim() : role.publicBackground?.trim() || '';
 }
 
 export function initialConversationSuggestions(greeting?: CharacterGreeting): string[] {
