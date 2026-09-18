@@ -334,7 +334,9 @@ function NodeDetails({ graph, nodeId, roleId, roleName, roles, suggested, busy, 
   </form>;
 }
 
-export function CreatorStoryCanvas({ title, graph: inputGraph, roles, images, suggested, busy, hasSuggestion, onMode, onSave, onAsk, onAdopt, onDismiss, onEditRoles, onEditRole }: {
+export function CreatorStoryCanvas({ storyOnly = false, readOnly = false, title, graph: inputGraph, roles, images, suggested, busy, hasSuggestion, onMode, onSave, onAsk, onAdopt, onDismiss, onEditRoles, onEditRole }: {
+  storyOnly?: boolean;
+  readOnly?: boolean;
   title?: string;
   onEditRole: (index: number, field: keyof CreatorRoleDraft, value: string) => void;
   graph: unknown; roles: CreatorRoleDraft[]; images: Record<string, string>; suggested: boolean; busy: boolean; hasSuggestion: boolean;
@@ -342,7 +344,8 @@ export function CreatorStoryCanvas({ title, graph: inputGraph, roles, images, su
 }) {
   const [selectedRole, setSelectedRole] = useState('draft-role-0');
   const [selectedNode, setSelectedNode] = useState('');
-  const [tab, setTab] = useState<'story' | 'roles'>('roles');
+  const [selectedTab, setTab] = useState<'story' | 'roles'>('roles');
+  const tab = storyOnly ? 'story' : selectedTab;
   const problem = creatorStoryIssues(inputGraph)[0];
   const graph = !problem && isCreatorStoryGraph(inputGraph) ? inputGraph : undefined;
   const roleIds = roles.map((_, i) => `draft-role-${i}`);
@@ -360,8 +363,8 @@ export function CreatorStoryCanvas({ title, graph: inputGraph, roles, images, su
   const width = Math.max(560, ...rows.map(row => row.length * 226 + 24));
   const points = new Map(rows.flatMap((row, y) => row.map((n, x) => [n.id, { x: (width - row.length * 226) / 2 + x * 226 + 10, y: 24 + y * 128 }] as const)));
   return <aside className={styles.root} aria-label="故事创作画布" aria-busy={busy}>
-    <header className={styles.header}><div><small>正在成形的故事</small><h2>{title || '你的故事画布'}</h2></div><span className={styles.status}>{suggested ? <Sparkles size={14} /> : <Check size={14} />}{suggested ? '建议 · 尚未采纳' : '当前草稿'}</span></header>
-    <div className={styles.toolbar}><fieldset aria-label="画布内容"><button type="button" aria-pressed={tab === 'story'} onClick={() => setTab('story')}><GitBranch size={16} />故事脉络</button><button type="button" aria-pressed={tab === 'roles'} onClick={() => setTab('roles')}><Users size={16} />人物设定</button></fieldset>{hasSuggestion && <fieldset aria-label="画布版本"><button type="button" aria-pressed={!suggested} onClick={() => onMode(false)}>草稿</button><button type="button" aria-pressed={suggested} onClick={() => onMode(true)}>Agent 建议</button></fieldset>}</div>
+    {!storyOnly && <header className={styles.header}><div><small>正在成形的故事</small><h2>{title || '你的故事画布'}</h2></div><span className={styles.status}>{suggested ? <Sparkles size={14} /> : <Check size={14} />}{suggested ? '建议 · 尚未采纳' : '当前草稿'}</span></header>}
+    <div className={styles.toolbar}>{!storyOnly && <fieldset aria-label="画布内容"><button type="button" aria-pressed={tab === 'story'} onClick={() => setTab('story')}><GitBranch size={16} />故事脉络</button><button type="button" aria-pressed={tab === 'roles'} onClick={() => setTab('roles')}><Users size={16} />人物设定</button></fieldset>}{hasSuggestion && <fieldset aria-label="画布版本"><button type="button" aria-pressed={!suggested} onClick={() => onMode(false)}>草稿</button><button type="button" aria-pressed={suggested} onClick={() => onMode(true)}>Agent 建议</button></fieldset>}</div>
     <div className={styles.roles} aria-label="选择角色视角">{roles.map((r, i) => <button key={r.editorId || i} type="button" aria-pressed={roleId === `draft-role-${i}`} onClick={() => {
       const id = `draft-role-${i}`;
       setSelectedRole(id);
@@ -386,11 +389,11 @@ export function CreatorStoryCanvas({ title, graph: inputGraph, roles, images, su
           <svg width={width} height={rows.length * 128 + 24} aria-hidden="true">{graph.nodes.flatMap(n => n.nextNodeIds.map(next => { const a = points.get(n.id)!, b = points.get(next)!; return <path key={`${n.id}-${next}`} d={`M${a.x + 103},${a.y + 88} C${a.x + 103},${a.y + 112} ${b.x + 103},${b.y - 24} ${b.x + 103},${b.y}`} />; }))}</svg>
           {graph.nodes.map(n => { const p = points.get(n.id)!; const names = graph.entries.filter(e => e.nodeId === n.id).map(e => roles[roleIds.indexOf(e.roleId)]?.name).filter(Boolean); return <button type="button" key={n.id} className={styles.node} style={{ left: p.x, top: p.y }} aria-pressed={nodeId === n.id} data-entry={entry?.nodeId === n.id} data-prior={entry?.defaultPath.includes(n.id) && entry.nodeId !== n.id} onClick={() => setSelectedNode(n.id)}><small>{n.id === graph.startNodeId ? '共同开场' : names.length ? `${names.join('、')}入场` : '可能走向'}</small><strong>{n.title}</strong><span><MapPin size={12} />{n.location || '地点待补充'}</span></button>; })}
         </div></section>
-        <NodeDetails key={`${suggested ? 'proposal' : 'draft'}/${nodeId}/${roleId}`} graph={graph} nodeId={nodeId} roleId={roleId} roleName={role?.name || '所选角色'} roles={roles} suggested={suggested} busy={busy} onSave={onSave} onSelectNode={setSelectedNode} onAsk={onAsk} />
+        <NodeDetails key={`${suggested ? 'proposal' : 'draft'}/${nodeId}/${roleId}`} graph={graph} nodeId={nodeId} roleId={roleId} roleName={role?.name || '所选角色'} roles={roles} suggested={suggested} busy={busy || readOnly} onSave={onSave} onSelectNode={setSelectedNode} onAsk={onAsk} />
       </> : <div className={styles.empty}><GitBranch size={32} /><h3>{busy ? 'Agent 正在整理故事结构' : '从一个场景，长出整个故事'}</h3><p>{problem || '先聊聊人物在哪里、发生了什么。Agent 的故事节点与角色入场建议，会出现在这里。'}</p><Button variant="outline" disabled={busy} onClick={() => onAsk('请根据已有设定整理故事画布：共同开场、可能的后续分支，以及每个角色从哪个节点入场、当时知道什么。不要改变我已确认的人物和事件；不确定的地方先问我。')}>和 Agent 整理画布<ArrowRight size={16} /></Button><Button variant="ghost" disabled={busy || suggested} onClick={() => onSave({ startNodeId: 'opening', nodes: [{ id: 'opening', title: '共同开场', location: '', scene: '', worldFacts: [], nextNodeIds: [] }], entries: [] })}>先手动建立开场</Button></div>}
     </div>
     <footer className={styles.footer}>
-      <span>{suggested ? '修改建议后再采纳，才会写入草稿。' : '画布描述作者框架，不是玩家存档；切换视角不会推进时间。'}</span>
+      <span>{readOnly ? '续写建议仅供预览；采纳后，可在草稿中继续编辑。' : suggested ? '修改建议后再采纳，才会写入草稿。' : '画布描述作者框架，不是玩家存档；切换视角不会推进时间。'}</span>
       {hasSuggestion && suggested && <div className={styles.footerButtons}>
         {onDismiss && <Button type="button" variant="outline" size="sm" disabled={busy} onClick={onDismiss}>放弃建议</Button>}
         <Button type="button" size="sm" disabled={busy} onClick={onAdopt}>采纳本轮建议</Button>
