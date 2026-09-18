@@ -981,7 +981,15 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
   const creatorRequest = useRef(new CreatorRequest());
   const latestCreatorSections = useRef('');
   useEffect(() => () => creatorRequest.current.cancel(), []);
-  const [view, setView] = useState<View>('home');
+  const [view, setView] = useState<View>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('view') === 'create') return 'create';
+      } catch {}
+    }
+    return 'home';
+  });
   const [preferText, setPreferText] = useState(false);
   const creatorReturnView = useRef<View>('home');
   const [playerPersona, setPlayerPersona] = useState<PlayerPersona | null>(null);
@@ -1548,6 +1556,14 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     if (next !== 'play') stopActiveGeneration();
     if (['home', 'library', 'characters'].includes(next)) setGalleryRestore(galleryMemory.current[`${accountScope}:${next}`] ?? {});
     setView(next);
+    if (typeof window !== 'undefined') {
+      try {
+        const url = new URL(window.location.href);
+        if (next === 'create') url.searchParams.set('view', 'create');
+        else url.searchParams.delete('view');
+        window.history.replaceState(null, '', url.pathname + (url.search ? url.search : ''));
+      } catch {}
+    }
     if (!['home', 'library', 'characters'].includes(next)) window.scrollTo({ top: 0, behavior: 'instant' });
   }
 
@@ -2917,7 +2933,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
           continuation={continuation}
           onAcceptContinuation={acceptContinuation}
           onDismissContinuation={() => { cancelCreatorRequest(); setContinuation(current => current ? { base: current.base } : undefined); setCreatorChangeNotice('已放弃本次续写提案，原故事保持不变。'); }}
-          continuationPanel={<>{generatedWorld ? <div className="creation-next">{continuation ? <><span>正在续写 · 原故事保留</span>{continuation.proposal && <Button disabled={creatorAgentThinking} onClick={acceptContinuation}>确认加入草稿</Button>}<Button variant="outline" onClick={() => { cancelCreatorRequest(); setContinuation(undefined); setCreatorChangeNotice('已退出续写，未确认的提案不会写入草稿。'); }}>退出续写</Button></> : <Button variant="outline" disabled={creatorAgentThinking} onClick={beginContinuation}>继续写后续</Button>}</div> : null}<StoryEditionHistory editions={releaseHistory} disabled={creatorAgentThinking||worldGenerating} onRestore={restoreStoryEdition}/></>}
+          continuationPanel={<>{generatedWorld ? <div className="creation-next">{continuation ? <><span>正在续写 · 原故事保留</span>{continuation.proposal && <Button disabled={creatorAgentThinking} onClick={acceptContinuation}>确认加入草稿</Button>}<Button variant="outline" onClick={() => { cancelCreatorRequest(); setContinuation(undefined); setCreatorChangeNotice('已退出续写，未确认的提案不会写入草稿。'); }}>退出续写</Button></> : <Button variant="outline" disabled={creatorAgentThinking} onClick={beginContinuation}>继续写后续</Button>}</div> : <p className="workspace-empty-note" style={{ color: 'var(--color-text-secondary)', fontSize: 13, lineHeight: 1.6, padding: '12px 0' }}>当前作品尚在构思阶段。在右侧完善设定并点击「直接使用我的设定」或「让 AI 补全世界」后，可在此查看历史版本并持续追加续写。</p>}<StoryEditionHistory editions={releaseHistory} disabled={creatorAgentThinking||worldGenerating} onRestore={restoreStoryEdition}/></>}
         />
       );
     }
@@ -3344,7 +3360,7 @@ function CreateWorld({
           <div className="create-card-title"><div><h2>谁在这个世界里？</h2><p>展开一个角色，填写身份与专属目标。形象图可以稍后再生成。</p></div><Button variant="outline" onClick={onAddRole}><Plus />添加角色</Button></div>
           <div className="draft-role-list">
             {draftRoles.map((role, index) => (
-              <details className="creation-role" key={role.editorId || index}>
+              <details className="creation-role" key={role.editorId || index} open={index === 0}>
                 <summary>{role.name || `角色 ${index + 1}`}<small>{role.identity || '身份待设定'}</small></summary>
               <div className="draft-role">
                 <span className="draft-role-index">{String(index + 1).padStart(2, '0')}</span>
@@ -3353,7 +3369,7 @@ function CreateWorld({
                     ? <img src={roleImages[`draft-role-${index}`]} alt={`${role.name || `角色 ${index + 1}`}的 AI 生成形象`} />
                     : <span><UserRound /><small>尚未生成形象</small></span>}
                   <button type="button" onClick={() => onGenerateRoleImage(index)} disabled={roleImageStates[`draft-role-${index}`] === 'generating'}>
-                    {roleImageStates[`draft-role-${index}`] === 'generating' ? <><LoaderCircle className="is-spinning" />正在生成</> : roleImages[`draft-role-${index}`] ? <><RefreshCw />重新生成</> : <><WandSparkles />生成形象</>}
+                    {roleImageStates[`draft-role-${index}`] === 'generating' ? <><LoaderCircle className="is-spinning" />正在生成</> : roleImages[`draft-role-${index}`] ? <><RefreshCw />重新生成</> : <><WandSparkles />生成形象（收费）</>}
                   </button>
                   {roleImageStates[`draft-role-${index}`] === 'error' ? <small className="role-image-error">生成失败，请重试</small> : null}
                 </div>

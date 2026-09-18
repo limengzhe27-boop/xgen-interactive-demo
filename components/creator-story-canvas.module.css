@@ -30,7 +30,7 @@
 .node[aria-pressed=true] { box-shadow: 0 0 0 2px var(--color-primary); }
 .root button:hover { border-color: var(--color-primary); }
 .root :is(button,textarea,select):focus-visible { outline: 2px solid var(--color-primary); outline-offset: 3px; }
-.details { padding: 20px 24px; }
+.details { padding: 20px 24px 60px; }
 .details fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
 .detailHeading { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 14px; }
 .detailHeading h3 { margin: 4px 0; font-size: 18px; }
@@ -82,5 +82,5 @@
 .footerButtons { display: flex; align-items: center; gap: 8px; }
 .footer button, .detailHeading button { flex-shrink: 0; min-height: 44px; }
 @media(max-width: 1150px) { .detailColumns { grid-template-columns: 1fr; gap: 12px; } .header { padding: 18px; } }
-@media(max-width: 760px) { .root { min-height: 0; flex: 1; border-radius: 12px 12px 0 0; } .header h2 { font-size: 19px; } .details { padding: 16px; } .footer { padding-bottom: max(12px, env(safe-area-inset-bottom)); } }
+@media(max-width: 760px) { .root { min-height: 0; flex: 1; border-radius: 12px 12px 0 0; } .header h2 { font-size: 19px; } .details { padding: 16px 16px 60px; } .footer { padding-bottom: max(12px, env(safe-area-inset-bottom)); } }
 @media(prefers-reduced-motion: reduce) { .node { transition: none; } }
