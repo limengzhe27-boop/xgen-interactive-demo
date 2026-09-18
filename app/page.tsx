@@ -1,7 +1,7 @@
 'use client';
 /* oxlint-disable next/no-img-element -- local prototype assets avoid vinext/next-image runtime duplication */
 
-import { SyntheticEvent, useEffect, useEffectEvent, useRef, useState } from 'react';
+import { SyntheticEvent, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
 import { WorldSystemPanel } from '@/components/world-system-panel';
 import { storyDirections } from '@/lib/story-directions';
 import { actionServiceError, visibleInteractionGoal, actionLabel } from '@/lib/interaction-clarity';
@@ -29,12 +29,16 @@ import { Sheet, SheetTrigger, SheetContent, SheetTitle, SheetDescription, SheetC
 import {
   ArrowLeft,
   ArrowRight,
+  Bot,
+  BrainCircuit,
   Check,
   Eye,
   ImageIcon,
   Lightbulb,
   LoaderCircle,
   MapPin,
+  PanelRightClose,
+  PanelRightOpen,
   Pencil,
   Plus,
   RefreshCw,
@@ -42,9 +46,11 @@ import {
   Sparkles,
   Target,
   Trash2,
+  Undo2,
   UserRound,
   WandSparkles,
   X,
+  ZoomIn,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -68,6 +74,7 @@ import { ProfilePage } from '@/components/profile-page';
 import { emptyProfile, restoreUserProfile, profileMemories, type UserProfile } from '@/lib/user-profile';
 import { CompanionHandoff, CompanionContextPanel } from '@/components/companion-handoff';
 import { makeCompanionInput, restoreCompanionContext, type CompanionContext } from '@/lib/companion-context';
+import { generateScriptAdvice } from '@/lib/script-advice';
 import { PersonaControl, PersonaAdmission, EntryPolicyEditor } from '@/components/player-persona';
 import { closedEntryPolicy, restoreEntryPolicy, restorePlayerPersona, type PlayerPersona, type EntryPolicy } from '@/lib/player-persona';
 import { pendingMemories, restorePersonalConversation } from '@/lib/personal-memory';
@@ -102,8 +109,8 @@ import {
 } from '@/lib/world-state';
 import { normalizeSurpriseLevel } from '@/lib/surprise-engine';
 import { preserveCreatorDetails, preserveCreatorFramework } from '@/lib/creator-framework';
-import { applyCreatorChange, combineCreatorChanges, creatorConfirmation, creatorOpeningRevision, creatorChanges, ensureCreatorRoleIds, identifyProposedRoles, type CreatorChange } from '@/lib/creator-changes';
-import { CreatorProposalReview } from '@/components/creator-proposal-review';
+import { applyCreatorChange, combineCreatorChanges, creatorConfirmation, creatorOpeningRevision, creatorChanges, ensureCreatorRoleIds, identifyProposedRoles, type CreatorChange, type CreatorRoleDraft } from '@/lib/creator-changes';
+import { DeleteRoleDialog, PortraitBatchDialog, ImagePreviewModal } from '@/components/creator-dialogs';
 import { CreatorStoryCanvas } from '@/components/creator-story-canvas';
 import { CreatorWorkspace, type CreatorWorkspaceModule } from '@/components/creator-workspace';
 import { creatorStoryIssues, isCreatorStoryGraph, remapCreatorStoryRoles, mapCreatorStoryRoleIds, bindCreatorActors, type CreatorStoryGraph } from '@/lib/creator-story-graph';
@@ -2087,12 +2094,6 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
   function updateDraftRole(index: number, key: keyof DraftRole, value: string) {
     if (key === 'name') setCreatorBrief(current => ({ ...current, storyGraph: remapCreatorStoryRoles(current.storyGraph, draftRoles, draftRoles.map((r, i) => i === index ? { ...r, name: value } : r)) }));
     setDraftRoles((current) => current.map((role, roleIndex) => (roleIndex === index ? { ...role, [key]: value } : role)));
-    if (key === 'name' || key === 'identity' || key === 'personality' || key === 'appearance') {
-      const roleId = `draft-role-${index}`;
-      roleImageRequestRef.current[roleId] = (roleImageRequestRef.current[roleId] ?? 0) + 1;
-      setRoleImages((current) => Object.fromEntries(Object.entries(current).filter(([id]) => id !== roleId)));
-      setRoleImageStates((current) => ({ ...current, [roleId]: 'idle' }));
-    }
   }
 
   function addDraftRole() {
@@ -2103,16 +2104,73 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
   }
 
   function removeDraftRole(index: number) {
-    if (draftRoles.length <= 2) return;
-    setEntryPolicy(current => ({ ...current, allowedRoleIds: current.allowedRoleIds.filter(id => id !== `draft-role-${index}`).map(id => { const n = Number(id.replace('draft-role-', '')); return n > index ? `draft-role-${n - 1}` : id; }) }));
+    if (draftRoles.length <= 1) return;
+    const roleId = `draft-role-${index}`;
+    if (roleImageRequestRef.current[roleId] !== undefined) {
+      roleImageRequestRef.current[roleId] += 1;
+    }
+    setEntryPolicy(current => ({
+      ...current,
+      allowedRoleIds: current.allowedRoleIds.filter(id => id !== `draft-role-${index}`).map(id => {
+        const n = Number(id.replace('draft-role-', ''));
+        return n > index ? `draft-role-${n - 1}` : id;
+      })
+    }));
     // Index-based legacy IDs must be rebased with the cast, including assignments.
-    setCreatorBrief((current) => ({ ...current, storyGraph: remapCreatorStoryRoles(current.storyGraph, draftRoles, draftRoles.filter((_, i) => i !== index)), tasks: current.tasks.filter((task) => !(task.assignedRoleIds?.length === 1 && task.assignedRoleIds[0] === `draft-role-${index}`)).map((task) => ({ ...task,
-      assignedRoleIds: task.assignedRoleIds?.filter((id) => id !== `draft-role-${index}`).map((id) => { const n = Number(id.replace('draft-role-', '')); return n > index ? `draft-role-${n - 1}` : id; }),
-    })).map((task, _, tasks) => ({ ...task, prerequisiteTaskIds: task.prerequisiteTaskIds.filter((id) => tasks.some((candidate) => candidate.id === id)) })) }));
-    Object.keys(roleImageRequestRef.current).forEach((id) => { roleImageRequestRef.current[id] += 1; });
-    setDraftRoles((current) => current.length <= 2 ? current : current.filter((_, roleIndex) => roleIndex !== index));
-    setRoleImages({});
-    setRoleImageStates({});
+    setCreatorBrief((current) => ({
+      ...current,
+      storyGraph: remapCreatorStoryRoles(current.storyGraph, draftRoles, draftRoles.filter((_, i) => i !== index)),
+      tasks: current.tasks
+        .filter((task) => !(task.assignedRoleIds?.length === 1 && task.assignedRoleIds[0] === `draft-role-${index}`))
+        .map((task) => ({
+          ...task,
+          assignedRoleIds: task.assignedRoleIds?.filter((id) => id !== `draft-role-${index}`).map((id) => {
+            const n = Number(id.replace('draft-role-', ''));
+            return n > index ? `draft-role-${n - 1}` : id;
+          }),
+        }))
+        .map((task, _, tasks) => ({
+          ...task,
+          prerequisiteTaskIds: task.prerequisiteTaskIds.filter((id) => tasks.some((candidate) => candidate.id === id))
+        }))
+    }));
+
+    setDraftRoles((current) => current.length <= 1 ? current : current.filter((_, roleIndex) => roleIndex !== index));
+
+    // Remap roleImages cleanly without clearing everything
+    setRoleImages((current) => {
+      const next: Record<string, string> = {};
+      Object.entries(current).forEach(([k, v]) => {
+        if (k.startsWith('draft-role-')) {
+          const n = Number(k.replace('draft-role-', ''));
+          if (n < index) {
+            next[k] = v;
+          } else if (n > index) {
+            next[`draft-role-${n - 1}`] = v;
+          }
+        } else {
+          next[k] = v;
+        }
+      });
+      return next;
+    });
+
+    setRoleImageStates((current) => {
+      const next: Record<string, 'idle' | 'generating' | 'ready' | 'error'> = {};
+      Object.entries(current).forEach(([k, v]) => {
+        if (k.startsWith('draft-role-')) {
+          const n = Number(k.replace('draft-role-', ''));
+          if (n < index) {
+            next[k] = v;
+          } else if (n > index) {
+            next[`draft-role-${n - 1}`] = v;
+          }
+        } else {
+          next[k] = v;
+        }
+      });
+      return next;
+    });
     setGenerated(false);
     setGeneratedWorld(null);
     setGeneratedStoryOutline([]);
@@ -2161,9 +2219,9 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     }
   }
 
-  async function submitCreatorMessage(event: SyntheticEvent<HTMLFormElement>) {
-    event.preventDefault();
-    await discussCreator(creatorMessage.trim());
+  async function submitCreatorMessage(event?: SyntheticEvent<HTMLFormElement>, overrideValue?: string) {
+    event?.preventDefault();
+    await discussCreator((overrideValue ?? creatorMessage).trim());
   }
 
   async function discussCreator(value: string) {
@@ -2463,7 +2521,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     return true;
   }
 
-  function updateCreatorBriefField(key: keyof Pick<CreatorBrief, 'discoveryGenre' | 'coreGoal' | 'successCondition' | 'failureCondition'>, value: string) {
+  function updateCreatorBriefField<K extends keyof CreatorBrief>(key: K, value: CreatorBrief[K]) {
     setCreatorBrief((current) => ({ ...current, [key]: value }));
   }
 
@@ -2889,6 +2947,8 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
           worldSeed={worldSeed}
           creatorBrief={creatorBrief}
           creatorMessages={creatorMessages}
+          companionContext={companionContext}
+          onCompanionContextChange={setCompanionContext}
           companionPanel={<CompanionContextPanel context={companionContext} memoryCount={memories.length} busy={creatorAgentThinking || worldGenerating} onChange={setCompanionContext} onPersonal={() => navigate('personal')} />}
           creatorMessage={creatorMessage}
           creatorAgentThinking={creatorAgentThinking}
@@ -2926,8 +2986,8 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
           onUseManualStory={createWorldFromManualStory}
           onAcceptPlot={acceptGeneratedPlot}
           onUpdateStoryBeat={updateStoryOutline}
-          onGenerateRoleImage={(index) => { void generateRoleImage(index); }}
-          onGenerateAllRoleImages={() => { void generateAllRoleImages(); }}
+          onGenerateRoleImage={async (index) => { await generateRoleImage(index); }}
+          onGenerateAllRoleImages={async () => { await generateAllRoleImages(); }}
           onBack={() => navigate(creatorReturnView.current)}
           onPublish={publishCreatorWorld}
           onShare={preparePublicWorld}
@@ -3193,6 +3253,8 @@ function CreateWorld({
   worldSeed,
   creatorBrief,
   creatorMessages,
+  companionContext,
+  onCompanionContextChange,
   companionPanel,
   creatorMessage,
   creatorAgentThinking,
@@ -3253,6 +3315,8 @@ function CreateWorld({
   creatorBrief: CreatorBrief;
   onUpdateStoryGraph: (graph: CreatorStoryGraph) => void;
   creatorMessages: CreatorChatMessage[];
+  companionContext?: CompanionContext;
+  onCompanionContextChange?: (context: CompanionContext) => void;
   companionPanel: import('react').ReactNode;
   creatorMessage: string;
   creatorAgentThinking: boolean;
@@ -3274,13 +3338,13 @@ function CreateWorld({
   onWorldTitle: (value: string) => void;
   onWorldSeed: (value: string) => void;
   onCreatorMessage: (value: string) => void;
-  onSubmitCreatorMessage: (event: SyntheticEvent<HTMLFormElement>) => void;
+  onSubmitCreatorMessage: (event?: SyntheticEvent<HTMLFormElement>, overrideValue?: string) => void;
   onApplyCreatorProposal: (change: CreatorChange, undo?: boolean) => void;
   onApplyAllCreatorProposals: (changes: CreatorChange[]) => string;
   onEditCreatorProposal: (change: CreatorChange, value: unknown) => void;
   onDismissCreatorProposal: (change?: CreatorChange) => void;
   onCreatorProposalProblem: (change: CreatorChange, undo?: boolean) => string;
-  onUpdateCreatorBrief: (key: keyof Pick<CreatorBrief, 'discoveryGenre' | 'coreGoal' | 'successCondition' | 'failureCondition'>, value: string) => void;
+  onUpdateCreatorBrief: <K extends keyof CreatorBrief>(key: K, value: CreatorBrief[K]) => void;
   onComplexity: (value: number) => void;
   onAddCreatorTask: () => void;
   onRemoveCreatorTask: (index: number) => void;
@@ -3289,8 +3353,8 @@ function CreateWorld({
   onUseManualStory: () => void;
   onAcceptPlot: () => void;
   onUpdateStoryBeat: (index: number, key: keyof Pick<StoryOutlineBeat, 'title' | 'location' | 'objective' | 'turningPoint'>, value: string) => void;
-  onGenerateRoleImage: (index: number) => void;
-  onGenerateAllRoleImages: () => void;
+  onGenerateRoleImage: (index: number) => Promise<void> | void;
+  onGenerateAllRoleImages: () => Promise<void> | void;
   onBack: () => void;
   onPublish: () => void;
   onShare: () => void;
@@ -3300,12 +3364,44 @@ function CreateWorld({
   const [workspaceModule, setWorkspaceModule] = useState<CreatorWorkspaceModule>('direction');
   const [storyView, setStoryView] = useState<'events' | 'tasks'>('events');
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [scriptAdviceOpen, setScriptAdviceOpen] = useState(false);
+  const scriptAdviceList = useMemo(() => generateScriptAdvice({
+    title: worldTitle,
+    genre: creatorBrief.discoveryGenre,
+    premise: worldSeed,
+    roles: draftRoles,
+    hasGraph: Boolean(creatorBrief.storyGraph?.nodes?.length),
+  }), [worldTitle, creatorBrief.discoveryGenre, worldSeed, draftRoles, creatorBrief.storyGraph]);
   const selectModule = (module: CreatorWorkspaceModule) => {
     setWorkspaceModule(module);
     setMobilePane('canvas');
     onStep(module === 'people' ? 1 : module === 'presentation' ? 4 : 2);
   };
   const [mobilePane, setMobilePane] = useState<'chat' | 'canvas'>('chat');
+  const [agentCollapsed, setAgentCollapsed] = useState(false);
+  const [activeRoleIndex, setActiveRoleIndex] = useState(0);
+  const [batchDialogOpen, setBatchDialogOpen] = useState(false);
+  const [batchSelected, setBatchSelected] = useState<number[]>([]);
+  const [deleteConfirmIndex, setDeleteConfirmIndex] = useState<number | null>(null);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [batchProgress, setBatchProgress] = useState<{ current: number; total: number } | null>(null);
+
+  function openBatchDialog() {
+    const withoutPortraits = draftRoles.map((_, i) => i).filter(i => !roleImages[`draft-role-${i}`]);
+    setBatchSelected(withoutPortraits.length > 0 ? withoutPortraits : draftRoles.map((_, i) => i));
+    setBatchDialogOpen(true);
+  }
+
+  async function runBatchGeneration() {
+    if (batchSelected.length === 0) return;
+    setBatchProgress({ current: 0, total: batchSelected.length });
+    for (let i = 0; i < batchSelected.length; i++) {
+      setBatchProgress({ current: i + 1, total: batchSelected.length });
+      await onGenerateRoleImage(batchSelected[i]);
+    }
+    setBatchProgress(null);
+    setBatchDialogOpen(false);
+  }
   const [canPublish, setCanPublish] = useState(false);
   const conversationLog = useRef<HTMLDivElement>(null);
   const followConversation = useRef(true);
@@ -3337,137 +3433,835 @@ function CreateWorld({
   const canvasRoles = continuationActive ? continuationRoles : (preview?.castAndTasks?.roles ?? draftRoles);
   const canvasGraph = suggested && continuationActive ? (continuationGraph ?? creatorBrief.storyGraph) : (suggested ? graphSuggestion?.after ?? remapCreatorStoryRoles(creatorBrief.storyGraph, draftRoles, canvasRoles) : creatorBrief.storyGraph);
   const canvasImages = suggested ? Object.fromEntries(canvasRoles.flatMap((role, i) => { const original = draftRoles.findIndex(old => old.editorId === role.editorId && portraitCacheKey(old) === portraitCacheKey(role)); return original >= 0 && roleImages[`draft-role-${original}`] ? [[`draft-role-${i}`, roleImages[`draft-role-${original}`]]] : []; })) : roleImages;
-  const discussionPanel = (
-            <section className="creator-agent-panel" aria-label="与创作 Agent 讨论">
-              <div className="creator-agent-heading"><span><Sparkles /></span><div><small>还是我，陪你创作</small><strong>{worldTitle || '从一个念头，开始另一种人生。'}</strong></div></div>
-              <div className="creator-conversation" ref={conversationLog} role="log" aria-live="polite" aria-busy={creatorAgentThinking} onScroll={(event) => { const el = event.currentTarget; followConversation.current = el.scrollHeight - el.scrollTop - el.clientHeight < 100; }}>
-                {creatorMessages.map((item, index) => <p key={`${item.role}-${index}`} data-role={item.role}>{item.role === 'agent' && <small>创作 Agent</small>}<span>{item.content}</span></p>)}
-                {creatorAgentThinking ? <p data-role="agent"><small>Agent</small><span>{creatorStreamingReply || '正在把你的想法和已有设定放在一起考虑……'}</span></p> : null}
-              <div className="creator-question-chips">{creatorQuestions.slice(0, 1).map((question) => <button type="button" key={question} disabled={creatorAgentThinking} onClick={() => { onCreatorMessage(question); document.getElementById('creator-message')?.focus(); }}>{question}</button>)}</div>
-              {creatorChangeNotice ? <p className="creator-notice-chip" style={{ margin: '8px 0', padding: '6px 12px', borderRadius: 8, background: 'var(--color-bg-secondary)', color: 'var(--color-text-secondary)', fontSize: 12, lineHeight: 1.5 }}>{creatorChangeNotice}</p> : null}
-                <CreatorProposalReview changes={proposalChanges} undo={[]} notice="" busy={creatorAgentThinking || generating} onApply={onApplyCreatorProposal} onApplyAll={onApplyAllCreatorProposals} onEdit={onEditCreatorProposal} onDismiss={onDismissCreatorProposal} problemFor={onCreatorProposalProblem} />
-              </div>
-              <div className="creation-compose-area">
-                <form className="creator-composer" onSubmit={(event) => { followConversation.current = true; onSubmitCreatorMessage(event); }}>
-                  <label className="sr-only" htmlFor="creator-message">和 Agent 讨论你的世界</label><MessageTextarea id="creator-message" rows={1} maxLength={3000} value={creatorMessage} onChange={(event) => onCreatorMessage(event.target.value)} placeholder="描述你的想法，或告诉 Agent 哪里需要调整…" disabled={creatorAgentThinking} />
-                  <Button className="agent-send" type="submit" aria-label="继续讨论" disabled={!creatorMessage.trim() || creatorAgentThinking}>{creatorAgentThinking ? <LoaderCircle className="is-spinning" /> : <Send />}</Button>
-                </form>
-                <small className="conversation-input-hint">Enter 发送 · Shift + Enter 换行</small>
-              </div>
-            </section>
-  );
+  const [lastAppliedCount, setLastAppliedCount] = useState(0);
+  const [proposalDetailsOpen, setProposalDetailsOpen] = useState(true);
+  const [recentlyAppliedFields, setRecentlyAppliedFields] = useState<string[]>([]);
 
-  const peoplePanel = (        <section className="create-card">
-          <div className="create-card-title"><div><h2>谁在这个世界里？</h2><p>展开一个角色，填写身份与专属目标。形象图可以稍后再生成。</p></div><Button variant="outline" onClick={onAddRole}><Plus />添加角色</Button></div>
-          <div className="draft-role-list">
-            {draftRoles.map((role, index) => (
-              <details className="creation-role" key={role.editorId || index} open={index === 0}>
-                <summary>{role.name || `角色 ${index + 1}`}<small>{role.identity || '身份待设定'}</small></summary>
-              <div className="draft-role">
-                <span className="draft-role-index">{String(index + 1).padStart(2, '0')}</span>
-                <div className="draft-role-image" data-state={roleImageStates[`draft-role-${index}`] ?? 'idle'}
-                  onClick={(e) => {
-                    if ((e.target as HTMLElement).closest('button')) return;
-                    if (roleImageStates[`draft-role-${index}`] !== 'generating') {
-                      onGenerateRoleImage(index);
-                    }
-                  }}
-                  title="点击生成或重新生成角色形象">
-                  {roleImages[`draft-role-${index}`]
-                    ? <img src={roleImages[`draft-role-${index}`]} alt={`${role.name || `角色 ${index + 1}`}的 AI 生成形象`} />
-                    : <span><UserRound /><small>尚未生成形象</small></span>}
-                  <button type="button" onClick={() => onGenerateRoleImage(index)} disabled={roleImageStates[`draft-role-${index}`] === 'generating'}>
-                    {roleImageStates[`draft-role-${index}`] === 'generating' ? <><LoaderCircle className="is-spinning" />正在生成</> : roleImages[`draft-role-${index}`] ? <><RefreshCw />重新生成</> : <><WandSparkles />生成形象（收费）</>}
-                  </button>
-                  {roleImageStates[`draft-role-${index}`] === 'error' ? <small className="role-image-error">生成失败，请重试</small> : null}
-                </div>
-                <div className="draft-fields">
-                  <div className="draft-field"><label htmlFor={`role-name-${index}`}>角色名称</label><Input id={`role-name-${index}`} value={role.name} onChange={(event) => onUpdateRole(index, 'name', event.target.value)} placeholder="例如：许知遥" /></div>
-                  <div className="draft-field"><label htmlFor={`role-identity-${index}`}>身份</label><Input id={`role-identity-${index}`} value={role.identity} onChange={(event) => onUpdateRole(index, 'identity', event.target.value)} placeholder="例如：民俗学研究生" /></div>
-                  <div className="draft-field full-field"><label htmlFor={`role-personality-${index}`}>性格与行为倾向</label><Input id={`role-personality-${index}`} value={role.personality} onChange={(event) => onUpdateRole(index, 'personality', event.target.value)} placeholder="例如：理性、好奇，但害怕欠人情" /></div>
-                  <div className="draft-field full-field"><label htmlFor={`role-appearance-${index}`}>固定外观（用于保持连续）</label><Input id={`role-appearance-${index}`} value={role.appearance} onChange={(event) => onUpdateRole(index, 'appearance', event.target.value)} placeholder="例如：齐肩黑发、墨绿色防风外套、随身携带旧笔记本" /></div>
-                  <div className="draft-field full-field"><label htmlFor={`role-relationship-${index}`}>与其他角色的关系</label><Input id={`role-relationship-${index}`} value={role.relationship} onChange={(event) => onUpdateRole(index, 'relationship', event.target.value)} placeholder="例如：受上一任守塔人委托保护许知遥" /></div>
-                  <div className="draft-field full-field"><label htmlFor={`role-goal-${index}`}>这个角色想达成什么？</label><Textarea id={`role-goal-${index}`} value={role.goal || ''} onChange={(event) => onUpdateRole(index, 'goal', event.target.value)} placeholder="例如：拿回属于自己的继承权，而不是帮其他人完成目标" /></div>
-                </div>
-                <button className="remove-role" type="button" disabled={draftRoles.length <= 2} onClick={() => onRemoveRole(index)} aria-label={`删除角色 ${role.name || index + 1}`}><Trash2 /></button>
-              </div></details>
-            ))}
-          </div>
-          <details className="flow-disclosure"><summary>批量生成形象</summary><p>会为所有角色发起生图请求并产生费用；不影响文字试玩。</p><Button variant="outline" onClick={onGenerateAllRoleImages} disabled={Object.values(roleImageStates).includes('generating')}><ImageIcon />生成全部形象</Button></details>
-          <div className="create-actions"><span>建议 2—5 个角色。删除角色也会删除其专属任务；仅修改目标不会重新生图。</span><Button className="primary-action" onClick={() => selectModule('story')}>查看故事画布<ArrowRight /></Button></div>
-        </section>);
-  const directionPanel = <>
-    <section className="create-card"><div className="create-card-title"><div><h2>先把想法放在这里</h2><p>可以从一句念头开始，不必先填完；只整理你已确定的方向。</p></div></div>
-    <div className="creator-framework-panel">
-      <label htmlFor="world-title">世界名称</label>
-      <Input id="world-title" value={worldTitle} onChange={(event) => onWorldTitle(event.target.value)} placeholder="可以暂时不填" />
-      <div className="discovery-genre-control">
-        <div className="discovery-genre-heading">
-          <label htmlFor="discovery-genre-group">剧情分类</label>
-          <span className="discovery-genre-current">
-            {creatorBrief.discoveryGenre ? `当前：${creatorBrief.discoveryGenre}` : '尚未确定'}
-          </span>
+  function markFieldsApplied(changes: CreatorChange[]) {
+    const keys: string[] = [];
+    changes.forEach(c => {
+      if (c.target?.kind === 'role') {
+        keys.push(`role-${c.target.id}-${c.target.field}`);
+        keys.push(`role-${c.target.id}`);
+      } else if (c.key === 'title') {
+        keys.push('world-title');
+      } else if (c.key === 'premise') {
+        keys.push('world-seed');
+      } else if (c.key === 'difficulties') {
+        keys.push('world-difficulties');
+      } else if (c.key === 'storyGraph') {
+        keys.push('story-graph-canvas');
+      }
+    });
+    setRecentlyAppliedFields(keys);
+    setTimeout(() => {
+      setRecentlyAppliedFields([]);
+    }, 2800);
+  }
+
+  function locateChange(change: CreatorChange) {
+    if (change.key === 'storyGraph') {
+      selectModule('story');
+      setStoryView('events');
+    } else if (change.key === 'castAndTasks' || change.target?.kind === 'role') {
+      selectModule('people');
+      if (change.target?.kind === 'role') {
+        const roleIdx = draftRoles.findIndex(r => r.editorId === change.target?.id);
+        if (roleIdx >= 0) setActiveRoleIndex(roleIdx);
+      }
+    } else if (change.target?.kind === 'task') {
+      selectModule('story');
+      setStoryView('tasks');
+    } else {
+      selectModule('direction');
+    }
+  }
+
+  function renderChangePreview(change: CreatorChange) {
+    if (typeof change.after === 'string') {
+      return (
+        <div className="proposal-diff-snippet">
+          {change.before && typeof change.before === 'string' && change.before.trim() ? (
+            <p className="diff-before">原设定：{change.before.slice(0, 80)}{change.before.length > 80 ? '…' : ''}</p>
+          ) : null}
+          <p className="diff-after">
+            建议改为：{change.after.slice(0, 160)}{change.after.length > 160 ? '…' : ''}
+          </p>
         </div>
-        <div id="discovery-genre-group" className="genre-chip-group" role="radiogroup" aria-label="选择剧情分类">
-          {STORY_CATEGORIES.map(category => {
-            const isSelected = (creatorBrief.discoveryGenre || '').split(' · ')[0] === category;
-            return (
+      );
+    }
+    if (change.key === 'storyGraph') {
+      const g = change.after as CreatorStoryGraph | undefined;
+      return (
+        <div className="proposal-diff-snippet">
+          <p className="diff-after">更新故事节点与走向（共 {g?.nodes?.length ?? 0} 个事件节点）</p>
+        </div>
+      );
+    }
+    if (change.key === 'difficulties' && Array.isArray(change.after)) {
+      return (
+        <div className="proposal-diff-snippet">
+          <p className="diff-after">更新世界铁律：{(change.after as string[]).join('；')}</p>
+        </div>
+      );
+    }
+    return (
+      <div className="proposal-diff-snippet">
+        <p className="diff-after">更新对应模块设定</p>
+      </div>
+    );
+  }
+
+  const pendingDirectionCount = proposalChanges.filter(c => c.key === 'title' || c.key === 'premise' || c.key === 'difficulties' || c.key === 'surpriseLevel' || c.key === 'discoveryGenre').length;
+  const pendingPeopleCount = proposalChanges.filter(c => c.key === 'castAndTasks' || c.target?.kind === 'role').length;
+  const pendingStoryCount = proposalChanges.filter(c => c.key === 'storyGraph' || c.target?.kind === 'task').length;
+
+  const getRoleSuggestion = (editorId: string | undefined, field: keyof CreatorRoleDraft) => {
+    if (!editorId) return undefined;
+    return proposalChanges.find(c => c.target?.kind === 'role' && c.target.id === editorId && c.target.field === field);
+  };
+  const roleHasAnyPending = (editorId?: string) => {
+    if (!editorId) return false;
+    return proposalChanges.some(c => c.target?.kind === 'role' && c.target.id === editorId);
+  };
+  const getDirectionSuggestion = (key: 'title' | 'premise' | 'difficulties' | 'discoveryGenre') => {
+    return proposalChanges.find(c => c.key === key);
+  };
+
+  function renderPendingSuggestion(change?: CreatorChange, multiline = false) {
+    if (!change) return null;
+    const text = typeof change.after === 'string' ? change.after : Array.isArray(change.after) ? change.after.join('；') : JSON.stringify(change.after);
+    return (
+      <div className="pending-field-suggestion-bar">
+        <div className="pfs-main">
+          <span className="pfs-tag"><WandSparkles size={12} /> 建议修改：</span>
+          <span className="pfs-val" data-multiline={multiline} title={text}>{text}</span>
+        </div>
+        <button
+          type="button"
+          className="pfs-apply-btn"
+          title="仅采纳此字段修改"
+          onClick={() => {
+            onApplyCreatorProposal(change);
+            markFieldsApplied([change]);
+          }}
+        >
+          采纳
+        </button>
+      </div>
+    );
+  }
+
+
+  const discussionPanel = (
+    <section className="creator-agent-panel" aria-label="与创作 Agent 讨论">
+      <div className="creator-agent-heading">
+        <span><Sparkles /></span>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <small>还是我，陪你创作</small>
+          <strong>{worldTitle || '从一个念头，开始另一种人生。'}</strong>
+        </div>
+        <button
+          type="button"
+          className="agent-memory-trigger"
+          data-active={companionContext?.useConfirmedMemories}
+          title={companionContext?.useConfirmedMemories ? '已开启参考日常聊天记忆，点击关闭' : '未参考日常聊天记忆，点击开启'}
+          onClick={() => {
+            if (companionContext && onCompanionContextChange) {
+              onCompanionContextChange({
+                ...companionContext,
+                useConfirmedMemories: !companionContext.useConfirmedMemories,
+              });
+            }
+          }}
+        >
+          <span className="memory-indicator" />
+          <BrainCircuit size={13} />
+          <span>{companionContext?.useConfirmedMemories ? '参考日常记忆' : '记忆未参考'}</span>
+        </button>
+      </div>
+      <div className="creator-conversation" ref={conversationLog} role="log" aria-live="polite" aria-busy={creatorAgentThinking} onScroll={(event) => { const el = event.currentTarget; followConversation.current = el.scrollHeight - el.scrollTop - el.clientHeight < 100; }}>
+        {creatorMessages.map((item, index) => <p key={`${item.role}-${index}`} data-role={item.role}>{item.role === 'agent' && <small>创作 Agent</small>}<span>{item.content}</span></p>)}
+        {creatorAgentThinking ? <p data-role="agent"><small>Agent</small><span>{creatorStreamingReply || '正在把你的想法和已有设定放在一起考虑……'}</span></p> : null}
+        
+        {proposalChanges.length > 0 && (
+          <div className="creator-inline-proposal-card" role="region" aria-label="创作建议提炼">
+            <div className="proposal-card-header">
+              <div className="proposal-card-title">
+                <Sparkles size={15} />
+                <strong>已为你提炼 {proposalChanges.length} 项创作建议</strong>
+              </div>
               <button
-                key={category}
                 type="button"
-                className="genre-chip"
-                role="radio"
-                aria-checked={isSelected}
-                data-selected={isSelected}
+                className="proposal-expand-toggle"
+                onClick={() => setProposalDetailsOpen(!proposalDetailsOpen)}
+              >
+                {proposalDetailsOpen ? '收起明细' : '展开查看内容'}
+              </button>
+            </div>
+
+            {!proposalDetailsOpen && (
+              <div className="proposal-card-chips">
+                {proposalChanges.map((change, idx) => (
+                  <button
+                    key={change.key || idx}
+                    type="button"
+                    className="proposal-chip"
+                    onClick={() => {
+                      setProposalDetailsOpen(true);
+                      locateChange(change);
+                    }}
+                    title="点击在工作区定位并查看详情"
+                  >
+                    <span>{change.label}</span>
+                    <ArrowRight size={11} />
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {proposalDetailsOpen && (
+              <div className="proposal-detail-list">
+                {proposalChanges.map((change) => (
+                  <div key={change.key} className="proposal-detail-row">
+                    <div className="proposal-detail-main">
+                      <div className="proposal-detail-header">
+                        <strong>{change.label}</strong>
+                        <button
+                          type="button"
+                          className="proposal-locate-btn"
+                          onClick={() => locateChange(change)}
+                          title="在右侧工作区定位此设定"
+                        >
+                          工作区定位 →
+                        </button>
+                      </div>
+                      {renderChangePreview(change)}
+                    </div>
+                    <div className="proposal-detail-action">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={creatorAgentThinking || generating}
+                        onClick={() => {
+                          onApplyCreatorProposal(change);
+                          markFieldsApplied([change]);
+                          setLastAppliedCount(prev => prev + 1);
+                          locateChange(change);
+                        }}
+                      >
+                        采纳
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="proposal-card-actions">
+              <Button
+                size="sm"
+                className="primary-action"
+                disabled={creatorAgentThinking || generating}
                 onClick={() => {
-                  if (isSelected) {
-                    onUpdateCreatorBrief('discoveryGenre', '');
+                  const count = proposalChanges.length;
+                  onApplyAllCreatorProposals(proposalChanges);
+                  markFieldsApplied(proposalChanges);
+                  setLastAppliedCount(count);
+                  if (proposalChanges.some(c => c.key === 'storyGraph')) {
+                    selectModule('story');
+                  } else if (proposalChanges.some(c => c.key === 'castAndTasks' || c.target)) {
+                    selectModule('people');
                   } else {
-                    const hasMeme = creatorBrief.discoveryGenre?.includes('热梗名场面');
-                    onUpdateCreatorBrief('discoveryGenre', category + (hasMeme ? ' · 热梗名场面' : ''));
+                    selectModule('direction');
                   }
                 }}
               >
-                {category}
-              </button>
-            );
-          })}
-        </div>
-        <div className="discovery-genre-footer">
-          <label className="genre-meme-option" data-disabled={!creatorBrief.discoveryGenre} title={!creatorBrief.discoveryGenre ? '先选择一个主分类后，方可开启热梗收录' : undefined}>
-            <input
-              type="checkbox"
-              disabled={!creatorBrief.discoveryGenre}
-              checked={!!creatorBrief.discoveryGenre?.includes('热梗名场面')}
-              onChange={event => {
-                const base = (creatorBrief.discoveryGenre || '').split(' · ')[0];
-                if (!base) return;
-                onUpdateCreatorBrief('discoveryGenre', base + (event.target.checked ? ' · 热梗名场面' : ''));
-              }}
-            />
-            <span>同时收录到热梗名场面</span>
-          </label>
-          <small className="discovery-genre-hint">
-            {!creatorBrief.discoveryGenre ? '点击上方标签选择，再次点击可取消；也可由 Agent 建议。' : '再次点击可取消选中；Agent 建议时会自动高亮。'}
-          </small>
-        </div>
-      </div>
-      <label htmlFor="world-seed">世界背景与当下冲突</label>
-      <Textarea id="world-seed" value={worldSeed} onChange={(event) => onWorldSeed(event.target.value)} placeholder="写清之前发生了什么，角色们现在面对什么。" />
-    </div></section>
-    <section><h3>参与方式与世界边界</h3>        <section className="create-card settings-card">
-          <EntryPolicyEditor value={entryPolicy} roles={draftRoles.map((role, index) => ({ id: `draft-role-${index}`, name: role.name }))} onChange={onEntryPolicy} />
-          <div className="setting-block">
-            <div><span className="setting-label">意外程度</span><strong>{surpriseLabels[surprise - 1]}</strong></div>
-            <p>只改变合理突发事件的频率和影响，不破坏世界规律与已经发生的事实。</p>
-            <div className="surprise-options" aria-label="选择意外程度">
-              {surpriseLabels.map((label, index) => <button key={label} type="button" aria-pressed={surprise === index + 1} data-selected={surprise === index + 1} onClick={() => onSurprise(index + 1)}><span>{index + 1}</span><strong>{label}</strong><small>{index === 0 ? '几乎不出现额外事件' : index === 1 ? '偶尔出现合理插曲' : index === 2 ? '事件会明显改变路线' : '频繁出现重大变数'}</small></button>)}
+                <Sparkles size={13} /> 一键全部写入工作区
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={creatorAgentThinking}
+                onClick={() => {
+                  onDismissCreatorProposal();
+                }}
+              >
+                稍后再看
+              </Button>
             </div>
           </div>
-          <p>体验中支持自由输入行动；达成结局后可以选择继续。这两项目前是所有世界共有的能力。</p>
-        </section></section>
-    <details className="flow-disclosure creation-context"><summary>选择带入的日常聊天与记忆</summary>{companionPanel}</details>
-  </>;
+        )}
+
+        {lastAppliedCount > 0 && creatorUndo.length > 0 && (
+          <div className="creator-inline-undo-bar">
+            <span>✨ 建议已写入工作区草稿</span>
+            <button
+              type="button"
+              className="undo-btn"
+              onClick={() => {
+                const toUndo = [...creatorUndo].slice(-lastAppliedCount);
+                toUndo.reverse().forEach(c => onApplyCreatorProposal(c, true));
+                setLastAppliedCount(0);
+              }}
+            >
+              <Undo2 size={13} /> 撤销写入
+            </button>
+          </div>
+        )}
+
+        {creatorChangeNotice ? <p className="creator-notice-chip" style={{ margin: '8px 0', padding: '6px 12px', borderRadius: 8, background: 'var(--color-bg-secondary)', color: 'var(--color-text-secondary)', fontSize: 12, lineHeight: 1.5 }}>{creatorChangeNotice}</p> : null}
+      </div>
+
+      <div className="creation-compose-area">
+        {scriptAdviceOpen && (
+          <div className="creator-script-advice-container" role="region" aria-label="智能剧本破局建议">
+            <div className="script-advice-header">
+              <div className="script-advice-header-left">
+                <Sparkles size={14} className="advice-sparkle" />
+                <strong>智能编剧破局建议</strong>
+                <span className="script-advice-badge">{worldTitle ? `基于《${worldTitle}》` : '基于当前草稿'} · {creatorBrief.discoveryGenre || '剧情'}</span>
+              </div>
+              <button
+                type="button"
+                className="script-advice-close-btn"
+                onClick={() => setScriptAdviceOpen(false)}
+                aria-label="收起剧本建议"
+              >
+                <X size={14} />
+              </button>
+            </div>
+            <div className="script-advice-list">
+              {scriptAdviceList.map(advice => (
+                <div key={advice.id} className="script-advice-item">
+                  <div className="advice-item-top">
+                    <span className="advice-tag">{advice.badge}</span>
+                    <strong className="advice-item-title">{advice.title}</strong>
+                  </div>
+                  <p className="advice-item-content">{advice.content}</p>
+                  <div className="advice-item-actions">
+                    <button
+                      type="button"
+                      className="advice-action-btn primary"
+                      disabled={creatorAgentThinking}
+                      onClick={() => {
+                        setScriptAdviceOpen(false);
+                        onSubmitCreatorMessage(undefined, advice.prompt);
+                      }}
+                      title="让 Agent 围绕该建议深入推演并生成设定提案"
+                    >
+                      <Sparkles size={12} />
+                      <span>让 Agent 深入推演</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="advice-action-btn secondary"
+                      disabled={creatorAgentThinking}
+                      onClick={() => {
+                        onCreatorMessage(advice.prompt);
+                        setScriptAdviceOpen(false);
+                      }}
+                      title="填入输入框，自行调整后再发送"
+                    >
+                      <span>填入输入框</span>
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="script-advice-footer">
+              <button
+                type="button"
+                className="advice-full-diagnosis-btn"
+                disabled={creatorAgentThinking}
+                onClick={() => {
+                  setScriptAdviceOpen(false);
+                  const fullPrompt = `站在资深编剧和互动故事策划的角度，请对当前《${worldTitle || '未命名'}》（题材：${creatorBrief.discoveryGenre || '剧情'}）的整体设定、角色关系与开局危机进行一次全面的剧本健康度诊断，指出核心看点、3 个最严重的戏剧漏洞，以及具体的破局优化方案。`;
+                  onSubmitCreatorMessage(undefined, fullPrompt);
+                }}
+              >
+                <Bot size={13} />
+                <span>让 Agent 进行全篇深度剧本诊断 →</span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        <div className="composer-toolbar-row">
+          <button
+            type="button"
+            className="script-advice-trigger-btn"
+            data-active={scriptAdviceOpen}
+            disabled={creatorAgentThinking}
+            onClick={() => setScriptAdviceOpen(!scriptAdviceOpen)}
+            title="基于当前草稿内容的真实戏剧与编剧建议"
+          >
+            <Sparkles size={13} />
+            <span>{scriptAdviceOpen ? '收起剧本建议' : '✨ 剧本建议'}</span>
+          </button>
+        </div>
+
+        <form className="creator-composer" onSubmit={(event) => { followConversation.current = true; onSubmitCreatorMessage(event); }}>
+          <label className="sr-only" htmlFor="creator-message">和 Agent 讨论你的世界</label><MessageTextarea id="creator-message" rows={1} maxLength={3000} value={creatorMessage} onChange={(event) => onCreatorMessage(event.target.value)} placeholder="和 Agent 聊聊你的想法…" disabled={creatorAgentThinking} />
+          <Button className="agent-send" type="submit" aria-label="继续讨论" disabled={!creatorMessage.trim() || creatorAgentThinking}>{creatorAgentThinking ? <LoaderCircle className="is-spinning" /> : <Send />}</Button>
+        </form>
+        <small className="conversation-input-hint">Enter 发送 · Shift + Enter 换行</small>
+      </div>
+    </section>
+  );
+
+  const curRoleIndex = Math.min(activeRoleIndex, Math.max(0, draftRoles.length - 1));
+  const activeRole = draftRoles[curRoleIndex] || draftRoles[0];
+  const roleEntry = creatorBrief.storyGraph?.entries?.find(e => e.roleId === `draft-role-${curRoleIndex}`);
+  const roleEntryNode = roleEntry ? creatorBrief.storyGraph?.nodes?.find(n => n.id === roleEntry.nodeId) : null;
+
+  const unpaintedRolesCount = draftRoles.filter((_, idx) => !roleImages['draft-role-' + idx]).length;
+
+  const peoplePanel = (
+    <section className="create-card">
+      <div className="create-card-title">
+        <div>
+          <h2>谁在这个世界里？</h2>
+          <p>一次聚焦一个角色，设定身份、性格与专属目标。形象图可随时制作。</p>
+        </div>
+      </div>
+      <div className="role-selector-bar">
+        <div className="role-chips" role="tablist" aria-label="选择要编辑的角色">
+          {draftRoles.map((r, idx) => (
+            <button
+              key={r.editorId || idx}
+              type="button"
+              role="tab"
+              aria-selected={curRoleIndex === idx}
+              className="role-select-chip"
+              onClick={() => setActiveRoleIndex(idx)}
+            >
+              <span className="role-chip-num">{String(idx + 1).padStart(2, '0')}</span>
+              <span className="role-chip-name">{r.name || `角色 ${idx + 1}`}</span>
+              {roleHasAnyPending(r.editorId) && (
+                <span className="role-chip-pending-dot" title="该角色有待确认的修改建议" />
+              )}
+              {r.identity && <small className="role-chip-identity">{r.identity}</small>}
+            </button>
+          ))}
+          <button
+            type="button"
+            className="role-add-chip"
+            onClick={() => {
+              onAddRole();
+              setActiveRoleIndex(draftRoles.length);
+            }}
+            title="添加新角色"
+          >
+            <Plus size={15} />
+            <span>添加角色</span>
+          </button>
+        </div>
+        <div className="role-global-actions">
+          <button
+            type="button"
+            className="role-batch-btn"
+            onClick={openBatchDialog}
+            disabled={draftRoles.length === 0 || !!batchProgress}
+          >
+            {batchProgress ? (
+              <><LoaderCircle className="is-spinning" size={14} />制作中 ({batchProgress.current}/{batchProgress.total})</>
+            ) : (
+              <><WandSparkles size={14} />{unpaintedRolesCount > 0 ? `制作未生成形象 (${unpaintedRolesCount}位)` : `批量重绘形象 (${draftRoles.length}位)`}</>
+            )}
+          </button>
+        </div>
+      </div>
+
+      {activeRole && (() => {
+        const nameSug = getRoleSuggestion(activeRole.editorId, 'name');
+        const identitySug = getRoleSuggestion(activeRole.editorId, 'identity');
+        const personalitySug = getRoleSuggestion(activeRole.editorId, 'personality');
+        const appearanceSug = getRoleSuggestion(activeRole.editorId, 'appearance');
+        const relationshipSug = getRoleSuggestion(activeRole.editorId, 'relationship');
+        const goalSug = getRoleSuggestion(activeRole.editorId, 'goal');
+
+        return (
+        <div className="role-focus-card" key={activeRole.editorId || curRoleIndex}>
+          <div className="role-focus-title-row">
+            <div className="role-title-meta">
+              <span className="role-index-tag">角色 {String(curRoleIndex + 1).padStart(2, '0')}</span>
+              <h3>{activeRole.name || `角色 ${curRoleIndex + 1}`}</h3>
+              {activeRole.identity && <span className="role-identity-pill">{activeRole.identity}</span>}
+            </div>
+            <div className="role-card-actions">
+              <button
+                type="button"
+                className="role-delete-btn"
+                disabled={draftRoles.length <= 1}
+                title={draftRoles.length <= 1 ? '故事至少需要保留 1 位角色' : '删除此角色'}
+                onClick={() => setDeleteConfirmIndex(curRoleIndex)}
+              >
+                <Trash2 size={14} />
+                <span>删除角色</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="role-focus-header">
+            <div
+              className="draft-role-image"
+              data-state={roleImageStates[`draft-role-${curRoleIndex}`] ?? 'idle'}
+            >
+              {roleImages[`draft-role-${curRoleIndex}`] ? (
+                <div
+                  className="portrait-preview-trigger"
+                  onClick={() => setPreviewImage(roleImages[`draft-role-${curRoleIndex}`])}
+                  title="点击查看高清大图"
+                >
+                  <img
+                    src={roleImages[`draft-role-${curRoleIndex}`]}
+                    alt={`${activeRole.name || `角色 ${curRoleIndex + 1}`}的形象`}
+                  />
+                  <span className="portrait-zoom-hint"><ZoomIn size={13} />放大查看</span>
+                </div>
+              ) : (
+                <span>
+                  <UserRound />
+                  <small>尚未制作形象</small>
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={() => onGenerateRoleImage(curRoleIndex)}
+                disabled={roleImageStates[`draft-role-${curRoleIndex}`] === 'generating'}
+              >
+                {roleImageStates[`draft-role-${curRoleIndex}`] === 'generating' ? (
+                  <><LoaderCircle className="is-spinning" />正在制作</>
+                ) : roleImages[`draft-role-${curRoleIndex}`] ? (
+                  <><RefreshCw />重新制作</>
+                ) : (
+                  <><WandSparkles />制作形象</>
+                )}
+              </button>
+              {roleImageStates[`draft-role-${curRoleIndex}`] === 'error' ? (
+                <small className="role-image-error">制作失败，请重试</small>
+              ) : null}
+            </div>
+
+            <div className="role-focus-primary">
+              <div className="role-name-identity-row">
+                <div className="draft-field">
+                  <label htmlFor={`role-name-${curRoleIndex}`}>角色名称</label>
+                  <Input
+                    id={`role-name-${curRoleIndex}`}
+                    className={`${recentlyAppliedFields.includes(`role-${activeRole.editorId}-name`) ? 'draft-glow' : ''} ${nameSug ? 'field-has-pending' : ''}`.trim() || undefined}
+                    value={activeRole.name}
+                    onChange={(event) => onUpdateRole(curRoleIndex, 'name', event.target.value)}
+                    placeholder="如：许知遥"
+                  />
+                  {renderPendingSuggestion(nameSug)}
+                </div>
+                <div className="draft-field">
+                  <label htmlFor={`role-identity-${curRoleIndex}`}>身份</label>
+                  <Input
+                    id={`role-identity-${curRoleIndex}`}
+                    className={`${recentlyAppliedFields.includes(`role-${activeRole.editorId}-identity`) ? 'draft-glow' : ''} ${identitySug ? 'field-has-pending' : ''}`.trim() || undefined}
+                    value={activeRole.identity}
+                    onChange={(event) => onUpdateRole(curRoleIndex, 'identity', event.target.value)}
+                    placeholder="如：民俗学研究生"
+                  />
+                  {renderPendingSuggestion(identitySug)}
+                </div>
+              </div>
+
+              <div className="draft-field">
+                <label htmlFor={`role-personality-${curRoleIndex}`}>性格与行为倾向</label>
+                <Input
+                  id={`role-personality-${curRoleIndex}`}
+                  className={`${recentlyAppliedFields.includes(`role-${activeRole.editorId}-personality`) ? 'draft-glow' : ''} ${personalitySug ? 'field-has-pending' : ''}`.trim() || undefined}
+                  value={activeRole.personality}
+                  onChange={(event) => onUpdateRole(curRoleIndex, 'personality', event.target.value)}
+                  placeholder="如：敏锐、内敛、重诺"
+                />
+                {renderPendingSuggestion(personalitySug)}
+              </div>
+
+              <div className="draft-field">
+                <label htmlFor={`role-appearance-${curRoleIndex}`}>固定外观（用于保持连续）</label>
+                <Input
+                  id={`role-appearance-${curRoleIndex}`}
+                  className={`${recentlyAppliedFields.includes(`role-${activeRole.editorId}-appearance`) ? 'draft-glow' : ''} ${appearanceSug ? 'field-has-pending' : ''}`.trim() || undefined}
+                  value={activeRole.appearance}
+                  onChange={(event) => onUpdateRole(curRoleIndex, 'appearance', event.target.value)}
+                  placeholder="如：齐肩黑发、墨绿外套"
+                />
+                {renderPendingSuggestion(appearanceSug)}
+              </div>
+            </div>
+          </div>
+
+          <div className="role-focus-body">
+            <div className="draft-field">
+              <label htmlFor={`role-relationship-${curRoleIndex}`}>与其他角色的关系</label>
+              <Input
+                id={`role-relationship-${curRoleIndex}`}
+                className={`${recentlyAppliedFields.includes(`role-${activeRole.editorId}-relationship`) ? 'draft-glow' : ''} ${relationshipSug ? 'field-has-pending' : ''}`.trim() || undefined}
+                value={activeRole.relationship}
+                onChange={(event) => onUpdateRole(curRoleIndex, 'relationship', event.target.value)}
+                placeholder="如：旧友、同盟或对立"
+              />
+              {renderPendingSuggestion(relationshipSug)}
+            </div>
+            <div className="draft-field">
+              <label htmlFor={`role-goal-${curRoleIndex}`}>这个角色想达成什么？</label>
+              <Textarea
+                id={`role-goal-${curRoleIndex}`}
+                className={`${recentlyAppliedFields.includes(`role-${activeRole.editorId}-goal`) ? 'draft-glow' : ''} ${goalSug ? 'field-has-pending' : ''}`.trim() || undefined}
+                value={activeRole.goal || ''}
+                onChange={(event) => onUpdateRole(curRoleIndex, 'goal', event.target.value)}
+                placeholder="如：查清真相、夺回名誉"
+              />
+              {renderPendingSuggestion(goalSug, true)}
+            </div>
+          </div>
+
+          {roleEntryNode && (
+            <div className="role-entry-bridge">
+              <div>
+                <small>初次入场节点</small>
+                <strong>{roleEntryNode.title || '初始节点'}</strong>
+                <p>{roleEntry?.scene || roleEntryNode.scene || '该角色在故事开始时的处境。'}</p>
+              </div>
+              <Button variant="outline" size="sm" onClick={() => { setStoryView('events'); selectModule('story'); }}>
+                前往故事画布编辑
+              </Button>
+            </div>
+          )}
+
+          <div className="role-focus-footer" style={{ borderTop: '1px solid var(--color-border-soft)', paddingTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <small style={{ color: 'var(--color-text-muted)' }}>共 {draftRoles.length} 个角色 · 建议 1—5 个</small>
+            <small style={{ color: 'var(--color-text-muted)' }}>已为 {Object.keys(roleImages).filter(k => k.startsWith('draft-role-')).length} 位制作形象</small>
+          </div>
+        </div>
+        );
+      })()}
+
+      <div className="create-actions" style={{ marginTop: 20, justifyContent: 'flex-end' }}>
+        <Button className="primary-action" onClick={() => selectModule('story')}>
+          查看故事画布<ArrowRight />
+        </Button>
+      </div>
+
+      <DeleteRoleDialog
+        open={deleteConfirmIndex !== null}
+        roleIndex={deleteConfirmIndex}
+        roles={draftRoles}
+        creatorBrief={creatorBrief}
+        onClose={() => setDeleteConfirmIndex(null)}
+        onConfirm={index => {
+          onRemoveRole(index);
+          setActiveRoleIndex(prev => Math.max(0, Math.min(prev, draftRoles.length - 2)));
+          setDeleteConfirmIndex(null);
+        }}
+      />
+
+      <PortraitBatchDialog
+        open={batchDialogOpen}
+        roles={draftRoles}
+        roleImages={roleImages}
+        selectedIndices={batchSelected}
+        batchProgress={batchProgress}
+        onSelectChange={setBatchSelected}
+        onClose={() => setBatchDialogOpen(false)}
+        onStart={() => void runBatchGeneration()}
+      />
+
+      <ImagePreviewModal
+        image={previewImage}
+        onClose={() => setPreviewImage(null)}
+      />
+    </section>
+  );
+  const directionPanel = (() => {
+    const titleSug = getDirectionSuggestion('title');
+    const seedSug = getDirectionSuggestion('premise');
+    const difficultiesSug = getDirectionSuggestion('difficulties');
+
+    return (
+      <div className="direction-workspace-flow">
+        {/* 卡片 1：作品名片与世界悬念 */}
+        <section className="direction-section-card">
+          <div className="direction-section-header">
+            <h3>作品设定与世界观</h3>
+            <p>作品名称、故事题材与开局悬念</p>
+          </div>
+
+          <div className="draft-field">
+            <label htmlFor="world-title">作品名称</label>
+            <Input
+              id="world-title"
+              value={worldTitle}
+              className={`${recentlyAppliedFields.includes('world-title') ? 'draft-glow' : ''} ${titleSug ? 'field-has-pending' : ''}`.trim() || undefined}
+              onChange={(event) => onWorldTitle(event.target.value)}
+              placeholder="如：雾港无灯、破庙夜行…"
+            />
+            {renderPendingSuggestion(titleSug)}
+          </div>
+
+          <div className="genre-selection-group">
+            <div className="genre-selection-header">
+              <label id="world-genre-label">剧情题材分类</label>
+              <span className="genre-selection-current">
+                {creatorBrief.discoveryGenre ? `当前：${creatorBrief.discoveryGenre}` : '未指定分类'}
+              </span>
+            </div>
+            <div className="genre-selection-chips" role="radiogroup" aria-labelledby="world-genre-label">
+              {STORY_CATEGORIES.map(category => {
+                const isSelected = (creatorBrief.discoveryGenre || '').split(' · ')[0] === category;
+                return (
+                  <button
+                    key={category}
+                    type="button"
+                    className="genre-chip-item"
+                    role="radio"
+                    aria-checked={isSelected}
+                    data-selected={isSelected}
+                    onClick={() => {
+                      if (isSelected) {
+                        onUpdateCreatorBrief('discoveryGenre', '');
+                      } else {
+                        const hasMeme = creatorBrief.discoveryGenre?.includes('热梗名场面');
+                        onUpdateCreatorBrief('discoveryGenre', category + (hasMeme ? ' · 热梗名场面' : ''));
+                      }
+                    }}
+                  >
+                    {category}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="draft-field">
+            <label htmlFor="world-seed">世界背景与开局危机</label>
+            <Textarea
+              id="world-seed"
+              rows={4}
+              value={worldSeed}
+              className={`${recentlyAppliedFields.includes('world-seed') ? 'draft-glow' : ''} ${seedSug ? 'field-has-pending' : ''}`.trim() || undefined}
+              onChange={(event) => onWorldSeed(event.target.value)}
+              placeholder="交代世界背景、时代舞台、开局爆发的突发危机或当下悬念（如：孤岛守塔人离奇失踪，暴雨之夜最后一班轮渡停航…）"
+            />
+            {renderPendingSuggestion(seedSug, true)}
+          </div>
+        </section>
+
+        {/* 卡片 2：AI 推演机制与铁律 */}
+        <section className="direction-section-card">
+          <div className="direction-section-header">
+            <h3>AI 推演机制与规则约束</h3>
+            <p>突发变数频率与不可违背的底层规则</p>
+          </div>
+
+          <div className="surprise-rule-block">
+            <div className="surprise-rule-header">
+              <span>推演变数频率</span>
+              <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
+                {surprise === 1 ? '几乎不出现额外事件' : surprise === 2 ? '偶尔出现合理插曲' : surprise === 3 ? '事件会明显改变路线' : '频繁出现重大变数'}
+              </span>
+            </div>
+            <div className="surprise-segmented-control" role="radiogroup" aria-label="选择推演变数频率">
+              {surpriseLabels.map((label, index) => (
+                <button
+                  key={label}
+                  type="button"
+                  role="radio"
+                  aria-checked={surprise === index + 1}
+                  data-selected={surprise === index + 1}
+                  onClick={() => onSurprise(index + 1)}
+                  title={index === 0 ? '平稳推进：严格遵循已有故事主干' : index === 1 ? '偶尔插曲：随机出现合理的剧情变故' : index === 2 ? '充满变数：AI 事件将显著改变分支走向' : '命运难料：频繁引入重大反转与意外'}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <small className="surprise-rule-hint">
+              控制体验过程中突发事件的出现概率。推荐选择「偶尔插曲」，可在保持主线连贯的同时带来戏剧张力。
+            </small>
+          </div>
+
+          <details className="compact-accordion">
+            <summary>
+              <span><strong>世界运转铁律与已知事实 (选填)</strong> <small>({creatorBrief.difficulties?.length ?? 0} 项)</small></span>
+              <small>客观不可违背底层规则 ▾</small>
+            </summary>
+            <div className="compact-accordion-content">
+              <div className={`difficulties-editor ${recentlyAppliedFields.includes('world-difficulties') ? 'draft-glow' : ''}`}>
+                {(creatorBrief.difficulties ?? []).map((diff, index) => (
+                  <div key={index} className="difficulty-item">
+                    <span className="diff-bullet">{index + 1}</span>
+                    <Input
+                      value={diff}
+                      placeholder="如：暴雨夜孤岛通讯中断；子夜必起大雾无法行船"
+                      onChange={(e) => {
+                        const next = [...(creatorBrief.difficulties ?? [])];
+                        next[index] = e.target.value;
+                        onUpdateCreatorBrief('difficulties', next);
+                      }}
+                    />
+                    <button
+                      type="button"
+                      className="diff-remove-btn"
+                      title="删除此项事实"
+                      onClick={() => {
+                        const next = (creatorBrief.difficulties ?? []).filter((_, i) => i !== index);
+                        onUpdateCreatorBrief('difficulties', next);
+                      }}
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  className="diff-add-btn"
+                  disabled={(creatorBrief.difficulties?.length ?? 0) >= 8}
+                  onClick={() => {
+                    const next = [...(creatorBrief.difficulties ?? []), ''];
+                    onUpdateCreatorBrief('difficulties', next);
+                  }}
+                >
+                  <Plus size={14} /> 添加一条世界铁律 / 已知事实
+                </button>
+                {renderPendingSuggestion(difficultiesSug)}
+                {(creatorBrief.difficulties?.length ?? 0) === 0 && (
+                  <small className="diff-hint">
+                    暂未设置世界级铁律。填入全剧通用的客观事实（如：案发现场既定事实、地理封锁等），AI 推演时绝不违背。
+                  </small>
+                )}
+              </div>
+            </div>
+          </details>
+
+          <details className="compact-accordion">
+            <summary>
+              <span><strong>玩家自带虚构身份与能力规则 (选填)</strong> <small>{entryPolicy.allowPersona ? '(已允许自带身份)' : '(默认关闭)'}</small></span>
+              <small>{entryPolicy.allowPersona ? '配置能力限制 ▾' : '允许玩家带形象入场 ▾'}</small>
+            </summary>
+            <div className="compact-accordion-content">
+              <EntryPolicyEditor
+                value={entryPolicy}
+                roles={draftRoles.map((role, index) => ({ id: `draft-role-${index}`, name: role.name }))}
+                onChange={onEntryPolicy}
+              />
+            </div>
+          </details>
+        </section>
+
+        <div className="create-actions" style={{ marginTop: 8, justifyContent: 'flex-end' }}>
+          <Button className="primary-action" onClick={() => selectModule('people')}>
+            进入人物与关系<ArrowRight />
+          </Button>
+        </div>
+      </div>
+    );
+  })();
   const storyPanel = <>
     <nav className="workspace-story-tabs" aria-label="故事编辑视图">
       <div className="story-tabs-left">
@@ -3512,8 +4306,8 @@ function CreateWorld({
             }
           }}
           onEditRoles={() => selectModule('people')} /></div>
-    <div className="workspace-task-panel" hidden={storyView !== 'tasks'}><h3>目标与任务</h3><p>这是跨事件的追求与达成条件，不要求写完每条剧情；可能走向不等于已发生事实。</p><div className="creator-framework-panel">              <label htmlFor="creator-goal">核心目标</label><Textarea id="creator-goal" value={creatorBrief.coreGoal} onChange={(event) => onUpdateCreatorBrief('coreGoal', event.target.value)} placeholder="体验者最终要做成什么？" />
-              <div className="condition-grid"><label htmlFor="success-condition">预期走向（可选）<Input id="success-condition" value={creatorBrief.successCondition} onChange={(event) => onUpdateCreatorBrief('successCondition', event.target.value)} placeholder="这段故事可能走向哪里" /></label><label htmlFor="failure-condition">其他走向（可选）<Input id="failure-condition" value={creatorBrief.failureCondition} onChange={(event) => onUpdateCreatorBrief('failureCondition', event.target.value)} placeholder="人物选择不同，可能发生什么" /></label></div>
+    <div className="workspace-task-panel" hidden={storyView !== 'tasks'}><h3>目标与任务</h3><p>这是跨事件的追求与达成条件，不要求写完每条剧情；可能走向不等于已发生事实。</p><div className="creator-framework-panel">              <label htmlFor="creator-goal">核心目标</label><Textarea id="creator-goal" value={creatorBrief.coreGoal} onChange={(event) => onUpdateCreatorBrief('coreGoal', event.target.value)} placeholder="核心目标或诉求" />
+              <div className="condition-grid"><label htmlFor="success-condition">预期走向（可选）<Input id="success-condition" value={creatorBrief.successCondition} onChange={(event) => onUpdateCreatorBrief('successCondition', event.target.value)} placeholder="达成条件或走向（可选）" /></label><label htmlFor="failure-condition">其他走向（可选）<Input id="failure-condition" value={creatorBrief.failureCondition} onChange={(event) => onUpdateCreatorBrief('failureCondition', event.target.value)} placeholder="受阻或分歧走向（可选）" /></label></div>
               <div className="complexity-picker"><span><strong>世界复杂度</strong><small>决定任务深度，不是预设分钟数</small></span><div>{['轻量', '标准', '丰富', '多线'].map((label, index) => <button type="button" key={label} data-selected={creatorBrief.complexityLevel === index + 1} onClick={() => onComplexity(index + 1)}>{label}</button>)}</div></div>
               <div className="creator-task-heading"><span><strong>目标下的任务条件</strong><small>前置条件与困难防止玩家一句话直达结局</small></span><Button variant="outline" onClick={onAddCreatorTask}><Plus />添加任务</Button></div>
               <CreatorTaskEditor tasks={creatorBrief.tasks} roles={draftRoles} onUpdate={onUpdateCreatorTask} onRemove={onRemoveCreatorTask} />
@@ -3547,10 +4341,9 @@ function CreateWorld({
     <div className="workspace-assets">{draftRoles.map((role, index) => <section className="workspace-asset" key={role.editorId || index}>
       {roleImages[`draft-role-${index}`] ? <img src={roleImages[`draft-role-${index}`]} alt={`${role.name || '角色'}的形象`} /> : <p>尚未生成人物形象</p>}
       <h3>{role.name || `角色 ${index + 1}`}</h3>
-                        <div className="draft-field full-field"><label htmlFor={`role-hook-${index}`}>卡片标题 · 一句让人想点进来的话</label><Input id={`role-hook-${index}`} maxLength={60} value={role.cardHook ?? ''} onChange={(event) => onUpdateRole(index, 'cardHook', event.target.value)} placeholder="例如：别急着走，陪我喝完这杯" /><small>不限定句式，简短即可。可自己写或让 Agent 建议；清空后只展示图片，姓名仍可搜索。</small></div>
-                  <div className="draft-field full-field"><label htmlFor={`role-public-${index}`}>公开介绍 · 聊天页展示（可选）</label><Textarea id={`role-public-${index}`} maxLength={1200} value={role.publicIntroduction ?? ''} onChange={(event) => onUpdateRole(index, 'publicIntroduction', event.target.value)} placeholder="介绍体验者可以提前知道的身份与相处特点，不填写秘密、隐藏目标或私密认知。" /><small>{role.publicIntroduction === undefined ? '尚未单独设置，将沿用已有公开背景；填写后以这里为准。' : '以这里为准；清空会隐藏介绍，不会重新展示旧背景。'} 此项不改变角色的内在设定，也不会重新生成图片。</small></div>
-      <p>修改公开介绍不会自动生图。</p>
-      <Button variant="outline" disabled={roleImageStates[`draft-role-${index}`] === 'generating'} onClick={() => onGenerateRoleImage(index)}>{roleImageStates[`draft-role-${index}`] === 'generating' ? '正在生成' : roleImages[`draft-role-${index}`] ? '重新生成形象（收费）' : '生成形象（收费）'}</Button>
+      <div className="draft-field full-field"><label htmlFor={`role-hook-${index}`}>卡片标题 · 一句让人想点进来的话</label><Input id={`role-hook-${index}`} maxLength={60} value={role.cardHook ?? ''} onChange={(event) => onUpdateRole(index, 'cardHook', event.target.value)} placeholder="吸引点击的一句话短句" /></div>
+      <div className="draft-field full-field"><label htmlFor={`role-public-${index}`}>公开介绍 · 聊天页展示（可选）</label><Textarea id={`role-public-${index}`} maxLength={1200} value={role.publicIntroduction ?? ''} onChange={(event) => onUpdateRole(index, 'publicIntroduction', event.target.value)} placeholder="公开可见的身份与背景介绍（可选）" /></div>
+      <Button variant="outline" disabled={roleImageStates[`draft-role-${index}`] === 'generating'} onClick={() => onGenerateRoleImage(index)}>{roleImageStates[`draft-role-${index}`] === 'generating' ? '正在生成' : roleImages[`draft-role-${index}`] ? '重新生成形象' : '生成形象'}</Button>
       {roleImageStates[`draft-role-${index}`] === 'error' && <p role="alert">形象生成失败，可稍后重试。</p>}
     </section>)}</div>
   </>;
@@ -3569,19 +4362,31 @@ function CreateWorld({
       <Sheet open={settingsOpen} onOpenChange={setSettingsOpen}>
         <header className="flow-toolbar"><button className="flow-control" type="button" onClick={onBack}><ArrowLeft />返回</button><h1>一起创作</h1>
           <div className="workspace-actions">
+            <button className="flow-control toggle-agent-btn" type="button" onClick={() => setAgentCollapsed(!agentCollapsed)} title={agentCollapsed ? '展开 Agent 讨论栏' : '收起 Agent 讨论栏，获得全宽工作区'}>
+              {agentCollapsed ? <PanelRightOpen size={16} /> : <PanelRightClose size={16} />}<span>{agentCollapsed ? '展开 Agent' : '收起 Agent'}</span>
+            </button>
+            <small className="workspace-save-badge" role={storageNotice ? 'alert' : undefined}>{storageNotice || '已自动保存在本机'}</small>
             <button className="flow-control" type="button" onClick={onSaveDraft}>保存草稿</button>
             <button className="flow-control" type="button" onClick={() => setHistoryOpen(true)}>版本与续写</button>
             <SheetTrigger className="flow-control">预览</SheetTrigger>
             <Button disabled={!canPublish || !worldSeed.trim() || taskIssues.length > 0 || creatorAgentThinking || generating} onClick={onShare} title={!canPublish ? '当前账号暂不可公开发布' : '检查并确认发布'}>发布</Button>
           </div>
         </header>
-        <small className="workspace-save-note" role={storageNotice ? 'alert' : undefined}>{storageNotice || '草稿自动保存在本机；发布后才会更新公开作品。'}</small>
         <nav className="creation-pane-tabs" aria-label="创作视图"><button type="button" aria-pressed={mobilePane === 'chat'} onClick={() => setMobilePane('chat')}>与 Agent 讨论</button><button type="button" aria-pressed={mobilePane === 'canvas'} onClick={() => setMobilePane('canvas')}>作品工作区{hasSuggestion ? ' · 待确认建议' : ''}</button></nav>
-        <div className="creation-workbench" data-pane={mobilePane}>
+        <div className="creation-workbench" data-pane={mobilePane} data-agent-collapsed={agentCollapsed}>
           {discussionPanel}
-          <CreatorWorkspace title={worldTitle} active={workspaceModule} onSelect={selectModule} onFieldFocus={onCreatorFocus}
-            notice={hasSuggestion ? <div className="workspace-suggestion"><span>Agent 有新的建议，尚未写入草稿。</span><button className="flow-control" type="button" onClick={() => { if (graphSuggestion || continuationActive) { setCanvasSuggested(true); setStoryView('events'); selectModule('story'); } else { setMobilePane('chat'); document.querySelector('[aria-label="创作建议审核"]')?.scrollIntoView({ block: 'nearest' }); } }}>查看建议<ArrowRight /></button></div> : undefined}
-            panels={{ direction: directionPanel, people: peoplePanel, story: storyPanel, presentation: presentationPanel }} />
+          <CreatorWorkspace
+            title={worldTitle}
+            active={workspaceModule}
+            onSelect={selectModule}
+            onFieldFocus={onCreatorFocus}
+            pendingCounts={{
+              direction: pendingDirectionCount,
+              people: pendingPeopleCount,
+              story: pendingStoryCount,
+            }}
+            panels={{ direction: directionPanel, people: peoplePanel, story: storyPanel, presentation: presentationPanel }}
+          />
         </div>
         <SheetContent className="flow-drawer creator-settings-drawer" showCloseButton={false}>
           <div className="flow-drawer-heading"><SheetTitle>体验前检查</SheetTitle><SheetClose className="flow-control" aria-label="关闭预览"><X /></SheetClose></div>
@@ -3594,7 +4399,6 @@ function CreateWorld({
         <SheetContent className="flow-drawer creator-settings-drawer">
           <SheetTitle>版本、续写与采纳记录</SheetTitle><SheetDescription>恢复历史版本会另存草稿；撤销不会覆盖之后的手改。</SheetDescription>
           <div className="workspace-history">{continuationPanel}
-            <CreatorProposalReview changes={[]} undo={creatorUndo} notice={creatorChangeNotice} busy={creatorAgentThinking || generating} onApply={onApplyCreatorProposal} onApplyAll={onApplyAllCreatorProposals} onEdit={onEditCreatorProposal} onDismiss={onDismissCreatorProposal} problemFor={onCreatorProposalProblem} />
           </div>
         </SheetContent>
       </Sheet>

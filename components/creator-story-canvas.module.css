@@ -47,12 +47,82 @@
 .mergeAction { display: flex; align-items: center; gap: 8px; margin-top: 4px; padding-top: 6px; border-top: 1px dashed var(--color-border); }
 .mergeLabel { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--color-text-secondary); width: 100%; }
 .mergeLabel select { flex: 1; max-width: 280px; padding: 4px 8px; font-size: 12px; border: 1px solid var(--color-border); border-radius: 6px; background: var(--color-bg-elevated); color: var(--color-text); }
-.detailColumns { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
-.detailColumns section { min-width: 0; }
-.detailColumns h4 { font-size: 13px; font-weight: 600; margin: 0 0 12px; color: var(--color-primary); }
-.field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; font-size: 12px; color: var(--color-text-secondary); }
-.field textarea, .field select { width: 100%; min-width: 0; border: 1px solid var(--color-border); border-radius: 8px; padding: 10px; color: var(--color-text); background: var(--color-bg-elevated); font: 13px/1.65 var(--font-ui); resize: vertical; min-height: 44px; }
-.field textarea { max-height: 240px; }
+.detailStack { display: flex; flex-direction: column; gap: 20px; }
+.masterSceneCard, .rolePerspectiveCard {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  padding: 18px 20px;
+  min-width: 0;
+}
+.masterSceneCard h4, .rolePerspectiveCard h4 {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0 0 14px;
+  color: var(--color-primary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.entryBadge {
+  font-size: 11px;
+  font-weight: normal;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  background: var(--color-agent-soft);
+  color: var(--color-primary);
+  border: 1px solid rgba(13, 148, 136, 0.2);
+}
+.dualFields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+.field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; font-size: 13px; font-weight: 500; color: var(--color-text-secondary); }
+.field textarea, .field select { width: 100%; min-width: 0; border: 1px solid var(--color-border); border-radius: 8px; padding: 10px 12px; color: var(--color-text); background: var(--color-bg-elevated); font: 14px/1.65 var(--font-ui); resize: vertical; min-height: 44px; }
+.field textarea { max-height: 260px; }
+.advancedDetails {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--color-border);
+}
+.advancedDetails summary {
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--color-primary);
+  font-weight: 500;
+  user-select: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.advancedDetails summary:hover {
+  text-decoration: underline;
+}
+.advancedContent {
+  margin-top: 12px;
+  padding: 14px 16px;
+  background: var(--color-bg-elevated);
+  border-radius: 10px;
+  border: 1px solid var(--color-border);
+}
+.possibilitiesSection {
+  margin-top: 18px;
+  padding: 16px 20px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+}
+.possibilitiesSection summary {
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text);
+  user-select: none;
+}
+.possibilitiesSection summary:hover {
+  color: var(--color-primary);
+}
 .empty { min-height: 320px; display: flex; align-items: center; justify-content: center; flex-direction: column; padding: 36px; text-align: center; color: var(--color-text-secondary); }
 .empty svg { color: var(--color-primary); }
 .empty h3 { font-size: 20px; color: var(--color-text); margin: 20px 0 8px; }
@@ -80,7 +150,6 @@
 .notice { color: var(--color-primary); font-size: 12px; line-height: 1.8; }
 .footer { flex-shrink: 0; display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 20px; border-top: 1px solid var(--color-border); font-size: 11px; color: var(--color-text-secondary); }
 .footerButtons { display: flex; align-items: center; gap: 8px; }
-.footer button, .detailHeading button { flex-shrink: 0; min-height: 44px; }
-@media(max-width: 1150px) { .detailColumns { grid-template-columns: 1fr; gap: 12px; } .header { padding: 18px; } }
-@media(max-width: 760px) { .root { min-height: 0; flex: 1; border-radius: 12px 12px 0 0; } .header h2 { font-size: 19px; } .details { padding: 16px 16px 60px; } .footer { padding-bottom: max(12px, env(safe-area-inset-bottom)); } }
+@media(max-width: 1150px) { .header { padding: 18px; } }
+@media(max-width: 760px) { .root { min-height: 0; flex: 1; border-radius: 12px 12px 0 0; } .header h2 { font-size: 19px; } .details { padding: 16px 16px 60px; } .dualFields { grid-template-columns: 1fr; gap: 10px; } .footer { padding-bottom: max(12px, env(safe-area-inset-bottom)); } }
 @media(prefers-reduced-motion: reduce) { .node { transition: none; } }

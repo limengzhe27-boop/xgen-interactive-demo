@@ -9,8 +9,8 @@ import { creatorEntryPaths, creatorEntryContext, possibilityRoleId, creatorStory
 import styles from './creator-story-canvas.module.css';
 
 const lines = (s: string) => s.split('\n').map(x => x.trim()).filter(Boolean);
-function Field({ label, value, onChange, rows = 2 }: { label: string; value: string; onChange: (v: string) => void; rows?: number }) {
-  return <label className={styles.field}><span>{label}</span><textarea rows={rows} maxLength={3000} value={value} onChange={e => onChange(e.target.value)} /></label>;
+function Field({ label, value, onChange, rows = 2, placeholder }: { label: string; value: string; onChange: (v: string) => void; rows?: number; placeholder?: string }) {
+  return <label className={styles.field}><span>{label}</span><textarea rows={rows} maxLength={3000} value={value} placeholder={placeholder} onChange={e => onChange(e.target.value)} /></label>;
 }
 
 function NodeDetails({ graph, nodeId, roleId, roleName, roles, suggested, busy, onSave, onSelectNode, onAsk }: {
@@ -250,84 +250,149 @@ function NodeDetails({ graph, nodeId, roleId, roleName, roles, suggested, busy, 
           </div>
         )}
       </div>
-      <div className={styles.detailColumns}>
-        <section><h4>此刻的世界</h4><Field label="节点名称" value={node.title} rows={1} onChange={title => updateNode({ title })} /><Field label="时间与地点" value={node.location} rows={1} onChange={location => updateNode({ location })} /><Field label="场景与当前动作" value={node.scene} onChange={scene => updateNode({ scene })} /><Field label="客观事实 · 每行一条" value={node.worldFacts.join('\n')} onChange={v => updateNode({ worldFacts: lines(v) })} /></section>
-        <section><h4>{roleName} · {atEntry ? '首次入场' : '与此事件的关系'}</h4>{atEntry ? <>
-          <label className={styles.field}><span>新存档的默认前史</span><select value={JSON.stringify(entry.defaultPath)} onChange={e => { updateEntry({ defaultPath: JSON.parse(e.target.value), knownFacts: [], beliefs: [], scene: '' }); setNotice('前史路径已改变，请重新确认该角色的认知与入场，不沿用另一条分支的信息。'); }}>{paths.map(path => <option key={path.join('/')} value={JSON.stringify(path)}>{path.map(id => graph.nodes.find(n => n.id === id)?.title).join(' → ')}</option>)}</select></label>
-          <Field label="已知事实 · 每行一条" value={entry.knownFacts.join('\n')} onChange={v => updateEntry({ knownFacts: lines(v) })} />
-          <Field label="怀疑与误解 · 不等于事实" value={entry.beliefs.join('\n')} onChange={v => updateEntry({ beliefs: lines(v) })} />
-          <Field label="玩家看到的第一人称入场" value={entry.scene} rows={3} onChange={scene => updateEntry({ scene })} />
-        </> : <div className={styles.entryEmpty}>
-          {(() => {
-            const rolePossibilities = (node.possibilities ?? []).filter(p => possibilityRoleId(p, roles.map((r, i) => ({ id: `draft-role-${i}`, name: r.name }))) === roleId);
+      <div className={styles.detailStack}>
+        {/* 上半区：主时空现场 · 单列大通栏 */}
+        <div className={styles.masterSceneCard}>
+          <h4>此刻的现场与客观世界</h4>
+          <div className={styles.dualFields}>
+            <Field label="节点名称" value={node.title} rows={1} placeholder="如：破庙避雨、偏殿对质" onChange={title => updateNode({ title })} />
+            <Field label="时间与地点" value={node.location} rows={1} placeholder="如：暴雨初歇 · 废弃山神庙" onChange={location => updateNode({ location })} />
+          </div>
+          <Field label="现场发生与局面" value={node.scene} rows={3} placeholder="描述现场发生的核心事件、环境与正在发生的变故…" onChange={scene => updateNode({ scene })} />
+          <Field label="现场实情（客观事实 · 选填）" value={node.worldFacts.join('\n')} rows={2} placeholder="客观发生但尚未公开的事实（如：密信已被调包、茶水有微毒），每行一条" onChange={v => updateNode({ worldFacts: lines(v) })} />
+        </div>
 
-            return (
-              <>
-                <p style={{ margin: '0 0 8px', lineHeight: 1.6 }}>
-                  {creatorEntryContext(edited, roleId, nodeId)}
-                </p>
-                <p style={{ margin: '0 0 10px', fontSize: 12, color: 'var(--color-text-secondary)', lineHeight: 1.5 }}>
-                  角色在此事件中的参与、获知与选择，由故事走向与现场行动推演。
-                </p>
-
-                {rolePossibilities.length > 0 ? (
-                  <div style={{ margin: '10px 0', padding: '10px 12px', background: 'var(--color-surface)', borderRadius: 8, border: '1px solid var(--color-border)' }}>
-                    <strong style={{ fontSize: 12, color: 'var(--color-text)', display: 'block', marginBottom: 6 }}>
-                      「{roleName}」在此事件中的可能行动与反应：
-                    </strong>
-                    {rolePossibilities.map((p, idx) => (
-                      <div key={idx} style={{ fontSize: 12, lineHeight: 1.6, padding: '4px 0', borderBottom: idx < rolePossibilities.length - 1 ? '1px dashed var(--color-border)' : 'none' }}>
-                        {p.condition && <span style={{ color: 'var(--color-text-secondary)', marginRight: 4 }}>【条件：{p.condition}】</span>}
-                        <strong style={{ color: 'var(--color-text)' }}>{p.action || '未具体填写行动'}</strong>
-                        {p.consequence && <span style={{ color: 'var(--color-primary)' }}> → {p.consequence}</span>}
-                      </div>
+        {/* 下半区：角色主观视线与开场 */}
+        <div className={styles.rolePerspectiveCard}>
+          <h4>
+            角色主观视角 · {roleName}
+            {atEntry ? (
+              <span className={styles.entryBadge}>首次入场</span>
+            ) : (
+              <span className={styles.entryBadge} style={{ background: 'var(--color-surface)', color: 'var(--color-text-secondary)', borderColor: 'var(--color-border)' }}>推演关系</span>
+            )}
+          </h4>
+          {atEntry ? (
+            <>
+              {paths.length > 1 && (
+                <label className={styles.field}>
+                  <span>新存档的默认前史</span>
+                  <select
+                    value={JSON.stringify(entry.defaultPath)}
+                    onChange={e => {
+                      updateEntry({ defaultPath: JSON.parse(e.target.value), knownFacts: [], beliefs: [], scene: '' });
+                      setNotice('前史路径已改变，请重新确认该角色的认知与入场，不沿用另一条分支的信息。');
+                    }}
+                  >
+                    {paths.map(path => (
+                      <option key={path.join('/')} value={JSON.stringify(path)}>
+                        {path.map(id => graph.nodes.find(n => n.id === id)?.title).join(' → ')}
+                      </option>
                     ))}
-                  </div>
-                ) : (
-                  <p style={{ margin: '8px 0', fontSize: 12, color: 'var(--color-text-secondary)' }}>
-                    当前事件暂未配置「{roleName}」的专属可能行动。
-                  </p>
-                )}
+                  </select>
+                </label>
+              )}
+              <Field
+                label="第一视角开场"
+                value={entry.scene}
+                rows={3}
+                placeholder={`玩家以「${roleName}」视角首次进入此场景时看到的画面、心理活动或面临的抉择…`}
+                onChange={scene => updateEntry({ scene })}
+              />
+              <details className={styles.advancedDetails}>
+                <summary>+ 展开配置角色掌握的线索（已知事实）与认知盲区 (选填)</summary>
+                <div className={styles.advancedContent}>
+                  <Field
+                    label="角色掌握的线索（已知事实）"
+                    value={entry.knownFacts.join('\n')}
+                    rows={2}
+                    placeholder="角色此时已掌握的线索或情报（不等于全部事实），每行一条"
+                    onChange={v => updateEntry({ knownFacts: lines(v) })}
+                  />
+                  <Field
+                    label="角色的误解 / 偏见盲区"
+                    value={entry.beliefs.join('\n')}
+                    rows={2}
+                    placeholder="角色深信不疑但可能并不属实的偏见或误会，每行一条"
+                    onChange={v => updateEntry({ beliefs: lines(v) })}
+                  />
+                </div>
+              </details>
+            </>
+          ) : (
+            <div className={styles.entryEmpty}>
+              {(() => {
+                const rolePossibilities = (node.possibilities ?? []).filter(p => possibilityRoleId(p, roles.map((r, i) => ({ id: `draft-role-${i}`, name: r.name }))) === roleId);
 
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={(node.possibilities?.length ?? 0) >= 6}
-                  onClick={() => updateNode({ possibilities: [...(node.possibilities ?? []), { actor: roleName, roleId, action: '', consequence: '' }] })}
-                >
-                  + 为「{roleName}」补充此事件的可能行动
-                </Button>
-                {(node.possibilities?.length ?? 0) >= 6 && <p>已达上限 6 项。可修改已有可能性；确有不同事件时再新建分支节点。</p>}
+                return (
+                  <>
+                    <p style={{ margin: '0 0 8px', lineHeight: 1.6 }}>
+                      {creatorEntryContext(edited, roleId, nodeId)}
+                    </p>
+                    <p style={{ margin: '0 0 10px', fontSize: 12, color: 'var(--color-text-secondary)', lineHeight: 1.5 }}>
+                      该节点为后续推演节点，角色的线索由前序事件推演继承，无需重复配置初始事实；在此的行动由走向决定。
+                    </p>
 
-                <details style={{ marginTop: 14 }}>
-                  <summary>将「{roleName}」的首次入场调整到这里</summary>
-                  <p style={{ margin: '6px 0', fontSize: 12 }}>仅在希望该角色从本事件开始体验时调整。原入场认知会清空，需重新确认。</p>
-                  <Button type="button" variant="outline" size="sm" disabled={!roleId || !paths.length} onClick={assign}>
-                    将首次入场改到这里<ArrowRight size={14} />
-                  </Button>
-                </details>
-              </>
-            );
-          })()}
-        </div>}</section>
+                    {rolePossibilities.length > 0 ? (
+                      <div style={{ margin: '10px 0', padding: '10px 12px', background: 'var(--color-surface)', borderRadius: 8, border: '1px solid var(--color-border)' }}>
+                        <strong style={{ fontSize: 12, color: 'var(--color-text)', display: 'block', marginBottom: 6 }}>
+                          「{roleName}」在此事件中的可能行动与反应：
+                        </strong>
+                        {rolePossibilities.map((p, idx) => (
+                          <div key={idx} style={{ fontSize: 12, lineHeight: 1.6, padding: '4px 0', borderBottom: idx < rolePossibilities.length - 1 ? '1px dashed var(--color-border)' : 'none' }}>
+                            {p.condition && <span style={{ color: 'var(--color-text-secondary)', marginRight: 4 }}>【条件：{p.condition}】</span>}
+                            <strong style={{ color: 'var(--color-text)' }}>{p.action || '未具体填写行动'}</strong>
+                            {p.consequence && <span style={{ color: 'var(--color-primary)' }}> → {p.consequence}</span>}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p style={{ margin: '8px 0', fontSize: 12, color: 'var(--color-text-secondary)' }}>
+                        当前事件暂未配置「{roleName}」的专属可能行动。
+                      </p>
+                    )}
+
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={(node.possibilities?.length ?? 0) >= 6}
+                      onClick={() => updateNode({ possibilities: [...(node.possibilities ?? []), { actor: roleName, roleId, action: '', consequence: '' }] })}
+                    >
+                      + 为「{roleName}」补充此事件的可能行动
+                    </Button>
+                    {(node.possibilities?.length ?? 0) >= 6 && <p>已达上限 6 项。可修改已有可能性；确有不同事件时再新建分支节点。</p>}
+
+                    <details style={{ marginTop: 14 }}>
+                      <summary>将「{roleName}」的首次入场调整到这里</summary>
+                      <p style={{ margin: '6px 0', fontSize: 12 }}>仅在希望该角色从本事件开始体验时调整。原入场认知会清空，需重新确认。</p>
+                      <Button type="button" variant="outline" size="sm" disabled={!roleId || !paths.length} onClick={assign}>
+                        将首次入场改到这里<ArrowRight size={14} />
+                      </Button>
+                    </details>
+                  </>
+                );
+              })()}
+            </div>
+          )}
+        </div>
       </div>
-      <details>
-        <summary>可能的行动与代价 · 可选</summary>
-        <p>多个方向不是必选其一：条件未满足可以都不发生，玩家也能走出新的方向。无需写完所有分支，不改变首次入场。</p>
+      <details className={styles.possibilitiesSection}>
+        <summary>可能的行动与分支代价 (选填)</summary>
+        <p style={{ margin: '8px 0 12px', fontSize: 12, color: 'var(--color-text-secondary)', lineHeight: 1.6 }}>多个方向不是必选其一：条件未满足可以都不发生，玩家也能走出新的方向。无需写完所有分支，不改变首次入场。</p>
         {node.id !== edited.startNodeId && <label className={styles.field}><span>事件性质</span><select value={node.eventIntent ?? 'possible'} onChange={e => updateNode({ eventIntent: e.target.value as 'possible' | 'key_event' })}><option value="possible">可能发生 · 随行动与条件推演</option><option value="key_event">作者指定的关键事件 · 希望最终发生</option></select></label>}
-        {node.eventIntent === 'key_event' && <p>这是你指定的故事方向，不是已发生事实。发生方式、时机和后果仍开放，不替玩家决定行动，也不绕过世界规则。</p>}
-        <Field label="什么情况下可能发生" value={node.trigger ?? ''} onChange={trigger => updateNode({ trigger })} />
-        {(node.possibilities ?? []).map((possibility, index) => <div key={index}>
-          <Field label="什么情况下适用 · 可选" value={possibility.condition ?? ''} onChange={condition => updateNode({ possibilities: node.possibilities!.map((p, i) => i === index ? { ...p, condition } : p) })} />
+        {node.eventIntent === 'key_event' && <p style={{ fontSize: 12, color: 'var(--color-primary)', margin: '4px 0 10px' }}>这是你指定的故事方向，不是已发生事实。发生方式、时机和后果仍开放，不替玩家决定行动，也不绕过世界规则。</p>}
+        <Field label="什么情况下可能发生" value={node.trigger ?? ''} placeholder="如：当角色主动揭开暗格时" onChange={trigger => updateNode({ trigger })} />
+        {(node.possibilities ?? []).map((possibility, index) => <div key={index} style={{ padding: '12px', background: 'var(--color-bg-elevated)', borderRadius: 8, border: '1px solid var(--color-border)', marginBottom: 12 }}>
+          <Field label="什么情况下适用 · 可选" value={possibility.condition ?? ''} placeholder="如：持有青铜印信" onChange={condition => updateNode({ possibilities: node.possibilities!.map((p, i) => i === index ? { ...p, condition } : p) })} />
           <label className={styles.field}><span>行动归属 · 不等于已经在场</span><select value={possibilityRoleId(possibility, roles.map((r, i) => ({ id: `draft-role-${i}`, name: r.name }))) ?? ''} onChange={e => updateNode({ possibilities: node.possibilities!.map((p, i) => i === index ? { ...p, roleId: e.target.value || null, actor: e.target.value ? roles[Number(e.target.value.replace('draft-role-', ''))].name : p.actor } : p) })}><option value="">未绑定角色 / 自由描述</option>{roles.map((r, i) => <option key={r.editorId || i} value={`draft-role-${i}`}>{r.name || `角色 ${i + 1}`}</option>)}</select></label>
-          <Field label="参与者描述 · 修改后需重新确认归属" rows={1} value={possibility.actor} onChange={actor => updateNode({ possibilities: node.possibilities!.map((p, i) => i === index ? { ...p, actor, roleId: null } : p) })} />
-          <Field label="可能采取什么行动" value={possibility.action} onChange={action => updateNode({ possibilities: node.possibilities!.map((p, i) => i === index ? { ...p, action } : p) })} />
-          <Field label="可能获得什么、付出什么，或引起谁的反应" value={possibility.consequence} onChange={consequence => updateNode({ possibilities: node.possibilities!.map((p, i) => i === index ? { ...p, consequence } : p) })} />
-          <Button type="button" variant="outline" onClick={() => updateNode({ possibilities: node.possibilities!.filter((_, i) => i !== index) })}>移除这项可能性</Button>
+          <Field label="参与者描述 · 修改后需重新确认归属" rows={1} value={possibility.actor} placeholder="参与此行动的人员或阵营" onChange={actor => updateNode({ possibilities: node.possibilities!.map((p, i) => i === index ? { ...p, actor, roleId: null } : p) })} />
+          <Field label="可能采取什么行动" value={possibility.action} placeholder="如：当面质问或是暗中藏匿证物" onChange={action => updateNode({ possibilities: node.possibilities!.map((p, i) => i === index ? { ...p, action } : p) })} />
+          <Field label="可能获得什么、付出什么，或引起谁的反应" value={possibility.consequence} placeholder="后果与局势变化" onChange={consequence => updateNode({ possibilities: node.possibilities!.map((p, i) => i === index ? { ...p, consequence } : p) })} />
+          <Button type="button" variant="outline" size="sm" onClick={() => updateNode({ possibilities: node.possibilities!.filter((_, i) => i !== index) })}>移除这项可能</Button>
         </div>)}
-        <Button type="button" variant="outline" disabled={(node.possibilities?.length ?? 0) >= 6} onClick={() => updateNode({ possibilities: [...(node.possibilities ?? []), { actor: '', action: '', consequence: '' }] })}>添加一种可能</Button>
-        {(node.possibilities?.length ?? 0) >= 6 && <p>已达上限 6 项。可修改已有可能性；确有不同事件时再新建分支节点。</p>}
+        <Button type="button" variant="outline" size="sm" disabled={(node.possibilities?.length ?? 0) >= 6} onClick={() => updateNode({ possibilities: [...(node.possibilities ?? []), { actor: '', action: '', consequence: '' }] })}>+ 添加一种可能</Button>
+        {(node.possibilities?.length ?? 0) >= 6 && <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginTop: 6 }}>已达上限 6 项。可修改已有可能性；确有不同事件时再新建分支节点。</p>}
       </details>
       {notice && <output className={styles.notice}>{notice}</output>}
     </fieldset>

@@ -83,23 +83,93 @@ export function PersonaEditor({ value, accountScope, onSave, expanded = false }:
 }
 
 export function EntryPolicyEditor({ value, roles, onChange }: { value: EntryPolicy; roles: { id: string; name: string }[]; onChange: (value: EntryPolicy) => void }) {
-  return <section className="entry-policy-editor" aria-label="世界入场规则"><h3>谁能带着自己的形象进入？</h3>
-    <label className="persona-check"><input type="checkbox" checked={value.allowPersona} onChange={e => onChange({ ...value, allowPersona: e.target.checked })} />允许使用账号的虚构身份</label>
-    <p>玩家作为新人物加入。原角色全部保留，不继承他们的秘密、关系或任务。</p>
-    {value.allowPersona && <><label htmlFor="visitor-goal">新加入玩家的探索目标（可选）<Textarea id="visitor-goal" maxLength={1000} value={value.visitorGoal || ''} onChange={e => onChange({...value, visitorGoal:e.target.value})} placeholder="例如：结识取经队伍，查清沿途妖怪的目的；不代替任何原角色。" /></label>
-      <fieldset className="ability-options"><legend>能力如何适配？</legend>{([
-        ['agent-judge', '由世界 Agent 判断', '根据世界规则，允许、削弱或拒绝玩家希望带入的能力，无需填写清单。'],
-        ['role-only', '不带入额外超常能力', '保留形象、身份与性格，不能直接使用自述的超能力。'],
-        ['fixed', '我来指定允许的能力', '每位新加入者使用你填写的同一份能力清单。'],
-        ['agent-select', 'Agent 从我的清单挑选', '保留严格清单，由 Agent 为不同玩家挑选合适的能力。'],
-      ] as const).map(([mode, title, description]) => <label key={mode} className="ability-option" data-selected={value.abilityMode === mode}>
-        <input type="radio" name="entry-ability-mode" value={mode} checked={value.abilityMode === mode} onChange={() => onChange({...value, abilityMode:mode})} />
-        <span><strong>{title}</strong><small>{description}</small></span>
-      </label>)}</fieldset>
-      {(value.abilityMode === 'fixed' || value.abilityMode === 'agent-select') && <label htmlFor="entry-abilities">{value.abilityMode === 'agent-select' ? '可供 Agent 挑选的能力' : '额外能力'}（每行一项，最多 12 项）<Textarea id="entry-abilities" maxLength={2400} value={value.abilities.join('\n')} onChange={e => onChange({ ...value, abilities: e.target.value.split('\n').slice(0, 12).map(line => line.slice(0, 200)) })} placeholder="例如：善于观察细微表情，但不能直接读心" /></label>}
-      {value.abilityMode === 'agent-select' && <p>Agent 结合玩家的虚构档案，从清单中挑选最多 3 项，经玩家确认才生效。清单为空时不能自带身份进入；没有合适项可以不授予额外能力。</p>}
-      <p>{value.abilityMode === 'agent-judge' ? '入场时给出最多 3 项能力与适用限制，经玩家确认后生效。判断失败可以重试，不会自动授予能力；原角色和世界规则不变。' : '能力仍受世界物理规律、可知信息和任务条件约束。清单模式不会授予清单外的能力。'}</p></>}
-  </section>;
+  const abilityModes = [
+    { mode: 'agent-judge', title: '由 Agent 裁定', description: '根据世界规则，动态裁定玩家可带入的能力' },
+    { mode: 'role-only', title: '不带超常能力', description: '保留形象与性格，不带入任何超能力' },
+    { mode: 'fixed', title: '指定固定清单', description: '所有加入者统一使用预设的能力清单' },
+    { mode: 'agent-select', title: '从清单按需挑选', description: 'Agent 针对不同玩家从清单中按需挑选' },
+  ] as const;
+
+  return (
+    <div className="modern-entry-policy-editor" aria-label="世界入场规则">
+      <div className="policy-switch-row">
+        <div>
+          <strong>允许玩家自带虚构身份入场</strong>
+          <p>玩家以全新形象进入体验，原角色、秘密与故事主线全部独立保留</p>
+        </div>
+        <label className="modern-toggle-switch" title="切换是否允许虚构身份">
+          <input
+            type="checkbox"
+            checked={value.allowPersona}
+            onChange={e => onChange({ ...value, allowPersona: e.target.checked })}
+          />
+          <span className="toggle-slider" />
+        </label>
+      </div>
+
+      {value.allowPersona && (
+        <div className="policy-expanded-content">
+          <div className="policy-field">
+            <label htmlFor="visitor-goal">新玩家的初始探索目标 (选填)</label>
+            <Textarea
+              id="visitor-goal"
+              rows={2}
+              maxLength={1000}
+              value={value.visitorGoal || ''}
+              onChange={e => onChange({ ...value, visitorGoal: e.target.value })}
+              placeholder="如：结识主角队伍，探查灾变源头；不代替任何已有角色"
+            />
+          </div>
+
+          <div className="policy-ability-section">
+            <label className="policy-sublabel">能力与设定适配方式</label>
+            <div className="policy-mode-chips" role="radiogroup" aria-label="能力适配方式">
+              {abilityModes.map(({ mode, title, description }) => {
+                const isSelected = value.abilityMode === mode;
+                return (
+                  <button
+                    key={mode}
+                    type="button"
+                    className="policy-mode-chip"
+                    role="radio"
+                    aria-checked={isSelected}
+                    data-selected={isSelected}
+                    onClick={() => onChange({ ...value, abilityMode: mode })}
+                    title={description}
+                  >
+                    <strong>{title}</strong>
+                    <small>{description}</small>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {(value.abilityMode === 'fixed' || value.abilityMode === 'agent-select') && (
+            <div className="policy-field">
+              <label htmlFor="entry-abilities">
+                {value.abilityMode === 'agent-select' ? '可供 Agent 挑选的能力清单' : '全员允许的能力清单'} (每行一项，最多 12 项)
+              </label>
+              <Textarea
+                id="entry-abilities"
+                rows={3}
+                maxLength={2400}
+                value={value.abilities.join('\n')}
+                onChange={e => onChange({ ...value, abilities: e.target.value.split('\n').slice(0, 12).map(line => line.slice(0, 200)) })}
+                placeholder="如：敏锐洞察微表情&#10;熟知本地草药毒理"
+              />
+            </div>
+          )}
+
+          <small style={{ color: 'var(--color-text-muted)', fontSize: 12, lineHeight: 1.5, display: 'block', marginTop: 4 }}>
+            {value.abilityMode === 'agent-judge'
+              ? '入场时世界 Agent 将根据当前物理法则为玩家评估最多 3 项能力，经玩家确认后生效。'
+              : '能力将严格受当前世界的物理规律、时代背景和任务条件约束，绝不破坏世界严肃性。'}
+          </small>
+        </div>
+      )}
+    </div>
+  );
 }
 
 type AdmissionProps = { entry: StudioWorld; roleId: string; persona: PlayerPersona | null; onEdit?: () => void; onEnter: (entry: StudioWorld) => void };

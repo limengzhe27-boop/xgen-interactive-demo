@@ -4,6 +4,10 @@ export async function GET(request: Request) {
   if (!authConfigured()) return Response.json({ configured: false, user: null }, { headers: { 'Cache-Control': 'no-store' } });
   try {
     const auth = authContext(request);
+    const cookies = request.headers.get('cookie') ?? '';
+    if (!cookies.includes('sb-')) {
+      return auth.finish(Response.json({ configured: true, canPublish: process.env.WORLD_PUBLICATION_ENABLED === 'true', provider: process.env.AUTH_PROVIDER, user: null }));
+    }
     const { data: { user } } = await auth.client.auth.getUser();
     return auth.finish(Response.json({ configured: true, canPublish: process.env.WORLD_PUBLICATION_ENABLED === 'true', provider: process.env.AUTH_PROVIDER, user: user ? {
       id: user.id, name: String(user.user_metadata?.user_name ?? user.user_metadata?.full_name ?? '创作者').slice(0, 80),
