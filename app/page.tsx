@@ -84,6 +84,7 @@ import type { ChatSession } from '@/lib/studio-session';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
+import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select';
 import { MessageTextarea } from '@/components/message-textarea';
 import { AI_CONTRACT_VERSION } from '@/lib/mock-ai-adapter';
 import { cacheSceneImage as cacheImage, getCachedSceneImage as readImage, makeContentImageKey } from '@/lib/image-cache';
@@ -3364,7 +3365,14 @@ function CreateWorld({
                 <summary>{role.name || `角色 ${index + 1}`}<small>{role.identity || '身份待设定'}</small></summary>
               <div className="draft-role">
                 <span className="draft-role-index">{String(index + 1).padStart(2, '0')}</span>
-                <div className="draft-role-image" data-state={roleImageStates[`draft-role-${index}`] ?? 'idle'}>
+                <div className="draft-role-image" data-state={roleImageStates[`draft-role-${index}`] ?? 'idle'}
+                  onClick={(e) => {
+                    if ((e.target as HTMLElement).closest('button')) return;
+                    if (roleImageStates[`draft-role-${index}`] !== 'generating') {
+                      onGenerateRoleImage(index);
+                    }
+                  }}
+                  title="点击生成或重新生成角色形象">
                   {roleImages[`draft-role-${index}`]
                     ? <img src={roleImages[`draft-role-${index}`]} alt={`${role.name || `角色 ${index + 1}`}的 AI 生成形象`} />
                     : <span><UserRound /><small>尚未生成形象</small></span>}
@@ -3390,14 +3398,36 @@ function CreateWorld({
         </section>);
   const directionPanel = <>
     <section className="create-card"><div className="create-card-title"><div><h2>先把想法放在这里</h2><p>可以从一句念头开始，不必先填完；只整理你已确定的方向。</p></div></div>
-    <div className="creator-framework-panel">              <label htmlFor="world-title">世界名称</label><Input id="world-title" value={worldTitle} onChange={(event) => onWorldTitle(event.target.value)} placeholder="可以暂时不填" />
-              <label htmlFor="discovery-genre">剧情分类 · Agent 可建议，你也可以修改</label>
-              <select id="discovery-genre" value={(creatorBrief.discoveryGenre || '').split(' · ')[0]} onChange={event => onUpdateCreatorBrief('discoveryGenre', event.target.value + (event.target.value && creatorBrief.discoveryGenre?.includes('热梗名场面') ? ' · 热梗名场面' : ''))}>
-                <option value="">尚未确定</option>{STORY_CATEGORIES.map(category => <option key={category}>{category}</option>)}
-              </select>
-              <label><input type="checkbox" disabled={!creatorBrief.discoveryGenre} checked={!!creatorBrief.discoveryGenre?.includes('热梗名场面')} onChange={event => onUpdateCreatorBrief('discoveryGenre', (creatorBrief.discoveryGenre || '').split(' · ')[0] + (event.target.checked ? ' · 热梗名场面' : ''))} /> 同时收录到热梗名场面</label>
-              <label htmlFor="world-seed">世界背景与当下冲突</label><Textarea id="world-seed" value={worldSeed} onChange={(event) => onWorldSeed(event.target.value)} placeholder="写清之前发生了什么，角色们现在面对什么。" />
-</div></section>
+    <div className="creator-framework-panel">
+      <label htmlFor="world-title">世界名称</label>
+      <Input id="world-title" value={worldTitle} onChange={(event) => onWorldTitle(event.target.value)} placeholder="可以暂时不填" />
+      <div className="discovery-genre-control">
+        <label htmlFor="discovery-genre">剧情分类</label>
+        <div className="discovery-genre-row">
+          <NativeSelect
+            id="discovery-genre"
+            className="discovery-genre-select"
+            value={(creatorBrief.discoveryGenre || '').split(' · ')[0]}
+            onChange={event => onUpdateCreatorBrief('discoveryGenre', event.target.value + (event.target.value && creatorBrief.discoveryGenre?.includes('热梗名场面') ? ' · 热梗名场面' : ''))}
+          >
+            <NativeSelectOption value="">尚未确定</NativeSelectOption>
+            {STORY_CATEGORIES.map(category => <NativeSelectOption key={category} value={category}>{category}</NativeSelectOption>)}
+          </NativeSelect>
+          <label className="genre-meme-option" data-disabled={!creatorBrief.discoveryGenre} title={!creatorBrief.discoveryGenre ? '先选择一个主分类后，方可开启热梗收录' : undefined}>
+            <input
+              type="checkbox"
+              disabled={!creatorBrief.discoveryGenre}
+              checked={!!creatorBrief.discoveryGenre?.includes('热梗名场面')}
+              onChange={event => onUpdateCreatorBrief('discoveryGenre', (creatorBrief.discoveryGenre || '').split(' · ')[0] + (event.target.checked ? ' · 热梗名场面' : ''))}
+            />
+            <span>同时收录到热梗名场面</span>
+          </label>
+        </div>
+        <small className="discovery-genre-hint">{!creatorBrief.discoveryGenre ? '可自选主类，也可由 Agent 在讨论中建议。选择主类后可开启热梗名场面收录。' : 'Agent 可在此建议剧情分类，你也可以随时修改。'}</small>
+      </div>
+      <label htmlFor="world-seed">世界背景与当下冲突</label>
+      <Textarea id="world-seed" value={worldSeed} onChange={(event) => onWorldSeed(event.target.value)} placeholder="写清之前发生了什么，角色们现在面对什么。" />
+    </div></section>
     <section><h3>参与方式与世界边界</h3>        <section className="create-card settings-card">
           <EntryPolicyEditor value={entryPolicy} roles={draftRoles.map((role, index) => ({ id: `draft-role-${index}`, name: role.name }))} onChange={onEntryPolicy} />
           <div className="setting-block">
@@ -3413,8 +3443,15 @@ function CreateWorld({
   </>;
   const storyPanel = <>
     <nav className="workspace-story-tabs" aria-label="故事编辑视图">
-      <button type="button" aria-pressed={storyView === 'events'} onClick={() => setStoryView('events')}>事件与角色入场</button>
-      <button type="button" aria-pressed={storyView === 'tasks'} onClick={() => setStoryView('tasks')}>目标与任务 · {creatorBrief.tasks.length}</button>
+      <div className="story-tabs-left">
+        <button type="button" aria-pressed={storyView === 'events'} onClick={() => setStoryView('events')}>事件与角色入场</button>
+        <button type="button" aria-pressed={storyView === 'tasks'} onClick={() => setStoryView('tasks')}>目标与任务 · {creatorBrief.tasks.length}</button>
+      </div>
+      {storyView === 'events' && (
+        <button type="button" className="canvas-quick-build" onClick={() => setStoryView('tasks')}>
+          去建构世界<ArrowRight size={13} />
+        </button>
+      )}
     </nav>
     <div className="workspace-story-canvas" hidden={storyView !== 'events'}><CreatorStoryCanvas storyOnly readOnly={suggested && continuationActive} title={suggested ? (continuationActive ? (continuation?.proposal?.world?.title || worldTitle) : (creatorProposal?.title || worldTitle)) : worldTitle} graph={canvasGraph} roles={suggested ? canvasRoles : draftRoles} images={suggested ? canvasImages : roleImages} suggested={suggested} hasSuggestion={hasSuggestion} busy={creatorAgentThinking || generating} onMode={setCanvasSuggested}
           onEditRole={(index, field, value) => {
@@ -3464,8 +3501,21 @@ function CreateWorld({
   </>;
   const presentationPanel = <>
     <section><h2>作品展示与已有素材</h2><p>只整理可公开的介绍和图片。人物秘密、内部目标不应写入公开文案；图片制作需主动点击。</p>
-      {cover ? <img className="workspace-cover" src={cover} alt="当前作品封面" /> : <p>尚未制作作品封面，不借用其他世界的图片充当成果。</p>}
-      <h3>{worldTitle || '作品尚未命名'}</h3><Button variant="outline" onClick={() => selectModule('direction')}>修改作品名称与方向</Button>
+      {cover ? (
+        <img className="workspace-cover" src={cover} alt="当前作品封面" />
+      ) : (
+        <div className="workspace-cover-empty">
+          <ImageIcon size={28} />
+          <div>
+            <strong>尚未制作作品封面</strong>
+            <p>作品发布或试玩时，将根据你的世界设定自动制作专属封面；也可以在对话中让 Agent 建议封面构图。</p>
+          </div>
+        </div>
+      )}
+      <div className="workspace-title-row">
+        <h3>{worldTitle || '作品尚未命名'}</h3>
+        <Button variant="ghost" size="sm" onClick={() => selectModule('direction')}><Pencil size={13} />修改名称与方向</Button>
+      </div>
     </section>
     <div className="workspace-assets">{draftRoles.map((role, index) => <section className="workspace-asset" key={role.editorId || index}>
       {roleImages[`draft-role-${index}`] ? <img src={roleImages[`draft-role-${index}`]} alt={`${role.name || '角色'}的形象`} /> : <p>尚未生成人物形象</p>}
