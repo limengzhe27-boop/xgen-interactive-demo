@@ -61,6 +61,7 @@ operationInstructions['advance-world'] += '\nworld.storyGraph 是作者的可能
 operationInstructions['advance-world'] += '\n节点的trigger和possibilities是可选的作者意图：根据实际存档判断条件是否成立，再结合玩家行动和人物动机推演可能的收益、代价及他人反应。不得把这些建议当作已经发生的事实，不强迫玩家执行action，不限制玩家只能选择列出的行动，不自动向角色泄露consequence；字段缺失也应正常推进。';
 operationInstructions['generate-world'] += '\n若 creatorBrief.storyGraph 存在，这是作者已采纳的故事画布，必须保留节点与角色关联。它表达可能走向而不是玩家已完成的事件，不能把所有分支都写成共同前史。';
 operationInstructions['generate-world'] += CONTINUATION_GUIDANCE + CHARACTER_ENTRY_GUIDANCE;
+operationInstructions['generate-world'] += `\n【公开角色介绍与独立会面】world.characters 可包含 publicIntroduction（1200字以内的公开介绍，只含允许首次见面者知道的身份与背景，不复制persona、私人目标或秘密）。chatOpening 可包含 suggestions（0—3条，每条180字以内），它们是来访用户针对开场台词或可见现场能作出的具体回应，不是该角色自己的行动，不预写成功、关系或用户身份。空数组表示作者不需要建议。公开介绍、会面台词、现场和建议必须来自同一已确认设定；已有明确写好的内容保持，不借准备会面擅改核心设定。会面不是扮演角色的第一人称世界入场，两者不得相互覆盖。`;
 
 operationInstructions['advance-world'] += '\n对白按发言顺序逐条返回：每条 dialogue 只能属于一个 characterId，禁止将多人台词拼在一个人的 text 中。正文 narrative 侧重场景与行动，角色直接发言放入 dialogue，避免上下重复整段对白；visibleToRoleIds 按实际可知范围填写，不因角色出现就让所有人发言，不替玩家编造未表达的台词。';
 

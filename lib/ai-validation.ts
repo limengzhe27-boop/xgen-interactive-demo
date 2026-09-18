@@ -8,6 +8,7 @@ import {
 } from './ai-contracts.ts';
 
 import { validEntryPolicy, validPersonaAdmission } from './player-persona.ts';
+import { validCharacterPresentation } from './character-presentation.ts';
 import { validCardHook } from './character-card.ts';
 import { validWorldSystem } from './world-system.ts';
 import { validDiscoveryGenre } from './discovery-category.ts';
@@ -117,10 +118,7 @@ export function isWorldGenerationResponse(value: unknown): value is WorldGenerat
     && Array.isArray(world.locations)
     && Array.isArray(world.characters)
     && world.characters.length >= 1
-    && world.characters.every(role => isRecord(role) && validCardHook(role.cardHook)
-      && (role.chatOpening === undefined || (isRecord(role.chatOpening)
-        && typeof role.chatOpening.scene === 'string' && role.chatOpening.scene.trim().length > 0 && role.chatOpening.scene.length <= 2000
-        && typeof role.chatOpening.text === 'string' && role.chatOpening.text.trim().length > 0 && role.chatOpening.text.length <= 1000)))
+    && world.characters.every(role => isRecord(role) && validCardHook(role.cardHook) && validCharacterPresentation(role))
     && Array.isArray(world.relationships)
     && Array.isArray(world.rules)
     && typeof world.coreEvent === 'string'

@@ -3,6 +3,7 @@ import type { WorldState } from './world-state';
 import { turnMemoryText } from './world-state.ts';
 import type { WorldTurnRequest, WorldTurnResponse } from './ai-contracts';
 import type { CharacterGreeting } from './character-greeting';
+import { characterGreeting } from './character-greeting.ts';
 import { chatHistoryIndices } from './chat-memory.ts';
 
 export function upsertById<T extends { id: string }>(records: T[], next: T): T[] {
@@ -23,6 +24,15 @@ export type ChatSession = {
   draftInput?: string;
 };
 
+export function restoreConversationOpening(initial: ChatSession): ChatSession {
+  // An existing opening is part of the encounter even before its first turn.
+  if (initial.turns.length || initial.greeting) return initial;
+  const greeting = characterGreeting(initial.entry, initial.targetCharacterId);
+  const narrative = `${greeting.scene}\n\n${greeting.text}`;
+  return { ...initial, greeting, narrative, entry: { ...initial.entry, world: { ...initial.entry.world,
+    openingScene: { ...initial.entry.world.openingScene, narrative } } } };
+}
+
 // A neutral participant is transport state, not an imposed role or an account profile.
 export function directConversationEntry(entry: StudioWorld, targetId: string): StudioWorld {
   const target = entry.world.characters.find(role => role.id === targetId);
@@ -32,6 +42,7 @@ export function directConversationEntry(entry: StudioWorld, targetId: string): S
   const visitor = { ...target, id, name: '你', identity: '自由对话的用户，未设定剧情身份',
     persona: '由用户在交流中自行表达，不预设性格、关系或能力。',
     publicBackground: '首次与对方交谈，不继承任何已有角色的经历。',
+    publicIntroduction: undefined, chatOpening: undefined, entry: undefined, cardHook: undefined,
     privateKnowledge: [], secrets: [], goal: '自由交流，不要求完成世界主线。', imagePrompt: '' };
   const meeting = conversationEntry({ ...entry, world: { ...entry.world,
     characters: [...entry.world.characters, visitor], entryAdmission: undefined,

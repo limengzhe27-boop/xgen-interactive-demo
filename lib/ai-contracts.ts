@@ -50,7 +50,9 @@ export type PersonalAgentResponse = {
 };
 
 export type CharacterDefinition = {
-  chatOpening?: { scene: string; text: string };
+  /** Public display copy, never a projection of private persona or secrets. */
+  publicIntroduction?: string;
+  chatOpening?: { scene: string; text: string; suggestions?: string[] };
   playable?: boolean;
   isDefault?: boolean;
   entry?: {
@@ -352,4 +354,3 @@ export interface AIAdapter {
   generateWorld(input: WorldGenerationRequest, signal?: AbortSignal, onChunk?: (chunk: StreamChunk) => void): Promise<WorldGenerationResponse>;
   advanceWorld(input: WorldTurnRequest, signal?: AbortSignal, onChunk?: (chunk: StreamChunk) => void): Promise<WorldTurnResponse>;
 }
-

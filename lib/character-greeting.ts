@@ -1,6 +1,6 @@
 import type { StudioWorld } from './studio-worlds';
 
-export type CharacterGreeting = { scene: string; text: string };
+export type CharacterGreeting = { scene: string; text: string; suggestions?: string[] };
 // Authored encounter lines, not quotations from the original IP or model output.
 const openings: Record<string, string> = {
   吴月娘: '先坐吧。内宅人多，各有各的性情。你今日想问哪一桩事？',

@@ -9,14 +9,14 @@ import { SpeechSequence } from '@/components/speech-sequence';
 import { speechSegments } from '@/lib/speech-sequence';
 import { createRemoteAIAdapter } from '@/lib/remote-ai-adapter';
 import { generateSceneImage } from '@/lib/remote-image-service';
-import { shouldGenerateImage } from '@/lib/image-policy';
 import { cacheSceneImage, getCachedSceneImage, makeContentImageKey } from '@/lib/image-cache';
 import { commitTurn, createInitialWorldState, turnMemoryText } from '@/lib/world-state';
-import { chatRequest, directConversationEntry } from '@/lib/studio-session';
+import { chatRequest, directConversationEntry, restoreConversationOpening } from '@/lib/studio-session';
 import type { ChatSession } from '@/lib/studio-session';
 import type { StudioWorld } from '@/lib/studio-worlds';
 import type { PlayerPersona } from '@/lib/player-persona';
 import { characterGreeting } from '@/lib/character-greeting';
+import { characterPublicIntroduction, initialConversationSuggestions } from '@/lib/character-presentation';
 import { useRecordPlay } from '@/components/play-counts';
 
 export function CharacterEntry({ entry, targetId, onStart }: { identityControl?: import('react').ReactNode; entry: StudioWorld; targetId: string; persona?: PlayerPersona | null; onClose: () => void; onStart: (session: ChatSession) => void }) {
@@ -42,14 +42,7 @@ export function CharacterEntry({ entry, targetId, onStart }: { identityControl?:
 
 export function CharacterChat({ initial, accountScope, onSave, onBack }: { initial: ChatSession; accountScope: string; onSave: (session: ChatSession) => void; onBack: () => void }) {
   const remoteAIAdapter = useMemo(() => createRemoteAIAdapter(accountScope), [accountScope]);
-  const [session, setSession] = useState(() => {
-    // Upgrade an unopened legacy encounter; never rewrite a conversation already played.
-    if (initial.turns.length) return initial;
-    const greeting = characterGreeting(initial.entry, initial.targetCharacterId);
-    const narrative = `${greeting.scene}\n\n${greeting.text}`;
-    return { ...initial, greeting, narrative, entry: { ...initial.entry, world: { ...initial.entry.world,
-      openingScene: { ...initial.entry.world.openingScene, narrative } } } };
-  });
+  const [session, setSession] = useState(() => restoreConversationOpening(initial));
   useRecordPlay(session.turns.length ? `character:${session.entry.id}:${session.targetCharacterId}` : null, accountScope);
   const [input, setInput] = useState(initial.draftInput ?? '');
   const [busy, setBusy] = useState(false);
@@ -58,7 +51,6 @@ export function CharacterChat({ initial, accountScope, onSave, onBack }: { initi
   const [imageState, setImageState] = useState('');
   const controller = useRef<AbortController | null>(null);
   const imageController = useRef<AbortController | null>(null);
-  const lastImageAttemptTurn = useRef(initial.state.turn);
   const sessionRef = useRef(session);
   const saveRef = useRef(onSave);
   useEffect(() => { saveRef.current = onSave; }, [onSave]);
@@ -69,12 +61,12 @@ export function CharacterChat({ initial, accountScope, onSave, onBack }: { initi
   const player = session.entry.world.characters.find((role) => role.id === session.playerRoleId)!;
   const target = session.entry.world.characters.find((role) => role.id === session.targetCharacterId)!;
   const identity = target.identity.replace(/^\s*\d+\s*岁\s*[·・，,／/]?\s*/, '');
-  const background = (target.publicBackground || '').replace(target.identity, '').replace(target.persona, '').replace(/^[。；\s]+|[。；\s]+$/g, '');
+  const background = characterPublicIntroduction(target);
   const place = session.entry.world.locations.find(item => item.id === target.startLocationId);
   const profile = <><h2>{target.name}</h2><p className="conversation-identity">{identity}</p>
     {background && <section><h3>他是谁</h3><p>{background}</p></section>}
     <section><h3>初见时的场景 · {place?.name}</h3><p>{place?.description || '你们在这里开始交谈。'}</p></section>
-    <section><h3>性格与相处</h3><p>{target.persona}</p></section>
+    <section><h3>这段对话</h3><p>你正在与{target.name}交谈，不是扮演{target.name}。可以说话、描述动作，也可以慢慢观察；不要求完成世界任务。</p></section>
     </>;
   function editInput(value: string) {
     setInput(value);
@@ -109,7 +101,6 @@ export function CharacterChat({ initial, accountScope, onSave, onBack }: { initi
         sessionRef.current = next; setSession(next); saveRef.current(next);
         return;
       }
-      lastImageAttemptTurn.current = current.state.turn;
       const result = await generateSceneImage({ requestId: current.state.turn, sceneId: `chat-${current.state.turn}`, prompt: normalizedPrompt, seed: 690510, purpose: 'scene' }, aborter.signal, accountScope);
       if (aborter.signal.aborted) return;
       const cached = await cacheSceneImage(key, result.assetUrl, accountScope).catch(() => false);
@@ -135,7 +126,7 @@ export function CharacterChat({ initial, accountScope, onSave, onBack }: { initi
         relationshipDelta: patch.relationshipDeltas?.[target.id] ?? 0, reachedEndingId: response.ending.reached ? response.ending.endingId : undefined });
       const next = { ...sessionRef.current, state, draftInput: '', narrative: response.narrative, turns: [...sessionRef.current.turns, { action: action.trim(), response }], savedAt: Date.now() };
       sessionRef.current = next; setSession(next); onSave(next); setInput('');
-      if (response.image.prompt && shouldGenerateImage(response.image, state.turn, lastImageAttemptTurn.current, true)) void makeImage(response.image.prompt, next);
+      // Media creation remains an explicit user action, not a side effect of talking.
     } catch (cause) { if (!aborter.signal.aborted) setError(cause instanceof Error ? cause.message : '网络连接失败，你的输入和进度已保留，可以重试。'); }
     finally { if (!aborter.signal.aborted) { setBusy(false); controller.current = null; } }
   }
@@ -161,6 +152,7 @@ export function CharacterChat({ initial, accountScope, onSave, onBack }: { initi
     </section>
       <form className="conversation-composer" onSubmit={(event) => { event.preventDefault(); void send(); }}>
         {unread && <button type="button" className="flow-control" onClick={() => { followLatest.current = true; setUnread(false); endRef.current?.scrollIntoView({ block: 'nearest' }); }}>查看新回复 ↓</button>}
+        {!session.turns.length && initialConversationSuggestions(session.greeting).length > 0 && <section className="conversation-ideas" aria-label="初次回应建议"><small>不知道怎么接？可以借用一句，也可以自己写。点击后仍可修改。</small><div className="studio-chat-suggestions">{initialConversationSuggestions(session.greeting).map(label => <button className="studio-filter" key={label} type="button" disabled={busy} onClick={() => { editInput(label); document.getElementById('chat-input')?.focus(); }}>{label}</button>)}</div></section>}
         {!!session.turns.at(-1)?.response.nextChoices.length && <details className="conversation-ideas"><summary>接下来怎么回应？</summary><div className="studio-chat-suggestions">{session.turns.at(-1)?.response.nextChoices.map((choice) => <button className="studio-filter" key={choice.id} type="button" disabled={busy} onClick={() => { editInput(choice.label); document.getElementById('chat-input')?.focus(); }}>{choice.label}</button>)}</div></details>}
         <label className="sr-only" htmlFor="chat-input">说一句话，或描述你的动作</label>
         <div className="conversation-input"><MessageTextarea id="chat-input" value={input} onChange={(event) => editInput(event.target.value)} placeholder={`对${target.name}说一句话，或描述你的动作…`} disabled={busy} maxLength={3000} /><Button className="studio-button" type="submit" aria-label={busy ? '正在回应' : '发送'} disabled={busy || !input.trim()}>{busy ? <LoaderCircle className="spin" /> : <Send />}</Button></div>

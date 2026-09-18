@@ -5,6 +5,7 @@ import { validDiscoveryGenre } from './discovery-category.ts';
 import { validCardHook } from './character-card.ts';
 import { validCharacterEntries } from './character-entry.ts';
 import { creatorStoryIssues } from './creator-story-graph.ts';
+import { validCharacterPresentation } from './character-presentation.ts';
 
 type Shape = 'string' | 'nullable-string' | 'number' | 'boolean' | { [key: string]: Shape } | [Shape];
 const texts: Shape = ['string'];
@@ -16,7 +17,7 @@ const schema: Shape = {
   'system?': { name: 'string', premise: 'string', entries: [{ id: 'string', title: 'string', description: 'string', roleIds: texts, requiredTaskIds: texts, action: 'string' }] },
   'entryPolicy?': { allowPersona: 'boolean', allowedRoleIds: texts, abilityMode: 'string', abilities: texts, 'visitorGoal?': 'string' },
   locations: [{ id: 'string', name: 'string', description: 'string', connectedLocationIds: texts }],
-  characters: [{ 'chatOpening?': { scene: 'string', text: 'string' }, 'playable?': 'boolean', 'isDefault?': 'boolean', 'entry?': { storyAnchor: 'string', completedTaskIds: texts, worldFacts: texts, knownFacts: texts, scene: 'string' }, id: 'string', name: 'string', identity: 'string', persona: 'string', 'cardHook?': 'string', publicBackground: 'string', privateKnowledge: texts, secrets: texts, goal: 'string', startLocationId: 'string', imagePrompt: 'string' }],
+  characters: [{ 'publicIntroduction?': 'string', 'chatOpening?': { scene: 'string', text: 'string', 'suggestions?': texts }, 'playable?': 'boolean', 'isDefault?': 'boolean', 'entry?': { storyAnchor: 'string', completedTaskIds: texts, worldFacts: texts, knownFacts: texts, scene: 'string' }, id: 'string', name: 'string', identity: 'string', persona: 'string', 'cardHook?': 'string', publicBackground: 'string', privateKnowledge: texts, secrets: texts, goal: 'string', startLocationId: 'string', imagePrompt: 'string' }],
   relationships: [{ fromCharacterId: 'string', toCharacterId: 'string', publicLabel: 'string', 'privateContext?': 'string', initialTrust: 'number' }],
   rules: [{ id: 'string', description: 'string', kind: 'string', immutable: 'boolean' }],
   goals: [{ id: 'string', title: 'string', description: 'string', scope: 'string', 'roleId?': 'string', requiredTaskIds: texts }],
@@ -50,6 +51,7 @@ export function publicationWorld(value: unknown): WorldDefinition {
   // Whitelist every nested field: saved chats, Agent memory and unknown metadata cannot hitchhike.
   const world = select(value, schema) as WorldDefinition;
   if (!validCharacterEntries(world)) throw new Error('invalid_character_entry');
+  if (world.characters.some(role => !validCharacterPresentation(role))) throw new Error('invalid_character_presentation');
   if (world.characters.some(role => !validCardHook(role.cardHook))) throw new Error('invalid_card_hook');
   if (world.discoveryGenre !== undefined && !validDiscoveryGenre(world.discoveryGenre)) throw new Error('invalid_discovery_genre');
   const ids = (items: { id: string }[]) => {
