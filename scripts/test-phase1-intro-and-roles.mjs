@@ -28,6 +28,9 @@ test('world intro page data strips creation parameters and separates playable vs
   // Clean light/emerald styling
   const css = readFileSync(new URL('../components/world-intro-page.module.css', import.meta.url), 'utf8');
   assert.ok(css.includes('var(--color-primary)'));
+  const coverFrame = css.match(/\.coverFrame\s*\{([^}]*)\}/)?.[1] || '';
+  assert.ok(coverFrame);
+  assert.doesNotMatch(coverFrame, /padding|border|background|shadow/);
   assert.match(css, /\.cover\s*\{[^}]*height: auto;[^}]*object-fit: contain;/);
   assert.ok(!introSource.includes('showcase-hero-overlay'));
   assert.ok(!introSource.includes('coverDialog'));

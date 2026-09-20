@@ -119,6 +119,7 @@ import { preserveCreatorDetails, preserveCreatorFramework } from '@/lib/creator-
 import { applyCreatorChange, combineCreatorChanges, creatorConfirmation, creatorOpeningRevision, creatorChanges, ensureCreatorRoleIds, identifyProposedRoles, type CreatorChange, type CreatorRoleDraft } from '@/lib/creator-changes';
 import { DeleteRoleDialog, PortraitBatchDialog, ImagePreviewModal, CreatorShowcaseModal } from '@/components/creator-dialogs';
 import { WorldIntroPage, type WorldIntroData, type WorldIntroCharacter, type WorldIntroSavedRun } from '@/components/world-intro-page';
+import { chatRecordSubtitle } from '@/lib/chat-record-label';
 import { CreatorStoryCanvas } from '@/components/creator-story-canvas';
 import { CreatorWorkspace, type CreatorWorkspaceModule } from '@/components/creator-workspace';
 import { creatorStoryIssues, isCreatorStoryGraph, remapCreatorStoryRoles, mapCreatorStoryRoleIds, bindCreatorActors, type CreatorStoryGraph } from '@/lib/creator-story-graph';
@@ -3341,7 +3342,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       recent={[
         ...creatorDocuments.map((doc) => ({ id: `doc-${doc.id}`, savedAt: doc.savedAt, title: doc.data.worldTitle || '未命名世界', subtitle: '继续编辑角色与故事框架', label: doc.data.publishedWorld ? '可试玩 · 本机作品' : '创作草稿', cover: legacyArt['storm-manor'].cover })),
         ...savedRuns.map((run) => ({ id: `run-${run.id}`, savedAt: run.savedAt, title: run.worldTitle, subtitle: `${run.worldSnapshot?.world.characters.find((role) => role.id === run.roleId)?.name ?? run.roleId} · ${run.worldState.location}`, label: run.id.includes('-before-update-') ? '接续前备份' : run.status === 'ending' ? '当前剧情' : '探索记录', cover: run.worldSnapshot?.cover || legacyArt['storm-manor'].cover })),
-        ...chatSessions.map((chat) => ({ id: `chat-${chat.id}`, savedAt: chat.savedAt, title: `与 ${chat.entry.world.characters.find((role) => role.id === chat.targetCharacterId)?.name} 的对话`, subtitle: `你是 ${chat.entry.world.characters.find((role) => role.id === chat.playerRoleId)?.name} · ${chat.entry.title}`, label: '角色对话', cover: chat.entry.portraits[chat.targetCharacterId] || chat.entry.cover })),
+        ...chatSessions.map((chat) => ({ id: `chat-${chat.id}`, savedAt: chat.savedAt, title: `与 ${chat.entry.world.characters.find((role) => role.id === chat.targetCharacterId)?.name || '角色'} 的对话`, subtitle: chatRecordSubtitle(chat.entry.world.characters.find((role) => role.id === chat.playerRoleId)?.name, chat.entry.title), label: '角色对话', cover: chat.entry.portraits[chat.targetCharacterId] || chat.entry.cover })),
       ].sort((a, b) => b.savedAt - a.savedAt)}
       onCreate={newCreator} onOpenWorld={openCatalogWorld} onChat={(worldId, targetId) => { const entry = availableStudioWorlds.find((item) => item.id === worldId); if (entry) setChatEntry({ entry, targetId }); }} onPersonal={() => navigate('personal')} onLibrary={() => navigate('library')} onOpenRecord={openRecord}
     />;
