@@ -1031,7 +1031,6 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
   const [companionHandoff, setCompanionHandoff] = useState<{ seed: string } | null>(null);
   const [creationSuggestion, setCreationSuggestion] = useState<string | null>(null);
   const [latestPersonalDraft, setLatestPersonalDraft] = useState<GeneratedWorldDraft | null>(null);
-  const creatorKickoff = useRef<string | null>(null);
   const personalRequestBusy = useRef(false);
   const navigationRevision = useRef(0);
   const galleryMemory = useRef<Record<string, { browse?: GalleryBrowseState; position?: GalleryPosition }>>({});
@@ -2838,14 +2837,6 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     setCreatorChangeNotice('后续已加入草稿，尚未改变已发布版本。');
   }
 
-  const beginCompanionDiscussion = useEffectEvent((value: string) => { void discussCreator(value); });
-  useEffect(() => {
-    // Consume once after the new draft and its private context have committed.
-    const value = creatorKickoff.current;
-    creatorKickoff.current = null;
-    if (value) beginCompanionDiscussion(value);
-  }, [draftId]);
-
   function creatorProposalProblem(change: CreatorChange, undo = false) {
     if (!undo) change = rebaseCreatorAcceptance(creatorSections(), change);
     if (change.key === 'entryPolicy' && (JSON.stringify(change.roleOrder) !== JSON.stringify(draftRoles.map(role => role.editorId)) || restoreEntryPolicy(undo ? change.before : change.after).allowedRoleIds.some(id => !draftRoles.some((_, index) => id === `draft-role-${index}`)))) return '角色名单已变化或引用了不存在的角色，请重新讨论入场规则。';
@@ -3482,7 +3473,6 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       {view !== 'prologue' && view !== 'world-intro' && <AccountBar onProfile={['home', 'library', 'characters', 'personal'].includes(view) ? () => navigate('profile') : undefined} workspaceControls={['home', 'library', 'personal', 'profile', 'characters'].includes(view) && <CloudWorkspace accountScope={accountScope} disabled={!storageReady || storageReadFailed.current || agentThinking || creatorAgentThinking || worldGenerating} />} />}
       {companionHandoff && <CompanionHandoff seed={companionHandoff.seed} conversation={agentConversation} memoryCount={memories.length} onClose={() => setCompanionHandoff(null)} onConfirm={(seed, context) => {
         if (worldGenerating || creatorAgentThinking) { setStorageError('请等当前创作回应结束后再新建。'); return; }
-        creatorKickoff.current = seed || '接着我们的讨论，一起想一个小世界的角色、关系和目标。';
         newCreator(seed, context); setCompanionHandoff(null); setCreationSuggestion(null); setLatestPersonalDraft(null);
       }} />}
       {storageError && <p className="studio-storage-error" role="alert">{storageError}</p>}
