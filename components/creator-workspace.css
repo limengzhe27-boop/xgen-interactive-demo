@@ -1295,13 +1295,13 @@
 .showcase-hero {
   position: relative;
   width: 100%;
-  aspect-ratio: 16 / 7;
-  min-height: 220px;
+  aspect-ratio: 16 / 6;
+  min-height: 180px;
   background: linear-gradient(135deg, #1e1e24 0%, #111116 100%);
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
-  padding: 24px 28px;
+  padding: 20px 24px;
   overflow: hidden;
 }
 
@@ -1392,12 +1392,12 @@
 
 /* 主体内容区 */
 .showcase-body {
-  padding: 22px 28px;
+  padding: 16px 24px;
   overflow-y: auto;
-  max-height: calc(90vh - 280px);
+  max-height: calc(90vh - 240px);
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 14px;
 }
 
 .showcase-section-header {
@@ -1405,14 +1405,14 @@
   align-items: center;
   justify-content: space-between;
   border-bottom: 1px solid var(--color-border-soft);
-  padding-bottom: 10px;
+  padding-bottom: 8px;
 }
 
 .showcase-section-title {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 600;
   color: var(--color-text);
 }
@@ -1427,7 +1427,7 @@
 }
 
 .showcase-empty-roles {
-  padding: 36px 20px;
+  padding: 30px 20px;
   text-align: center;
   border: 1px dashed var(--color-border);
   border-radius: 12px;
@@ -1447,14 +1447,14 @@
 .showcase-roles-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: 14px;
+  gap: 12px;
 }
 
 .showcase-role-card {
   background: var(--color-surface);
   border: 1px solid var(--color-border-soft);
   border-radius: 14px;
-  padding: 14px;
+  padding: 12px 14px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -1534,7 +1534,7 @@
 }
 
 .showcase-role-hook {
-  margin: 10px 0 0 0;
+  margin: 6px 0 0 0;
   font-size: 12px;
   line-height: 1.5;
   color: var(--color-text-secondary);
@@ -1546,7 +1546,7 @@
 }
 
 .showcase-play-btn {
-  margin-top: 12px;
+  margin-top: 10px;
   width: 100%;
   display: flex;
   align-items: center;
