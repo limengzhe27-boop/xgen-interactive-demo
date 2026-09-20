@@ -50,4 +50,54 @@ test('scenario 3: Shop management - clear delegation receives V6 method and exec
   assert.ok(guidance.includes('建设与经营'));
   assert.ok(guidance.includes('明确委托交付原则：作者明确委托'));
 });
+test('CREATOR_SKILL_VERSION reflects updated 6x6 runtime specification', () => {
+  assert.equal(horizontalSkills.H1.includes('成果落点：设定与方向'), true);
+  assert.equal(horizontalSkills.H2.includes('成果落点：人物与关系'), true);
+  assert.equal(horizontalSkills.H3.includes('四分法（客观事实、角色已知、怀疑推断及玩家见闻依据）'), true);
+  assert.equal(horizontalSkills.H4.includes('绝不因新增事件搬移入口'), true);
+  assert.equal(horizontalSkills.H5.includes('触发条件—行动空间—影响与代价—他人回应'), true);
+  assert.equal(horizontalSkills.H6.includes('三级公开权限'), true);
+  for (const [key, text] of Object.entries(verticalMethods)) {
+    assert.ok(text.includes('调用操作：'), `${key} must include 调用操作`);
+    assert.ok(text.includes('检查与反例：'), `${key} must include 检查与反例`);
+  }
+});
+test('scenario 4: Investigation V1 specifies 4-step operation and avoids forced lies', () => {
+  const req = request('设计调查开场与线索发现');
+  const routed = selectCreatorSkills(req);
+  assert.equal(routed.horizontal, 'H4');
+  assert.deepEqual(routed.vertical, ['V1']);
+  const guidance = creatorSkillGuidance(req);
+  assert.ok(guidance.includes('调查与发现'));
+  assert.ok(guidance.includes('不用微动作直接证明有罪，不强制物证或全员撒谎'));
+  assert.ok(guidance.includes('知情依据交给 H3'));
+});
+test('scenario 5: Negotiation V3 requires controlled leverage and preserves exit', () => {
+  const req = request('后续安排双方协商谈判与筹码交换');
+  const routed = selectCreatorSkills(req);
+  assert.equal(routed.horizontal, 'H5');
+  assert.deepEqual(routed.vertical, ['V3']);
+  const guidance = creatorSkillGuidance(req);
+  assert.ok(guidance.includes('博弈与协商'));
+  assert.ok(guidance.includes('口头承诺不等于兑现'));
+  assert.ok(guidance.includes('不以威胁背叛为默认解法'));
+});
+test('scenario 6: Survival V4 compares tradeoffs without arbitrary countdowns', () => {
+  const req = request('后续渡河求生，资源分配与风险取舍');
+  const routed = selectCreatorSkills(req);
+  assert.equal(routed.horizontal, 'H5');
+  assert.deepEqual(routed.vertical, ['V4']);
+  const guidance = creatorSkillGuidance(req);
+  assert.ok(guidance.includes('求生与风险取舍'));
+  assert.ok(guidance.includes('不凭空增加死亡或倒计时惩罚'));
+});
+test('scenario 7: Exploration V5 respects capability boundaries and avoids pure grinding', () => {
+  const req = request('设计探索未知的后续事件与学习能力');
+  const routed = selectCreatorSkills(req);
+  assert.equal(routed.horizontal, 'H5');
+  assert.deepEqual(routed.vertical, ['V5']);
+  const guidance = creatorSkillGuidance(req);
+  assert.ok(guidance.includes('探索与成长'));
+  assert.ok(guidance.includes('不强制数值等级或无理剥夺能力'));
+});
 
