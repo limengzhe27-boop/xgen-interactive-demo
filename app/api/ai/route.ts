@@ -13,6 +13,7 @@ import { repairCreatorProposal } from '@/lib/creator-proposal-repair';
 import { readCreatorResponse, creatorDiscussion, parseCreatorContent } from '@/lib/creator-response';
 import { creatorGraphGuidance, CREATOR_FOUNDATION_GUIDANCE } from '@/lib/creator-guidance';
 import type { CreatorAgentRequest } from '@/lib/ai-contracts';
+import { classifyCreatorTurn, creatorTriageGuidance } from '@/lib/typesafe-creator-triage';
 import { requestAccount } from '@/lib/server-auth';
 import { companionInstructions, makeCompanionInput, restoreCompanionContext } from '@/lib/companion-context';
 import { guardPersonalAction, personalActionInstructions } from '@/lib/personal-recommendations';
@@ -160,6 +161,9 @@ async function callCompany(
   timeoutMs?: number,
   onStreamChunk?: (delta: string, accumulated: string) => void,
 ): Promise<unknown> {
+  // This is advisory and fail-closed: an unavailable/uncertain TypeSafe result
+  // must never alter the existing creator behavior.
+  const creatorTriage = operation === 'co-create-world' ? await classifyCreatorTurn(input) : null;
   const isChat = operation === 'advance-world' && isWorldTurnRequest(input) && input.interaction?.mode === 'character-chat';
   const runtimeInput = operation === 'advance-world' && isWorldTurnRequest(input)
     ? { ...(input.presentation?.medium === 'native-video' ? compactVideoScriptInput(input) : { ...input, world: { ...input.world, characters: input.world.characters.map(({ cardHook: _cardHook, ...character }) => character) } }), progression: worldProgression(input), systemView: visibleSystem(input.world, input.selectedRoleId, input.state.completedTaskIds) }
@@ -189,7 +193,7 @@ async function callCompany(
           ...(operation === 'personal-agent' ? [{ role: 'system', content: personalActionInstructions + ' 用户当前填写的资料优先于旧聊天和旧记忆；有冲突时询问，不擅自覆盖。不从虚构角色设定推断真人性格，不把临时情绪当成长期性格。' }] : []),
           ...(operation === 'personal-agent' ? [{ role: 'system', content: '你也可以调用创作能力：用户明确要求把想法做成世界或开始创作时，action={"type":"create-world","seed":"本次虚构创作方向，最多2000字"}。这只提出一个待用户确认的创作入口，不代表完成创作；不要把真实私人资料写进seed。只是闲聊构思时继续讨论，不必调用。activeCreation提供当前作品标题与步骤，用户要求继续且它存在时可用action={"type":"resume-creation"}。你与创作界面是同一个助手的不同工作模式。' }] : []),
           ...(operation === 'co-create-world' ? [{ role: 'system', content: companionInstructions }] : []),
-          ...(operation === 'co-create-world' ? [{ role: 'system', content: creatorGraphGuidance(input as CreatorAgentRequest) }] : []),
+          ...(operation === 'co-create-world' ? [{ role: 'system', content: creatorGraphGuidance(input as CreatorAgentRequest) + creatorTriageGuidance(creatorTriage) }] : []),
           { role: 'user', content: `请处理以下运行时输入，并只返回符合上述结构的 JSON：\n${JSON.stringify(runtimeInput)}` },
         ],
         response_format: { type: 'json_object' },
