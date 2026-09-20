@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {creatorConfirmation,combineCreatorChanges,applyCreatorChange,creatorChanges} from '../lib/creator-changes.ts';
+import {creatorConfirmation,combineCreatorChanges,applyCreatorChange,creatorChanges,rebaseCreatorAcceptance} from '../lib/creator-changes.ts';
 import {creatorTaskIssues} from '../lib/creator-task-graph.ts';
 
 test('explicit confirmation executes locally, mixed or negative instructions are not blanket consent',()=>{
@@ -39,4 +39,25 @@ test('batch conflict changes nothing and modified suggestion is the value actual
   assert.deepEqual(before,{title:'原名',premise:'原文'});
   const edited=changes.map(c=>c.key==='title'?{...c,after:'我改的建议'}:c);
   assert.equal(applyCreatorChange(before,combineCreatorChanges(before,edited)).title,'我改的建议');
+});
+
+test('explicit acceptance preserves original baseline and rejects later manual role edits',()=>{
+  const before={castAndTasks:{roles:[role],tasks:[]}};
+  const after={castAndTasks:{roles:[{...role,identity:'卷帘神将'}],tasks:[]}};
+  const [change]=creatorChanges(before,after,{castAndTasks:'人物'});
+  const current={castAndTasks:{roles:[{...role,identity:'金身罗汉'}],tasks:[]}};
+  assert.equal(rebaseCreatorAcceptance(current,change).before,role.identity);
+  assert.equal(applyCreatorChange(current,rebaseCreatorAcceptance(current,change)),null);
+  assert.equal(combineCreatorChanges(current,[change],true),null);
+  assert.equal(current.castAndTasks.roles[0].identity,'金身罗汉');
+});
+test('unrelated manual field survives local acceptance and batch undo',()=>{
+  const before={title:'原名',castAndTasks:{roles:[role],tasks:[]}};
+  const changes=creatorChanges(before,{...before,castAndTasks:{roles:[{...role,identity:'新身份'}],tasks:[]}},{castAndTasks:'人物'});
+  const current={...before,title:'作者新标题'};
+  const combined=combineCreatorChanges(current,changes,true);
+  assert.ok(combined);
+  const accepted=applyCreatorChange(current,combined);
+  assert.equal(accepted.title,'作者新标题');
+  assert.deepEqual(applyCreatorChange(accepted,combined,true),current);
 });

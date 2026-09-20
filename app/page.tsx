@@ -2477,7 +2477,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
   function applyAllCreatorProposals(changes: CreatorChange[]): string {
     const combined = combineCreatorChanges(creatorSections(), changes, true);
     if (!combined) {
-      const message = '建议关联的角色已删除或顺序已变化，无法安全对应。请调整该项的角色关联后采纳；普通内容修改不会阻止采纳。';
+      const message = '建议涉及的字段或角色名单已有新修改，本次未覆盖任何内容。请保留手改、忽略冲突建议，或按最新设定重新讨论。';
       setCreatorChangeNotice(message); return message;
     }
     const next = combined.after as Record<string, unknown>;
@@ -2496,7 +2496,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     }
     const problem = creatorProposalProblem(combined);
     if (problem) {setCreatorChangeNotice(problem); return `${problem} 本次未写入任何建议。`;}
-    applyCreatorProposal(combined);
+    if (!applyCreatorProposal(combined)) return '建议未能安全写入，原草稿和待采纳建议已保留。';
     setProposalChanges([]); setCreatorProposal(null); setCreatorQuestions([]);
     return `已将 ${changes.length} 项建议写入当前草稿。你可以直接在右侧工作区修改，也可以继续告诉我想调整哪里；这不是发布操作。`;
   }

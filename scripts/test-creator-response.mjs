@@ -8,6 +8,24 @@ import { creatorGraphGuidance } from '../lib/creator-guidance.ts';
 
 const input = { characters: [], currentDraft: { title: '原作', premise: '原来的故事', surpriseLevel: 2,
   brief: { coreGoal: '', successCondition: '', failureCondition: '', complexityLevel: 2, tasks: [], difficulties: [], scheduledEvents: [] } } };
+
+test('unambiguous local character subset retains untouched cast and omitted fields',()=>{
+  const characters=['唐僧','悟空','八戒','沙僧'].map((name,i)=>({name,identity:'身份'+i,persona:'性格'+i,relationship:'关系'+i,appearance:'外貌'+i,goal:'目标'+i}));
+  const request={...input,userMessage:'只改沙僧的性格',characters};
+  const response=readCreatorResponse({reply:'建议已整理',proposal:{characters:[{name:'沙僧',persona:'坚韧隐忍'}]}},request);
+  assert.equal(response.discussionOnly,false);
+  assert.equal(response.proposal.characters.length,4);
+  assert.deepEqual(response.proposal.characters.slice(0,3),characters.slice(0,3));
+  assert.deepEqual(response.proposal.characters[3],{...characters[3],persona:'坚韧隐忍'});
+  assert.equal(characters[3].persona,'性格3');
+});
+test('ambiguous short roster and positional graph changes cannot delete cast',()=>{
+  const characters=['甲','乙'].map(name=>({name,identity:'旅人',persona:'谨慎',relationship:'',appearance:''}));
+  for(const proposal of [{characters:[]},{characters:[{name:'新人'}]},{characters:[{name:'乙'}],brief:{tasks:[]}}]) {
+    const response=readCreatorResponse({reply:'建议',proposal},{...input,characters});
+    assert.equal(response.discussionOnly,true);assert.ok(response.proposalIssue.includes('未删除'));
+  }
+});
 test('creator content accepts fenced and prose-wrapped JSON without changing proposal', () => {
   const data = {reply:'从谁开始？',proposal:{title:'山中'}};
   for (const s of [JSON.stringify(data), '```json\n'+JSON.stringify(data)+'\n```', '建议如下：\n'+JSON.stringify(data)]) {
@@ -200,4 +218,3 @@ test('fault-tolerant extractor recovers valid title, characters and genre even w
   assert.equal(r.proposal.characters[0].name, '艾登');
   assert.equal(r.proposal.characters[0].appearance, '');
 });
-

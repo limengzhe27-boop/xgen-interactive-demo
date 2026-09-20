@@ -47,7 +47,29 @@ export function readCreatorResponse(value: unknown, input: CreatorAgentRequest):
   }
   const pending = input.pendingProposal;
   const base = pending && isCreatorAgentResponse({ reply: 'pending', proposal: pending, nextQuestions: [], readiness: 'needs_detail' }) ? pending : input.currentDraft;
-  const { proposal: p, notices } = normalizeCreatorProposal(value.proposal, base.brief?.storyGraph?.nodes.map(n => n.id));
+  let rawProposal = value.proposal;
+  const existing = ('characters' in base ? base.characters : undefined) ?? input.characters ?? [];
+  const isPlaceholder = (role: unknown) => record(role) && /^角色\s*\d+$/.test(String(role.name ?? ''))
+    && !['identity', 'persona', 'relationship', 'appearance', 'goal'].some(key => !!role[key]);
+  // Recover only an unambiguous local subset before normalization fills omitted fields.
+  // Never guess renames by position or remap model-authored positional graph/task references.
+  if (Array.isArray(rawProposal.characters) && rawProposal.characters.length < existing.length && existing.some(r => !isPlaceholder(r))) {
+    const subset = rawProposal.characters;
+    const names = subset.map(r => record(r) ? r.name : undefined);
+    const safe = subset.length > 0 && names.every(name => typeof name === 'string' && !!name.trim()
+      && existing.filter(r => r.name === name).length === 1) && new Set(names).size === names.length
+      && !(record(rawProposal.brief) && ('storyGraph' in rawProposal.brief || 'tasks' in rawProposal.brief));
+    if (!safe) return creatorDiscussion(value.reply, input,
+      '本轮人物名单不完整或关联有歧义，未删除任何角色，也未应用本轮提案。请明确修改对象；删除角色请在人物区操作。');
+    rawProposal = { ...rawProposal, characters: existing.map(old => {
+      const update = subset.find(r => record(r) && r.name === old.name);
+      // Normalize aliases on the supplied patch first without manufacturing blank fields.
+      if (!record(update)) return { ...old, relationship: old.relationship ?? '', appearance: old.appearance ?? '' };
+      return { ...old, relationship: old.relationship ?? '', appearance: old.appearance ?? '', ...update,
+        persona: update.persona ?? update.personality ?? old.persona };
+    }) };
+  }
+  const { proposal: p, notices } = normalizeCreatorProposal(rawProposal, base.brief?.storyGraph?.nodes.map(n => n.id));
   if (record(p.brief) && isCreatorStoryGraph(p.brief.storyGraph)) {
     p.brief.storyGraph = preserveEventIntent(p.brief.storyGraph, base.brief?.storyGraph);
     const cast = Array.isArray(p.characters) ? p.characters : ('characters' in base ? base.characters : undefined) ?? input.characters ?? [];
