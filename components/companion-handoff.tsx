@@ -13,14 +13,14 @@ export function CompanionHandoff({ seed, conversation, memoryCount, onClose, onC
   const [selected, setSelected] = useState<number[]>([]);
   const turns = conversation.slice(-8);
   return <Dialog open onOpenChange={open => { if (!open) onClose(); }}><DialogContent className="companion-handoff">
-    <DialogTitle>还是我，陪你把想法做成世界</DialogTitle>
-    <DialogDescription>原来的聊天会保留。确认后调用公司网关 开始创作讨论，使用下方方向与勾选的上下文；不会直接填入世界设定。</DialogDescription>
+    <DialogTitle>带入创作工作台</DialogTitle>
+    <DialogDescription>原聊天会保留。确认后新建草稿，只带入下面的想法和你勾选的上下文，不会自动生成人物或剧情。发送下一条创作消息时，所选上下文才会发给模型服务。</DialogDescription>
     <label htmlFor="companion-idea">这次想创作什么？</label>
     <textarea id="companion-idea" value={idea} onChange={event => setIdea(event.target.value)} maxLength={2000} placeholder="一句话也可以，进入后我们接着讨论。" />
     <label className="companion-check"><input type="checkbox" checked={useMemories} onChange={event => setUseMemories(event.target.checked)} /><span>让创作中的我参考你的已确认记忆（{memoryCount} 条）<small>用于理解你与沟通方式；不是把个人资料变成角色。以后新增或删除的已确认记忆也会同步生效，可随时关闭。</small></span></label>
     {turns.length > 0 && <details><summary>选择要接着讨论的消息（已选 {selected.length} 条）</summary><div className="companion-selection">{turns.map((turn, index) => <label className="companion-check" key={index}><input type="checkbox" checked={selected.includes(index)} onChange={event => setSelected(current => event.target.checked ? [...current, index] : current.filter(i => i !== index))} /><span><small>{turn.role === 'user' ? '你' : '你的 Agent'}</small>{turn.content}</span></label>)}</div></details>}
     <p className="personal-memory-note">只选择这次创作需要的内容。模型建议仍需你审阅、采纳；发布前也请检查是否包含真实个人信息。</p>
-    <Button className="studio-button studio-solid" onClick={() => onConfirm(idea.trim(), { useConfirmedMemories: useMemories, conversation: turns.filter((_, index) => selected.includes(index)) })}>确认，接着创作</Button>
+    <Button className="studio-button studio-solid" onClick={() => onConfirm(idea.trim(), { useConfirmedMemories: useMemories, conversation: turns.filter((_, index) => selected.includes(index)) })}>进入创作工作台</Button>
   </DialogContent></Dialog>;
 }
 
