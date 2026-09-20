@@ -2,7 +2,7 @@ import type { CreatorAgentRequest } from './ai-contracts.ts';
 import type { CreatorTriage } from './typesafe-creator-triage.ts';
 
 /** Runtime excerpts of research/skill-drafts/creator-suite-v1, not a second output schema. */
-export const CREATOR_SKILL_VERSION = 'six-by-six-2026-09-20';
+export const CREATOR_SKILL_VERSION = 'six-by-six-2026-09-20.2';
 export const horizontalSkills = {
   H1: '内容方向：承接核心设想，按缺口讨论主要体验、基调尺度、参与方式与必要边界。已清楚的不再问，不强制世界规则先行。受众吸引力只是设计假设，不自动补齐全员秘密。',
   H2: '人物塑造：在本轮指定人物范围内讨论身份、诉求、性格如何影响行动、能力与限制。未知留空，不为返回完整名单扩写其他人。人物图片不是本阶段必交成果。',
@@ -35,15 +35,18 @@ export function selectCreatorSkills(input: CreatorAgentRequest, triage: CreatorT
   ];
   const explicit = rules.find(([, pattern]) => pattern.test(text));
   const hints: Record<CreatorTriage['focus'], H> = { world_foundation: 'H3', character_depth: 'H2', event_evolution: 'H5', story_canvas: 'H5', open_discussion: 'H1' };
-  const horizontal = explicit?.[0] ?? (triage ? hints[triage.focus] : 'H1');
+  // A validated semantic judgment understands negation/continuation; regex is only fallback.
+  const horizontal = triage?.horizontal ?? explicit?.[0] ?? (triage ? hints[triage.focus] : 'H1');
   const methods: [V, RegExp][] = [
     ['V1', /调查|线索|查明|揭示真相|发现真相/], ['V2', /相处|倾听|亲近|陪伴|关系变化/],
     ['V3', /协商|谈判|交换条件|筹码|让步|结盟/], ['V4', /求生|稀缺|资源分配|风险取舍/],
     ['V5', /探索未知|成长|学习能力|突破障碍/], ['V6', /经营|建设|投入产出|采买|管理店/],
   ];
   const localEdit = /改名|名字改|改成|错别字|删除|删掉/.test(text);
-  const vertical = localEdit || horizontal === 'H6' ? [] : methods.filter(([, p]) => p.test(text)).slice(0, 2).map(([id]) => id);
-  return { horizontal, vertical, source: explicit ? 'current-message' : triage ? 'advisory-triage' : 'fallback' };
+  const vertical = localEdit || horizontal === 'H6' ? [] : triage?.vertical
+    ? triage.vertical === 'none' ? [] : [triage.vertical]
+    : methods.filter(([, p]) => p.test(text)).slice(0, 2).map(([id]) => id);
+  return { horizontal, vertical, source: triage?.horizontal ? 'semantic-triage' : explicit ? 'current-message' : triage ? 'advisory-triage' : 'fallback' };
 }
 
 export function creatorSkillGuidance(input: CreatorAgentRequest, triage: CreatorTriage | null = null) {

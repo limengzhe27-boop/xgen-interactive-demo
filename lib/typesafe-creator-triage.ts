@@ -7,6 +7,8 @@ export type CreatorTriage = {
   focus: 'world_foundation' | 'character_depth' | 'event_evolution' | 'story_canvas' | 'open_discussion';
   confidence: number;
   shouldClarify: boolean;
+  horizontal?: 'H1' | 'H2' | 'H3' | 'H4' | 'H5' | 'H6';
+  vertical?: 'V1' | 'V2' | 'V3' | 'V4' | 'V5' | 'V6' | 'none';
 };
 
 const focusValues = new Set<CreatorTriage['focus']>([
@@ -32,6 +34,29 @@ function resultFor(payload: unknown, name: string) {
     if (result) return result;
   }
   return null;
+}
+
+function probability(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 1;
+}
+
+// Thresholds are conservative application defaults, not calibrated accuracy claims.
+export function parseCreatorTriage(payload: unknown): CreatorTriage | null {
+  const focus = resultFor(payload, 'focus');
+  const choice = typeof focus?.choice === 'string' ? focus.choice : '';
+  if (!focusValues.has(choice as CreatorTriage['focus']) || !probability(focus?.confidence) || focus.confidence < MINIMUM_CONFIDENCE) return null;
+  const clarify = resultFor(payload, 'shouldClarify');
+  const horizontal = resultFor(payload, 'horizontal');
+  const vertical = resultFor(payload, 'vertical');
+  const h = horizontal?.type === 'choice' && probability(horizontal.confidence) && horizontal.confidence >= 0.75
+    && typeof horizontal.choice === 'string' && /^H[1-6]$/.test(horizontal.choice) ? horizontal.choice as CreatorTriage['horizontal'] : undefined;
+  const v = vertical?.type === 'choice' && probability(vertical.confidence) && vertical.confidence >= 0.75
+    && typeof vertical.choice === 'string' && /^(V[1-6]|none)$/.test(vertical.choice) ? vertical.choice as CreatorTriage['vertical'] : undefined;
+  return {
+    focus: choice as CreatorTriage['focus'], confidence: focus.confidence,
+    shouldClarify: clarify?.type === 'noul' && probability(clarify.noul) && clarify.noul >= 0.7,
+    ...(h ? { horizontal: h } : {}), ...(v ? { vertical: v } : {}),
+  };
 }
 
 /**
@@ -83,6 +108,32 @@ export async function classifyCreatorTurn(input: unknown): Promise<CreatorTriage
         model: 'jev-latest',
         state,
         questions: {
+          horizontal: {
+            type: 'choice',
+            instructions: 'Select the immediate creative work requested in userMessage. Use recentConversation only to resolve continuation or pronouns. Current instructions and negation override old topics and editingContext. A mentioned topic is not necessarily the requested task. This selects advice, never permission to edit. Choose unknown if not clear.',
+            criteria: {
+              H1: 'Clarify content direction, tone, participation and scope.',
+              H2: 'Develop or locally edit a character identity, personality, motivation or appearance.',
+              H3: 'Define world rules, relationships or who knows what.',
+              H4: 'Design the shared opening or a selectable character entry and takeover.',
+              H5: 'Develop later events, conditional consequences, branches or endings.',
+              H6: 'Write public title, synopsis, selection introduction or presentation brief.',
+              unknown: 'Insufficient context, unrelated request, or media production rather than content creation.',
+            },
+          },
+          vertical: {
+            type: 'choice',
+            instructions: 'Which ONE participation-design method is most useful for the current request, resolving continuation using recentConversation? Do not assign based on genre or a negated word. Choose none for simple edits, public copy, media production, unclear requests, or no applicable method. This is optional advice, not a story decision.',
+            criteria: {
+              V1: 'Discovering and evaluating information or clues.',
+              V2: 'Listening, expressing needs, boundaries and relationship changes.',
+              V3: 'Negotiating goals, controlled leverage, exchanges and concessions.',
+              V4: 'Survival, scarce resources and risk tradeoffs.',
+              V5: 'Exploring unknown spaces, learning abilities and overcoming obstacles.',
+              V6: 'Building or managing something through investment and sustained feedback.',
+              none: 'No participation method needed or supported by this request.',
+            },
+          },
           focus: {
             type: 'choice',
             instructions: 'Classify the author\'s immediate co-creation focus. Do not infer hidden preferences or create story content.',
@@ -104,21 +155,7 @@ export async function classifyCreatorTurn(input: unknown): Promise<CreatorTriage
     });
     if (!response.ok) return null;
 
-    const payload: unknown = await response.json();
-    const focus = resultFor(payload, 'focus');
-    const choice = typeof focus?.choice === 'string' ? focus.choice : '';
-    const confidence = typeof focus?.confidence === 'number' ? focus.confidence : 0;
-    if (!focusValues.has(choice as CreatorTriage['focus']) || confidence < MINIMUM_CONFIDENCE) return null;
-
-    const clarify = resultFor(payload, 'shouldClarify');
-    const clarifyProbability = typeof clarify?.probability === 'number'
-      ? clarify.probability
-      : typeof clarify?.yes === 'number' ? clarify.yes : 0;
-    return {
-      focus: choice as CreatorTriage['focus'],
-      confidence,
-      shouldClarify: clarifyProbability >= 0.7,
-    };
+    return parseCreatorTriage(await response.json());
   } catch {
     // TypeSafe is an optional advisory service. Preserve normal creation when unavailable.
     return null;
