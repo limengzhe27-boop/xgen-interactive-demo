@@ -6,6 +6,15 @@ import { publicationWorld } from '../lib/publication.ts';
 import { publicationDraft } from '../lib/restore-publication.ts';
 import { WORLD_INVITATIONS, editorialCopy } from '../lib/home-editorial.ts';
 import { creatorChanges, applyCreatorChange } from '../lib/creator-changes.ts';
+
+test('empty category normalization is not a proposal, but category removal is', () => {
+  const labels = { discoveryGenre: '剧情分类' };
+  assert.deepEqual(creatorChanges({}, { discoveryGenre: '' }, labels), []);
+  assert.deepEqual(creatorChanges({ discoveryGenre: '' }, { discoveryGenre: undefined }, labels), []);
+  const [removal] = creatorChanges({ discoveryGenre: '轻松搞笑' }, { discoveryGenre: '' }, labels);
+  assert.equal(removal.after, '');
+  assert.equal(applyCreatorChange({ discoveryGenre: '轻松搞笑' }, removal).discoveryGenre, '');
+});
 test('fixed channels cover all built-ins without one channel per story', () => {
   assert.equal(DISCOVERY_CHANNELS.length, 10);
   for (const item of studioWorlds) assert.ok(STORY_CATEGORIES.includes(discoveryCategory(item)), item.id);

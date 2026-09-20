@@ -39,7 +39,11 @@ const equal = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b
 const castFrom = (value: unknown) => value as CreatorCast | undefined;
 
 export function creatorChanges(before: Record<string, unknown>, after: Record<string, unknown>, labels: Record<string, string>): CreatorChange[] {
-  const changes: CreatorChange[] = Object.entries(after).filter(([key, value]) => key !== 'castAndTasks' && key in labels && !equal(before[key], value))
+  const changes: CreatorChange[] = Object.entries(after).filter(([key, value]) => key !== 'castAndTasks' && key in labels
+    // An unset optional category and its normalized empty string are the same.
+    // Keep non-empty → empty changes so an explicit removal remains reviewable.
+    && !(key === 'discoveryGenre' && !before[key] && !value)
+    && !equal(before[key], value))
     .map(([key, value]) => ({ key, label: labels[key], before: before[key], after: value }));
   const oldCast = castFrom(before.castAndTasks); const nextCast = castFrom(after.castAndTasks);
   if (!oldCast || !nextCast || equal(oldCast, nextCast)) return changes;
