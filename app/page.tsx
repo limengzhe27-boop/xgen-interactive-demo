@@ -83,9 +83,6 @@ import { restoreMemoryDetails, confirmMemoryDetail, editMemoryDetail, removeMemo
 import { knownRecommendations, restoreRecommendations, resolveWorldSelection, recommendationReply } from '@/lib/personal-recommendations';
 import type { PersonalAgentRequest, PersonalAgentResponse } from '@/lib/ai-contracts';
 import {
-  createFullWorldDraftFromIdea,
-  buildWorldDefinitionFromDraft,
-  createCreatorDocumentFromDraft,
   type GeneratedWorldDraft,
 } from '@/lib/personal-world-generator';
 import { triagePersonalAgentMessage } from '@/lib/typesafe-personal-triage';
@@ -2165,21 +2162,17 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       if (revision !== navigationRevision.current) return;
 
       if (triage.intent === 'create_world' && triage.creationReadiness === 'ready') {
-        const draft = createFullWorldDraftFromIdea(value, { genre: triage.targetGenre });
-        const doc = createCreatorDocumentFromDraft(draft);
-        const documents = upsertById(creatorDocuments, doc);
-        setCreatorDocuments(documents);
-        persistStudioSnapshot({ version: 1, runs: savedRuns, chats: chatSessions, documents, draftId: doc.id });
-        setLatestPersonalDraft(draft);
+        // Offer an explicit handoff; classification is not a generated story.
+        setLatestPersonalDraft(null);
         setAgentConversation((current) => restorePersonalConversation([...current,
           { role: 'user', content: value },
           {
             role: 'assistant',
-            content: `已经根据你的想法构思好《${draft.worldTitle}》的完整故事草稿！包含 ${draft.draftRoles.length} 位核心角色（已区分可扮演视角与重要剧情 NPC）、3 节点故事画布因果连线与核心主线任务。草稿已保存至本机创作者草稿箱，你可以点击下方卡片直接前往创作者工作区微调，或在对话里继续和我聊聊细节。`,
+            content: '可以从这个想法开始创作。点击下方入口，选择要带入的讨论内容，再一起完善人物和开场；现在还没有生成完整草稿。',
           },
         ]));
         setMessage('');
-        setCreationSuggestion(null);
+        setCreationSuggestion(value);
         return;
       }
 
@@ -3312,7 +3305,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
         ...worldCatalog.map((world) => ({ ...world, roleCount: world.id === 'storm-manor' ? roles.length : presetWorlds.find((preset) => preset.id === world.id)?.roles.length ?? 0, cover: world.id === 'storm-manor' ? legacyArt['storm-manor'].cover : world.id === 'sea-train' ? legacyArt['sea-train'].cover : legacyArt['sixth-roommate'].cover }))]}
       characters={availableStudioWorlds.filter(entry=>!entry.fixedRoleId).flatMap((entry) => entry.world.characters.map((role) => ({ id: role.id, worldId: entry.id, worldTitle: entry.title, name: role.name, cardHook: role.cardHook, identity: role.identity, persona: role.persona, image: entry.portraits[role.id] || entry.cover })))}
       recent={[
-        ...creatorDocuments.map((doc) => ({ id: `doc-${doc.id}`, savedAt: doc.savedAt, title: doc.data.worldTitle || '未命名世界', subtitle: '继续编辑角色与故事框架', label: doc.data.publishedWorld ? '可试玩 · 本机作品' : '创作草稿', cover: legacyArt['storm-manor'].cover })),
+        ...creatorDocuments.map((doc) => ({ id: `doc-${doc.id}`, savedAt: doc.savedAt, title: doc.data.worldTitle || '未命名世界', subtitle: '继续编辑', label: doc.data.publishedWorld ? '可试玩 · 本机作品' : '创作草稿', cover: doc.data.creatorAssets?.cover || '' })),
         ...savedRuns.map((run) => ({ id: `run-${run.id}`, savedAt: run.savedAt, title: run.worldTitle, subtitle: `${run.worldSnapshot?.world.characters.find((role) => role.id === run.roleId)?.name ?? run.roleId} · ${run.worldState.location}`, label: run.id.includes('-before-update-') ? '接续前备份' : run.status === 'ending' ? '当前剧情' : '探索记录', cover: run.worldSnapshot?.cover || legacyArt['storm-manor'].cover })),
         ...chatSessions.map((chat) => ({ id: `chat-${chat.id}`, savedAt: chat.savedAt, title: `与 ${chat.entry.world.characters.find((role) => role.id === chat.targetCharacterId)?.name || '角色'} 的对话`, subtitle: chatRecordSubtitle(chat.entry.world.characters.find((role) => role.id === chat.playerRoleId)?.name, chat.entry.title), label: '角色对话', cover: chat.entry.portraits[chat.targetCharacterId] || chat.entry.cover })),
       ].sort((a, b) => b.savedAt - a.savedAt)}
@@ -4013,7 +4006,7 @@ function CreateWorld({
         <span><Sparkles /></span>
         <div style={{ flex: 1, minWidth: 0 }}>
           <small>还是我，陪你创作</small>
-          <strong>{worldTitle || '从一个念头，开始另一种人生。'}</strong>
+          <strong>{worldTitle || '讨论你的故事'}</strong>
         </div>
         <button
           type="button"
@@ -4530,7 +4523,7 @@ function CreateWorld({
 
           <div className="role-focus-footer" style={{ borderTop: '1px solid var(--color-border-soft)', paddingTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <small style={{ color: 'var(--color-text-muted)' }}>共 {draftRoles.length} 个角色 · 建议 1—5 个</small>
-            <small style={{ color: 'var(--color-text-muted)' }}>已为 {Object.keys(roleImages).filter(k => k.startsWith('draft-role-')).length} 位制作形象</small>
+            <small style={{ color: 'var(--color-text-muted)' }}>已为 {draftRoles.filter((_, index) => !!roleImages[`draft-role-${index}`]?.trim()).length} 位制作形象</small>
           </div>
         </div>
         );

@@ -38,9 +38,9 @@ export function StudioNav({ section, onNavigate, onCreate }: { section: string; 
   </nav>;
 }
 
-function Artwork({ src, alt }: { src: string; alt: string }) {
+function Artwork({ src, alt, recent = false }: { src: string; alt: string; recent?: boolean }) {
   const [failedSrc, setFailedSrc] = useState('');
-  return src && failedSrc !== src ? <img src={src} alt={alt} loading="lazy" decoding="async" onError={() => setFailedSrc(src)} /> : <div className="gallery-art-unavailable"><BookOpen /><span>封面暂不可用<br />故事仍可进入</span></div>;
+  return src && failedSrc !== src ? <img src={src} alt={alt} loading="lazy" decoding="async" onError={() => setFailedSrc(src)} /> : <div className="gallery-art-unavailable"><BookOpen /><span>{recent ? '暂无封面' : '封面暂不可用'}</span></div>;
 }
 
 export function StudioHome({ section, worlds, characters, recent, onCreate, onOpenWorld, onChat, onPersonal, onLibrary, onOpenRecord, initialBrowse, returnPosition, onBrowseChange }: {
@@ -141,25 +141,25 @@ export function StudioHome({ section, worlds, characters, recent, onCreate, onOp
   return <div className="studio-home">
     {isHome && <section className="gallery-hero" aria-labelledby="studio-title">
       <GalleryAtmosphere />
-      <div className="gallery-hero-heading"><span className="studio-wordmark gallery-eyebrow">WORLDSTUDIO · 小世界</span><h1 id="studio-title"><span>下一段故事，</span><span>你来入戏。</span></h1><p className="gallery-eyebrow">成为故事里的人，也成为故事的作者。</p></div>
+      <div className="gallery-hero-heading"><span className="studio-wordmark gallery-eyebrow">XGEN · 小世界</span><h1 id="studio-title">你想创作什么故事？</h1><p className="gallery-eyebrow">从一个想法开始，逐步确定人物、背景和开场。</p></div>
       <div className="gallery-composer-anchor" ref={anchor}>
         <form className="gallery-composer" data-floating={docked} data-editing={focused} data-scroll-hidden={composerHidden} inert={composerHidden} aria-hidden={composerHidden || undefined} onSubmit={event => { event.preventDefault(); start(); }} onFocusCapture={() => { if (!focused) { setScrollHidden(false); setPinnedWhileFocused(docked); setFocused(true); } }} onBlurCapture={event => { if (!event.currentTarget.contains(event.relatedTarget)) setFocused(false); }}>
-          <MessageTextarea aria-label="你想创造怎样的世界" aria-describedby="gallery-composer-hint" placeholder="一个念头，就能开启一个世界。想让谁，遇见什么？" value={seed} maxLength={2000} onChange={event => setSeed(event.target.value)} onSend={start} />
-          <div className="gallery-composer-tools"><div className="gallery-composer-hint" id="gallery-composer-hint"><span>和 Agent 一起构思</span><small>Enter 发送 · Shift + Enter 换行</small></div><Button className="gallery-send" type="submit" aria-label="与 Agent 一起创作"><ArrowUp /></Button></div>
+          <MessageTextarea aria-label="故事想法" aria-describedby="gallery-composer-hint" placeholder="写下你的故事想法，也可以先写一个人物或场景。" value={seed} maxLength={2000} onChange={event => setSeed(event.target.value)} onSend={start} />
+          <div className="gallery-composer-tools"><div className="gallery-composer-hint" id="gallery-composer-hint"><span>开始创作</span><small>Enter 发送 · Shift + Enter 换行</small></div><Button className="gallery-send" type="submit" aria-label="开始创作"><ArrowUp /></Button></div>
         </form>
       </div>
-      <div className="gallery-prompts" aria-label="创作灵感">{['豪门情感', '职场逆袭', '家族争产', '都市关系'].map(idea => <button key={idea} type="button" onClick={() => setSeed('我想创造一个' + idea + '的小世界，帮我讨论角色、关系和目标。')}>{idea}<ArrowRight /></button>)}</div>
+      <div className="gallery-prompts" aria-label="创作示例">{['家族争产', '职场逆袭', '悬疑调查', '轻松日常'].map(idea => <button key={idea} type="button" onClick={() => setSeed('我想写一个' + idea + '的故事。')}>{idea}<ArrowRight /></button>)}</div>
     </section>}
 
     {section !== 'characters' && (recent.length > 0 || section === 'library') && <GalleryReveal className="gallery-recent">
-      <div className="studio-heading"><h2>{section === 'library' ? '我的世界与互动' : '接着上次的故事'}</h2><button className="studio-text-button" type="button" onClick={section === 'library' ? () => onCreate() : onLibrary}>{section === 'library' ? '新建世界' : '查看全部'}<ArrowRight /></button></div>
-      <div className="gallery-recents">{(section === 'library' ? recent : recent.slice(0, 3)).map(item => <button className="gallery-recent-item" type="button" key={item.id} onClick={() => onOpenRecord(item.id)}><Artwork src={item.cover} alt="" /><span><small>{item.label}</small><strong>{item.title}</strong><span>{item.subtitle}</span></span><ArrowRight /></button>)}</div>
-      {!recent.length && <div className="gallery-library-empty"><Compass /><h3>属于你的故事，从这里留下。</h3><p>创作草稿、世界探索和角色对话会分别保存在这里。</p><Button className="studio-button studio-solid" onClick={() => onCreate()}>创建第一个世界<Plus /></Button></div>}
+      <div className="studio-heading"><h2>{section === 'library' ? '我的作品与记录' : '最近使用'}</h2><button className="studio-text-button" type="button" onClick={section === 'library' ? () => onCreate() : onLibrary}>{section === 'library' ? '新建世界' : '查看全部'}<ArrowRight /></button></div>
+      <div className="gallery-recents">{(section === 'library' ? recent : recent.slice(0, 3)).map(item => <button className="gallery-recent-item" type="button" key={item.id} onClick={() => onOpenRecord(item.id)}><Artwork src={item.cover} alt="" recent /><span><small>{item.label}</small><strong>{item.title}</strong><span>{item.subtitle}</span></span><ArrowRight /></button>)}</div>
+      {!recent.length && <div className="gallery-library-empty"><Compass /><h3>暂无作品或记录</h3><p>创作草稿、世界探索和角色对话会显示在这里。</p><Button className="studio-button studio-solid" onClick={() => onCreate()}>创建故事<Plus /></Button></div>}
     </GalleryReveal>}
 
     {section !== 'library' && <section className="gallery-discover" aria-labelledby="discover-title">
-      <GalleryReveal className="gallery-discover-heading"><div><h2 id="discover-title">{section === 'characters' ? '遇见世界里的人' : '发现，让你入戏的世界'}</h2><span>{section === 'characters' ? '从一句话，走近 TA 的故事。' : '一段关系，一场反转，一种未曾经历的人生。'}</span></div><button className="studio-agent-entry" onClick={onPersonal} type="button"><Sparkles />让 Agent 帮我挑<ArrowRight /></button></GalleryReveal>
-      <div className="gallery-toolbar"><div className="gallery-kind" aria-label="内容类型">{([{ id: 'all', label: '全部灵感' }, { id: 'world', label: '世界' }, { id: 'character', label: '角色' }] as const).map(tab => <button key={tab.id} type="button" aria-pressed={kind === tab.id} onClick={() => setKind(tab.id)}>{tab.label}</button>)}</div><div className="gallery-search"><Search /><input aria-label="搜索世界或角色" placeholder="搜索世界、角色或心情" value={query} onChange={event => setQuery(event.target.value)} />{query && <button type="button" onClick={() => setQuery('')} aria-label="清除搜索"><X /></button>}</div></div>
+      <GalleryReveal className="gallery-discover-heading"><div><h2 id="discover-title">{section === 'characters' ? '角色' : '发现故事'}</h2><span>{section === 'characters' ? '选择角色开始聊天。' : '选择世界进入故事，或选择角色开始聊天。'}</span></div><button className="studio-agent-entry" onClick={onPersonal} type="button"><Sparkles />帮我推荐<ArrowRight /></button></GalleryReveal>
+      <div className="gallery-toolbar"><div className="gallery-kind" aria-label="内容类型">{([{ id: 'all', label: '全部' }, { id: 'world', label: '世界' }, { id: 'character', label: '角色' }] as const).map(tab => <button key={tab.id} type="button" aria-pressed={kind === tab.id} onClick={() => setKind(tab.id)}>{tab.label}</button>)}</div><div className="gallery-search"><Search /><input aria-label="搜索世界或角色" placeholder="搜索世界或角色" value={query} onChange={event => setQuery(event.target.value)} />{query && <button type="button" onClick={() => setQuery('')} aria-label="清除搜索"><X /></button>}</div></div>
       <div className="gallery-filters" aria-label="筛选题材">{genres.map(item => <button key={item} type="button" aria-pressed={genre === item} onClick={() => setGenre(item)}>{item}</button>)}</div>
       <GalleryMasonry layoutKey={kind + ':' + genre + ':' + query + ':' + items.length}>{items.map((item, index) => {
         const world = item.kind === 'world' ? item.value : undefined;
