@@ -8,10 +8,8 @@
 .back:hover { color: var(--color-primary); }
 .hero { display: grid; grid-template-columns: minmax(0, .85fr) minmax(0, 1.15fr); gap: clamp(24px, 4vw, 56px); align-items: start; }
 .withoutCover { grid-template-columns: minmax(0, 760px); }
-.coverButton { display: flex; flex-direction: column; align-items: center; gap: 12px; width: 100%; padding: 16px; border: 1px solid var(--color-border); border-radius: 16px; background: var(--color-surface); color: var(--color-text-muted); }
-.coverButton:hover { border-color: var(--color-primary); }
+.coverFrame { width: 100%; padding: 16px; border: 1px solid var(--color-border); border-radius: 16px; background: var(--color-surface); }
 .cover { display: block; width: 100%; height: auto; max-height: 480px; object-fit: contain; }
-.coverHint { display: flex; align-items: center; gap: 6px; font-size: 12px; }
 .summary { min-width: 0; padding: 8px 0; }
 .genre { display: inline-block; padding: 3px 12px; background: var(--color-agent-soft); color: var(--color-primary); border-radius: 20px; font-size: 13px; }
 .summary h1 { font-size: clamp(26px, 2.7vw, 38px); line-height: 1.4; letter-spacing: -.02em; margin: 16px 0 20px; font-weight: 650; overflow-wrap: anywhere; }
@@ -21,7 +19,7 @@
 .situation h2 { font-size: 15px; margin: 0 0 8px; }
 .situation p { font-size: 15px; margin: 0; color: var(--color-text-muted); white-space: pre-line; }
 .identity { margin-top: 24px; font-size: 15px; }
-.identity strong { margin-left: 12px; }
+.identity .roleHeading { margin-top: 10px; }
 .identity p { margin: 6px 0 0; color: var(--color-text-muted); }
 .actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 28px; }
 .primary, .secondary { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 46px; padding: 10px 18px; border-radius: 10px; border: 1px solid var(--color-primary); font-size: 15px; white-space: normal; overflow-wrap: anywhere; }
@@ -48,11 +46,7 @@
 .dialog::backdrop { background: color-mix(in srgb, var(--color-text) 65%, transparent); }
 .dialog h2 { font-size: 21px; margin: 0 0 12px; }
 .dialog p { font-size: 15px; }
-.imageDialog { width: fit-content; max-width: calc(100vw - 32px); padding: 56px 16px 16px; }
-.imageDialog img { display: block; max-width: 100%; max-height: calc(100dvh - 120px); object-fit: contain; margin: auto; }
-.close { position: absolute; right: 8px; top: 8px; width: 44px; height: 44px; display: grid; place-items: center; background: transparent; color: var(--color-text); border: 0; border-radius: 8px; }
-.close:hover { background: var(--color-agent-soft); }
 @keyframes enter { from { opacity: 0; } to { opacity: 1; } }
 @media (max-width: 1000px) { .roles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 760px) { .page { padding: 16px 20px 48px; } .toolbar { margin-bottom: 20px; } .hero { grid-template-columns: minmax(0, 1fr); gap: 24px; } .coverButton { max-width: 460px; margin: 0 auto; } .cover { max-height: 360px; } .summary { padding: 0; } .roles { grid-template-columns: minmax(0, 1fr); } .actions > button { flex: 1 1 auto; } .section { margin-top: 32px; } }
+@media (max-width: 760px) { .page { padding: 16px 20px 48px; } .toolbar { margin-bottom: 20px; } .hero { grid-template-columns: minmax(0, 1fr); gap: 24px; } .coverFrame { max-width: 460px; margin: 0 auto; } .cover { max-height: 360px; } .summary { padding: 0; } .roles { grid-template-columns: minmax(0, 1fr); } .actions > button { flex: 1 1 auto; } .section { margin-top: 32px; } }
 @media (prefers-reduced-motion: reduce) { .page { animation: none; } .page button { transition: none; } }

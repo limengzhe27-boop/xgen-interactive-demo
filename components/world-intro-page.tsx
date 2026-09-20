@@ -3,7 +3,7 @@
 /* eslint-disable @next/next/no-img-element -- Existing local and authenticated asset URLs must retain their original dimensions and browser cookies. */
 
 import { useRef, useState } from 'react';
-import { ArrowLeft, ArrowDown, Play, Expand, X } from 'lucide-react';
+import { ArrowLeft, ArrowDown, Play } from 'lucide-react';
 import { characterHook } from '@/lib/character-card';
 import styles from './world-intro-page.module.css';
 
@@ -32,7 +32,6 @@ export function WorldIntroPage({ data, onBack, onResumeRun, onStartWorld }: {
   data: WorldIntroData; onBack: () => void;
   onResumeRun: (runId: string) => void; onStartWorld: (roleId: string) => void;
 }) {
-  const coverDialog = useRef<HTMLDialogElement>(null);
   const restartDialog = useRef<HTMLDialogElement>(null);
   const roleSection = useRef<HTMLElement>(null);
   const [restartRole, setRestartRole] = useState<WorldIntroCharacter | null>(null);
@@ -74,10 +73,9 @@ export function WorldIntroPage({ data, onBack, onResumeRun, onStartWorld }: {
       <span className={styles.muted}>世界介绍</span>
     </header>
     <section className={`${styles.hero} ${!cover ? styles.withoutCover : ''}`} aria-labelledby="world-intro-title">
-      {cover && <button type="button" className={styles.coverButton} onClick={() => coverDialog.current?.showModal()} aria-label={`查看《${title}》完整封面`}>
+      {cover && <div className={styles.coverFrame}>
         <img className={styles.cover} src={cover} alt={`${title}封面`} onError={() => setFailedCover(cover)} />
-        <span className={styles.coverHint}><Expand size={14} aria-hidden="true" />查看大图</span>
-      </button>}
+      </div>}
       <div className={styles.summary}>
         {data.genre?.trim() && <span className={styles.genre}>{data.genre.trim()}</span>}
         <h1 id="world-intro-title">{title}</h1>
@@ -86,7 +84,14 @@ export function WorldIntroPage({ data, onBack, onResumeRun, onStartWorld }: {
         {scene && scene !== premise && scene !== hook && <div className={styles.situation}>
           <h2>{data.openingScene?.location || '故事从这里开始'}</h2><p>{scene}</p>
         </div>}
-        {single && <div className={styles.identity}><span className={styles.muted}>你将扮演</span><strong>{single.name}</strong>{publicDescription(single) && <p>{publicDescription(single)}</p>}</div>}
+        {single && <div className={styles.identity}>
+          <span className={styles.muted}>你将扮演</span>
+          <div className={styles.roleHeading}>
+            {single.image && <img className={styles.portrait} src={single.image} alt={single.name} loading="lazy" />}
+            <div><strong>{single.name}</strong>{single.identity && <p>{single.identity}</p>}</div>
+          </div>
+          {publicDescription(single) && <p>{publicDescription(single)}</p>}
+        </div>}
         <div className={styles.actions}>
           {data.existingRun && <button type="button" className={styles.primary} onClick={() => onResumeRun(data.existingRun!.id)}><Play size={17} aria-hidden="true" />继续上次体验</button>}
           {single ? <button type="button" className={data.existingRun ? styles.secondary : styles.primary} onClick={() => start(single)}><Play size={17} aria-hidden="true" />以{single.name}身份{data.existingRun ? '重新开始' : '开始体验'}</button>
@@ -94,6 +99,7 @@ export function WorldIntroPage({ data, onBack, onResumeRun, onStartWorld }: {
             : <p className={styles.muted}>暂未开放体验视角</p>}
         </div>
         {data.existingRun && <p className={styles.saved}>上次：{data.existingRun.roleName} · 第 {data.existingRun.turn} 轮 · {data.existingRun.location}</p>}
+        {data.existingRun?.savedAt && Number.isFinite(data.existingRun.savedAt) ? <p className={styles.saved}>保存于 {new Date(data.existingRun.savedAt).toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</p> : null}
       </div>
     </section>
     {playableRoles.length > 1 && <section ref={roleSection} className={styles.section} tabIndex={-1} aria-labelledby="playable-roles-title">
@@ -103,10 +109,6 @@ export function WorldIntroPage({ data, onBack, onResumeRun, onStartWorld }: {
     {otherRoles.length > 0 && <section className={styles.section} aria-labelledby="other-roles-title">
       <h2 id="other-roles-title">你会遇见的人物</h2><div className={styles.roles}>{otherRoles.map(role => roleCard(role, false))}</div>
     </section>}
-    <dialog ref={coverDialog} className={`${styles.dialog} ${styles.imageDialog}`} aria-label={`${title}完整封面`}>
-      <button type="button" className={styles.close} aria-label="关闭大图" onClick={() => coverDialog.current?.close()}><X size={22} /></button>
-      {cover && <img src={cover} alt={`${title}完整封面`} />}
-    </dialog>
     <dialog ref={restartDialog} className={styles.dialog} aria-labelledby="restart-title">
       <h2 id="restart-title">以{restartRole?.name}重新开始？</h2>
       <p>将从该角色的开场进入，而不是继续当前进度。已有图文记录仍可在探索记录中查看。</p>
