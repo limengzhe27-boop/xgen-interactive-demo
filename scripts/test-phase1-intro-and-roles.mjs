@@ -18,14 +18,20 @@ test('world intro page data strips creation parameters and separates playable vs
   assert.ok(!introSource.includes('推荐首选'));
 
   // Separate playable and npc roles
-  assert.ok(introSource.includes('data.characters.filter((c) => c.playable !== false)'));
-  assert.ok(introSource.includes('data.characters.filter((c) => c.playable === false)'));
+  assert.ok(introSource.includes('role.playable !== false && (!data.fixedRoleId || role.id === data.fixedRoleId)'));
+  assert.ok(introSource.includes('!playableRoles.some(playable => playable.id === role.id)'));
   assert.ok(introSource.includes('你会遇见的人物'));
   // NPC role is not a play button
-  assert.ok(introSource.includes('世界出场人物 · NPC'));
+  assert.ok(!introSource.includes('世界出场人物 · NPC'));
+  assert.ok(introSource.includes('playable && <button'));
 
   // Clean light/emerald styling
-  assert.ok(introSource.includes('#059669'));
+  const css = readFileSync(new URL('../components/world-intro-page.module.css', import.meta.url), 'utf8');
+  assert.ok(css.includes('var(--color-primary)'));
+  assert.match(css, /\.cover\s*\{[^}]*height: auto;[^}]*object-fit: contain;/);
+  assert.ok(!introSource.includes('showcase-hero-overlay'));
+  assert.ok(introSource.includes('选择角色'));
+  assert.ok(css.includes('@media (max-width: 760px)'));
 });
 
 test('creator showcase preview modal aligns with public presentation standards', () => {
