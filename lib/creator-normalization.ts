@@ -38,6 +38,9 @@ export function normalizeCreatorGraphIds(value: unknown, reservedIds: string[] =
 
 export function normalizeCreatorProposal(value: Record<string, unknown>, reservedIds: string[] = []) {
   const p = { ...value };
+  // Draft/review state belongs to the UI, not the generated work title.
+  // Only remove a trailing status annotation; keep meaningful title parentheses.
+  if (typeof p.title === 'string') p.title = p.title.replace(/(?:\s*[（(]\s*暂定\s*[）)])+\s*$/, '').trim();
   const notices: string[] = [];
   const level = (v: unknown) => typeof v === 'string' && /^[1-4]$/.test(v.trim()) ? Number(v.trim()) : v;
   if (p.surpriseLevel !== undefined) p.surpriseLevel = level(p.surpriseLevel);
