@@ -308,6 +308,12 @@ export function VideoExplorer({entry:latestEntry,onBack,onText,initialRoleId,sta
             if (resumeSessionId && resumeSessionId !== candidate?.id) {
               const archived = sessionStorage.getItem(`${currentKey}:archive:${resumeSessionId}`);
               if (archived) candidateToUse = JSON.parse(archived) as Session;
+            } else if (initialRoleId && candidate && candidate.roleId !== initialRoleId) {
+              // Active candidate is for a different role and no explicit resume was asked; do not override chosen role
+              if (candidate.id && candidate.rounds > 0) {
+                try { sessionStorage.setItem(`${currentKey}:archive:${candidate.id}`, JSON.stringify(candidate)); } catch { /* ignore */ }
+              }
+              candidateToUse = null;
             }
             const savedEntry=candidateToUse?.worldSnapshot?.id===latestEntry.id ? {...candidateToUse.worldSnapshot,world:publicationWorld(candidateToUse.worldSnapshot.world)} as StudioWorld : latestEntry;
             if(candidateToUse?.version===1&&typeof candidateToUse.id==='string'&&candidateToUse.state&&savedEntry.world.characters.some(c=>c.id===candidateToUse.roleId)&&Array.isArray(candidateToUse.choices)
@@ -362,7 +368,7 @@ export function VideoExplorer({entry:latestEntry,onBack,onText,initialRoleId,sta
       finally{if(!stop.signal.aborted)setLoading(false);}
     })();
     return()=>{alive.current=false;stop.abort();controller.current?.abort();};
-  },[latestEntry.id,latestEntry.world.characters,startFresh,resumeSessionId]);
+  },[latestEntry.id,latestEntry.world.characters,startFresh,resumeSessionId,initialRoleId]);
   useEffect(()=>{
     const update=()=>setOnline(navigator.onLine);
     update();window.addEventListener('online',update);window.addEventListener('offline',update);

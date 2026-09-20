@@ -11,10 +11,12 @@ import { LocalSpeech } from '@/components/local-speech';
 import { recommendationIntro, recommendationTurnIndex } from '@/lib/personal-recommendations';
 import type { WorldCard } from '@/components/studio-home';
 import type { PersonalAgentResponse, PersonalAgentRequest } from '@/lib/ai-contracts';
+import type { GeneratedWorldDraft } from '@/lib/personal-world-generator';
 
-export function PersonalAgent({ accountScope, profile, persona, onProfile, message, conversation, busy, error, recommendations, worlds, memories, pending = [], onMessage, onSubmit, onRemoveMemory, onConfirmMemory, onDismissMemory, onOpenWorld, onCreate, creationSuggestion, onDismissCreation, activeCreation, onResumeCreation, onBack }: {
+export function PersonalAgent({ accountScope, profile, persona, onProfile, message, conversation, busy, error, recommendations, worlds, memories, pending = [], onMessage, onSubmit, onRemoveMemory, onConfirmMemory, onDismissMemory, onOpenWorld, onCreate, creationSuggestion, onDismissCreation, latestDraft, onOpenCreatorDraft, onDismissDraft, activeCreation, onResumeCreation, onBack }: {
   accountScope: string;
   creationSuggestion?: string | null; onDismissCreation: () => void; activeCreation?: string; onResumeCreation: () => void; onBack: () => void;
+  latestDraft?: GeneratedWorldDraft | null; onOpenCreatorDraft?: (draftId: string) => void; onDismissDraft?: () => void;
   profile: UserProfile; persona: PlayerPersona | null; onProfile: () => void;
   message: string; conversation: NonNullable<PersonalAgentRequest['conversation']>; busy: boolean; error: string;
   recommendations: PersonalAgentResponse['recommendations']; worlds: WorldCard[]; memories: string[]; pending?: string[];
@@ -24,7 +26,7 @@ export function PersonalAgent({ accountScope, profile, persona, onProfile, messa
 }) {
   const log = useRef<HTMLDivElement>(null);
   const nearBottom = useRef(true);
-  useEffect(() => { if (log.current && nearBottom.current) log.current.scrollTop = log.current.scrollHeight; }, [conversation.length, busy, pending.length, creationSuggestion]);
+  useEffect(() => { if (log.current && nearBottom.current) log.current.scrollTop = log.current.scrollHeight; }, [conversation.length, busy, pending.length, creationSuggestion, latestDraft]);
   const recommendationIndex = recommendationTurnIndex(conversation);
   const matches = <div className="companion-matches" aria-label="推荐结果">{recommendations.map((recommendation, index) => {
     const world = worlds.find((entry) => entry.id === recommendation.worldId);
@@ -55,7 +57,43 @@ export function PersonalAgent({ accountScope, profile, persona, onProfile, messa
           <details className="personal-message-actions"><summary aria-label={'第 ' + (index + 1) + ' 条消息的操作'}><MoreHorizontal /><span className="sr-only">消息操作</span></summary><button type="button" className="personal-to-creation" disabled={busy} onClick={() => onCreate(turn.content)}>用这条消息开始创作<ArrowRight /></button></details></div>
         </article>)}
         {busy && <output className="personal-empty">正在读你的话，想一想怎么回应…</output>}
-        {creationSuggestion && <section className="companion-action" aria-label="创作操作"><strong>一起把想法做成世界</strong><p>{creationSuggestion}</p><div><Button type="button" className="studio-button studio-solid" disabled={busy} onClick={() => onCreate(creationSuggestion)}>确认方向，继续创作<ArrowRight /></Button><button type="button" className="studio-text-button" disabled={busy} onClick={onDismissCreation}>先继续聊</button></div></section>}
+        {latestDraft && <section className="companion-draft-card" aria-label="生成的完整世界草稿">
+          <div className="companion-draft-header">
+            <div className="companion-draft-badge"><Sparkles /><span>已生成完整世界草稿 · 本地已保存</span></div>
+            <h3>《{latestDraft.worldTitle}》</h3>
+          </div>
+          <p className="companion-draft-premise">{latestDraft.worldSeed}</p>
+          <div className="companion-draft-roles" aria-label="核心角色">
+            <strong>登场人物（{latestDraft.draftRoles.length} 位）</strong>
+            <div className="companion-draft-role-chips">
+              {latestDraft.draftRoles.map((role) => <div key={role.editorId} className="companion-draft-role-chip">
+                <div className="companion-draft-role-name">
+                  <span>{role.name}</span>
+                  <span className={`role-tag ${role.playable ? 'playable' : 'npc'}`}>{role.playable ? '可扮演视角' : 'NPC · 剧情角色'}</span>
+                </div>
+                <small>{role.identity}</small>
+                <p>{role.cardHook || role.goal}</p>
+              </div>)}
+            </div>
+          </div>
+          {latestDraft.creatorBrief.storyGraph && <div className="companion-draft-graph" aria-label="故事画布结构">
+            <strong>初始故事画布（DAG 因果连线）</strong>
+            <div className="companion-draft-nodes">
+              {latestDraft.creatorBrief.storyGraph.nodes.map((node, idx) => <div key={node.id} className="companion-draft-node-chip">
+                <span className="node-idx">{idx + 1}</span>
+                <div><em>{node.title}</em><small>{node.location}</small></div>
+              </div>)}
+            </div>
+          </div>}
+          <div className="companion-draft-meta">
+            <p>💡 提示：完整架构、前置任务与故事画布已自动写入本机草稿箱。你可以在创作者工作区微调人物与剧情，或制作角色肖像与封面。</p>
+          </div>
+          <div className="companion-draft-actions">
+            <Button type="button" className="studio-button studio-solid" disabled={busy} onClick={() => onOpenCreatorDraft?.(latestDraft.id)}>前往创作者工作区继续调整<ArrowRight /></Button>
+            {onDismissDraft && <button type="button" className="studio-text-button" disabled={busy} onClick={onDismissDraft}>先在对话中继续聊</button>}
+          </div>
+        </section>}
+        {creationSuggestion && !latestDraft && <section className="companion-action" aria-label="创作操作"><strong>一起把想法做成世界</strong><p>{creationSuggestion}</p><div><Button type="button" className="studio-button studio-solid" disabled={busy} onClick={() => onCreate(creationSuggestion)}>确认方向，继续创作<ArrowRight /></Button><button type="button" className="studio-text-button" disabled={busy} onClick={onDismissCreation}>先继续聊</button></div></section>}
         {pending.length > 0 && <section className="personal-pending" aria-label="待确认的记忆"><h2>这些，要记住吗？</h2>{pending.map((memory) => <article key={memory}><p>{memory}</p><div><button className="flow-control" type="button" disabled={busy} onClick={() => onConfirmMemory?.(memory)} aria-label={'记住：' + memory}><Check />记住</button><button className="flow-control" type="button" disabled={busy} onClick={() => onDismissMemory?.(memory)}>这次不记</button></div></article>)}</section>}
         {!error && conversation.length > 0 && recommendationIndex < 0 && recommendations.length > 0 && <section aria-label="上次推荐的世界"><h3>上次推荐</h3>{matches}</section>}
         </div>

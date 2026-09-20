@@ -82,6 +82,13 @@ import { visibleDialogue, dialogueContext, type StoryDialogue } from '@/lib/stor
 import { restoreMemoryDetails, confirmMemoryDetail, editMemoryDetail, removeMemoryDetail, type MemoryDetails } from '@/lib/memory-history';
 import { knownRecommendations, restoreRecommendations, resolveWorldSelection, recommendationReply } from '@/lib/personal-recommendations';
 import type { PersonalAgentRequest, PersonalAgentResponse } from '@/lib/ai-contracts';
+import {
+  createFullWorldDraftFromIdea,
+  buildWorldDefinitionFromDraft,
+  createCreatorDocumentFromDraft,
+  type GeneratedWorldDraft,
+} from '@/lib/personal-world-generator';
+import { triagePersonalAgentMessage } from '@/lib/typesafe-personal-triage';
 import { CharacterChat, CharacterEntry } from '@/components/character-chat';
 import { studioWorlds, getRoleOpening } from '@/lib/studio-worlds';
 import { legacyArt } from '@/lib/legacy-art';
@@ -155,6 +162,7 @@ type Role = {
   visualAnchor: string;
   imageUrl?: string;
   ownPersona?: boolean;
+  playable?: boolean;
 };
 
 type StoryChoice = {
@@ -184,6 +192,7 @@ type DraftRole = {
   personality: string;
   relationship: string;
   appearance: string;
+  playable?: boolean;
 };
 
 type SavedRun = {
@@ -504,6 +513,7 @@ function makePlayableDraftRoles(drafts: DraftRole[]): Role[] {
     goal: draft.goal?.trim() || '根据当前世界的目标推进事件。',
     crop: crops[index % crops.length],
     visualAnchor: draft.appearance.trim() || fallbackAppearances[index % fallbackAppearances.length],
+    playable: draft.playable !== false,
   }));
 }
 
@@ -931,6 +941,7 @@ function buildCreatorWorld(
         goal: drafts[index].goal?.trim() || existing?.goal || normalizedBrief.coreGoal || role.goal,
         startLocationId: locationIds[0],
         imagePrompt: role.visualAnchor,
+        playable: drafts[index]?.playable !== false,
       };
     }),
     openingScene: {
@@ -1021,6 +1032,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
   const [companionContext, setCompanionContext] = useState<CompanionContext>(() => restoreCompanionContext(undefined));
   const [companionHandoff, setCompanionHandoff] = useState<{ seed: string } | null>(null);
   const [creationSuggestion, setCreationSuggestion] = useState<string | null>(null);
+  const [latestPersonalDraft, setLatestPersonalDraft] = useState<GeneratedWorldDraft | null>(null);
   const creatorKickoff = useRef<string | null>(null);
   const personalRequestBusy = useRef(false);
   const navigationRevision = useRef(0);
@@ -1797,7 +1809,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
           cardHook: char.cardHook?.trim() || '',
           publicIntroduction: char.publicIntroduction?.trim() || char.publicBackground?.trim() || '',
           publicBackground: char.publicBackground?.trim(),
-          playable: isPlayable,
+          playable: isPlayable && char.playable !== false,
           isDefault: defaultRole ? char.id === defaultRole.id : false,
           image: libraryEntry.portraits?.[char.id] || libraryEntry.cover,
         };
@@ -1816,8 +1828,6 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
         storyHook: publicStoryHook,
         openingScene: { location: locationName, scene: publicScene },
         cover: libraryEntry.cover,
-        surpriseLevel: libraryEntry.world.surpriseLevel,
-        complexityLabel: libraryEntry.world.characters.length > 2 ? '错综复杂' : '标准探索',
         fixedRoleId: libraryEntry.fixedRoleId,
         characters,
         existingRun,
@@ -1848,8 +1858,6 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
           scene: '风雪撞击着彩绘玻璃窗，壁炉里的火光忽明忽暗。长桌尽头放着未拆封的火漆信封。',
         },
         cover: legacyArt['storm-manor']?.cover,
-        surpriseLevel: 2,
-        complexityLabel: '标准探索',
         characters,
         existingRun,
       };
@@ -1865,7 +1873,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
         identity: role.identity,
         cardHook: role.cardHook || role.publicStory || '',
         publicIntroduction: role.publicStory || '',
-        playable: true,
+        playable: preset.roles[idx]?.playable !== false,
         isDefault: idx === 0,
         image: legacyArt[preset.id]?.portraits?.[role.id],
       }));
@@ -1881,8 +1889,6 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
           scene: preset.premise,
         },
         cover: legacyArt[preset.id]?.cover,
-        surpriseLevel: preset.surpriseLevel,
-        complexityLabel: preset.complexityLabel,
         characters,
         existingRun,
       };
@@ -1896,8 +1902,8 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
         name: role.name,
         identity: role.identity,
         cardHook: role.cardHook || role.publicStory || '',
-        publicIntroduction: role.publicStory || '',
-        playable: true,
+        publicIntroduction: draftRoles[idx]?.publicIntroduction || role.publicStory || '',
+        playable: draftRoles[idx]?.playable !== false,
         isDefault: idx === 0,
         image: creatorAssets?.portraits?.[role.id],
       }));
@@ -1913,8 +1919,6 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
           scene: worldSeed,
         },
         cover: creatorAssets?.cover,
-        surpriseLevel: surprise,
-        complexityLabel: '草稿探索',
         characters,
         existingRun,
       };
@@ -2150,6 +2154,34 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     const revision = navigationRevision.current;
     setAgentThinking(true);
     try {
+      const triage = await triagePersonalAgentMessage({
+        userMessage: value,
+        conversation: agentConversation.slice(-6).map((turn) => ({ role: turn.role, content: turn.content })),
+        hasActiveCreation: hasCreation,
+        activeCreationTitle: worldTitle || undefined,
+      });
+
+      if (revision !== navigationRevision.current) return;
+
+      if (triage.intent === 'create_world' && triage.creationReadiness === 'ready') {
+        const draft = createFullWorldDraftFromIdea(value, { genre: triage.targetGenre });
+        const doc = createCreatorDocumentFromDraft(draft);
+        const documents = upsertById(creatorDocuments, doc);
+        setCreatorDocuments(documents);
+        persistStudioSnapshot({ version: 1, runs: savedRuns, chats: chatSessions, documents, draftId: doc.id });
+        setLatestPersonalDraft(draft);
+        setAgentConversation((current) => restorePersonalConversation([...current,
+          { role: 'user', content: value },
+          {
+            role: 'assistant',
+            content: `已经根据你的想法构思好《${draft.worldTitle}》的完整故事草稿！包含 ${draft.draftRoles.length} 位核心角色（已区分可扮演视角与重要剧情 NPC）、3 节点故事画布因果连线与核心主线任务。草稿已保存至本机创作者草稿箱，你可以点击下方卡片直接前往创作者工作区微调，或在对话里继续和我聊聊细节。`,
+          },
+        ]));
+        setMessage('');
+        setCreationSuggestion(null);
+        return;
+      }
+
       const response = await runAI((adapter) => adapter.talkToPersonalAgent({
         activeCreation: hasCreation ? { title: worldTitle || '正在讨论的世界', step: createStep, premise: worldSeed.slice(0, 2000), conversation: creatorMessages.slice(-4).map(turn => ({ ...turn, content: turn.content.slice(0, 2000) })) } : undefined,
         contractVersion: AI_CONTRACT_VERSION,
@@ -2164,7 +2196,13 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       // A late response must never pull someone back from a different screen.
       if (revision !== navigationRevision.current) return;
       const recommendations = knownRecommendations(response.recommendations, personalCatalog.map((entry) => entry.id));
-      setCreationSuggestion(response.action?.type === 'create-world' ? response.action.seed : null);
+      if (response.action?.type === 'create-world') {
+        setCreationSuggestion(response.action.seed);
+      } else if (triage.shouldSuggestCreation && !latestPersonalDraft) {
+        setCreationSuggestion(value);
+      } else {
+        setCreationSuggestion(null);
+      }
       if (response.action?.type === 'open-world') {
         if (!openPersonalWorld(response.action.worldId, value)) return;
       } else {
@@ -2450,13 +2488,13 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     }, 0);
   }
 
-  function updateDraftRole(index: number, key: keyof DraftRole, value: string) {
+  function updateDraftRole(index: number, key: keyof DraftRole, value: any) {
     if (key === 'name') setCreatorBrief(current => ({ ...current, storyGraph: remapCreatorStoryRoles(current.storyGraph, draftRoles, draftRoles.map((r, i) => i === index ? { ...r, name: value } : r)) }));
     setDraftRoles((current) => current.map((role, roleIndex) => (roleIndex === index ? { ...role, [key]: value } : role)));
   }
 
   function addDraftRole() {
-    setDraftRoles((current) => ensureCreatorRoleIds([...current, { name: '', identity: '', personality: '', relationship: '', appearance: '' }]));
+    setDraftRoles((current) => ensureCreatorRoleIds([...current, { name: '', identity: '', personality: '', relationship: '', appearance: '', playable: true }]));
     setGenerated(false);
     setGeneratedWorld(null);
     setGeneratedStoryOutline([]);
@@ -3133,7 +3171,38 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     setCreatorAssets(undefined);
     setReleasedEntry(undefined); setReleaseHistory([]); setContinuation(undefined);
     setEntryPolicy(restoreEntryPolicy(undefined));
-    setWorldTitle(''); setWorldSeed(context ? '' : seed); setSurprise(2); setGenerated(false); setGeneratedWorld(null); setPublishedWorld(false);
+    const trimmedSeed = seed.trim();
+    if (trimmedSeed) {
+      const draft = createFullWorldDraftFromIdea(trimmedSeed);
+      const generatedWorld = buildWorldDefinitionFromDraft(draft);
+      setWorldTitle(draft.worldTitle);
+      setWorldSeed(draft.worldSeed);
+      setSurprise(2);
+      setGenerated(true);
+      setGeneratedWorld(generatedWorld);
+      setPublishedWorld(false);
+      setDraftRoles(ensureCreatorRoleIds(draft.draftRoles.map((r) => ({ ...r }))));
+      setGeneratedStoryOutline(draft.generatedStoryOutline);
+      setCreatorDetailBaseline({ roles: draft.draftRoles, outline: draft.generatedStoryOutline });
+      setCreatorBrief(draft.creatorBrief);
+      setCreatorProposal(null);
+      setCreatorMessages([
+        {
+          role: 'agent',
+          content: context
+            ? `还是我，我们接着刚才的讨论继续创作《${draft.worldTitle}》。已为你构思好包含 ${draft.draftRoles.length} 位核心角色（已区分可扮演视角与 NPC）、故事画布因果连线与核心主线任务的完整框架，已带入你确认的上下文。随时在下方告诉我你想调整的地方！`
+            : `已根据你的想法构思好《${draft.worldTitle}》的故事框架！包含 ${draft.draftRoles.length} 位核心角色（已区分可扮演视角与 NPC）、3 节点故事画布因果连线与核心主线任务。你可以随时在下方调整人物与剧情设定。`,
+        },
+      ]);
+      setCreatorMessage('');
+      setCreatorQuestions(['先微调其中一位角色的核心动机', '为故事画布增加一个意外分支节点', '修改故事结局的胜败条件']);
+      setRoleImages({});
+      setCreateStep(1);
+      navigate('create');
+      return;
+    }
+
+    setWorldTitle(''); setWorldSeed(''); setSurprise(2); setGenerated(false); setGeneratedWorld(null); setPublishedWorld(false);
     setGeneratedStoryOutline([]); setCreatorDetailBaseline(null); setCreatorBrief(emptyCreatorBrief); setCreatorProposal(null);
     setCreatorMessages(context ? [{ role: 'agent', content: '还是我，我们接着创作。我会参考你选好的上下文讨论角色、关系与目标，建议等你采纳后再写入设定。' }]
       : [{ role: 'agent', content: '还是我，陪你一起创作。不用先填表，说说你最想体验的那个场面？建议可以直接修改，发送“全部采纳”就会写入草稿。需要参考记忆时，在“设定与方向 → 选择带入的日常聊天与记忆”里选择。' }]);
@@ -3423,6 +3492,12 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
         onCreate={(seed = '') => setCompanionHandoff({ seed })}
         creationSuggestion={creationSuggestion}
         onDismissCreation={() => setCreationSuggestion(null)}
+        latestDraft={latestPersonalDraft}
+        onOpenCreatorDraft={(draftId) => {
+          const doc = creatorDocuments.find(item => item.id === draftId);
+          if (doc) editCreator(doc);
+        }}
+        onDismissDraft={() => setLatestPersonalDraft(null)}
         activeCreation={hasCreation ? worldTitle || '正在讨论的世界' : undefined}
         onResumeCreation={() => navigate('create')}
       />
@@ -3442,7 +3517,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       {companionHandoff && <CompanionHandoff seed={companionHandoff.seed} conversation={agentConversation} memoryCount={memories.length} onClose={() => setCompanionHandoff(null)} onConfirm={(seed, context) => {
         if (worldGenerating || creatorAgentThinking) { setStorageError('请等当前创作回应结束后再新建。'); return; }
         creatorKickoff.current = seed || '接着我们的讨论，一起想一个小世界的角色、关系和目标。';
-        newCreator(seed, context); setCompanionHandoff(null); setCreationSuggestion(null);
+        newCreator(seed, context); setCompanionHandoff(null); setCreationSuggestion(null); setLatestPersonalDraft(null);
       }} />}
       {storageError && <p className="studio-storage-error" role="alert">{storageError}</p>}
       {(view === 'play' || view === 'ending') && activeLibrary?.world.entryAdmission && <p className="persona-runtime">{activeLibrary.world.entryAdmission.mode === 'newcomer' ? `你是新加入的 ${selectedRole.name}，原角色仍在这个世界中` : `旧会话：${selectedRole.name} 代入 ${activeLibrary.world.entryAdmission.originalName}`} · 额外能力：{activeLibrary.world.entryAdmission.grantedAbilities.join('；') || '无'}。这是独立会话，原世界未改变。</p>}
@@ -3728,7 +3803,7 @@ function CreateWorld({
   onStep: (step: number) => void;
   onAddRole: () => void;
   onRemoveRole: (index: number) => void;
-  onUpdateRole: (index: number, key: keyof DraftRole, value: string) => void;
+  onUpdateRole: (index: number, key: keyof DraftRole, value: any) => void;
   onSurprise: (value: number) => void;
   onWorldTitle: (value: string) => void;
   onWorldSeed: (value: string) => void;
@@ -4244,6 +4319,18 @@ function CreateWorld({
             >
               <span className="role-chip-num">{String(idx + 1).padStart(2, '0')}</span>
               <span className="role-chip-name">{r.name || `角色 ${idx + 1}`}</span>
+              {r.playable === false && (
+                <span className="role-chip-npc-badge" style={{
+                  fontSize: 10,
+                  padding: '1px 5px',
+                  borderRadius: 4,
+                  background: 'rgba(0,0,0,0.06)',
+                  color: 'var(--color-text-secondary, #4b5563)',
+                  border: '1px solid var(--color-border-soft, #e5e7eb)',
+                  marginLeft: 4,
+                  fontWeight: 500,
+                }}>NPC</span>
+              )}
               {roleHasAnyPending(r.editorId) && (
                 <span className="role-chip-pending-dot" title="该角色有待确认的修改建议" />
               )}
@@ -4403,6 +4490,34 @@ function CreateWorld({
           </div>
 
           <div className="role-focus-body">
+            <div className="draft-field" style={{ marginBottom: 12 }}>
+              <label style={{ display: 'block', marginBottom: 6, fontWeight: 500, fontSize: 13 }}>角色体验权限</label>
+              <div style={{ display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer' }}>
+                  <input
+                    type="radio"
+                    name={`role-playable-${curRoleIndex}`}
+                    checked={activeRole.playable !== false}
+                    onChange={() => onUpdateRole(curRoleIndex, 'playable', true)}
+                  />
+                  <span>开放玩家体验视角（默认）</span>
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer' }}>
+                  <input
+                    type="radio"
+                    name={`role-playable-${curRoleIndex}`}
+                    checked={activeRole.playable === false}
+                    onChange={() => onUpdateRole(curRoleIndex, 'playable', false)}
+                  />
+                  <span>仅作为世界出场人物（NPC）</span>
+                </label>
+              </div>
+              <small style={{ color: 'var(--color-text-muted, #6b7280)', marginTop: 4, display: 'block', fontSize: 12 }}>
+                {activeRole.playable === false
+                  ? '该人物将在世界中登场并参与剧情，但玩家不能以其第一视角开始探索。'
+                  : '玩家可以在介绍页选择该角色作为第一视角进入探索。'}
+              </small>
+            </div>
             <div className="draft-field">
               <label htmlFor={`role-relationship-${curRoleIndex}`}>与其他角色的关系</label>
               <Input

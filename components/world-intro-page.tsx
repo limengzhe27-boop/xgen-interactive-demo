@@ -1,14 +1,10 @@
 "use client";
 
 import React from "react";
-import { ArrowLeft, Sparkles, Film, Compass, User, Clock, Play, Check, ShieldAlert } from "lucide-react";
+import { ArrowLeft, Sparkles, Film, Compass, User, Clock, Play, ShieldAlert, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import "@/components/creator-workspace.css";
 import { characterHook } from "@/lib/character-card";
-import { characterPublicIntroduction } from "@/lib/character-presentation";
-
-const SURPRISE_LABELS = ["平稳推进", "偶有插曲", "充满变数", "命运难料"];
-const COMPLEXITY_LABELS = ["轻量微型", "标准探索", "错综复杂", "多方权谋"];
 
 export type WorldIntroCharacter = {
   id: string;
@@ -40,8 +36,6 @@ export type WorldIntroData = {
   storyHook?: string;
   openingScene?: { location?: string; scene?: string };
   cover?: string;
-  surpriseLevel?: number;
-  complexityLabel?: string;
   fixedRoleId?: string;
   characters: WorldIntroCharacter[];
   existingRun?: WorldIntroSavedRun | null;
@@ -61,13 +55,12 @@ export function WorldIntroPage({
   const displayTitle = data.title.trim() || "未命名世界";
   const displayPremise = data.premise.trim() || "尚在构思的世界前提。";
   const displayGenre = data.genre?.trim() || "互动故事";
-  const surpriseText = data.surpriseLevel ? SURPRISE_LABELS[Math.max(0, Math.min(data.surpriseLevel - 1, 3))] : "标准变数";
-  const complexityText = data.complexityLabel || "标准探索";
 
   const [confirmRestartRoleId, setConfirmRestartRoleId] = React.useState<string | null>(null);
 
   const playableRoles = data.characters.filter((c) => c.playable !== false);
-  const singleRole = playableRoles.length === 1;
+  const npcRoles = data.characters.filter((c) => c.playable === false);
+  const isSingleRole = playableRoles.length === 1;
 
   function handleRoleClick(roleId: string) {
     if (data.existingRun) {
@@ -88,22 +81,35 @@ export function WorldIntroPage({
 
   return (
     <div className="flow-page world-intro-page" style={{ maxWidth: 1040, margin: "0 auto", padding: "16px 20px 64px" }}>
-      {/* 顶部导航工具栏 */}
+      {/* 顶部简洁导航 */}
       <header className="flow-toolbar" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
         <button
           className="flow-control back-link"
           type="button"
           onClick={onBack}
-          style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", background: "none", border: "none", color: "var(--color-text-secondary)", fontSize: 14, padding: "6px 0" }}
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 6,
+            cursor: "pointer",
+            background: "none",
+            border: "none",
+            color: "var(--color-text-secondary, #4b5563)",
+            fontSize: 14,
+            padding: "6px 0",
+            fontWeight: 500,
+          }}
         >
           <ArrowLeft size={16} />
           <span>返回首页</span>
         </button>
-        <p style={{ margin: 0, fontSize: 13, color: "var(--color-text-muted)" }}>世界介绍 · 《{displayTitle}》</p>
+        <span style={{ fontSize: 13, color: "var(--color-text-muted, #9ca3af)" }}>
+          世界介绍 · 《{displayTitle}》
+        </span>
       </header>
 
-      {/* 16:9 电影质感海报 Hero */}
-      <div className="showcase-hero" style={{ borderRadius: 16, marginBottom: 24 }}>
+      {/* 电影质感封面 Hero */}
+      <div className="showcase-hero" style={{ borderRadius: 16, marginBottom: 24, overflow: "hidden" }}>
         {data.cover ? (
           <img src={data.cover} alt={`${displayTitle} 封面海报`} className="showcase-hero-img" />
         ) : (
@@ -113,22 +119,16 @@ export function WorldIntroPage({
         )}
         <div className="showcase-hero-overlay" />
         <div className="showcase-hero-info">
-          <div className="showcase-badges">
+          <div className="showcase-badges" style={{ display: "flex", gap: 8, alignItems: "center" }}>
             <span className="showcase-badge genre-badge">
               <Film size={12} />
               {displayGenre}
             </span>
-            <span className="showcase-badge">意外度 · {surpriseText}</span>
-            <span className="showcase-badge">架构 · {complexityText}</span>
-            <span className="showcase-badge">
-              <User size={12} />
-              共 {data.characters.length} 位角色 · {playableRoles.length} 位可扮演
-            </span>
           </div>
-          <h1 id="world-intro-title" className="showcase-title" style={{ fontSize: "clamp(22px, 3.5vw, 32px)", margin: "8px 0" }}>
+          <h1 id="world-intro-title" className="showcase-title" style={{ fontSize: "clamp(22px, 3.5vw, 32px)", margin: "10px 0 8px" }}>
             {displayTitle}
           </h1>
-          <p className="showcase-premise" style={{ maxWidth: 760, fontSize: 14, lineHeight: 1.6 }}>
+          <p className="showcase-premise" style={{ maxWidth: 760, fontSize: 14, lineHeight: 1.6, margin: 0, opacity: 0.95 }}>
             {displayPremise}
           </p>
         </div>
@@ -140,8 +140,8 @@ export function WorldIntroPage({
           className="world-intro-saved-card"
           aria-label="已有探索存档"
           style={{
-            background: "linear-gradient(135deg, rgba(245, 158, 11, 0.08) 0%, rgba(245, 158, 11, 0.03) 100%)",
-            border: "1px solid rgba(245, 158, 11, 0.3)",
+            background: "linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(16, 185, 129, 0.02) 100%)",
+            border: "1px solid rgba(16, 185, 129, 0.35)",
             borderRadius: 14,
             padding: "16px 20px",
             marginBottom: 24,
@@ -158,8 +158,8 @@ export function WorldIntroPage({
                 width: 40,
                 height: 40,
                 borderRadius: 10,
-                background: "rgba(245, 158, 11, 0.15)",
-                color: "#f59e0b",
+                background: "rgba(16, 185, 129, 0.15)",
+                color: "#059669",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -170,18 +170,18 @@ export function WorldIntroPage({
             </div>
             <div>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <strong style={{ fontSize: 15, color: "var(--color-text)" }}>发现历史探索存档</strong>
+                <strong style={{ fontSize: 15, color: "var(--color-text, #111827)" }}>发现上次探索记录</strong>
                 {data.existingRun.savedAt ? (
-                  <small style={{ color: "var(--color-text-muted)", fontSize: 12 }}>
+                  <small style={{ color: "var(--color-text-muted, #6b7280)", fontSize: 12 }}>
                     上次保存于 {formatDate(data.existingRun.savedAt)}
                   </small>
                 ) : null}
               </div>
-              <p style={{ margin: "4px 0 0 0", fontSize: 13, color: "var(--color-text-secondary)", lineHeight: 1.5 }}>
+              <p style={{ margin: "4px 0 0 0", fontSize: 13, color: "var(--color-text-secondary, #374151)", lineHeight: 1.5 }}>
                 扮演角色：<strong>{data.existingRun.roleName}</strong> · 第 {data.existingRun.turn} 轮 · 地点：{data.existingRun.location}
               </p>
-              <small style={{ display: "block", marginTop: 4, color: "var(--color-text-muted)", fontSize: 11 }}>
-                点击“继续上次探索”恢复已有进度；若选择下方角色将开启全新历程。
+              <small style={{ display: "block", marginTop: 4, color: "var(--color-text-muted, #6b7280)", fontSize: 12 }}>
+                点击“继续上次探索”恢复已有进度；若从下方选择角色将开启全新历程。
               </small>
             </div>
           </div>
@@ -190,10 +190,10 @@ export function WorldIntroPage({
             size="sm"
             onClick={() => onResumeRun(data.existingRun!.id)}
             style={{
-              background: "#f59e0b",
-              color: "#111",
+              background: "#059669",
+              color: "#ffffff",
               fontWeight: 600,
-              padding: "8px 18px",
+              padding: "9px 20px",
               borderRadius: 8,
               border: "none",
               cursor: "pointer",
@@ -213,25 +213,24 @@ export function WorldIntroPage({
         <section
           className="world-intro-situation"
           style={{
-            background: "var(--color-surface)",
-            border: "1px solid var(--color-border-soft)",
+            background: "var(--color-surface, #ffffff)",
+            border: "1px solid var(--color-border-soft, #e5e7eb)",
             borderRadius: 14,
             padding: "18px 20px",
             marginBottom: 28,
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-            <Sparkles size={16} style={{ color: "#f59e0b" }} />
-            <strong style={{ fontSize: 14, color: "var(--color-text)" }}>开场处境与故事焦点</strong>
+            <Sparkles size={16} style={{ color: "#059669" }} />
+            <strong style={{ fontSize: 14, color: "var(--color-text, #111827)" }}>开场处境与故事焦点</strong>
           </div>
           {data.storyHook && data.storyHook !== data.premise && (
             <blockquote
               style={{
                 margin: "0 0 10px 0",
                 paddingLeft: 12,
-                borderLeft: "3px solid #f59e0b",
-                fontStyle: "italic",
-                color: "var(--color-text)",
+                borderLeft: "3px solid #059669",
+                color: "var(--color-text, #111827)",
                 fontSize: 14,
                 lineHeight: 1.6,
               }}
@@ -240,8 +239,10 @@ export function WorldIntroPage({
             </blockquote>
           )}
           {data.openingScene?.scene && (
-            <p style={{ margin: 0, fontSize: 13, color: "var(--color-text-secondary)", lineHeight: 1.6 }}>
-              {data.openingScene.location ? <span style={{ color: "var(--color-text)", fontWeight: 500 }}>【{data.openingScene.location}】</span> : null}
+            <p style={{ margin: 0, fontSize: 13, color: "var(--color-text-secondary, #4b5563)", lineHeight: 1.6 }}>
+              {data.openingScene.location ? (
+                <span style={{ color: "var(--color-text, #111827)", fontWeight: 600 }}>【{data.openingScene.location}】</span>
+              ) : null}
               {data.openingScene.scene}
             </p>
           )}
@@ -249,58 +250,57 @@ export function WorldIntroPage({
       )}
 
       {/* 单角色作品专属简化选角引导 */}
-      {singleRole && playableRoles[0] && (
+      {isSingleRole && playableRoles[0] && (
         <section
           className="world-intro-single-role-spotlight"
           style={{
-            background: "var(--color-surface)",
-            border: "1px solid var(--color-border-soft)",
+            background: "var(--color-surface, #ffffff)",
+            border: "1px solid var(--color-border-soft, #e5e7eb)",
             borderRadius: 14,
-            padding: "20px",
-            marginBottom: 24,
+            padding: "22px 24px",
+            marginBottom: 28,
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
             flexWrap: "wrap",
-            gap: 16,
+            gap: 20,
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
             <div
               style={{
-                width: 56,
-                height: 56,
-                borderRadius: 12,
+                width: 64,
+                height: 64,
+                borderRadius: 14,
                 overflow: "hidden",
                 flexShrink: 0,
-                background: "var(--color-border)",
+                background: "var(--color-border, #f3f4f6)",
               }}
             >
               {playableRoles[0].image ? (
                 <img src={playableRoles[0].image} alt={playableRoles[0].name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
               ) : (
-                <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 20 }}>
+                <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 22, color: "#4b5563" }}>
                   {playableRoles[0].name[0] || "人"}
                 </div>
               )}
             </div>
             <div>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <strong style={{ fontSize: 16, color: "var(--color-text)" }}>{playableRoles[0].name}</strong>
-                <span style={{ fontSize: 12, color: "var(--color-text-secondary)", background: "var(--color-bg)", padding: "2px 6px", borderRadius: 4 }}>
+                <span style={{ fontSize: 12, color: "#059669", fontWeight: 600 }}>你将扮演：</span>
+                <strong style={{ fontSize: 17, color: "var(--color-text, #111827)" }}>{playableRoles[0].name}</strong>
+                <span style={{ fontSize: 12, color: "var(--color-text-secondary, #4b5563)", background: "rgba(0,0,0,0.05)", padding: "2px 8px", borderRadius: 4 }}>
                   {playableRoles[0].identity}
-                </span>
-                <span style={{ fontSize: 11, color: "#f59e0b", border: "1px solid rgba(245, 158, 11, 0.4)", padding: "1px 6px", borderRadius: 10 }}>
-                  独家主角视角
                 </span>
               </div>
               {(() => {
-                const singleHook = characterHook(playableRoles[0].cardHook) ||
+                const singleHook =
+                  characterHook(playableRoles[0].cardHook) ||
                   playableRoles[0].publicIntroduction?.trim() ||
                   playableRoles[0].publicBackground?.trim() ||
-                  '';
+                  "";
                 return singleHook ? (
-                  <p style={{ margin: "6px 0 0 0", fontSize: 13, color: "var(--color-text-secondary)", lineHeight: 1.5 }}>
+                  <p style={{ margin: "6px 0 0 0", fontSize: 13, color: "var(--color-text-secondary, #4b5563)", lineHeight: 1.5 }}>
                     {singleHook}
                   </p>
                 ) : null;
@@ -312,125 +312,215 @@ export function WorldIntroPage({
             className="primary-action"
             onClick={() => handleRoleClick(playableRoles[0].id)}
             style={{
-              background: "#f59e0b",
-              color: "#111",
+              background: "#059669",
+              color: "#ffffff",
               fontWeight: 600,
-              padding: "10px 24px",
+              padding: "11px 28px",
               borderRadius: 8,
               border: "none",
               cursor: "pointer",
             }}
           >
             <Play size={16} style={{ marginRight: 6 }} />
-            <span>{data.existingRun ? `以 ${playableRoles[0].name} 的身份重新开始` : `以 ${playableRoles[0].name} 开始体验`}</span>
+            <span>{data.existingRun ? `以 ${playableRoles[0].name} 重新开始` : `以 ${playableRoles[0].name} 开始体验`}</span>
           </Button>
         </section>
       )}
 
-      {/* 角色入场矩阵 */}
-      <section className="world-intro-roles-section" aria-labelledby="roles-section-title">
-        <div className="showcase-section-header" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-          <div className="showcase-section-title" style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <Sparkles size={16} style={{ color: "#f59e0b" }} />
-            <h2 id="roles-section-title" style={{ fontSize: 16, margin: 0, color: "var(--color-text)" }}>
-              {singleRole ? "全剧角色总览" : "选择可扮演角色 · 即刻开局"}
-            </h2>
+      {/* 多角色作品：选择你的视角 */}
+      {!isSingleRole && playableRoles.length > 0 && (
+        <section className="world-intro-roles-section" aria-labelledby="playable-roles-title" style={{ marginBottom: 32 }}>
+          <div className="showcase-section-header" style={{ marginBottom: 14 }}>
+            <div className="showcase-section-title" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <Users size={18} style={{ color: "#059669" }} />
+              <h2 id="playable-roles-title" style={{ fontSize: 17, margin: 0, color: "var(--color-text, #111827)" }}>
+                选择你的视角
+              </h2>
+            </div>
+            <p style={{ margin: "4px 0 0 0", fontSize: 13, color: "var(--color-text-secondary, #6b7280)" }}>
+              选择一个角色代入故事，开启独立第一人称视角探索。
+            </p>
           </div>
-          <span className="showcase-role-count" style={{ fontSize: 12, color: "var(--color-text-muted)" }}>
-            共 {data.characters.length} 位角色
-          </span>
-        </div>
 
-        {data.characters.length === 0 ? (
-          <div className="showcase-empty-roles" style={{ textAlign: "center", padding: "32px 16px", background: "var(--color-surface)", borderRadius: 14 }}>
-            <User size={32} style={{ color: "var(--color-text-muted)", margin: "0 auto 8px" }} />
-            <p style={{ margin: 0, color: "var(--color-text)" }}>本世界暂无角色记录</p>
-          </div>
-        ) : (
           <div className="showcase-roles-grid">
-            {data.characters.map((role) => {
-              const isPlayable = role.playable !== false;
+            {playableRoles.map((role) => {
               const roleName = role.name.trim() || "神秘角色";
               const roleIdentity = role.identity?.trim() || "世界人物";
-              
-              // 严格脱敏：绝不回退至 persona/personality/goal/secrets 等内部设定
               const roleHook =
                 characterHook(role.cardHook) ||
                 role.publicIntroduction?.trim() ||
                 role.publicBackground?.trim() ||
-                '';
+                "";
 
               return (
                 <article
                   key={role.id}
                   className="showcase-role-card"
-                  data-playable={isPlayable}
+                  data-playable="true"
                   style={{
-                    opacity: isPlayable ? 1 : 0.85,
-                    border: isPlayable ? undefined : "1px dashed var(--color-border)",
+                    background: "var(--color-surface, #ffffff)",
+                    border: "1px solid var(--color-border-soft, #e5e7eb)",
+                    borderRadius: 12,
+                    padding: 16,
+                    display: "flex",
+                    flexDirection: "column",
+                    justifyContent: "space-between",
                   }}
                 >
-                  <div className="showcase-role-header">
-                    <div className="showcase-role-avatar">
-                      {role.image ? (
-                        <img src={role.image} alt={roleName} />
-                      ) : (
-                        <div className="showcase-avatar-placeholder">{roleName[0] || "人"}</div>
-                      )}
-                    </div>
-                    <div className="showcase-role-meta">
-                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                        <strong className="showcase-role-name">{roleName}</strong>
-                        {role.isDefault && (
-                          <span style={{ fontSize: 10, color: "#f59e0b", background: "rgba(245, 158, 11, 0.12)", padding: "1px 4px", borderRadius: 3 }}>
-                            推荐首选
-                          </span>
+                  <div>
+                    <div className="showcase-role-header" style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 10 }}>
+                      <div
+                        className="showcase-role-avatar"
+                        style={{
+                          width: 44,
+                          height: 44,
+                          borderRadius: 10,
+                          overflow: "hidden",
+                          flexShrink: 0,
+                          background: "var(--color-border, #f3f4f6)",
+                        }}
+                      >
+                        {role.image ? (
+                          <img src={role.image} alt={roleName} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                        ) : (
+                          <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 16, color: "#4b5563" }}>
+                            {roleName[0] || "人"}
+                          </div>
                         )}
                       </div>
-                      <span className="showcase-role-identity">{roleIdentity}</span>
+                      <div className="showcase-role-meta">
+                        <strong className="showcase-role-name" style={{ fontSize: 15, color: "var(--color-text, #111827)", display: "block" }}>
+                          {roleName}
+                        </strong>
+                        <span className="showcase-role-identity" style={{ fontSize: 12, color: "var(--color-text-secondary, #6b7280)" }}>
+                          {roleIdentity}
+                        </span>
+                      </div>
                     </div>
+
+                    {roleHook ? (
+                      <p className="showcase-role-hook" title={roleHook} style={{ fontSize: 13, color: "var(--color-text-secondary, #4b5563)", lineHeight: 1.5, margin: "0 0 14px 0" }}>
+                        {roleHook}
+                      </p>
+                    ) : null}
                   </div>
 
-                  {/* 公开短句/介绍，仅在有明确公开内容时展示，不兜底私人性格 */}
-                  {roleHook ? (
-                    <p className="showcase-role-hook" title={roleHook}>
-                      {roleHook}
-                    </p>
-                  ) : null}
-
-                  {/* 动作入口 */}
-                  {isPlayable ? (
-                    <Button
-                      size="sm"
-                      className="showcase-play-btn"
-                      onClick={() => handleRoleClick(role.id)}
-                      title={`以 ${roleName} 的身份进入世界`}
-                    >
-                      <Play size={12} />
-                      <span>{data.existingRun ? `以 ${roleName} 重新开始` : `以 ${roleName} 身份开始`}</span>
-                    </Button>
-                  ) : (
-                    <div
-                      style={{
-                        marginTop: 10,
-                        padding: "6px 0",
-                        textAlign: "center",
-                        fontSize: 11,
-                        color: "var(--color-text-muted)",
-                        background: "var(--color-bg)",
-                        borderRadius: 6,
-                        border: "1px solid var(--color-border-soft)",
-                      }}
-                    >
-                      世界人物 · NPC（不可扮演）
-                    </div>
-                  )}
+                  <Button
+                    size="sm"
+                    className="showcase-play-btn"
+                    onClick={() => handleRoleClick(role.id)}
+                    title={`以 ${roleName} 的身份进入世界`}
+                    style={{
+                      background: "#059669",
+                      color: "#ffffff",
+                      width: "100%",
+                      fontWeight: 500,
+                      borderRadius: 6,
+                    }}
+                  >
+                    <Play size={12} style={{ marginRight: 6 }} />
+                    <span>{data.existingRun ? `以 ${roleName} 重新开始` : `以 ${roleName} 身份开始`}</span>
+                  </Button>
                 </article>
               );
             })}
           </div>
-        )}
-      </section>
+        </section>
+      )}
+
+      {/* 你会遇见的人物（NPC，非扮演视角） */}
+      {npcRoles.length > 0 && (
+        <section className="world-intro-npc-section" aria-labelledby="npc-roles-title" style={{ marginTop: 24 }}>
+          <div className="showcase-section-header" style={{ marginBottom: 14 }}>
+            <div className="showcase-section-title" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <User size={18} style={{ color: "var(--color-text-muted, #6b7280)" }} />
+              <h2 id="npc-roles-title" style={{ fontSize: 16, margin: 0, color: "var(--color-text, #111827)" }}>
+                你会遇见的人物
+              </h2>
+            </div>
+            <p style={{ margin: "4px 0 0 0", fontSize: 13, color: "var(--color-text-secondary, #6b7280)" }}>
+              由世界 Agent 演绎的剧情登场人物。
+            </p>
+          </div>
+
+          <div className="showcase-roles-grid">
+            {npcRoles.map((role) => {
+              const roleName = role.name.trim() || "神秘人物";
+              const roleIdentity = role.identity?.trim() || "剧情人物";
+              const roleHook =
+                characterHook(role.cardHook) ||
+                role.publicIntroduction?.trim() ||
+                role.publicBackground?.trim() ||
+                "";
+
+              return (
+                <article
+                  key={role.id}
+                  className="showcase-role-card"
+                  data-playable="false"
+                  style={{
+                    background: "var(--color-surface, #ffffff)",
+                    border: "1px solid var(--color-border-soft, #e5e7eb)",
+                    borderRadius: 12,
+                    padding: 16,
+                    opacity: 0.95,
+                  }}
+                >
+                  <div className="showcase-role-header" style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 10 }}>
+                    <div
+                      className="showcase-role-avatar"
+                      style={{
+                        width: 44,
+                        height: 44,
+                        borderRadius: 10,
+                        overflow: "hidden",
+                        flexShrink: 0,
+                        background: "var(--color-border, #f3f4f6)",
+                      }}
+                    >
+                      {role.image ? (
+                        <img src={role.image} alt={roleName} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                      ) : (
+                        <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 16, color: "#6b7280" }}>
+                          {roleName[0] || "人"}
+                        </div>
+                      )}
+                    </div>
+                    <div className="showcase-role-meta">
+                      <strong className="showcase-role-name" style={{ fontSize: 15, color: "var(--color-text, #111827)", display: "block" }}>
+                        {roleName}
+                      </strong>
+                      <span className="showcase-role-identity" style={{ fontSize: 12, color: "var(--color-text-secondary, #6b7280)" }}>
+                        {roleIdentity}
+                      </span>
+                    </div>
+                  </div>
+
+                  {roleHook ? (
+                    <p className="showcase-role-hook" title={roleHook} style={{ fontSize: 13, color: "var(--color-text-secondary, #4b5563)", lineHeight: 1.5, margin: "0 0 10px 0" }}>
+                      {roleHook}
+                    </p>
+                  ) : null}
+
+                  <div
+                    style={{
+                      padding: "5px 0",
+                      textAlign: "center",
+                      fontSize: 12,
+                      color: "var(--color-text-muted, #6b7280)",
+                      background: "rgba(0,0,0,0.03)",
+                      borderRadius: 6,
+                      border: "1px dashed var(--color-border-soft, #e5e7eb)",
+                    }}
+                  >
+                    世界出场人物 · NPC
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
       {/* 重新开始确认弹窗（保护旧存档） */}
       {confirmRestartRoleId && (
@@ -444,8 +534,8 @@ export function WorldIntroPage({
             justifyContent: "center",
             position: "fixed",
             inset: 0,
-            background: "rgba(0, 0, 0, 0.65)",
-            backdropFilter: "blur(4px)",
+            background: "rgba(0, 0, 0, 0.5)",
+            backdropFilter: "blur(3px)",
             padding: 16,
           }}
         >
@@ -458,11 +548,11 @@ export function WorldIntroPage({
             style={{
               maxWidth: 440,
               width: "100%",
-              background: "var(--color-surface, #1e1e24)",
-              border: "1px solid var(--color-border, #333)",
+              background: "#ffffff",
+              border: "1px solid #e5e7eb",
               borderRadius: 14,
               padding: 24,
-              boxShadow: "0 20px 40px rgba(0,0,0,0.5)",
+              boxShadow: "0 20px 40px rgba(0,0,0,0.15)",
             }}
           >
             <h3
@@ -470,19 +560,19 @@ export function WorldIntroPage({
               style={{
                 margin: "0 0 12px 0",
                 fontSize: 17,
-                color: "var(--color-text, #fff)",
+                color: "#111827",
                 display: "flex",
                 alignItems: "center",
                 gap: 8,
               }}
             >
-              <ShieldAlert size={20} style={{ color: "#f59e0b" }} />
+              <ShieldAlert size={20} style={{ color: "#059669" }} />
               <span>开启新探索确认</span>
             </h3>
-            <p style={{ margin: "0 0 14px 0", fontSize: 13, lineHeight: 1.6, color: "var(--color-text-secondary, #aaa)" }}>
+            <p style={{ margin: "0 0 12px 0", fontSize: 13, lineHeight: 1.6, color: "#374151" }}>
               检测到你在此世界已有进行中的探索记录（<strong>{data.existingRun?.roleName}</strong> · 第 {data.existingRun?.turn} 轮）。
             </p>
-            <p style={{ margin: "0 0 20px 0", fontSize: 12, lineHeight: 1.5, color: "var(--color-text-muted, #888)" }}>
+            <p style={{ margin: "0 0 20px 0", fontSize: 12, lineHeight: 1.5, color: "#6b7280" }}>
               开启新历程将以选定角色开启全新的探索。已有的图文探索进度仍可在“探索记录”中随时接续。
             </p>
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap" }}>
@@ -509,7 +599,7 @@ export function WorldIntroPage({
                   setConfirmRestartRoleId(null);
                   if (target) onStartWorld(target);
                 }}
-                style={{ background: "#f59e0b", color: "#111", fontWeight: 600 }}
+                style={{ background: "#059669", color: "#ffffff", fontWeight: 600 }}
               >
                 确认开启新历程
               </Button>
@@ -519,9 +609,10 @@ export function WorldIntroPage({
       )}
 
       {/* 底部合规与提示 */}
-      <footer style={{ marginTop: 36, textAlign: "center", fontSize: 12, color: "var(--color-text-muted)" }}>
+      <footer style={{ marginTop: 40, textAlign: "center", fontSize: 12, color: "var(--color-text-muted, #9ca3af)" }}>
         <p style={{ margin: 0 }}>设定来自创作者，后续故事由 AI 实时演绎。草稿与互动记录保存在当前浏览器。</p>
       </footer>
     </div>
   );
 }
+

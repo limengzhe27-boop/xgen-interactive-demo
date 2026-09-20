@@ -13,6 +13,7 @@ export interface CreatorDialogRole {
   goal?: string;
   cardHook?: string;
   publicIntroduction?: string;
+  playable?: boolean;
 }
 
 export function DeleteRoleDialog({
@@ -217,8 +218,14 @@ export function CreatorShowcaseModal({
   const displayTitle = worldTitle.trim() || '未命名世界';
   const displayPremise = worldSeed.trim() || '尚在构思的世界前提，与 Agent 对话或在设定面板中填写以丰富剧情冲突。';
   const displayGenre = genre?.trim() || '互动故事';
-  const surpriseText = SURPRISE_LABELS[Math.max(0, Math.min(surprise - 1, 3))];
-  const complexityText = COMPLEXITY_LABELS[Math.max(0, Math.min(complexityLevel - 1, 3))];
+
+  const playableRoles = roles
+    .map((role, index) => ({ role, index }))
+    .filter(({ role }) => role.playable !== false);
+  const npcRoles = roles
+    .map((role, index) => ({ role, index }))
+    .filter(({ role }) => role.playable === false);
+  const primaryRoleIndex = playableRoles[0]?.index ?? 0;
 
   return (
     <div className="studio-modal-backdrop showcase-backdrop" onClick={onClose}>
@@ -241,33 +248,31 @@ export function CreatorShowcaseModal({
           <div className="showcase-hero-info">
             <div className="showcase-badges">
               <span className="showcase-badge genre-badge"><Film size={12} />{displayGenre}</span>
-              <span className="showcase-badge">意外度 · {surpriseText}</span>
-              <span className="showcase-badge">架构 · {complexityText}</span>
             </div>
             <h2 id="showcase-title" className="showcase-title">{displayTitle}</h2>
             <p className="showcase-premise">{displayPremise}</p>
           </div>
         </div>
 
-        {/* 核心角色入场矩阵 */}
+        {/* 角色展示区 */}
         <div className="showcase-body">
+          {/* 可选视角 */}
           <div className="showcase-section-header">
             <div className="showcase-section-title">
               <Sparkles size={16} className="text-amber" />
-              <span>选择代入身份 · 即刻开局</span>
+              <span>{playableRoles.length > 1 ? '选择代入身份 · 即刻开局' : '可扮演视角'}</span>
             </div>
-            <span className="showcase-role-count">共 {roles.length} 位角色</span>
           </div>
 
-          {roles.length === 0 ? (
+          {playableRoles.length === 0 ? (
             <div className="showcase-empty-roles">
               <User size={32} />
-              <p>尚未创建角色</p>
-              <small>在「人物与关系」中添加角色后，将在此展示沉浸入场卡片。</small>
+              <p>暂无可扮演角色</p>
+              <small>请在「人物与关系」中为至少一个角色开启玩家体验视角。</small>
             </div>
           ) : (
             <div className="showcase-roles-grid">
-              {roles.map((role, index) => {
+              {playableRoles.map(({ role, index }) => {
                 const roleId = `draft-role-${index}`;
                 const portrait = roleImages[roleId];
                 const roleName = role.name.trim() || `角色 ${index + 1}`;
@@ -311,6 +316,51 @@ export function CreatorShowcaseModal({
             </div>
           )}
 
+          {/* 你会遇见的人物（NPC，非扮演视角） */}
+          {npcRoles.length > 0 && (
+            <div style={{ marginTop: 24 }}>
+              <div className="showcase-section-header" style={{ marginBottom: 12 }}>
+                <div className="showcase-section-title">
+                  <User size={16} />
+                  <span>你会遇见的人物</span>
+                </div>
+              </div>
+              <div className="showcase-roles-grid">
+                {npcRoles.map(({ role, index }) => {
+                  const roleId = `draft-role-${index}`;
+                  const portrait = roleImages[roleId];
+                  const roleName = role.name.trim() || `角色 ${index + 1}`;
+                  const roleIdentity = role.identity?.trim() || '出场人物';
+                  const roleHook = role.cardHook?.trim() || role.publicIntroduction?.trim() || '';
+
+                  return (
+                    <div key={role.editorId || index} className="showcase-role-card" style={{ opacity: 0.9 }}>
+                      <div className="showcase-role-header">
+                        <div className="showcase-role-avatar">
+                          {portrait ? (
+                            <img src={portrait} alt={roleName} />
+                          ) : (
+                            <div className="showcase-avatar-placeholder">
+                              {roleName[0] || '人'}
+                            </div>
+                          )}
+                        </div>
+                        <div className="showcase-role-meta">
+                          <strong className="showcase-role-name">{roleName}</strong>
+                          <span className="showcase-role-identity">{roleIdentity}</span>
+                        </div>
+                      </div>
+                      {roleHook ? <p className="showcase-role-hook">{roleHook}</p> : null}
+                      <div style={{ marginTop: 8, padding: '4px 8px', fontSize: 11, color: 'var(--color-text-muted)', background: 'var(--color-bg)', borderRadius: 4, textAlign: 'center' }}>
+                        世界出场人物 · NPC
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {/* 任务问题提示 */}
           {taskIssues.length > 0 && (
             <div className="showcase-issues-alert" role="alert">
@@ -349,10 +399,10 @@ export function CreatorShowcaseModal({
             <Button
               className="primary-action"
               size="sm"
-              disabled={isBusy || taskIssues.length > 0 || !worldSeed.trim()}
+              disabled={isBusy || taskIssues.length > 0 || !worldSeed.trim() || playableRoles.length === 0}
               onClick={() => {
                 onClose();
-                onPlayRole(0);
+                onPlayRole(primaryRoleIndex);
               }}
             >
               <Play size={13} fill="currentColor" />

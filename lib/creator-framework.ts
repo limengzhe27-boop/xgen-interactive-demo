@@ -2,7 +2,7 @@ import { storyDirections } from './story-directions.ts';
 import type { StoryOutlineBeat, WorldDefinition } from '@/lib/ai-contracts';
 
 export type CreatorDetailBaseline = {
-  roles: { publicIntroduction?: string; name: string; identity: string; personality: string; appearance: string; relationship: string; goal?: string; cardHook?: string }[];
+  roles: { publicIntroduction?: string; name: string; identity: string; personality: string; appearance: string; relationship: string; goal?: string; cardHook?: string; playable?: boolean }[];
   outline: StoryOutlineBeat[];
 };
 
@@ -39,6 +39,7 @@ export function preserveCreatorDetails(base: WorldDefinition, edited: WorldDefin
       goal: next.goal !== previous.goal ? (next.goal?.trim() || edited.characters[index]?.goal || character.goal) : character.goal,
       publicBackground: next.relationship !== previous.relationship ? next.relationship : character.publicBackground,
       imagePrompt: next.appearance !== previous.appearance ? next.appearance : character.imagePrompt,
+      ...((next.playable !== undefined ? next.playable : character.playable) !== undefined ? { playable: next.playable !== undefined ? next.playable : character.playable } : {}),
     };
   });
   return { ...edited, storyHook: base.storyHook, locations, characters, coreEvent: premiseChanged ? edited.premise : base.coreEvent,

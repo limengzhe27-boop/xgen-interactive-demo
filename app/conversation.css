@@ -117,3 +117,182 @@
   .companion-chat .conversation-composer { padding-inline: 12px; }
   .companion-chat .studio-chat-user, .companion-answer { max-width: 85%; }
 }
+
+.companion-draft-card {
+  margin: 16px 0 24px;
+  padding: 18px 20px;
+  background: var(--color-bg-elevated, #ffffff);
+  border: 1px solid rgba(16, 185, 129, 0.28);
+  border-radius: 14px;
+  box-shadow: 0 4px 16px -4px rgba(16, 185, 129, 0.08);
+}
+
+.companion-draft-header {
+  margin-bottom: 12px;
+}
+
+.companion-draft-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #059669;
+  background: rgba(16, 185, 129, 0.1);
+  padding: 3px 10px;
+  border-radius: 9999px;
+  margin-bottom: 8px;
+}
+
+.companion-draft-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--color-text, #111827);
+}
+
+.companion-draft-premise {
+  font-size: 14px;
+  line-height: 1.65;
+  color: var(--color-text-secondary, #4b5563);
+  margin: 0 0 16px;
+  background: var(--color-surface, #f9fafb);
+  padding: 12px 14px;
+  border-radius: 8px;
+  border-left: 3px solid #10b981;
+}
+
+.companion-draft-roles {
+  margin-bottom: 16px;
+}
+
+.companion-draft-roles > strong,
+.companion-draft-graph > strong {
+  display: block;
+  font-size: 13px;
+  color: var(--color-text-muted, #6b7280);
+  margin-bottom: 8px;
+}
+
+.companion-draft-role-chips {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 10px;
+}
+
+.companion-draft-role-chip {
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--color-surface, #f9fafb);
+  border: 1px solid var(--color-border-soft, #e5e7eb);
+  font-size: 13px;
+}
+
+.companion-draft-role-name {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.companion-draft-role-name span:first-child {
+  font-weight: 600;
+  color: var(--color-text, #111827);
+}
+
+.companion-draft-role-name .role-tag {
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.companion-draft-role-name .role-tag.playable {
+  background: rgba(16, 185, 129, 0.12);
+  color: #059669;
+  font-weight: 500;
+}
+
+.companion-draft-role-name .role-tag.npc {
+  background: rgba(107, 114, 128, 0.12);
+  color: #4b5563;
+  font-weight: 500;
+}
+
+.companion-draft-role-chip small {
+  display: block;
+  color: var(--color-text-muted, #6b7280);
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+
+.companion-draft-role-chip p {
+  margin: 0;
+  font-size: 12px;
+  color: var(--color-text-secondary, #4b5563);
+  line-height: 1.4;
+}
+
+.companion-draft-graph {
+  margin-bottom: 16px;
+}
+
+.companion-draft-nodes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.companion-draft-node-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: var(--color-surface, #f9fafb);
+  border: 1px solid var(--color-border-soft, #e5e7eb);
+  font-size: 12px;
+}
+
+.companion-draft-node-chip .node-idx {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #10b981;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.companion-draft-node-chip em {
+  font-style: normal;
+  font-weight: 600;
+  color: var(--color-text, #111827);
+  display: block;
+}
+
+.companion-draft-node-chip small {
+  color: var(--color-text-muted, #6b7280);
+  display: block;
+  font-size: 11px;
+}
+
+.companion-draft-meta {
+  margin-bottom: 16px;
+  font-size: 12px;
+  color: var(--color-text-muted, #6b7280);
+  line-height: 1.5;
+}
+
+.companion-draft-meta p {
+  margin: 0;
+}
+
+.companion-draft-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
