@@ -26,3 +26,28 @@ test('only selected excerpts enter context; no twelve-file dump',()=>{
   assert.ok(!result.includes(horizontalSkills.H5));
   for(const method of Object.values(verticalMethods)) assert.ok(!result.includes(method));
 });
+test('scenario 1: Journey to the West - discuss only Sha Wujing routes to H2 without intrigue',()=>{
+  const req = { userMessage: '西游多角色作品，本轮只讨论沙僧', characters: [{ name: '唐僧' }, { name: '孙悟空' }, { name: '猪八戒' }, { name: '沙僧' }] };
+  const routed = selectCreatorSkills(req);
+  assert.equal(routed.horizontal, 'H2');
+  assert.deepEqual(routed.vertical, []);
+  const guidance = creatorSkillGuidance(req);
+  assert.ok(guidance.includes('局限性修改原则：作者只讨论某个人，就不要替其他人定案'));
+});
+test('scenario 2: Warm co-living - relationship without forced secrets and intrigue',()=>{
+  const req = request('温暖合租作品，以相处为主，不强加秘密和阴谋');
+  const routed = selectCreatorSkills(req);
+  assert.equal(routed.horizontal, 'H1');
+  assert.deepEqual(routed.vertical, ['V2']);
+  const guidance = creatorSkillGuidance(req);
+  assert.ok(guidance.includes('允许日常安静相处、并肩协作，不强制恋爱、阴谋或好感数字'));
+});
+test('scenario 3: Shop management - clear delegation receives V6 method and execution guidance',()=>{
+  const req = request('小店经营作品，作者明确委托完善');
+  const routed = selectCreatorSkills(req);
+  assert.deepEqual(routed.vertical, ['V6']);
+  const guidance = creatorSkillGuidance(req);
+  assert.ok(guidance.includes('建设与经营'));
+  assert.ok(guidance.includes('明确委托交付原则：作者明确委托'));
+});
+

@@ -5,20 +5,31 @@ import { boundedMedia, findMedia, refreshVideo, saveMedia, updateMedia } from '@
 import { readMediaInput, videoPayload } from '@/lib/media-policy';
 export const maxDuration = 120;
 export async function GET(request: Request) {
+  const id = new URL(request.url).searchParams.get('id');
   try {
-    const account = await requestAccount(request, true);
+    const account = await requestAccount(request, Boolean(id));
     const owner = imageOwner(request, true, account.id);
-    const id = new URL(request.url).searchParams.get('id');
     if (!id) {
       let ready = false;
       try { await storageFetch('/rest/v1/demo_media_assets?select=id&limit=0'); ready = true; } catch { /* fail closed before billing */ }
-      return account.finish(Response.json({ configured: !!companyGateway() && storageConfigured() && ready, provider: 'yibu', models: { speech: companyModel('speech'), video: companyModel('video') } }, { headers: owner?.cookie ? { 'Set-Cookie': owner.cookie } : {} }));
+      let configured = false;
+      let models = { speech: 'doubao-tts', video: 'kling-video-o1' };
+      try {
+        configured = Boolean(companyGateway()) && storageConfigured() && ready;
+        models = { speech: companyModel('speech'), video: companyModel('video') };
+      } catch { /* fail closed if config invalid */ }
+      return account.finish(Response.json({ configured, provider: 'yibu', models }, { headers: owner?.cookie ? { 'Set-Cookie': owner.cookie } : {} }));
     }
     let asset = await findMedia(id);
     if (!asset || asset.owner_id !== owner?.id) return account.finish(Response.json({ error:'not_found' }, { status:404 }));
     asset = await refreshVideo(asset);
     return account.finish(Response.json({ id, kind:asset.kind, status:asset.status, ...(asset.status === 'ready' ? { assetUrl:`/api/media/asset/${id}` } : {}) }));
-  } catch { return Response.json({ error:'media_unavailable' }, { status:503, headers: { 'Cache-Control':'no-store' } }); }
+  } catch (err: unknown) {
+    if (err instanceof Error && err.message === 'account_changed') {
+      return Response.json({ error:'account_changed' }, { status:409, headers: { 'Cache-Control':'no-store' } });
+    }
+    return Response.json({ error:'media_unavailable' }, { status:503, headers: { 'Cache-Control':'no-store' } });
+  }
 }
 export async function POST(request: Request) {
   if (!sameOrigin(request)) return Response.json({ error:'invalid_origin' }, { status:403 });

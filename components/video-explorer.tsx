@@ -34,7 +34,7 @@ type Prefetched=Pending&{status:string;error?:string};
 type Session={version:1;id:string;roleId:string;state:WorldState|null;narrative:string;choices:VideoChoice[];clip:string;rounds:number;worldSnapshot?:StudioWorld;pending?:Pending;branches?:BranchCache;videos?:{key:string;jobs:Record<string,Prefetched>};draftAction?:string;finished?:boolean;clips?:{url:string;action:string;narrative?:string}[]};
 type Phase='intro'|'roles'|'choices'|'planning'|'generating'|'ready'|'playing'|'error';
 type MediaReply={id?:string;status:string;error?:string;assetUrl?:string;persisting?:boolean;timing?:ServerVideoTiming};
-export function VideoExplorer({entry:latestEntry,onBack,onText}:{entry:StudioWorld;onBack?:()=>void;onText?:(roleId?:string)=>void}){
+export function VideoExplorer({entry:latestEntry,onBack,onText,initialRoleId,startFresh=false,resumeSessionId}:{entry:StudioWorld;onBack?:()=>void;onText?:(roleId?:string)=>void;initialRoleId?:string;startFresh?:boolean;resumeSessionId?:string}){
   const [entry,setEntry]=useState(latestEntry);
   const timing=useRef(new VideoTimingLog());
   const scriptCache=useRef(new VideoScriptCache<WorldTurnResponse>());
@@ -43,12 +43,20 @@ export function VideoExplorer({entry:latestEntry,onBack,onText}:{entry:StudioWor
   const archiveChecks=useRef(new Map<string,AbortController>());
   const firstFrameTimer=useRef<((status?:string)=>void)|null>(null),stallTimer=useRef<((status?:string)=>void)|null>(null),selectionTimer=useRef<((status?:string)=>void)|null>(null);
   const roles=playableCharacters(entry.world,entry.fixedRoleId);
-  const opening=rolePrologue(entry.id,roles.length===1?roles[0].id:'',entry.premise,entry.cover);
-  const [session,setSession]=useState<Session>({version:1,id:'',roleId:'',state:null,narrative:entry.world.storyHook||entry.title,choices:[],clip:opening.video??'',rounds:0});
+  const targetRole=initialRoleId?roles.find(r=>r.id===initialRoleId):undefined;
+  const chosenRoleId=targetRole?targetRole.id:(roles.length===1?roles[0].id:'');
+  const opening=rolePrologue(entry.id,chosenRoleId,entry.premise,entry.cover);
+  const [session,setSession]=useState<Session>(()=>{
+    if(chosenRoleId&&opening.video){
+      const initial=initialVideoRole(entry,chosenRoleId);
+      return {version:1,id:'',clip:opening.video,rounds:0,...initial,roleId:chosenRoleId};
+    }
+    return {version:1,id:'',roleId:chosenRoleId,state:null,narrative:entry.world.storyHook||entry.title,choices:[],clip:opening.video??'',rounds:0};
+  });
   const prologue=rolePrologue(entry.id,session.roleId,entry.premise,entry.cover);
   const current=useRef(session);
   useEffect(()=>{current.current=session;},[session]);
-  const [phase,setPhase]=useState<Phase>(roles.length===1?'intro':'roles'),[scope,setScope]=useState<string|null>(null),[configured,setConfigured]=useState(false);
+  const [phase,setPhase]=useState<Phase>(chosenRoleId&&opening.video?'intro':(roles.length===1?'intro':'roles')),[scope,setScope]=useState<string|null>(null),[configured,setConfigured]=useState(false);
   const activeScope=useRef(scope);activeScope.current=scope;
   useEffect(()=>()=>scriptCache.current.clear(),[scope,latestEntry.id]);
   useEffect(()=>{if(scope)timing.current.scope(scope);},[scope]);
@@ -289,29 +297,62 @@ export function VideoExplorer({entry:latestEntry,onBack,onText}:{entry:StudioWor
         if(stop.signal.aborted)return;
         setScope(id);
         let restored:Session|null=null;
-        try{const candidate=JSON.parse(sessionStorage.getItem(`xgen:video-pilot:v2:${id}:${entry.id}`)??'null');
-          const savedEntry=candidate?.worldSnapshot?.id===latestEntry.id ? {...candidate.worldSnapshot,world:publicationWorld(candidate.worldSnapshot.world)} as StudioWorld : latestEntry;
-          if(candidate?.version===1&&typeof candidate.id==='string'&&candidate.state&&savedEntry.world.characters.some(c=>c.id===candidate.roleId)&&Array.isArray(candidate.choices)
-            &&typeof candidate.clip==='string'&&(candidate.clip===''||candidate.clip.startsWith('/assets/prologues/')||/^\/api\/media\/asset\/[a-f0-9]{64}$/.test(candidate.clip)))restored={...candidate,worldSnapshot:savedEntry};
-        }catch{/* Invalid/old pilot data is ignored. */}
+        const currentKey=`xgen:video-pilot:v2:${id}:${entry.id}`;
+        let candidateRaw: string | null = null;
+        try { candidateRaw = sessionStorage.getItem(currentKey); } catch { /* ignore */ }
+        const candidate = candidateRaw ? JSON.parse(candidateRaw) as Session : null;
+
+        if (!startFresh) {
+          try {
+            let candidateToUse: Session | null = candidate;
+            if (resumeSessionId && resumeSessionId !== candidate?.id) {
+              const archived = sessionStorage.getItem(`${currentKey}:archive:${resumeSessionId}`);
+              if (archived) candidateToUse = JSON.parse(archived) as Session;
+            }
+            const savedEntry=candidateToUse?.worldSnapshot?.id===latestEntry.id ? {...candidateToUse.worldSnapshot,world:publicationWorld(candidateToUse.worldSnapshot.world)} as StudioWorld : latestEntry;
+            if(candidateToUse?.version===1&&typeof candidateToUse.id==='string'&&candidateToUse.state&&savedEntry.world.characters.some(c=>c.id===candidateToUse.roleId)&&Array.isArray(candidateToUse.choices)
+              &&typeof candidateToUse.clip==='string'&&(candidateToUse.clip===''||candidateToUse.clip.startsWith('/assets/prologues/')||/^\/api\/media\/asset\/[a-f0-9]{64}$/.test(candidateToUse.clip))) {
+              restored={...candidateToUse,worldSnapshot:savedEntry};
+            }
+          } catch { /* Invalid/old pilot data is ignored. */ }
+        } else if (candidate && candidate.id && candidate.rounds > 0) {
+          // New run requested: archive existing active session so past records are retained
+          try { sessionStorage.setItem(`${currentKey}:archive:${candidate.id}`, JSON.stringify(candidate)); } catch { /* ignore */ }
+        }
+
         if(restored){
           restored={...restored,state:migrateWorldState(restored.state!,restored.worldSnapshot?.world)};
           setText(restored.draftAction??restored.pending?.action??'');
           if(restored.worldSnapshot?.id===latestEntry.id)setEntry(restored.worldSnapshot);
           // Legacy opening clips must also match the restored role; never replay
           // another person's history. Generated continuation clips remain intact.
-          if(restored.clip.startsWith('/assets/prologues/')&&restored.clip!==rolePrologue(entry.id,restored.roleId,entry.premise,entry.cover).video)restored={...restored,clip:'',branches:undefined,videos:undefined};
+          if((restored.clip.startsWith('/assets/prologues/')&&restored.clip!==rolePrologue(entry.id,restored.roleId,entry.premise,entry.cover).video)||(entry.id==='yoga-lotus-boundary'&&restored.roleId!=='lin'&&restored.rounds===0&&restored.clip===prologue.video))restored={...restored,clip:'',branches:undefined,videos:undefined};
           current.current=restored;setSession(restored);setPhase(restored.pending?'error':restored.clip?'playing':'choices');setPaused(true);
-          if(restored.pending)setError(restored.pending.assetUrl?'视频已保存，点击播放即可继续，无需重新生成。':'已找回未完成的回合。恢复将复用原回合编号，不另建视频任务。');}
-        else{
-          // Establish the sole viewpoint before playback, not in onEnded.
-          // Prepare during the intro; ready service automatically unlocks video
-          // prefetch. Only choosing a branch can commit its story state.
-          const initial=roles.length===1?initialVideoRole(entry,roles[0].id):{};
-          const fresh={...current.current,...initial,id:crypto.randomUUID(),roleId:roles.length===1?roles[0].id:''};
-          current.current=fresh;setSession(fresh);
-          try{sessionStorage.setItem(`xgen:video-pilot:v2:${id}:${entry.id}`,JSON.stringify({...fresh,worldSnapshot:entry}));}
-          catch{setSaveError('浏览器未能保存本次进度，请暂勿刷新或关闭此标签页。');}
+          if(restored.pending)setError(restored.pending.assetUrl?'视频已保存，点击播放即可继续，无需重新生成。':'已找回未完成的回合。恢复将复用原回合编号，不另建视频任务。');
+        } else {
+          // Establish the sole viewpoint before playback.
+          // In multi-role or single-role stories, respect the target role from initialRoleId!
+          const targetRole = initialRoleId ? roles.find(r => r.id === initialRoleId) : undefined;
+          const roleToUse = targetRole ? targetRole.id : (roles.length === 1 ? roles[0].id : '');
+          const initial = roleToUse ? initialVideoRole(entry, roleToUse) : {};
+          const openingClip = roleToUse ? (rolePrologue(entry.id, roleToUse, entry.premise, entry.cover).video ?? '') : '';
+          const fresh: Session = {
+            ...current.current,
+            ...initial,
+            id: crypto.randomUUID(),
+            roleId: roleToUse,
+            clip: openingClip || current.current.clip,
+            rounds: 0,
+            worldSnapshot: entry,
+          };
+          current.current = fresh;
+          setSession(fresh);
+          setPhase(roleToUse && openingClip ? 'intro' : (roleToUse ? 'choices' : (roles.length === 1 ? 'intro' : 'roles')));
+          try {
+            sessionStorage.setItem(currentKey, JSON.stringify(fresh));
+          } catch {
+            setSaveError('浏览器未能保存本次进度，请暂勿刷新或关闭此标签页。');
+          }
         }
         const r=await fetch('/api/fal-video',{headers:{'x-xgen-account':id},cache:'no-store',signal:stop.signal});
         if(!r.ok)throw Error('已读取本机进度，但视频服务状态暂时无法查询');
@@ -321,7 +362,7 @@ export function VideoExplorer({entry:latestEntry,onBack,onText}:{entry:StudioWor
       finally{if(!stop.signal.aborted)setLoading(false);}
     })();
     return()=>{alive.current=false;stop.abort();controller.current?.abort();};
-  },[latestEntry.id,latestEntry.world.characters]);
+  },[latestEntry.id,latestEntry.world.characters,startFresh,resumeSessionId]);
   useEffect(()=>{
     const update=()=>setOnline(navigator.onLine);
     update();window.addEventListener('online',update);window.addEventListener('offline',update);
@@ -334,7 +375,7 @@ export function VideoExplorer({entry:latestEntry,onBack,onText}:{entry:StudioWor
   },[]);
   function selectRole(roleId:string){
     if(busy.current)return;
-    const roleClip=rolePrologue(entry.id,roleId,entry.premise,entry.cover).video;
+    const roleClip=entry.id==='yoga-lotus-boundary'&&roleId==='lin'&&!current.current.roleId?prologue.video:rolePrologue(entry.id,roleId,entry.premise,entry.cover).video;
     if(!roleClip){
       if(onText){onText(roleId);return;}
       // Dedicated entry returns to the ordinary character-selection/text flow.

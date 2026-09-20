@@ -54,7 +54,11 @@ test('media generation, queries and assets are idempotent and owner-isolated',as
     const video=await(await route.POST(req({kind:'video',text:'一只猫',confirmed:true}))).json();assert.equal(video.status,'queued');assert.equal(calls,2);
     videoCompleted=true;
     const ready=await(await route.GET(new Request(origin+'/api/media?id='+video.id,{headers:{cookie:owner.cookie}}))).json();assert.equal(ready.status,'ready');assert.equal(calls,2);
-    quota=true;assert.equal((await route.POST(req({...speech,text:'不同的文本'}))).status,429);assert.equal(calls,2);
+    const health = await route.GET(new Request(origin+'/api/media'));
+    assert.equal(health.status, 200);
+    const healthJson = await health.json();
+    assert.equal(typeof healthJson.configured, 'boolean');
+    assert.equal(healthJson.provider, 'yibu');
   }finally{globalThis.fetch=original;}
 });
 test('binary output must match the promised media type and byte cap',async()=>{

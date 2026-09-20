@@ -272,7 +272,7 @@ export function CreatorShowcaseModal({
                 const portrait = roleImages[roleId];
                 const roleName = role.name.trim() || `角色 ${index + 1}`;
                 const roleIdentity = role.identity?.trim() || '神秘人';
-                const roleHook = role.cardHook?.trim() || role.goal?.trim() || role.personality?.trim() || '暂无专属动机说明';
+                const roleHook = role.cardHook?.trim() || role.publicIntroduction?.trim() || '';
 
                 return (
                   <div key={role.editorId || index} className="showcase-role-card">
@@ -291,7 +291,7 @@ export function CreatorShowcaseModal({
                         <span className="showcase-role-identity">{roleIdentity}</span>
                       </div>
                     </div>
-                    <p className="showcase-role-hook">{roleHook}</p>
+                    {roleHook ? <p className="showcase-role-hook">{roleHook}</p> : null}
                     <Button
                       size="sm"
                       className="showcase-play-btn"
