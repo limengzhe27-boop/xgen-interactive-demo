@@ -1,3 +1,5 @@
+import { validDiscoveryGenre, discoveryCategory } from './discovery-category.ts';
+
 // Representation fixes only. Do not infer plot facts, task intent or role identity.
 const record = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
 const asciiId = (v: string) => /^[a-zA-Z0-9_-]+$/.test(v);
@@ -33,6 +35,7 @@ export function normalizeCreatorGraphIds(value: unknown, reservedIds: string[] =
       ? { ...e, nodeId: ref(e.nodeId), defaultPath: refs(e.defaultPath) } : e) : value.entries };
 }
 
+
 export function normalizeCreatorProposal(value: Record<string, unknown>, reservedIds: string[] = []) {
   const p = { ...value };
   const notices: string[] = [];
@@ -43,18 +46,52 @@ export function normalizeCreatorProposal(value: Record<string, unknown>, reserve
     const r = { ...role };
     if (r.persona === undefined && typeof r.personality === 'string') r.persona = r.personality;
     delete r.personality;
+    if (r.identity === undefined && typeof r.role === 'string') r.identity = r.role;
+    delete r.role;
+    if (typeof r.name === 'string') {
+      if (r.identity === undefined) r.identity = '';
+      if (r.persona === undefined) r.persona = '';
+      if (r.relationship === undefined) r.relationship = '';
+      if (r.appearance === undefined && typeof r.look === 'string') r.appearance = r.look;
+      if (r.appearance === undefined && typeof r.visual === 'string') r.appearance = r.visual;
+      delete r.look;
+      delete r.visual;
+      if (r.appearance === undefined) r.appearance = '';
+    }
+    if (r.goal !== undefined && typeof r.goal !== 'string') r.goal = String(r.goal);
     if (typeof r.cardHook === 'string') {
       const clean = r.cardHook.replace(/[\r\n]+/g, ' ').trim();
       if (clean.length > 60) notices.push('卡片短句已整理到展示长度，请采纳前确认。');
       r.cardHook = clean.slice(0, 60);
+    } else if (r.cardHook !== undefined) {
+      delete r.cardHook;
     }
     return r;
   });
   if (record(p.brief)) {
     const b = { ...p.brief };
     if (b.complexityLevel !== undefined) b.complexityLevel = level(b.complexityLevel);
-    if (Array.isArray(b.tasks)) b.tasks = b.tasks.map(task => record(task)
-      ? { ...task, kind: task.kind === '主线' ? 'main' : task.kind === '支线' ? 'side' : task.kind } : task);
+    if (b.discoveryGenre !== undefined && typeof b.discoveryGenre === 'string') {
+      if (!validDiscoveryGenre(b.discoveryGenre)) {
+        const mapped = discoveryCategory({ genre: b.discoveryGenre });
+        if (validDiscoveryGenre(mapped)) {
+          b.discoveryGenre = mapped;
+        } else {
+          b.discoveryGenre = '';
+        }
+      }
+    }
+    if (Array.isArray(b.tasks)) b.tasks = b.tasks.map(task => {
+      if (!record(task)) return task;
+      const t = { ...task };
+      if (t.kind === '主线') t.kind = 'main';
+      else if (t.kind === '支线') t.kind = 'side';
+      if (!Array.isArray(t.prerequisiteTaskIds)) t.prerequisiteTaskIds = [];
+      if (t.description === undefined) t.description = '';
+      if (t.difficulty === undefined) t.difficulty = '';
+      if (t.successCondition === undefined) t.successCondition = '';
+      return t;
+    });
     if (b.storyGraph !== undefined) b.storyGraph = normalizeCreatorGraphIds(b.storyGraph, reservedIds);
     p.brief = b;
   }

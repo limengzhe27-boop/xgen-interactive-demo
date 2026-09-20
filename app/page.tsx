@@ -110,7 +110,7 @@ import {
 import { normalizeSurpriseLevel } from '@/lib/surprise-engine';
 import { preserveCreatorDetails, preserveCreatorFramework } from '@/lib/creator-framework';
 import { applyCreatorChange, combineCreatorChanges, creatorConfirmation, creatorOpeningRevision, creatorChanges, ensureCreatorRoleIds, identifyProposedRoles, type CreatorChange, type CreatorRoleDraft } from '@/lib/creator-changes';
-import { DeleteRoleDialog, PortraitBatchDialog, ImagePreviewModal } from '@/components/creator-dialogs';
+import { DeleteRoleDialog, PortraitBatchDialog, ImagePreviewModal, CreatorShowcaseModal } from '@/components/creator-dialogs';
 import { CreatorStoryCanvas } from '@/components/creator-story-canvas';
 import { CreatorWorkspace, type CreatorWorkspaceModule } from '@/components/creator-workspace';
 import { creatorStoryIssues, isCreatorStoryGraph, remapCreatorStoryRoles, mapCreatorStoryRoleIds, bindCreatorActors, type CreatorStoryGraph } from '@/lib/creator-story-graph';
@@ -2219,6 +2219,27 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     }
   }
 
+  async function generateCreatorCover() {
+    if (!worldSeed.trim()) { setCreatorChangeNotice('请先完善背景与危机设定，再制作封面。'); return; }
+    const castPrompt = draftRoles.map(r => `${r.name}（${r.identity}）：${r.appearance || r.personality}`).join('；');
+    const prompt = `电影海报与世界氛围大图。作品标题：《${worldTitle || '未命名世界'}》。背景设定与危机冲突：${worldSeed}。在场关键人物：${castPrompt}。电影质感、强烈的情绪张力与环境氛围，无文字、无UI、无水印。`;
+    try {
+      const result = await generateSceneImage({
+        purpose: 'scene',
+        requestId: Date.now(),
+        sceneId: `draft-cover-${draftId}`,
+        prompt,
+        seed: Math.floor(Math.random() * 1_000_000_000),
+      }, undefined, accountScope);
+      if (result.assetUrl) {
+        setCreatorAssets(current => ({ ...current, cover: result.assetUrl, portraits: current?.portraits || {} }));
+        setCreatorChangeNotice('专属作品海报已生成并保存！');
+      }
+    } catch {
+      setCreatorChangeNotice('海报生成失败，请稍后重试。');
+    }
+  }
+
   async function submitCreatorMessage(event?: SyntheticEvent<HTMLFormElement>, overrideValue?: string) {
     event?.preventDefault();
     await discussCreator((overrideValue ?? creatorMessage).trim());
@@ -2680,7 +2701,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     setCreateStep(3);
   }
 
-  function publishCreatorWorld() {
+  function publishCreatorWorld(targetRoleIndex?: number) {
     if (continuation?.proposal) { setCreatorChangeNotice('请先确认或放弃后续提案，再保存。'); return; }
     if (!storageReady || storageReadFailed.current) { setCreatorChangeNotice('本机记录尚不可写，暂时不能保存新版本。'); return; }
     try {
@@ -2696,7 +2717,11 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     const documents=upsertById(creatorDocuments,{id:draftId,savedAt:Date.now(),data});
     persistStudioSnapshot({version:1,runs:savedRuns,chats:chatSessions,documents,draftId});
     setCreatorDocuments(documents);setReleaseHistory(recorded.history);setReleasedEntry(recorded.entry);setGeneratedWorld(published);setPublishedWorld(true);
-    setActiveLibrary(recorded.entry); setActiveWorld('draft'); setSelectedRole(entryRoles(recorded.entry).find(role => role.id === playableCharacters(recorded.entry.world)[0]?.id) || entryRoles(recorded.entry)[0]); setRuntimeBeat(null); navigate('prologue');
+    setActiveLibrary(recorded.entry); setActiveWorld('draft');
+    const available = entryRoles(recorded.entry);
+    const chosen = (targetRoleIndex !== undefined && available[targetRoleIndex]) ? available[targetRoleIndex] : (available.find(role => role.id === playableCharacters(recorded.entry.world)[0]?.id) || available[0]);
+    setSelectedRole(chosen);
+    setRuntimeBeat(null); navigate('prologue');
     } catch(error) {setCreatorChangeNotice(error instanceof Error?error.message:'保存版本失败，原版本保持不变。');}
   }
 
@@ -2990,6 +3015,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
           onGenerateAllRoleImages={async () => { await generateAllRoleImages(); }}
           onBack={() => navigate(creatorReturnView.current)}
           onPublish={publishCreatorWorld}
+          onGenerateCover={generateCreatorCover}
           onShare={preparePublicWorld}
           continuation={continuation}
           onAcceptContinuation={acceptContinuation}
@@ -3292,6 +3318,7 @@ function CreateWorld({
   onGenerateAllRoleImages,
   onBack,
   onPublish,
+  onGenerateCover,
   onShare,
   continuation,
   onAcceptContinuation,
@@ -3356,10 +3383,21 @@ function CreateWorld({
   onGenerateRoleImage: (index: number) => Promise<void> | void;
   onGenerateAllRoleImages: () => Promise<void> | void;
   onBack: () => void;
-  onPublish: () => void;
+  onPublish: (targetRoleIndex?: number) => void;
+  onGenerateCover?: () => Promise<void> | void;
   onShare: () => void;
 }) {
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [coverGenerating, setCoverGenerating] = useState(false);
+  async function handleGenerateCover() {
+    if (coverGenerating || !onGenerateCover) return;
+    setCoverGenerating(true);
+    try {
+      await onGenerateCover();
+    } finally {
+      setCoverGenerating(false);
+    }
+  }
   const [canvasSuggested, setCanvasSuggested] = useState(false);
   const [workspaceModule, setWorkspaceModule] = useState<CreatorWorkspaceModule>('direction');
   const [storyView, setStoryView] = useState<'events' | 'tasks'>('events');
@@ -4042,11 +4080,6 @@ function CreateWorld({
         );
       })()}
 
-      <div className="create-actions" style={{ marginTop: 20, justifyContent: 'flex-end' }}>
-        <Button className="primary-action" onClick={() => selectModule('story')}>
-          查看故事画布<ArrowRight />
-        </Button>
-      </div>
 
       <DeleteRoleDialog
         open={deleteConfirmIndex !== null}
@@ -4253,12 +4286,6 @@ function CreateWorld({
             </div>
           </details>
         </section>
-
-        <div className="create-actions" style={{ marginTop: 8, justifyContent: 'flex-end' }}>
-          <Button className="primary-action" onClick={() => selectModule('people')}>
-            进入人物与关系<ArrowRight />
-          </Button>
-        </div>
       </div>
     );
   })();
@@ -4268,11 +4295,6 @@ function CreateWorld({
         <button type="button" aria-pressed={storyView === 'events'} onClick={() => setStoryView('events')}>事件与角色入场</button>
         <button type="button" aria-pressed={storyView === 'tasks'} onClick={() => setStoryView('tasks')}>目标与任务 · {creatorBrief.tasks.length}</button>
       </div>
-      {storyView === 'events' && (
-        <button type="button" className="canvas-quick-build" onClick={() => setStoryView('tasks')}>
-          去建构世界<ArrowRight size={13} />
-        </button>
-      )}
     </nav>
     <div className="workspace-story-canvas" hidden={storyView !== 'events'}><CreatorStoryCanvas storyOnly readOnly={suggested && continuationActive} title={suggested ? (continuationActive ? (continuation?.proposal?.world?.title || worldTitle) : (creatorProposal?.title || worldTitle)) : worldTitle} graph={canvasGraph} roles={suggested ? canvasRoles : draftRoles} images={suggested ? canvasImages : roleImages} suggested={suggested} hasSuggestion={hasSuggestion} busy={creatorAgentThinking || generating} onMode={setCanvasSuggested}
           onEditRole={(index, field, value) => {
@@ -4323,13 +4345,23 @@ function CreateWorld({
   const presentationPanel = <>
     <section><h2>作品展示与已有素材</h2><p>只整理可公开的介绍和图片。人物秘密、内部目标不应写入公开文案；图片制作需主动点击。</p>
       {cover ? (
-        <img className="workspace-cover" src={cover} alt="当前作品封面" />
+        <div className="workspace-cover-wrapper" style={{ position: 'relative' }}>
+          <img className="workspace-cover" src={cover} alt="当前作品封面" />
+          <div style={{ marginTop: 10, display: 'flex', gap: 8 }}>
+            <Button variant="outline" size="sm" onClick={handleGenerateCover} disabled={coverGenerating || !worldSeed.trim()}>
+              <WandSparkles size={13} />{coverGenerating ? '正在重新绘制海报...' : '重新生成专属海报'}
+            </Button>
+          </div>
+        </div>
       ) : (
         <div className="workspace-cover-empty">
           <ImageIcon size={28} />
           <div>
-            <strong>尚未制作作品封面</strong>
-            <p>作品发布或试玩时，将根据你的世界设定自动制作专属封面；也可以在对话中让 Agent 建议封面构图。</p>
+            <strong>尚未制作作品封面海报</strong>
+            <p>作品发布或试玩时，将根据你的世界设定自动制作专属封面；也可以现在主动一键生成。</p>
+            <Button size="sm" className="primary-action" style={{ marginTop: 10 }} onClick={handleGenerateCover} disabled={coverGenerating || !worldSeed.trim()}>
+              <WandSparkles size={13} />{coverGenerating ? '正在绘制专属海报...' : '✨ 制作专属作品海报'}
+            </Button>
           </div>
         </div>
       )}
@@ -4347,54 +4379,62 @@ function CreateWorld({
       {roleImageStates[`draft-role-${index}`] === 'error' && <p role="alert">形象生成失败，可稍后重试。</p>}
     </section>)}</div>
   </>;
-  const previewPanel = (        <section className="creation-preview">
-          <h2>{worldTitle || '未命名世界'}</h2><p>{worldSeed || '先聊出一个故事，或在故事与任务中手动填写背景。'}</p>
-          <aside className="preview-details">
-            <h3>选谁，就奔向谁的目标</h3>
-            <ul className="creation-role-goals">{draftRoles.map((role, index) => <li key={index}><strong>{role.name || `角色 ${index + 1}`}</strong><span>{role.goal || '尚未设定专属目标，可回到角色与目标补充。'}</span></li>)}</ul>
-            <dl><div><dt>角色</dt><dd>{draftRoles.map((role) => role.name || '未命名').join('、')}</dd></div><div><dt>意外程度</dt><dd>{surpriseLabels[surprise - 1]}</dd></div><div><dt>世界复杂度</dt><dd>{['轻量', '标准', '丰富', '多线'][creatorBrief.complexityLevel - 1]} · {creatorBrief.tasks.filter((task) => task.kind === 'main').length} 个已设主线条件</dd></div><div><dt>结束方式</dt><dd>达成目标条件后结束</dd></div></dl>
-            <div className="preview-tip"><Lightbulb /><span>世界只建立角色的过去、当下状态、目标和任务条件。之后如何发展由玩家行动与世界 Agent 共同推演，不依赖固定分幕。</span></div>
-            <div className="preview-buttons"><Button className="primary-action" onClick={onPublish} disabled={taskIssues.length > 0 || !worldSeed.trim() || generating || creatorAgentThinking}>保存并试玩<ArrowRight /></Button>{canPublish ? <Button variant="ghost" onClick={() => { setSettingsOpen(false); onShare(); }} disabled={taskIssues.length > 0 || !worldSeed.trim() || generating || creatorAgentThinking}>发布设置</Button> : <small>公开发布尚未开放，当前可以保存并试玩。</small>}</div>
-          </aside>
-        </section>);
   return (
     <div className="flow-page creation-flow">
-      <Sheet open={settingsOpen} onOpenChange={setSettingsOpen}>
-        <header className="flow-toolbar"><button className="flow-control" type="button" onClick={onBack}><ArrowLeft />返回</button><h1>一起创作</h1>
-          <div className="workspace-actions">
-            <button className="flow-control toggle-agent-btn" type="button" onClick={() => setAgentCollapsed(!agentCollapsed)} title={agentCollapsed ? '展开 Agent 讨论栏' : '收起 Agent 讨论栏，获得全宽工作区'}>
-              {agentCollapsed ? <PanelRightOpen size={16} /> : <PanelRightClose size={16} />}<span>{agentCollapsed ? '展开 Agent' : '收起 Agent'}</span>
-            </button>
-            <small className="workspace-save-badge" role={storageNotice ? 'alert' : undefined}>{storageNotice || '已自动保存在本机'}</small>
-            <button className="flow-control" type="button" onClick={onSaveDraft}>保存草稿</button>
-            <button className="flow-control" type="button" onClick={() => setHistoryOpen(true)}>版本与续写</button>
-            <SheetTrigger className="flow-control">预览</SheetTrigger>
-            <Button disabled={!canPublish || !worldSeed.trim() || taskIssues.length > 0 || creatorAgentThinking || generating} onClick={onShare} title={!canPublish ? '当前账号暂不可公开发布' : '检查并确认发布'}>发布</Button>
-          </div>
-        </header>
-        <nav className="creation-pane-tabs" aria-label="创作视图"><button type="button" aria-pressed={mobilePane === 'chat'} onClick={() => setMobilePane('chat')}>与 Agent 讨论</button><button type="button" aria-pressed={mobilePane === 'canvas'} onClick={() => setMobilePane('canvas')}>作品工作区{hasSuggestion ? ' · 待确认建议' : ''}</button></nav>
-        <div className="creation-workbench" data-pane={mobilePane} data-agent-collapsed={agentCollapsed}>
-          {discussionPanel}
-          <CreatorWorkspace
-            title={worldTitle}
-            active={workspaceModule}
-            onSelect={selectModule}
-            onFieldFocus={onCreatorFocus}
-            pendingCounts={{
-              direction: pendingDirectionCount,
-              people: pendingPeopleCount,
-              story: pendingStoryCount,
-            }}
-            panels={{ direction: directionPanel, people: peoplePanel, story: storyPanel, presentation: presentationPanel }}
-          />
+      <header className="flow-toolbar">
+        <button className="flow-control" type="button" onClick={onBack}><ArrowLeft />返回</button>
+        <h1>{worldTitle ? `创作 · 《${worldTitle}》` : '一起创作'}</h1>
+        <div className="workspace-actions">
+          <button className="flow-control toggle-agent-btn" type="button" onClick={() => setAgentCollapsed(!agentCollapsed)} title={agentCollapsed ? '展开 Agent 讨论栏' : '收起 Agent 讨论栏，获得全宽工作区'}>
+            {agentCollapsed ? <PanelRightOpen size={16} /> : <PanelRightClose size={16} />}<span>{agentCollapsed ? '展开 Agent' : '收起 Agent'}</span>
+          </button>
+          <small className="workspace-save-badge" role={storageNotice ? 'alert' : undefined}>{storageNotice || '已自动保存在本机'}</small>
+          <button className="flow-control" type="button" onClick={() => setHistoryOpen(true)}>版本记录</button>
+          <button className="flow-control showcase-trigger-btn" type="button" onClick={() => setSettingsOpen(true)} title="预览作品对外宣发大卡与体验入口">
+            <Eye size={14} /><span>预览落地页</span>
+          </button>
+          <Button disabled={!canPublish || !worldSeed.trim() || taskIssues.length > 0 || creatorAgentThinking || generating} onClick={onShare} title={!canPublish ? '当前账号暂不可公开发布' : '检查并确认发布'}>发布</Button>
         </div>
-        <SheetContent className="flow-drawer creator-settings-drawer" showCloseButton={false}>
-          <div className="flow-drawer-heading"><SheetTitle>体验前检查</SheetTitle><SheetClose className="flow-control" aria-label="关闭预览"><X /></SheetClose></div>
-          <SheetDescription>这是作者检查，不是对外介绍。保存并试玩不会自动公开。</SheetDescription>
-          {taskIssues.length > 0 && <div className="creator-validation" role="alert"><strong>先修正任务关系再试玩或发布</strong>{taskIssues.map(issue => <p key={issue}>{issue}</p>)}</div>}
-          {previewPanel}
-        </SheetContent>
-      </Sheet>
+      </header>
+      <nav className="creation-pane-tabs" aria-label="创作视图"><button type="button" aria-pressed={mobilePane === 'chat'} onClick={() => setMobilePane('chat')}>与 Agent 讨论</button><button type="button" aria-pressed={mobilePane === 'canvas'} onClick={() => setMobilePane('canvas')}>作品工作区{hasSuggestion ? ' · 待确认建议' : ''}</button></nav>
+      <div className="creation-workbench" data-pane={mobilePane} data-agent-collapsed={agentCollapsed}>
+        {discussionPanel}
+        <CreatorWorkspace
+          title={worldTitle}
+          active={workspaceModule}
+          onSelect={selectModule}
+          onFieldFocus={onCreatorFocus}
+          pendingCounts={{
+            direction: pendingDirectionCount,
+            people: pendingPeopleCount,
+            story: pendingStoryCount,
+          }}
+          panels={{ direction: directionPanel, people: peoplePanel, story: storyPanel, presentation: presentationPanel }}
+        />
+      </div>
+      <CreatorShowcaseModal
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        worldTitle={worldTitle}
+        worldSeed={worldSeed}
+        genre={creatorBrief.discoveryGenre}
+        surprise={surprise}
+        complexityLevel={creatorBrief.complexityLevel}
+        cover={cover}
+        roles={draftRoles}
+        roleImages={roleImages}
+        taskIssues={taskIssues}
+        canPublish={canPublish}
+        onPlayRole={(roleIndex) => {
+          setSettingsOpen(false);
+          onPublish(roleIndex);
+        }}
+        onShare={() => {
+          setSettingsOpen(false);
+          onShare();
+        }}
+        isBusy={generating || creatorAgentThinking}
+      />
       <Sheet open={historyOpen} onOpenChange={setHistoryOpen}>
         <SheetContent className="flow-drawer creator-settings-drawer">
           <SheetTitle>版本、续写与采纳记录</SheetTitle><SheetDescription>恢复历史版本会另存草稿；撤销不会覆盖之后的手改。</SheetDescription>

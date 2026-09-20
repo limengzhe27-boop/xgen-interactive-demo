@@ -1,6 +1,6 @@
 'use client';
 
-import { X, LoaderCircle } from 'lucide-react';
+import { X, LoaderCircle, Sparkles, Play, AlertCircle, Share2, Film, Compass, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { CreatorBrief } from '@/lib/ai-contracts';
 
@@ -175,3 +175,193 @@ export function ImagePreviewModal({
     </div>
   );
 }
+
+const SURPRISE_LABELS = ['顺理成章', '意料之外', '剧情反转', '完全失控'];
+const COMPLEXITY_LABELS = ['轻量微型', '标准探索', '错综复杂', '多方权谋'];
+
+export function CreatorShowcaseModal({
+  open,
+  onClose,
+  worldTitle,
+  worldSeed,
+  genre,
+  surprise,
+  complexityLevel,
+  cover,
+  roles,
+  roleImages,
+  taskIssues,
+  canPublish,
+  onPlayRole,
+  onShare,
+  isBusy,
+}: {
+  open: boolean;
+  onClose: () => void;
+  worldTitle: string;
+  worldSeed: string;
+  genre?: string;
+  surprise: number;
+  complexityLevel: number;
+  cover?: string;
+  roles: CreatorDialogRole[];
+  roleImages: Record<string, string>;
+  taskIssues: string[];
+  canPublish: boolean;
+  onPlayRole: (roleIndex: number) => void;
+  onShare: () => void;
+  isBusy: boolean;
+}) {
+  if (!open) return null;
+
+  const displayTitle = worldTitle.trim() || '未命名世界';
+  const displayPremise = worldSeed.trim() || '尚在构思的世界前提，与 Agent 对话或在设定面板中填写以丰富剧情冲突。';
+  const displayGenre = genre?.trim() || '互动故事';
+  const surpriseText = SURPRISE_LABELS[Math.max(0, Math.min(surprise - 1, 3))];
+  const complexityText = COMPLEXITY_LABELS[Math.max(0, Math.min(complexityLevel - 1, 3))];
+
+  return (
+    <div className="studio-modal-backdrop showcase-backdrop" onClick={onClose}>
+      <div className="studio-modal showcase-modal" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="showcase-title">
+        {/* 关闭按钮 */}
+        <button type="button" className="showcase-close-btn" onClick={onClose} aria-label="关闭预览">
+          <X size={20} />
+        </button>
+
+        {/* 顶部 16:9 电影质感海报 Hero */}
+        <div className="showcase-hero">
+          {cover ? (
+            <img src={cover} alt={`${displayTitle} 封面海报`} className="showcase-hero-img" />
+          ) : (
+            <div className="showcase-hero-placeholder">
+              <Compass size={48} className="showcase-compass-icon" />
+            </div>
+          )}
+          <div className="showcase-hero-overlay" />
+          <div className="showcase-hero-info">
+            <div className="showcase-badges">
+              <span className="showcase-badge genre-badge"><Film size={12} />{displayGenre}</span>
+              <span className="showcase-badge">意外度 · {surpriseText}</span>
+              <span className="showcase-badge">架构 · {complexityText}</span>
+            </div>
+            <h2 id="showcase-title" className="showcase-title">{displayTitle}</h2>
+            <p className="showcase-premise">{displayPremise}</p>
+          </div>
+        </div>
+
+        {/* 核心角色入场矩阵 */}
+        <div className="showcase-body">
+          <div className="showcase-section-header">
+            <div className="showcase-section-title">
+              <Sparkles size={16} className="text-amber" />
+              <span>选择代入身份 · 即刻开局</span>
+            </div>
+            <span className="showcase-role-count">共 {roles.length} 位角色</span>
+          </div>
+
+          {roles.length === 0 ? (
+            <div className="showcase-empty-roles">
+              <User size={32} />
+              <p>尚未创建角色</p>
+              <small>在「人物与关系」中添加角色后，将在此展示沉浸入场卡片。</small>
+            </div>
+          ) : (
+            <div className="showcase-roles-grid">
+              {roles.map((role, index) => {
+                const roleId = `draft-role-${index}`;
+                const portrait = roleImages[roleId];
+                const roleName = role.name.trim() || `角色 ${index + 1}`;
+                const roleIdentity = role.identity?.trim() || '神秘人';
+                const roleHook = role.cardHook?.trim() || role.goal?.trim() || role.personality?.trim() || '暂无专属动机说明';
+
+                return (
+                  <div key={role.editorId || index} className="showcase-role-card">
+                    <div className="showcase-role-header">
+                      <div className="showcase-role-avatar">
+                        {portrait ? (
+                          <img src={portrait} alt={roleName} />
+                        ) : (
+                          <div className="showcase-avatar-placeholder">
+                            {roleName[0] || '人'}
+                          </div>
+                        )}
+                      </div>
+                      <div className="showcase-role-meta">
+                        <strong className="showcase-role-name">{roleName}</strong>
+                        <span className="showcase-role-identity">{roleIdentity}</span>
+                      </div>
+                    </div>
+                    <p className="showcase-role-hook">{roleHook}</p>
+                    <Button
+                      size="sm"
+                      className="showcase-play-btn"
+                      disabled={isBusy || taskIssues.length > 0 || !worldSeed.trim()}
+                      onClick={() => {
+                        onClose();
+                        onPlayRole(index);
+                      }}
+                      title={taskIssues.length > 0 ? '请先解决任务冲突' : `以 ${roleName} 身份开始探索`}
+                    >
+                      <Play size={12} fill="currentColor" />
+                      以「{roleName}」开局体验
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* 任务问题提示 */}
+          {taskIssues.length > 0 && (
+            <div className="showcase-issues-alert" role="alert">
+              <AlertCircle size={15} />
+              <div>
+                <strong>体验前请注意任务关系：</strong>
+                {taskIssues.map((issue, idx) => <p key={idx}>{issue}</p>)}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* 底部操作条 */}
+        <div className="showcase-footer">
+          <small className="showcase-footer-hint">
+            体验将基于当前设定实时动态推演，记录独立保存，不影响草稿。
+          </small>
+          <div className="showcase-footer-actions">
+            <Button variant="ghost" size="sm" onClick={onClose}>
+              返回继续打磨
+            </Button>
+            {canPublish && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  onClose();
+                  onShare();
+                }}
+                disabled={taskIssues.length > 0 || !worldSeed.trim() || isBusy}
+              >
+                <Share2 size={13} />
+                发布设置
+              </Button>
+            )}
+            <Button
+              className="primary-action"
+              size="sm"
+              disabled={isBusy || taskIssues.length > 0 || !worldSeed.trim()}
+              onClick={() => {
+                onClose();
+                onPlayRole(0);
+              }}
+            >
+              <Play size={13} fill="currentColor" />
+              立即开始试玩
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+

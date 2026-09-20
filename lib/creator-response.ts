@@ -102,12 +102,57 @@ export function readCreatorResponse(value: unknown, input: CreatorAgentRequest):
       || (record(p.brief) && Object.keys(p.brief).some(k => k !== 'storyGraph'));
     if (!otherFields) return creatorDiscussion(value.reply, input, notices.join(' '));
   }
-  const response = { ...value, discussionOnly: false, proposal: { ...base, ...p,
-    brief }, ...(notices.length ? { proposalIssue: notices.join(' ') } : {}),
+  const candidate = {
+    ...value,
+    reply: value.reply,
+    discussionOnly: false,
+    proposal: { ...base, ...p, brief },
+    ...(notices.length ? { proposalIssue: notices.join(' ') } : {}),
     nextQuestions: Array.isArray(value.nextQuestions) ? value.nextQuestions.filter(x => typeof x === 'string').slice(0, 1) : [],
-    readiness: value.readiness === 'ready' && !graphIssues.length ? 'ready' : 'needs_detail' };
-  if (!isCreatorAgentResponse(response)) return creatorDiscussion(value.reply, input,
-    '本轮设定建议未能整理完整，原草稿和待采纳建议保持不变；可以继续讨论。');
+    readiness: value.readiness === 'ready' && !graphIssues.length ? 'ready' : 'needs_detail'
+  };
+  let response: CreatorAgentResponse;
+  if (isCreatorAgentResponse(candidate)) {
+    response = candidate;
+  } else {
+    const hasCoreContent = (typeof p.title === 'string' && p.title.trim()) || (typeof p.premise === 'string' && p.premise.trim()) || (Array.isArray(p.characters) && p.characters.length > 0);
+    if (hasCoreContent) {
+      const repairedBrief = {
+        coreGoal: typeof brief.coreGoal === 'string' ? brief.coreGoal : (base.brief?.coreGoal ?? ''),
+        successCondition: typeof brief.successCondition === 'string' ? brief.successCondition : (base.brief?.successCondition ?? ''),
+        failureCondition: typeof brief.failureCondition === 'string' ? brief.failureCondition : (base.brief?.failureCondition ?? ''),
+        complexityLevel: [1, 2, 3, 4].includes(brief.complexityLevel as number) ? (brief.complexityLevel as number) : (base.brief?.complexityLevel ?? 2),
+        tasks: Array.isArray(brief.tasks) ? brief.tasks : (base.brief?.tasks ?? []),
+        difficulties: Array.isArray(brief.difficulties) && brief.difficulties.every(x => typeof x === 'string') ? brief.difficulties : (base.brief?.difficulties ?? []),
+        scheduledEvents: Array.isArray(brief.scheduledEvents) ? brief.scheduledEvents : (base.brief?.scheduledEvents ?? []),
+        ...(brief.discoveryGenre !== undefined ? { discoveryGenre: brief.discoveryGenre } : (base.brief?.discoveryGenre !== undefined ? { discoveryGenre: base.brief.discoveryGenre } : {})),
+        ...(brief.storyGraph !== undefined ? { storyGraph: brief.storyGraph } : (base.brief?.storyGraph !== undefined ? { storyGraph: base.brief.storyGraph } : {})),
+      };
+      const repairedResponse = {
+        reply: value.reply,
+        discussionOnly: false,
+        nextQuestions: Array.isArray(value.nextQuestions) ? value.nextQuestions.filter(x => typeof x === 'string').slice(0, 1) : [],
+        readiness: value.readiness === 'ready' && !graphIssues.length ? 'ready' : 'needs_detail',
+        ...(notices.length ? { proposalIssue: notices.join(' ') } : {}),
+        proposal: {
+          ...base,
+          ...p,
+          title: typeof p.title === 'string' ? p.title : base.title,
+          premise: typeof p.premise === 'string' ? p.premise : base.premise,
+          brief: repairedBrief as unknown as import('./ai-contracts.ts').CreatorBrief,
+        },
+      };
+      if (isCreatorAgentResponse(repairedResponse)) {
+        response = repairedResponse;
+      } else {
+        return creatorDiscussion(value.reply, input,
+          '本轮设定建议未能整理完整，原草稿和待采纳建议保持不变；可以继续讨论。');
+      }
+    } else {
+      return creatorDiscussion(value.reply, input,
+        '本轮设定建议未能整理完整，原草稿和待采纳建议保持不变；可以继续讨论。');
+    }
+  }
   if (response.proposal.brief.storyGraph) {
     const issues = creatorStoryIssues(response.proposal.brief.storyGraph, roleIds);
     if (issues.length) {

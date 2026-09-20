@@ -176,3 +176,28 @@ test('creator append guidance distinguishes between empty canvas and existing ca
   assert.ok(existGuide.includes('本轮作者明确委托追加事件'));
   assert.ok(existGuide.includes('沿用原节点ID'));
 });
+test('fault-tolerant extractor recovers valid title, characters and genre even when minor fields omitted', () => {
+  const r = readCreatorResponse({
+    reply: '为你构思了暴风雨海域的故事。',
+    proposal: {
+      title: '深海余烬',
+      premise: '19世纪末，风暴海域中的旧商船...',
+      characters: [
+        { name: '艾登', identity: '老船长', persona: '沉稳冷酷', relationship: '与大副对立' },
+        { name: '雷恩', identity: '叛变大副', persona: '野心勃勃', relationship: '觊觎船权' }
+      ],
+      brief: {
+        discoveryGenre: '悬疑惊悚 · 架空海域',
+        coreGoal: '在暴风雨中维持对船只的控制',
+      }
+    }
+  }, input);
+  assert.ok(isCreatorAgentResponse(r));
+  assert.equal(r.discussionOnly, false);
+  assert.equal(r.proposal.title, '深海余烬');
+  assert.equal(r.proposal.brief.discoveryGenre, '悬疑惊悚');
+  assert.equal(r.proposal.characters.length, 2);
+  assert.equal(r.proposal.characters[0].name, '艾登');
+  assert.equal(r.proposal.characters[0].appearance, '');
+});
+
