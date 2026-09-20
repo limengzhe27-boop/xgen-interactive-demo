@@ -3173,41 +3173,13 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     setReleasedEntry(undefined); setReleaseHistory([]); setContinuation(undefined);
     setEntryPolicy(restoreEntryPolicy(undefined));
     const trimmedSeed = seed.trim();
-    if (trimmedSeed) {
-      const draft = createFullWorldDraftFromIdea(trimmedSeed);
-      const generatedWorld = buildWorldDefinitionFromDraft(draft);
-      setWorldTitle(draft.worldTitle);
-      setWorldSeed(draft.worldSeed);
-      setSurprise(2);
-      setGenerated(true);
-      setGeneratedWorld(generatedWorld);
-      setPublishedWorld(false);
-      setDraftRoles(ensureCreatorRoleIds(draft.draftRoles.map((r) => ({ ...r }))));
-      setGeneratedStoryOutline(draft.generatedStoryOutline);
-      setCreatorDetailBaseline({ roles: draft.draftRoles, outline: draft.generatedStoryOutline });
-      setCreatorBrief(draft.creatorBrief);
-      setCreatorProposal(null);
-      setCreatorMessages([
-        {
-          role: 'agent',
-          content: context
-            ? `还是我，我们接着刚才的讨论继续创作《${draft.worldTitle}》。已为你构思好包含 ${draft.draftRoles.length} 位核心角色（已区分可扮演视角与 NPC）、故事画布因果连线与核心主线任务的完整框架，已带入你确认的上下文。随时在下方告诉我你想调整的地方！`
-            : `已根据你的想法构思好《${draft.worldTitle}》的故事框架！包含 ${draft.draftRoles.length} 位核心角色（已区分可扮演视角与 NPC）、3 节点故事画布因果连线与核心主线任务。你可以随时在下方调整人物与剧情设定。`,
-        },
-      ]);
-      setCreatorMessage('');
-      setCreatorQuestions(['先微调其中一位角色的核心动机', '为故事画布增加一个意外分支节点', '修改故事结局的胜败条件']);
-      setRoleImages({});
-      setCreateStep(1);
-      navigate('create');
-      return;
-    }
-
-    setWorldTitle(''); setWorldSeed(''); setSurprise(2); setGenerated(false); setGeneratedWorld(null); setPublishedWorld(false);
+    // A homepage idea is author input, not authorization to import a template world.
+    // Seeded and empty creation share the same reset path, including chat context.
+    setWorldTitle(''); setWorldSeed(trimmedSeed); setSurprise(2); setGenerated(false); setGeneratedWorld(null); setPublishedWorld(false);
     setGeneratedStoryOutline([]); setCreatorDetailBaseline(null); setCreatorBrief(emptyCreatorBrief); setCreatorProposal(null);
-    setCreatorMessages(context ? [{ role: 'agent', content: '还是我，我们接着创作。我会参考你选好的上下文讨论角色、关系与目标，建议等你采纳后再写入设定。' }]
+    setCreatorMessages(trimmedSeed ? [{ role: 'creator', content: trimmedSeed }, { role: 'agent', content: '已记下你的想法，尚未替你设定人物或剧情。你希望这个故事偏什么风格，有哪些一定要保留的设想？我们从这里一起展开。' }] : context ? [{ role: 'agent', content: '还是我，我们接着创作。我会参考你选好的上下文讨论角色、关系与目标，建议等你采纳后再写入设定。' }]
       : [{ role: 'agent', content: '还是我，陪你一起创作。不用先填表，说说你最想体验的那个场面？建议可以直接修改，发送“全部采纳”就会写入草稿。需要参考记忆时，在“设定与方向 → 选择带入的日常聊天与记忆”里选择。' }]);
-    setCreatorMessage(seed);
+    setCreatorMessage('');
     setCreatorQuestions(['先帮我想几个互相有纠葛的人物', '一起讨论玩家最终想得到什么', '怎样增加一个有代价的困难？']);
     setDraftRoles(ensureCreatorRoleIds([{ name: '', identity: '', personality: '', relationship: '', appearance: '' }, { name: '', identity: '', personality: '', relationship: '', appearance: '' }]));
     setRoleImages({}); setCreateStep(1); navigate('create');
