@@ -30,6 +30,7 @@ export function publicationDraft(entry: StudioWorld & { sourceId?: string }) {
       objective: index === 0 ? world.openingScene.narrative : location.description, turningPoint: '' };
   });
   const brief: CreatorBrief = {
+    synopsis: world.publicSynopsis || '',
     ...(world.storyGraph ? { storyGraph: mapCreatorStoryRoleIds(bindCreatorActors(world.storyGraph, world.characters), id => { const i = world.characters.findIndex(role => role.id === id); return i >= 0 ? `draft-role-${i}` : undefined; }) } : {}),
     discoveryGenre: world.discoveryGenre,
     coreGoal: (world.goals.find(goal => goal.scope === 'world') ?? world.goals[0])?.title ?? world.coreEvent,

@@ -34,7 +34,7 @@ export function identifyProposedRoles(before: CreatorRoleDraft[], proposed: Crea
   }));
 }
 
-const roleFields = { name: '姓名', cardHook: '卡片介绍', identity: '身份', personality: '性格', relationship: '关系', appearance: '外观', goal: '目标' } as const;
+const roleFields = { name: '姓名', publicIntroduction: '公开介绍', cardHook: '卡片介绍', identity: '身份', personality: '性格', relationship: '关系', appearance: '外观', goal: '目标' } as const;
 const equal = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 const castFrom = (value: unknown) => value as CreatorCast | undefined;
 

@@ -30,6 +30,7 @@ function isCreatorBrief(value: unknown) {
   if (!isRecord(value)
     || (value.discoveryGenre !== undefined && !validDiscoveryGenre(value.discoveryGenre))
     || (value.storyGraph !== undefined && creatorStoryIssues(value.storyGraph).length > 0)
+    || (value.synopsis !== undefined && (typeof value.synopsis !== 'string' || value.synopsis.length > 3000))
     || typeof value.coreGoal !== 'string'
     || typeof value.preferredDirection !== 'string'
     || typeof value.alternativeDirection !== 'string'
@@ -96,7 +97,7 @@ export function isCreatorAgentResponse(value: unknown): value is CreatorAgentRes
     && typeof value.proposal.premise === 'string'
     && (value.proposal.characters === undefined || (Array.isArray(value.proposal.characters)
       && value.proposal.characters.length <= 5
-      && value.proposal.characters.every((role) => isRecord(role) && validCardHook(role.cardHook) && (role.goal === undefined || typeof role.goal === 'string') && ['name', 'identity', 'persona', 'relationship', 'appearance'].every((key) => typeof role[key] === 'string'))))
+      && value.proposal.characters.every((role) => isRecord(role) && validCardHook(role.cardHook) && (role.publicIntroduction === undefined || (typeof role.publicIntroduction === 'string' && role.publicIntroduction.length <= 1200)) && (role.goal === undefined || typeof role.goal === 'string') && ['name', 'identity', 'persona', 'relationship', 'appearance'].every((key) => typeof role[key] === 'string'))))
     && isCreatorBrief(value.proposal.brief)
     && isStringArray(value.nextQuestions)
     && (value.readiness === 'needs_detail' || value.readiness === 'ready');

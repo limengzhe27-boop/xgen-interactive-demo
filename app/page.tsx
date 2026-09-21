@@ -114,7 +114,7 @@ import {
 import { normalizeSurpriseLevel } from '@/lib/surprise-engine';
 import { preserveCreatorDetails, preserveCreatorFramework } from '@/lib/creator-framework';
 import { applyCreatorChange, combineCreatorChanges, creatorConfirmation, creatorOpeningRevision, creatorChanges, ensureCreatorRoleIds, identifyProposedRoles, type CreatorChange, type CreatorRoleDraft } from '@/lib/creator-changes';
-import { DeleteRoleDialog, PortraitBatchDialog, ImagePreviewModal, CreatorShowcaseModal } from '@/components/creator-dialogs';
+import { DeleteRoleDialog, PortraitBatchDialog, ImagePreviewModal } from '@/components/creator-dialogs';
 import { WorldIntroPage, type WorldIntroData, type WorldIntroCharacter, type WorldIntroSavedRun } from '@/components/world-intro-page';
 import { chatRecordSubtitle } from '@/lib/chat-record-label';
 import { CreatorStoryCanvas } from '@/components/creator-story-canvas';
@@ -734,6 +734,7 @@ function normalizeCreatorBrief(saved: CreatorBrief): CreatorBrief {
   return {
     ...(isCreatorStoryGraph(brief.storyGraph) && !creatorStoryIssues(brief.storyGraph).length ? { storyGraph: brief.storyGraph } : {}),
     discoveryGenre: validDiscoveryGenre(brief.discoveryGenre) ? brief.discoveryGenre : '',
+    synopsis: typeof brief.synopsis === 'string' ? brief.synopsis : '',
     coreGoal: brief.coreGoal?.trim() || '',
     preferredDirection: brief.preferredDirection?.trim() || '',
     alternativeDirection: brief.alternativeDirection?.trim() || '',
@@ -879,6 +880,7 @@ function buildCreatorWorld(
   return {
     ...nextWorld,
     storyGraph: normalizedBrief.storyGraph,
+    publicSynopsis: normalizedBrief.synopsis,
     id: baseWorld?.id || 'draft-generated-world',
     discoveryGenre: creatorBrief.discoveryGenre === undefined ? baseWorld?.discoveryGenre : normalizedBrief.discoveryGenre,
     title: safeTitle,
@@ -1092,6 +1094,8 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
   const [creatorDocuments, setCreatorDocuments] = useState<CreatorDocument[]>([]);
   const deletedDraftIds = useRef(new Set<string>());
   const [draftId, setDraftId] = useState('creator-world');
+  const currentDraftIdRef = useRef(draftId);
+  currentDraftIdRef.current = draftId;
   const [runId, setRunId] = useState('legacy-run');
   const [activeLibrary, setActiveLibrary] = useState<StudioWorld | null>(null);
   const [libraryRoleImages, setLibraryRoleImages] = useState<Record<string, string>>({});
@@ -1151,8 +1155,8 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
   const creatorRoleImages = Object.fromEntries(draftRoles.map((role, index) => {
     const character = generatedWorld?.characters.find(c => c.id === role.editorId)
       ?? generatedWorld?.characters[index];
-    const saved = character?.name === role.name && character.imagePrompt === role.appearance
-      ? creatorAssets?.portraits[character.id] : undefined;
+    const saved = (role.editorId ? creatorAssets?.portraits[role.editorId] : undefined)
+      || (character?.name === role.name ? creatorAssets?.portraits[character.id] : undefined);
     return [`draft-role-${index}`, roleImages[`draft-role-${index}`] || saved || ''];
   }));
 
@@ -1517,9 +1521,11 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       if (!active) return;
       const restored = Object.fromEntries(entries.filter((entry): entry is readonly [string, string] => Boolean(entry[1])));
       setRoleImages((current) => ({ ...Object.fromEntries(Object.entries(current).filter(([id]) => unchangedIds.has(id))), ...restored }));
+      const retained = Object.fromEntries(draftRoles.flatMap((role, index) => role.editorId && restored[`draft-role-${index}`] ? [[role.editorId, restored[`draft-role-${index}`]]] : []));
+      if (Object.keys(retained).length) setCreatorAssets(current => ({ cover: current?.cover || '', portraits: { ...retained, ...current?.portraits } }));
     });
     return () => { active = false; };
-  }, [portraitSignature, storageReady]);
+  }, [portraitSignature, storageReady, draftId, view]);
 
   const runSnapshotJSON = JSON.stringify({
     version: 1, id: runId, worldKind: activeWorld, presetId: activeWorld === 'suggestion' ? suggestedPreset?.id : undefined,
@@ -1806,15 +1812,15 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       const rawNarrative = libraryEntry.world.openingScene?.narrative || '';
       const isRoleSpecific = /你是|我的|我扮演|我还没|我明明/.test(rawNarrative);
       const publicScene = isRoleSpecific ? (libraryEntry.premise || libraryEntry.world.premise) : rawNarrative;
-      const publicStoryHook = libraryEntry.world.storyHook || (isRoleSpecific ? libraryEntry.premise : rawNarrative);
+      const publicStoryHook = libraryEntry.world.storyHook || (libraryEntry.world.publicSynopsis ? '' : (isRoleSpecific ? libraryEntry.premise : rawNarrative));
 
       return {
         id: libraryEntry.id,
         title: libraryEntry.title,
         genre: libraryEntry.genre || '互动故事',
-        premise: libraryEntry.premise,
+        premise: libraryEntry.world.publicSynopsis || libraryEntry.premise,
         storyHook: publicStoryHook,
-        openingScene: { location: locationName, scene: publicScene },
+        openingScene: libraryEntry.world.publicSynopsis ? undefined : { location: locationName, scene: publicScene },
         cover: libraryEntry.cover,
         fixedRoleId: libraryEntry.fixedRoleId,
         characters,
@@ -2569,8 +2575,9 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       const cacheKey = portraitCacheKey(role);
       if (!regenerate) {
         const existing = await getCachedSceneImage(cacheKey).catch(() => null);
-        if (roleImageRequestRef.current[roleId] !== requestId) return;
+        if (currentDraftIdRef.current !== draftId || roleImageRequestRef.current[roleId] !== requestId) return;
         if (existing) {
+          setCreatorAssets(current => ({ cover: current?.cover || '', portraits: { ...current?.portraits, [role.editorId || roleId]: existing } }));
           setRoleImages((current) => ({ ...current, [roleId]: existing }));
           setRoleImageStates((current) => ({ ...current, [roleId]: 'ready' }));
           return;
@@ -2583,9 +2590,10 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
         prompt,
         seed: regenerate ? Math.floor(Math.random() * 1_000_000_000) : stableVisualSeed(`character:${roleId}:${role.name}:${role.appearance}`),
       }, undefined, accountScope);
-      if (roleImageRequestRef.current[roleId] !== requestId) return;
+      if (currentDraftIdRef.current !== draftId || roleImageRequestRef.current[roleId] !== requestId) return;
       if (result.persistent) await cacheSceneImage(cacheKey, result.assetUrl).catch(() => false);
-      if (roleImageRequestRef.current[roleId] !== requestId) return;
+      if (currentDraftIdRef.current !== draftId || roleImageRequestRef.current[roleId] !== requestId) return;
+      setCreatorAssets(current => ({ cover: current?.cover || '', portraits: { ...current?.portraits, [role.editorId || roleId]: result.assetUrl } }));
       setRoleImages((current) => ({ ...current, [roleId]: result.assetUrl }));
       setRoleImageStates((current) => ({ ...current, [roleId]: 'ready' }));
     } catch {
@@ -2675,6 +2683,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
           cardHook: role.cardHook,
           relationship: role.relationship,
           appearance: role.appearance,
+          publicIntroduction: role.publicIntroduction,
         })),
         relationshipNotes: draftRoles.map((role) => role.relationship).filter(Boolean),
         currentDraft: {
@@ -2722,10 +2731,10 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       }
       setCreatorProposal(response.proposal);
       const brief = normalizeCreatorBrief({ ...response.proposal.brief, discoveryGenre: response.proposal.brief.discoveryGenre ?? creatorBrief.discoveryGenre });
-      const nextRoles = response.proposal.characters?.length ? identifyProposedRoles(draftRoles, response.proposal.characters.map((role, index) => ({ name: role.name, cardHook: role.cardHook, identity: role.identity, personality: role.persona, relationship: role.relationship, appearance: role.appearance, goal: role.goal ?? draftRoles[index]?.goal ?? '' }))) : draftRoles;
+      const nextRoles = response.proposal.characters?.length ? identifyProposedRoles(draftRoles, response.proposal.characters.map((role, index) => ({ name: role.name, cardHook: role.cardHook, publicIntroduction: role.publicIntroduction ?? draftRoles.find(old => old.name === role.name)?.publicIntroduction, identity: role.identity, personality: role.persona, relationship: role.relationship, appearance: role.appearance, goal: role.goal ?? draftRoles[index]?.goal ?? '' }))) : draftRoles;
       if (!brief.storyGraph) brief.storyGraph = remapCreatorStoryRoles(creatorBrief.storyGraph, draftRoles, nextRoles);
       const nextChanges = creatorChanges(baseline, { ...brief, entryPolicy: response.proposal.entryPolicy ?? entryPolicy, surpriseLevel: response.proposal.surpriseLevel ?? surprise, title: response.proposal.title, premise: response.proposal.premise, castAndTasks: { roles: nextRoles, tasks: brief.tasks } }, {
-        storyGraph: '故事画布与角色入场', discoveryGenre: '剧情分类', entryPolicy: '身份入场与能力规则',
+        synopsis: '作品公开简介', storyGraph: '故事画布与角色入场', discoveryGenre: '剧情分类', entryPolicy: '身份入场与能力规则',
         surpriseLevel: '意外程度',
         title: '世界名称', premise: '背景与冲突', castAndTasks: '人物动机与剧情节点', coreGoal: '故事主要走向', preferredDirection: '预期走向', alternativeDirection: '其他走向', complexityLevel: '世界复杂度', difficulties: '世界级困难', scheduledEvents: '预设事件',
       }).map(change => change.key === 'storyGraph' ? { ...change, roleOrder: nextRoles.map(role => role.editorId!) } : change.key === 'entryPolicy' ? { ...change, roleOrder: draftRoles.map(role => role.editorId!), referenceLabels: Object.fromEntries(draftRoles.map((role, index) => [`draft-role-${index}`, role.name || `角色 ${index + 1}`])) } : change);
@@ -2889,7 +2898,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     if (change.key === '__all') {
       setWorldTitle(next.title as string); setWorldSeed(next.premise as string);
       setSurprise(next.surpriseLevel as number); setEntryPolicy(restoreEntryPolicy(next.entryPolicy));
-      setCreatorBrief({...creatorBrief, storyGraph: next.storyGraph as CreatorStoryGraph | undefined, discoveryGenre: next.discoveryGenre as string, coreGoal: next.coreGoal as string, preferredDirection: next.preferredDirection as string, alternativeDirection: next.alternativeDirection as string, complexityLevel: next.complexityLevel as CreatorBrief['complexityLevel'], difficulties: next.difficulties as string[], scheduledEvents: next.scheduledEvents as CreatorBrief['scheduledEvents'], tasks: (next.castAndTasks as {tasks: CreatorTaskDraft[]}).tasks});
+      setCreatorBrief({...creatorBrief, synopsis: next.synopsis as string | undefined, storyGraph: next.storyGraph as CreatorStoryGraph | undefined, discoveryGenre: next.discoveryGenre as string, coreGoal: next.coreGoal as string, preferredDirection: next.preferredDirection as string, alternativeDirection: next.alternativeDirection as string, complexityLevel: next.complexityLevel as CreatorBrief['complexityLevel'], difficulties: next.difficulties as string[], scheduledEvents: next.scheduledEvents as CreatorBrief['scheduledEvents'], tasks: (next.castAndTasks as {tasks: CreatorTaskDraft[]}).tasks});
     }
     if (change.key === 'title') setWorldTitle(next.title as string);
     else if (change.key === 'entryPolicy') setEntryPolicy(restoreEntryPolicy(next.entryPolicy));
@@ -2983,7 +2992,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
         creatorBrief: effectiveBrief,
       }, signal));
       if (!creatorRequest.current.current(signal)) return;
-      const normalizedWorld = { ...normalizeGeneratedWorld(response.world, draftRoles), storyGraph: effectiveBrief.storyGraph };
+      const normalizedWorld = { ...normalizeGeneratedWorld(response.world, draftRoles), storyGraph: effectiveBrief.storyGraph, publicSynopsis: effectiveBrief.synopsis };
       // Generation is not authorization to introduce a mandatory task system or endings.
       if (!effectiveBrief.tasks.length) {
         normalizedWorld.tasks = [];
@@ -3889,7 +3898,9 @@ function CreateWorld({
   }
 
   function locateChange(change: CreatorChange) {
-    if (change.key === 'storyGraph') {
+    if (change.key === 'synopsis' || (change.target?.kind === 'role' && ['publicIntroduction', 'cardHook'].includes(change.target.field))) {
+      selectModule('presentation');
+    } else if (change.key === 'storyGraph') {
       selectModule('story');
       setStoryView('events');
     } else if (change.key === 'castAndTasks' || change.target?.kind === 'role') {
@@ -4328,7 +4339,7 @@ function CreateWorld({
             <div className="role-title-meta">
               <span className="role-index-tag">角色 {String(curRoleIndex + 1).padStart(2, '0')}</span>
               <h3>{activeRole.name || `角色 ${curRoleIndex + 1}`}</h3>
-              {activeRole.identity && <span className="role-identity-pill">{activeRole.identity}</span>}
+              {activeRole.identity && <span className="role-identity-pill" title={activeRole.identity}>{activeRole.identity}</span>}
             </div>
             <div className="role-card-actions">
               <button
@@ -4800,16 +4811,30 @@ function CreateWorld({
         <h3>{worldTitle || '作品尚未命名'}</h3>
         <Button variant="ghost" size="sm" onClick={() => selectModule('direction')}><Pencil size={13} />修改名称与方向</Button>
       </div>
+      <div className="draft-field full-field"><label htmlFor="world-public-synopsis">作品公开简介</label><Textarea id="world-public-synopsis" maxLength={3000} value={creatorBrief.synopsis ?? ''} onChange={event => onUpdateCreatorBrief('synopsis', event.target.value)} placeholder="向体验者介绍背景、眼前局面和参与方式，不泄露秘密或后续答案" /></div>
+      {renderPendingSuggestion(proposalChanges.find(change => change.key === 'synopsis'), true)}
     </section>
     <div className="workspace-assets">{draftRoles.map((role, index) => <section className="workspace-asset" key={role.editorId || index}>
       {roleImages[`draft-role-${index}`] ? <img src={roleImages[`draft-role-${index}`]} alt={`${role.name || '角色'}的形象`} /> : <p>尚未生成人物形象</p>}
       <h3>{role.name || `角色 ${index + 1}`}</h3>
       <div className="draft-field full-field"><label htmlFor={`role-hook-${index}`}>卡片标题 · 一句让人想点进来的话</label><Input id={`role-hook-${index}`} maxLength={60} value={role.cardHook ?? ''} onChange={(event) => onUpdateRole(index, 'cardHook', event.target.value)} placeholder="吸引点击的一句话短句" /></div>
+      {renderPendingSuggestion(getRoleSuggestion(role.editorId, 'cardHook'))}
       <div className="draft-field full-field"><label htmlFor={`role-public-${index}`}>公开介绍 · 聊天页展示（可选）</label><Textarea id={`role-public-${index}`} maxLength={1200} value={role.publicIntroduction ?? ''} onChange={(event) => onUpdateRole(index, 'publicIntroduction', event.target.value)} placeholder="公开可见的身份与背景介绍（可选）" /></div>
+      {renderPendingSuggestion(getRoleSuggestion(role.editorId, 'publicIntroduction'), true)}
       <Button variant="outline" disabled={roleImageStates[`draft-role-${index}`] === 'generating'} onClick={() => onGenerateRoleImage(index)}>{roleImageStates[`draft-role-${index}`] === 'generating' ? '正在生成' : roleImages[`draft-role-${index}`] ? '重新生成形象' : '生成形象'}</Button>
       {roleImageStates[`draft-role-${index}`] === 'error' && <p role="alert">形象生成失败，可稍后重试。</p>}
     </section>)}</div>
   </>;
+  if (settingsOpen) return <WorldIntroPage data={{
+    id: 'creator-preview', title: worldTitle, genre: creatorBrief.discoveryGenre,
+    premise: creatorBrief.synopsis || worldSeed, cover,
+    characters: draftRoles.map((role, index) => ({
+      id: `draft-role-${index}`, name: role.name || `角色 ${index + 1}`, identity: role.identity,
+      publicIntroduction: role.publicIntroduction, cardHook: role.cardHook,
+      playable: role.playable !== false, image: roleImages[`draft-role-${index}`],
+    })),
+  }} onBack={() => setSettingsOpen(false)} onResumeRun={() => {}}
+    onStartWorld={id => { if (generating || creatorAgentThinking) return; setSettingsOpen(false); onPublish(Number(id.replace('draft-role-', ''))); }} />;
   return (
     <div className="flow-page creation-flow">
       <header className="flow-toolbar">
@@ -4843,29 +4868,6 @@ function CreateWorld({
           panels={{ direction: directionPanel, people: peoplePanel, story: storyPanel, presentation: presentationPanel }}
         />
       </div>
-      <CreatorShowcaseModal
-        open={settingsOpen}
-        onClose={() => setSettingsOpen(false)}
-        worldTitle={worldTitle}
-        worldSeed={worldSeed}
-        genre={creatorBrief.discoveryGenre}
-        surprise={surprise}
-        complexityLevel={creatorBrief.complexityLevel}
-        cover={cover}
-        roles={draftRoles}
-        roleImages={roleImages}
-        taskIssues={taskIssues}
-        canPublish={canPublish}
-        onPlayRole={(roleIndex) => {
-          setSettingsOpen(false);
-          onPublish(roleIndex);
-        }}
-        onShare={() => {
-          setSettingsOpen(false);
-          onShare();
-        }}
-        isBusy={generating || creatorAgentThinking}
-      />
       <Sheet open={historyOpen} onOpenChange={setHistoryOpen}>
         <SheetContent className="flow-drawer creator-settings-drawer">
           <SheetTitle>版本、续写与采纳记录</SheetTitle><SheetDescription>恢复历史版本会另存草稿；撤销不会覆盖之后的手改。</SheetDescription>

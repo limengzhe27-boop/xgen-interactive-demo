@@ -12,6 +12,7 @@ const texts: Shape = ['string'];
 const schema: Shape = {
   'storyGraph?': { startNodeId: 'string', nodes: [{ id: 'string', title: 'string', location: 'string', scene: 'string', worldFacts: texts, nextNodeIds: texts, 'eventIntent?': 'string', 'trigger?': 'string', 'closingCondition?': 'string', 'possibilities?': [{ actor: 'string', 'roleId?': 'nullable-string', action: 'string', consequence: 'string', 'condition?': 'string' }] }], entries: [{ roleId: 'string', nodeId: 'string', defaultPath: texts, knownFacts: texts, beliefs: texts, scene: 'string' }] },
   'storyHook?': 'string',
+  'publicSynopsis?': 'string',
   'discoveryGenre?': 'string',
   id: 'string', title: 'string', premise: 'string', timeSetting: 'string', coreEvent: 'string', surpriseLevel: 'number',
   'system?': { name: 'string', premise: 'string', entries: [{ id: 'string', title: 'string', description: 'string', roleIds: texts, requiredTaskIds: texts, action: 'string' }] },

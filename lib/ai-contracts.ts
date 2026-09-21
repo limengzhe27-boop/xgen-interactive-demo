@@ -139,6 +139,7 @@ export type ScheduledWorldEvent = {
 };
 
 export type WorldDefinition = {
+  publicSynopsis?: string;
   /** Creator's possible story directions, never the current save's event history. */
   storyGraph?: import('./creator-story-graph').CreatorStoryGraph;
   storyHook?: string;
@@ -191,6 +192,7 @@ export type CreatorTaskDraft = {
 };
 
 export type CreatorBrief = {
+  synopsis?: string;
   storyGraph?: import('./creator-story-graph').CreatorStoryGraph;
   discoveryGenre?: string;
   coreGoal: string;
@@ -215,7 +217,7 @@ export type CreatorAgentRequest = {
   contractVersion: typeof AI_CONTRACT_VERSION;
   userMessage: string;
   conversation: CreatorChatMessage[];
-  characters: (Pick<CharacterDefinition, 'name' | 'identity' | 'persona' | 'cardHook'> & { id?: string; goal?: string; relationship?: string; appearance?: string })[];
+  characters: (Pick<CharacterDefinition, 'name' | 'identity' | 'persona' | 'cardHook' | 'publicIntroduction'> & { id?: string; goal?: string; relationship?: string; appearance?: string })[];
   editingContext?: { step: number; section: string; focusedField?: string };
   relationshipNotes: string[];
   currentDraft: {
@@ -237,7 +239,7 @@ export type CreatorAgentResponse = {
     surpriseLevel?: 1 | 2 | 3 | 4;
     title: string;
     premise: string;
-    characters?: { name: string; identity: string; persona: string; relationship: string; appearance: string; goal?: string; cardHook?: string }[];
+    characters?: { name: string; identity: string; persona: string; relationship: string; appearance: string; goal?: string; cardHook?: string; publicIntroduction?: string }[];
     brief: CreatorBrief;
   };
   nextQuestions: string[];

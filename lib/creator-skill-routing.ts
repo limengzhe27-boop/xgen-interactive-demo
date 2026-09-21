@@ -1,4 +1,5 @@
 import type { CreatorAgentRequest } from './ai-contracts.ts';
+import { creatorContentGaps } from './creator-completeness.ts';
 import type { CreatorTriage } from './typesafe-creator-triage.ts';
 
 /** Runtime excerpts of research/skill-drafts/creator-suite-v1, not a second output schema. */
@@ -9,7 +10,7 @@ export const horizontalSkills = {
   H3: '世界与关系：只补影响当前创作的规则、相互依赖与认知边界。工作方法：从具体诉求连接双方（谁帮助、依赖、阻碍谁，允许单向或不对称）；落实四分法（客观事实、角色已知、怀疑推断及玩家见闻依据）。修改关系时说明受影响入口和事件，不自动重写。成果落点：设定与方向及人物与关系（relationshipNotes、characters[].relationships、node.worldFacts、entry.knownFacts、beliefs）。重点边界：共享世界绝不等于共享秘密，禁止全员广播秘密；图上连线或更早入场不代表在场或知情；规则不能预演玩家最终结果。',
   H4: '角色入场：共享客观开场基准（时间、地点、已发生事实与正在发生之事），分别交代每个可选角色的位置、必要已知、诉求及眼前可回应局面。工作方法：为目标角色说明处境与行动空间，晚入场注明成立条件与认知来源；多角色作品逐一覆盖入口，可先提供视角样本并标注其余待补；玩家初见时自然补足上下文，不强迫NPC背资料。成果落点：故事画布（storyGraph.startNodeId、storyGraph.nodes[0]、storyGraph.entries[roleId]）。重点边界：后续事件不改变角色首次入场起点，绝不因新增事件搬移入口；接管后不替玩家行动，文字方案不等于制作视频。',
   H5: '互动发展与收束：围绕当前锚点按“触发条件—行动空间—影响与代价—他人回应”组织事件，让局面产生实际变化。工作方法：分清既成事实、条件事件与作者里程碑；汇合保留路线带来的知识、关系、物品与损失；明确委托构思时直接交付完整局部节点提案（ID、scene、nextNodeIds），严禁机械反问死锁。成果落点：故事画布与目标任务（storyGraph.nodes、nextNodeIds、possibilities 与 brief.tasks 分开维护）。重点边界：讨论可能不等于已发生；分支不机械穷举凑数；无写入回执不宣称已入画布。',
-  H6: '作品展示：从已存在内容提炼公开标题、简介、选角介绍与素材视觉需求，严格分级脱敏。工作方法：三级公开权限（发现页简介、选角公开介绍、内部私密档案）；区分“扮演角色”与“与角色对话”的不同入口语义与按钮文案；给出符合调性的展示文案和封面设计要求。成果落点：展示与素材（title、brief.synopsis、brief.cardHook、characters[].publicIntroduction，封面设计规格在 reply 交付）。重点边界：绝不把私人目标或内部设定当作公开文案；素材制作独立于内容讨论，严禁自动发起收费生成或发布。',
+  H6: '作品展示：从已存在内容提炼公开标题、简介、选角介绍与素材视觉需求，严格分级脱敏。工作方法：三级公开权限（发现页简介、选角公开介绍、内部私密档案）；区分“扮演角色”与“与角色对话”的不同入口语义与按钮文案；给出符合调性的展示文案和封面设计要求。成果落点：展示与素材（title、brief.synopsis、characters[].cardHook、characters[].publicIntroduction，封面设计规格在 reply 交付）。重点边界：绝不把私人目标或内部设定当作公开文案；素材制作独立于内容讨论，严禁自动发起收费生成或发布。',
 } as const;
 export const verticalMethods = {
   V1: '调查与发现：信息如何获取、解释与揭示。调用操作：1. 选一个本轮需澄清的未知，分清作者未定与角色未知；2. 围绕已定真相设计可接触信息、获取途径与支持的判断；3. 比较询问、观察或交叉核对的收益与风险；4. 结论与线索交给 H5，知情依据交给 H3。检查与反例：线索必须可合理获得；怀疑不写成事实；不用微动作直接证明有罪，不强制物证或全员撒谎。',
@@ -58,6 +59,9 @@ export function selectCreatorSkills(input: CreatorAgentRequest, triage: CreatorT
 export function creatorSkillGuidance(input: CreatorAgentRequest, triage: CreatorTriage | null = null) {
   const selected = selectCreatorSkills(input, triage);
   return `\n【创作能力 ${CREATOR_SKILL_VERSION}；${selected.horizontal}${selected.vertical.length ? '+' + selected.vertical.join('+') : ''}】
+【工作区内容盘点】${creatorContentGaps(input).join('；') || '人物与公开展示的基础文字已有内容，检查质量而不是重复填写'}。
+这不是必填清单。先结合全部已确认内容与待采纳建议识别已聊到但尚未落入字段的内容，直接提炼为局部建议；缺少新创作决定才请作者选择。用户说“继续/完善/还有什么/可以发布吗”时，主动推进一个尚未完成的模块，不只围绕剧情节点反复讨论。人物阶段主动覆盖性格、外观、诉求与关系；开场与人物基本成形后主动交付不剧透的作品简介、角色公开介绍和卡片短句，不等作者逐字段点名。作者明确要求整体完善时可以一并交付，不以每轮最多一问为理由只闲聊不产出。非本轮授权的核心新设定先给备选，作者拒绝或选择留白后不反复追问。
+“开场能体验”不等于“作品已完整”。发布前分别说明已完成、建议补充、素材未制作三类；公开介绍/外观仍未完善时不能笼统说全部完成。图片制作需单独授权，不要求为发布强制生成图片；发布本身由界面操作，不代称已发布。
 本轮执行规则（严禁违背）：
 1. 局限性修改原则：作者只讨论某个人，就不要替其他人定案；局部提案只返回涉及该角色的字段，不扩写其他人。
 2. 明确委托交付原则：作者明确委托（如“帮我想想”、“你推荐一个”、“完善这个节点”）时，必须直接交付成果方案，严禁机械反问阻断。

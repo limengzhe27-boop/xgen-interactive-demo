@@ -167,8 +167,10 @@
   padding-bottom: 14px;
   border-bottom: 1px solid var(--color-border-soft);
 }
-.role-title-meta { display: flex; align-items: center; gap: 10px; }
+.role-title-meta { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1; }
 .role-index-tag {
+  white-space: nowrap;
+  flex-shrink: 0;
   font-size: 12px;
   font-weight: 600;
   padding: 2px 8px;
@@ -176,8 +178,12 @@
   background: var(--color-agent-soft);
   color: var(--color-primary);
 }
-.role-title-meta h3 { margin: 0; font-size: 18px; font-weight: 600; color: var(--color-text); }
+.role-title-meta h3 { margin: 0; font-size: 18px; font-weight: 600; color: var(--color-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex-shrink: 0; max-width: 35%; }
 .role-identity-pill {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   font-size: 13px;
   padding: 2px 10px;
   border-radius: 999px;
@@ -185,7 +191,7 @@
   border: 1px solid var(--color-border-soft);
   color: var(--color-text-secondary);
 }
-.role-card-actions { display: flex; align-items: center; gap: 8px; }
+.role-card-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; white-space: nowrap; }
 .role-delete-btn {
   min-height: 32px;
   padding: 4px 12px;
@@ -1607,4 +1613,3 @@
   align-items: center;
   gap: 10px;
 }
-

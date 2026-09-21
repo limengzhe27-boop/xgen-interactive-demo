@@ -3,6 +3,7 @@ import { isCreatorAgentResponse } from './ai-validation.ts';
 import { creatorStoryIssues, isCreatorStoryGraph, preserveEventIntent, bindCreatorActors } from './creator-story-graph.ts';
 import { normalizeCreatorProposal } from './creator-normalization.ts';
 import { migrateCreatorDirections } from './creator-directions.ts';
+import { creatorContentGaps } from './creator-completeness.ts';
 import { appendCreatorGraph, creatorAppendRequested } from './creator-append.ts';
 
 const record = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
@@ -139,7 +140,7 @@ export function readCreatorResponse(value: unknown, input: CreatorAgentRequest):
     proposal: { ...base, ...p, brief },
     ...(notices.length ? { proposalIssue: notices.join(' ') } : {}),
     nextQuestions: Array.isArray(value.nextQuestions) ? value.nextQuestions.filter(x => typeof x === 'string').slice(0, 1) : [],
-    readiness: value.readiness === 'ready' && !graphIssues.length ? 'ready' : 'needs_detail'
+    readiness: value.readiness === 'ready' && !graphIssues.length && !creatorContentGaps({ ...input, pendingProposal: { ...base, ...p, brief } as CreatorAgentResponse['proposal'] }).length ? 'ready' : 'needs_detail'
   };
   let response: CreatorAgentResponse;
   if (isCreatorAgentResponse(candidate)) {
@@ -148,6 +149,7 @@ export function readCreatorResponse(value: unknown, input: CreatorAgentRequest):
     const hasCoreContent = (typeof p.title === 'string' && p.title.trim()) || (typeof p.premise === 'string' && p.premise.trim()) || (Array.isArray(p.characters) && p.characters.length > 0);
     if (hasCoreContent) {
       const repairedBrief = {
+        synopsis: typeof brief.synopsis === 'string' ? brief.synopsis : base.brief?.synopsis,
         coreGoal: typeof brief.coreGoal === 'string' ? brief.coreGoal : (base.brief?.coreGoal ?? ''),
         preferredDirection: typeof brief.preferredDirection === 'string' ? brief.preferredDirection : (base.brief?.preferredDirection ?? ''),
         alternativeDirection: typeof brief.alternativeDirection === 'string' ? brief.alternativeDirection : (base.brief?.alternativeDirection ?? ''),
@@ -162,7 +164,7 @@ export function readCreatorResponse(value: unknown, input: CreatorAgentRequest):
         reply: value.reply,
         discussionOnly: false,
         nextQuestions: Array.isArray(value.nextQuestions) ? value.nextQuestions.filter(x => typeof x === 'string').slice(0, 1) : [],
-        readiness: value.readiness === 'ready' && !graphIssues.length ? 'ready' : 'needs_detail',
+        readiness: candidate.readiness,
         ...(notices.length ? { proposalIssue: notices.join(' ') } : {}),
         proposal: {
           ...base,
