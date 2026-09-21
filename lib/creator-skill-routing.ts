@@ -1,11 +1,11 @@
 import type { CreatorAgentRequest } from './ai-contracts.ts';
-import { creatorContentGaps } from './creator-completeness.ts';
+import { creatorContentGaps, creatorEntryGaps } from './creator-completeness.ts';
 import type { CreatorTriage } from './typesafe-creator-triage.ts';
 
 /** Runtime excerpts of research/skill-drafts/creator-suite-v1, not a second output schema. */
-export const CREATOR_SKILL_VERSION = 'six-by-six-2026-09-21.1';
+export const CREATOR_SKILL_VERSION = 'six-by-six-2026-09-21.2';
 export const horizontalSkills = {
-  H1: '内容方向：承接核心设想，按缺口讨论主要体验、基调尺度、参与方式与必要边界。工作方法：提炼已定内容，聚焦核心设想/主要体验/基调尺度/参与方式/基本局面关键缺口；提供2~3个有差异方向供比较，已清楚的不重问，不发问卷阻断。明确委托时给出具体定位草案与建议。成果落点：设定与方向（title、premise、entryPolicy、brief.discoveryGenre），待定构思与设计假设保留在 reply，不强制世界规则先行或自动补齐全员秘密。',
+  H1: '内容方向：承接核心设想，按缺口讨论主要体验、基调尺度、参与方式与必要边界。工作方法：提炼已定内容，聚焦核心设想/主要体验/基调尺度/参与方式/基本局面关键缺口；先推荐与作者意图相符的方向，说明会产生什么体验、为什么、牺牲什么，必要时比较替代方案；不固定ABC，不以“你选哪个”代替判断，已清楚的不重问。明确委托时给出具体定位草案。成果落点：设定与方向（title、premise、entryPolicy、brief.discoveryGenre），待定构思与设计假设保留在 reply，不强制世界规则先行或自动补齐全员秘密。',
   H2: '人物塑造：作者只讨论某个人，就不要替其他人定案；仅在指定人物范围内讨论身份、诉求、性格如何影响行动、能力与限制。工作方法：用相关情境对比行为差异，避免空泛追问形容词；未知留空，不为返回完整名单扩写其他人。建议与确认事实分开，局部提案只改该角色。成果落点：人物与关系（characters[i]: id、name、identity、persona、personality、appearance、goal）。重点边界：禁止拿私密目标或秘密当公开文案，人物图片不是本阶段必交成果，严禁自动调用收费生图。',
   H3: '世界与关系：只补影响当前创作的规则、相互依赖与认知边界。工作方法：从具体诉求连接双方（谁帮助、依赖、阻碍谁，允许单向或不对称）；落实四分法（客观事实、角色已知、怀疑推断及玩家见闻依据）。修改关系时说明受影响入口和事件，不自动重写。成果落点：设定与方向及人物与关系（relationshipNotes、characters[].relationships、node.worldFacts、entry.knownFacts、beliefs）。重点边界：共享世界绝不等于共享秘密，禁止全员广播秘密；图上连线或更早入场不代表在场或知情；规则不能预演玩家最终结果。',
   H4: '角色入场：共享客观开场基准（时间、地点、已发生事实与正在发生之事），分别交代每个可选角色的位置、必要已知、诉求及眼前可回应局面。工作方法：为目标角色说明处境与行动空间，晚入场注明成立条件与认知来源；多角色作品逐一覆盖入口，可先提供视角样本并标注其余待补；玩家初见时自然补足上下文，不强迫NPC背资料。成果落点：故事画布（storyGraph.startNodeId、storyGraph.nodes[0]、storyGraph.entries[roleId]）。重点边界：后续事件不改变角色首次入场起点，绝不因新增事件搬移入口；接管后不替玩家行动，文字方案不等于制作视频。',
@@ -60,6 +60,7 @@ export function creatorSkillGuidance(input: CreatorAgentRequest, triage: Creator
   const selected = selectCreatorSkills(input, triage);
   return `\n【创作能力 ${CREATOR_SKILL_VERSION}；${selected.horizontal}${selected.vertical.length ? '+' + selected.vertical.join('+') : ''}】
 【工作区内容盘点】${creatorContentGaps(input).join('；') || '人物与公开展示的基础文字已有内容，检查质量而不是重复填写'}。
+【体验入口结构】${creatorEntryGaps(input).join('、') || '已有开场与角色入口；这不代表趣味性、全部角色覆盖或运行质量已验证'}。此检查和公开内容盘点分开，readiness=ready仅表示模型判断有可体验起点，不是发布许可。若使用待采纳提案判断，说明“采纳后”，不能把它称为已完成草稿。
 这不是必填清单。先结合全部已确认内容与待采纳建议识别已聊到但尚未落入字段的内容，直接提炼为局部建议；缺少新创作决定才请作者选择。用户说“继续/完善/还有什么/可以发布吗”时，主动推进一个尚未完成的模块，不只围绕剧情节点反复讨论。人物阶段主动覆盖性格、外观、诉求与关系；开场与人物基本成形后主动交付不剧透的作品简介、角色公开介绍和卡片短句，不等作者逐字段点名。作者明确要求整体完善时可以一并交付，不以每轮最多一问为理由只闲聊不产出。非本轮授权的核心新设定先给备选，作者拒绝或选择留白后不反复追问。
 “开场能体验”不等于“作品已完整”。发布前分别说明已完成、建议补充、素材未制作三类；公开介绍/外观仍未完善时不能笼统说全部完成。图片制作需单独授权，不要求为发布强制生成图片；发布本身由界面操作，不代称已发布。
 本轮执行规则（严禁违背）：

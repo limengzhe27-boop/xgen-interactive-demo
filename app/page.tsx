@@ -117,6 +117,7 @@ import { applyCreatorChange, combineCreatorChanges, creatorConfirmation, creator
 import { DeleteRoleDialog, PortraitBatchDialog, ImagePreviewModal } from '@/components/creator-dialogs';
 import { WorldIntroPage, type WorldIntroData, type WorldIntroCharacter, type WorldIntroSavedRun } from '@/components/world-intro-page';
 import { publicSynopsis, publicRoleIntroduction } from '@/lib/public-introduction';
+import { creatorAuthorContext } from '@/lib/creator-author-context';
 import { chatRecordSubtitle } from '@/lib/chat-record-label';
 import { CreatorStoryCanvas } from '@/components/creator-story-canvas';
 import { CreatorWorkspace, type CreatorWorkspaceModule } from '@/components/creator-workspace';
@@ -2632,7 +2633,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     const pendingProposal = creatorProposal && pendingSections && pendingCast ? {
       ...creatorProposal, title: pendingSections.title as string, premise: pendingSections.premise as string,
       brief: normalizeCreatorBrief({ ...pendingSections, tasks: pendingCast.tasks } as CreatorBrief),
-      characters: pendingCast.roles.map(role => ({ name: role.name, identity: role.identity, persona: role.personality, relationship: role.relationship, appearance: role.appearance, goal: role.goal, cardHook: role.cardHook })),
+      characters: pendingCast.roles.map(role => ({ name: role.name, identity: role.identity, persona: role.personality, relationship: role.relationship, appearance: role.appearance, goal: role.goal, cardHook: role.cardHook, publicIntroduction: role.publicIntroduction })),
     } : undefined;
     const openingRevision = !!creatorProposal && proposalChanges.length > 0 && creatorOpeningRevision(value);
     const revision = navigationRevision.current;
@@ -2651,6 +2652,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
         contractVersion: AI_CONTRACT_VERSION,
         userMessage: openingRevision ? `${value}\n本轮只调整开场对应的背景与预设事件，其他待采纳建议保持原样。新的开场仍须展示给我确认。` : value,
         conversation,
+        authorContext: creatorAuthorContext([...creatorMessages, userEntry]),
         pendingSuggestions: creatorProposal ? proposalChanges.map(change=>({section:change.label,value:change.after})) : [],
         editingContext: { step: createStep, section: ['角色与目标', '故事与任务', '意外与规则', '预览检查'][createStep - 1], focusedField: creatorFocus },
         characters: draftRoles.map((role, index) => ({

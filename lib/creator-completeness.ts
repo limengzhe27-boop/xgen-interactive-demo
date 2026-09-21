@@ -1,5 +1,15 @@
 import type { CreatorAgentRequest } from './ai-contracts.ts';
 
+/** Structural entry gaps only. This does not certify play quality or publication readiness. */
+export function creatorEntryGaps(input: CreatorAgentRequest): string[] {
+  const draft = input.pendingProposal ?? input.currentDraft;
+  const graph = draft.brief.storyGraph;
+  const gaps: string[] = [];
+  if (!graph?.nodes.some(node => node.id === graph.startNodeId && node.scene.trim())) gaps.push('具体开场');
+  if (!graph?.entries.some(entry => entry.scene.trim() && graph.nodes.some(node => node.id === entry.nodeId))) gaps.push('至少一个有处境说明的角色入口');
+  return gaps;
+}
+
 /** Guidance inventory, not mandatory publishing fields or permission to invent facts. */
 export function creatorContentGaps(input: CreatorAgentRequest): string[] {
   const draft = input.pendingProposal ?? input.currentDraft;

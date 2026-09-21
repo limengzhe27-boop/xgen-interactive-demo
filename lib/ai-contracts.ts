@@ -211,6 +211,7 @@ export type CreatorChatMessage = {
 };
 
 export type CreatorAgentRequest = {
+  authorContext?: import('./creator-author-context').CreatorAuthorContext;
   pendingProposal?: CreatorAgentResponse['proposal'];
   pendingSuggestions?: {section: string; value: unknown}[];
   companionContext?: { confirmedMemories: string[]; conversation: NonNullable<PersonalAgentRequest['conversation']> };

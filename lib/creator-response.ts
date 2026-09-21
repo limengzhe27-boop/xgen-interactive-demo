@@ -3,7 +3,7 @@ import { isCreatorAgentResponse } from './ai-validation.ts';
 import { creatorStoryIssues, isCreatorStoryGraph, preserveEventIntent, bindCreatorActors } from './creator-story-graph.ts';
 import { normalizeCreatorProposal } from './creator-normalization.ts';
 import { migrateCreatorDirections } from './creator-directions.ts';
-import { creatorContentGaps } from './creator-completeness.ts';
+import { creatorEntryGaps } from './creator-completeness.ts';
 import { appendCreatorGraph, creatorAppendRequested } from './creator-append.ts';
 
 const record = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
@@ -140,7 +140,7 @@ export function readCreatorResponse(value: unknown, input: CreatorAgentRequest):
     proposal: { ...base, ...p, brief },
     ...(notices.length ? { proposalIssue: notices.join(' ') } : {}),
     nextQuestions: Array.isArray(value.nextQuestions) ? value.nextQuestions.filter(x => typeof x === 'string').slice(0, 1) : [],
-    readiness: value.readiness === 'ready' && !graphIssues.length && !creatorContentGaps({ ...input, pendingProposal: { ...base, ...p, brief } as CreatorAgentResponse['proposal'] }).length ? 'ready' : 'needs_detail'
+    readiness: value.readiness === 'ready' && !graphIssues.length && !creatorEntryGaps({ ...input, pendingProposal: { ...base, ...p, brief } as CreatorAgentResponse['proposal'] }).length ? 'ready' : 'needs_detail'
   };
   let response: CreatorAgentResponse;
   if (isCreatorAgentResponse(candidate)) {
