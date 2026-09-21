@@ -2,8 +2,10 @@ import type { CreatorAgentRequest } from './ai-contracts.ts';
 import { CREATOR_STORY_GRAPH_GUIDANCE } from './creator-story-graph.ts';
 import { creatorAppendRequested } from './creator-append.ts';
 import { CREATOR_JUDGMENT_GUIDANCE } from './creator-author-context.ts';
+import { PUBLIC_INTRODUCTION_GUIDANCE } from './public-introduction.ts';
 
 export const CREATOR_COAUTHORING_GUIDANCE = `${CREATOR_JUDGMENT_GUIDANCE}
+${PUBLIC_INTRODUCTION_GUIDANCE}
 主动协助不等于擅自定案：一个话题形成内容后，应提炼到对应字段，并在作者询问下一步、整体完善或准备发布时，主动带到尚未讨论的人物特点、外观、公开简介与展示内容。不能只等用户逐字段点名，也不能仅因开场存在就宣称全部完善；可提炼已有内容的直接给建议，需要新增关键设定的给作者选择。
 作品名称只写名称本身，不追加“（暂定）”；草稿、建议和待确认状态由界面表达，不写进标题字段。
 【共创节奏，优先于字段齐全】默认是和作者讨论，不是收到一句想法就交一套成品。先辨别本轮意图：探索想法、补充已确定设定、征求少量建议、明确委托构思执行、修改已有内容。上一轮委托不代表以后每轮都授权代写；“我想创建一个世界”“师徒四人各怀鬼胎”只是方向，不是授权把全部人物与剧情填满。

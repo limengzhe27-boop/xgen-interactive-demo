@@ -43,8 +43,6 @@ export function WorldIntroPage({ data, onBack, onResumeRun, onStartWorld }: {
   const single = playableRoles.length === 1 ? playableRoles[0] : null;
   const cover = data.cover && failedCover !== data.cover ? data.cover : undefined;
   const premise = data.premise.trim();
-  const hook = data.storyHook?.trim();
-  const scene = data.openingScene?.scene?.trim();
 
   function start(role: WorldIntroCharacter) {
     if (data.existingRun) {
@@ -80,11 +78,7 @@ export function WorldIntroPage({ data, onBack, onResumeRun, onStartWorld }: {
       <div className={styles.summary}>
         {data.genre?.trim() && <span className={styles.genre}>{data.genre.trim()}</span>}
         <h1 id="world-intro-title">{title}</h1>
-        {hook && hook !== premise && <p className={styles.hook}>{hook}</p>}
         {premise && <p className={styles.description}>{premise}</p>}
-        {scene && scene !== premise && scene !== hook && <div className={styles.situation}>
-          <h2>{data.openingScene?.location || '故事从这里开始'}</h2><p>{scene}</p>
-        </div>}
         {single && <div className={styles.identity}>
           <span className={styles.muted}>你将扮演</span>
           <div className={styles.roleHeading}>

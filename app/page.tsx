@@ -3880,7 +3880,7 @@ function CreateWorld({
   const needsPublicIntroduction = !creatorBrief.synopsis?.trim() || draftRoles.some(role => role.name.trim() && !role.publicIntroduction?.trim());
   function requestPublicIntroductions() {
     if (creatorAgentThinking || generating) return;
-    onSubmitCreatorMessage(undefined, '请根据当前已确认的设定，整理作品公开简介、各角色公开介绍和卡片短句，作为待采纳建议返回并填写对应字段。只补充缺少的公开文案，保留已有文案；不要把未采纳的建议当作事实，不新增人物秘密、剧情或外貌，不改其他设定，不生成图片视频。公开介绍用于世界介绍页和角色聊天页，不透露秘密、后续转折或结局。若依据不足，只问最必要的问题。');
+    onSubmitCreatorMessage(undefined, '请根据当前已确认的设定，整理作品公开简介、各角色公开介绍和卡片短句，作为待采纳建议返回并填写对应字段。补充缺少的公开文案；已有文案若过长、重复、包含内部创作定位或剧透，也请提出局部改写并说明理由，合适的原文保留。作品简介建议80—160字，交代眼前局面、未解决的矛盾和参与机会，不写受众年龄、笑点来源或最终结局。不要把未采纳的建议当作事实，不新增人物秘密、剧情或外貌，不改其他设定，不生成图片视频。若依据不足，只问最必要的问题。');
   }
   function locateChange(change: CreatorChange) {
     if (change.key === 'synopsis' || (change.target?.kind === 'role' && ['publicIntroduction', 'cardHook'].includes(change.target.field))) {
@@ -4799,7 +4799,7 @@ function CreateWorld({
       </div>
       <div className="draft-field full-field"><label htmlFor="world-public-synopsis">作品公开简介 · 世界介绍页展示</label><Textarea id="world-public-synopsis" rows={3} maxLength={3000} value={creatorBrief.synopsis ?? ''} onChange={event => onUpdateCreatorBrief('synopsis', event.target.value)} placeholder="向体验者介绍背景、眼前局面和参与方式，不泄露秘密或后续答案" /></div>
       {renderPendingSuggestion(proposalChanges.find(change => change.key === 'synopsis'), true)}
-      <p className="presentation-help">介绍会显示在进入世界前的页面。整理文案会先给出建议，不自动采纳。</p></div>
+      <p className="presentation-help">世界介绍页只展示这份简介。建议80—160字：眼前局面、未解决的矛盾、参与机会；不写受众定位或后续结局。当前{Array.from(creatorBrief.synopsis ?? '').length}字。整理文案先给建议，不自动采纳；已发布作品需更新发布后生效。</p></div>
     </section>
     <header className="presentation-section-heading"><h3>人物展示</h3><p>公开身份与眼前处境，不透露人物秘密。</p></header>
     <div className="workspace-assets">{draftRoles.map((role, index) => <section className="workspace-asset" key={role.editorId || index}>
