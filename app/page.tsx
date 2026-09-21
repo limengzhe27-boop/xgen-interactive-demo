@@ -3880,7 +3880,7 @@ function CreateWorld({
   const needsPublicIntroduction = !creatorBrief.synopsis?.trim() || draftRoles.some(role => role.name.trim() && !role.publicIntroduction?.trim());
   function requestPublicIntroductions() {
     if (creatorAgentThinking || generating) return;
-    onSubmitCreatorMessage(undefined, '请根据当前已确认的设定，整理作品公开简介、各角色公开介绍和卡片短句，作为待采纳建议返回并填写对应字段。补充缺少的公开文案；已有文案若过长、重复、包含内部创作定位或剧透，也请提出局部改写并说明理由，合适的原文保留。作品简介建议80—160字，交代眼前局面、未解决的矛盾和参与机会，不写受众年龄、笑点来源或最终结局。不要把未采纳的建议当作事实，不新增人物秘密、剧情或外貌，不改其他设定，不生成图片视频。若依据不足，只问最必要的问题。');
+    onSubmitCreatorMessage(undefined, '请根据当前已确认的设定，整理作品公开简介、各角色公开介绍和卡片短句，作为待采纳建议返回并填写对应字段。不是摘抄设定：先挑一个吸引人亲自进入的具体处境，再补必要背景与实际参与机会；人物介绍突出各自开场处境，不堆履历、不规定玩家必须怎么做。只使用工作台已有字段，不新建入戏句或副标题。补充缺少的公开文案；已有文案若平淡、过长、重复、包含内部创作定位或剧透，也请提出局部改写并简短说明理由，合适的原文保留。作品简介建议80—160字，不写受众年龄、笑点来源或最终结局，不虚构可改变结局的玩法。不要把未采纳的建议当作事实，不新增人物秘密、剧情或外貌，不改其他设定，不生成图片视频。若依据不足，只问最必要的问题。');
   }
   function locateChange(change: CreatorChange) {
     if (change.key === 'synopsis' || (change.target?.kind === 'role' && ['publicIntroduction', 'cardHook'].includes(change.target.field))) {
