@@ -22,7 +22,7 @@ const role = name => ({ name, identity: '', persona: '', relationship: '', appea
 const input = { userMessage: '沙僧想保护家人', characters: [], currentDraft: {
   title: '取经路上', premise: '沿用取经背景', surpriseLevel: 2,
   characters: [role('唐僧'),role('孙悟空'),role('猪八戒'),role('沙僧')],
-  brief: { coreGoal:'',successCondition:'',failureCondition:'',complexityLevel:2,tasks:[],difficulties:[],scheduledEvents:[] },
+  brief: { coreGoal:'',preferredDirection:'',alternativeDirection:'',complexityLevel:2,tasks:[],difficulties:[],scheduledEvents:[] },
 } };
 
 test('discussion-only is successful and does not fabricate settings', () => {

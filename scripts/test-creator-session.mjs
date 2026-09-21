@@ -5,7 +5,7 @@ import { repairCreatorProposal } from '../lib/creator-proposal-repair.ts';
 import { creatorChanges, combineCreatorChanges, applyCreatorChange } from '../lib/creator-changes.ts';
 
 const task=(id,pre=[])=>({id,title:id,kind:'main',description:'目标方向',successCondition:'达成条件',difficulty:'有人阻挠',assignedRoleIds:['draft-role-0'],prerequisiteTaskIds:pre});
-const response=(tasks=[])=>({reply:'建议',proposal:{title:'测试世界',premise:'虚构测试',brief:{coreGoal:'目标',successCondition:'成功',failureCondition:'失败',complexityLevel:2,tasks,difficulties:[],scheduledEvents:[]}},nextQuestions:['继续吗'],readiness:'ready'});
+const response=(tasks=[])=>({reply:'建议',proposal:{title:'测试世界',premise:'虚构测试',brief:{coreGoal:'目标',preferredDirection:'成功',alternativeDirection:'失败',complexityLevel:2,tasks,difficulties:[],scheduledEvents:[]}},nextQuestions:['继续吗'],readiness:'ready'});
 const roundtrip=value=>JSON.parse(JSON.stringify(value));
 test('pending edited suggestions survive storage and still apply with original conflict protection',()=>{
  const before={title:'原名'};

@@ -194,8 +194,8 @@ export type CreatorBrief = {
   storyGraph?: import('./creator-story-graph').CreatorStoryGraph;
   discoveryGenre?: string;
   coreGoal: string;
-  successCondition: string;
-  failureCondition: string;
+  preferredDirection: string;
+  alternativeDirection: string;
   complexityLevel: 1 | 2 | 3 | 4;
   tasks: CreatorTaskDraft[];
   difficulties: string[];

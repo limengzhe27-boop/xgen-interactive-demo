@@ -90,8 +90,8 @@ function buildCreatorBrief(input: CreatorAgentRequest): CreatorBrief {
   ];
   return {
     coreGoal: current.coreGoal || `推动“${subject.slice(0, 52)}”并让所选角色达成自己的目标`,
-    successCondition: current.successCondition || '',
-    failureCondition: current.failureCondition || '',
+    preferredDirection: current.preferredDirection || '',
+    alternativeDirection: current.alternativeDirection || '',
     complexityLevel: current.complexityLevel || 2,
     tasks: existingTasks,
     difficulties: current.difficulties.length > 0
@@ -195,7 +195,7 @@ class MockAIAdapter implements AIAdapter {
         goals: [{
           id: 'world-goal',
           title: input.creatorBrief.coreGoal || '解决核心事件',
-          description: input.creatorBrief.successCondition || '根据人物与事件继续推演',
+          description: input.creatorBrief.preferredDirection || '根据人物与事件继续推演',
           scope: 'world',
           requiredTaskIds: mainTaskIds,
         }],
@@ -212,7 +212,7 @@ class MockAIAdapter implements AIAdapter {
           ...event,
           earliestTurn: Math.max(2, index + 2),
         })),
-        endingConditions: [input.creatorBrief.successCondition, input.creatorBrief.failureCondition].flatMap((description, index) => description ? [{ id: `core-direction-${index}`, description, requiredTaskIds: [], requiredFacts: [description] }] : []),
+        endingConditions: [input.creatorBrief.preferredDirection, input.creatorBrief.alternativeDirection].flatMap((description, index) => description ? [{ id: `core-direction-${index}`, description, requiredTaskIds: [], requiredFacts: [description] }] : []),
         openingScene: {
           locationId: 'opening-location',
           narrative: `${premise}\n\n此刻，${leadName}先察觉到现场气氛不对：${counterpartName}的反应与平时不同，而另一名在场者似乎故意把一个重要细节轻描淡写地带过。没有超自然力量替任何人解释动机，也没有凭空出现的答案；能推动故事的，只有体验者接下来选择相信谁、追问什么，以及愿意承担怎样的关系后果。`,

@@ -20,7 +20,7 @@ const generated = await call('generate-world', {
   ], relationshipNotes: ['三人都是读书会筹备同伴，没有秘密亲属关系。'],
   storySeed: '小书店准备一场雨天读书会。开场在阅读角，木桌上有蓝色搪瓷杯和三本读物。店内的阅读角、走廊、储藏室互相可返回，不是只向前的单行路线。保留可感知的开场细节，周岚在储藏室，只有许宁和陈禾在阅读角。',
   surpriseLevel: 1, creatorBrief: {
-    coreGoal: '准备好读书会', successCondition: '读物与座位准备好并宣布开始', failureCondition: '创作者明确取消读书会', complexityLevel: 2,
+    coreGoal: '准备好读书会', preferredDirection: '读物与座位准备好并宣布开始', alternativeDirection: '创作者明确取消读书会', complexityLevel: 2,
     tasks: [
       { id: 'books', title: '整理读物', description: '核对三本读物并摆好', kind: 'main', prerequisiteTaskIds: [], successCondition: '三本读物已放在阅读桌上', difficulty: '实际清点' },
       { id: 'seats', title: '摆好座位', description: '将三把椅子摆在阅读桌边', kind: 'main', prerequisiteTaskIds: ['books'], successCondition: '三把椅子已摆好', difficulty: '实际摆放' },

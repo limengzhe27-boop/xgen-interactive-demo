@@ -31,8 +31,8 @@ function isCreatorBrief(value: unknown) {
     || (value.discoveryGenre !== undefined && !validDiscoveryGenre(value.discoveryGenre))
     || (value.storyGraph !== undefined && creatorStoryIssues(value.storyGraph).length > 0)
     || typeof value.coreGoal !== 'string'
-    || typeof value.successCondition !== 'string'
-    || typeof value.failureCondition !== 'string'
+    || typeof value.preferredDirection !== 'string'
+    || typeof value.alternativeDirection !== 'string'
     || ![1, 2, 3, 4].includes(value.complexityLevel as number)
     || !Array.isArray(value.tasks)
     || !isStringArray(value.difficulties)

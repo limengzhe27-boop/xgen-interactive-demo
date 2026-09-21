@@ -1,4 +1,5 @@
 import { validDiscoveryGenre, discoveryCategory } from './discovery-category.ts';
+import { migrateCreatorDirections } from './creator-directions.ts';
 
 // Representation fixes only. Do not infer plot facts, task intent or role identity.
 const record = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
@@ -72,7 +73,7 @@ export function normalizeCreatorProposal(value: Record<string, unknown>, reserve
     return r;
   });
   if (record(p.brief)) {
-    const b = { ...p.brief };
+    const b = migrateCreatorDirections(p.brief);
     if (b.complexityLevel !== undefined) b.complexityLevel = level(b.complexityLevel);
     if (b.discoveryGenre !== undefined && typeof b.discoveryGenre === 'string') {
       if (!validDiscoveryGenre(b.discoveryGenre)) {

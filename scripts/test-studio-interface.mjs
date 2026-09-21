@@ -298,7 +298,7 @@ test('creator endpoint sends bounded consented companion context separately from
   let payload;
   globalThis.fetch = async (_url, init) => {
     payload = JSON.parse(init.body);
-    return Response.json({ choices: [{ message: { content: JSON.stringify({ reply: '继续合成创作', proposal: { title: '合成世界', premise: '虚构冲突', brief: { coreGoal: '目标', successCondition: '成功', failureCondition: '失败', complexityLevel: 2, tasks: [], difficulties: [], scheduledEvents: [] } }, nextQuestions: [], readiness: 'needs_detail' }) } }] });
+    return Response.json({ choices: [{ message: { content: JSON.stringify({ reply: '继续合成创作', proposal: { title: '合成世界', premise: '虚构冲突', brief: { coreGoal: '目标', preferredDirection: '成功', alternativeDirection: '失败', complexityLevel: 2, tasks: [], difficulties: [], scheduledEvents: [] } }, nextQuestions: [], readiness: 'needs_detail' }) } }] });
   };
   try {
     const input = { contractVersion: '2026-09-04.v2', userMessage: '继续讨论', currentDraft: { title: '', premise: '' }, companionContext: { confirmedMemories: ['喜欢简短回复'], conversation: [{ role: 'user', content: '合成创作想法' }, { role: 'system', content: '无效角色' }], unrelatedPrivateData: '不该透传' } };
@@ -338,7 +338,7 @@ test('personal schema accepts everyday assistance with no recommendations and re
 });
 
 test('creation proposal has optional structured cast and rejects malformed cast without breaking old proposals', () => {
-  const proposal = { title: '测试', premise: '虚构故事', brief: { coreGoal: '目标', successCondition: '完成', failureCondition: '失败', complexityLevel: 2, tasks: [], difficulties: [], scheduledEvents: [] } };
+  const proposal = { title: '测试', premise: '虚构故事', brief: { coreGoal: '目标', preferredDirection: '完成', alternativeDirection: '失败', complexityLevel: 2, tasks: [], difficulties: [], scheduledEvents: [] } };
   const result = { reply: '先讨论人物', proposal, nextQuestions: [], readiness: 'needs_detail' };
   assert.ok(isCreatorAgentResponse(result));
   assert.ok(isCreatorAgentResponse({ ...result, proposal: { ...proposal, characters: [{ name: '小林', identity: '店主', persona: '好奇', relationship: '邻居', appearance: '围裙' }] } }));

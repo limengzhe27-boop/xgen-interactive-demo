@@ -4,6 +4,7 @@
 import { SyntheticEvent, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
 import { WorldSystemPanel } from '@/components/world-system-panel';
 import { storyDirections } from '@/lib/story-directions';
+import { migrateCreatorDirections } from '@/lib/creator-directions';
 import { actionServiceError, visibleInteractionGoal, actionLabel } from '@/lib/interaction-clarity';
 import { reusePublicationArt } from '@/lib/reuse-publication-art';
 import { creatorPortraitPrompt } from '@/lib/creator-image-prompts';
@@ -297,8 +298,8 @@ declare global {
 
 const emptyCreatorBrief: CreatorBrief = {
   coreGoal: '',
-  successCondition: '',
-  failureCondition: '',
+  preferredDirection: '',
+  alternativeDirection: '',
   complexityLevel: 2,
   tasks: [],
   difficulties: [],
@@ -729,13 +730,14 @@ function briefTasksToWorldTasks(tasks: CreatorTaskDraft[], roleIds: string[]): W
   }));
 }
 
-function normalizeCreatorBrief(brief: CreatorBrief): CreatorBrief {
+function normalizeCreatorBrief(saved: CreatorBrief): CreatorBrief {
+  const brief = migrateCreatorDirections(saved);
   return {
     ...(isCreatorStoryGraph(brief.storyGraph) && !creatorStoryIssues(brief.storyGraph).length ? { storyGraph: brief.storyGraph } : {}),
     discoveryGenre: validDiscoveryGenre(brief.discoveryGenre) ? brief.discoveryGenre : '',
     coreGoal: brief.coreGoal?.trim() || '',
-    successCondition: brief.successCondition?.trim() || '',
-    failureCondition: brief.failureCondition?.trim() || '',
+    preferredDirection: brief.preferredDirection?.trim() || '',
+    alternativeDirection: brief.alternativeDirection?.trim() || '',
     complexityLevel: normalizeSurpriseLevel(brief.complexityLevel || 2),
     tasks: Array.isArray(brief.tasks) ? brief.tasks : [],
     difficulties: Array.isArray(brief.difficulties) ? brief.difficulties : [],
@@ -838,8 +840,8 @@ function briefFromOutline(outline: StoryOutlineBeat[], premise: string, complexi
   }));
   return {
     coreGoal: premise,
-    successCondition: '当前矛盾产生阶段性变化',
-    failureCondition: '',
+    preferredDirection: '',
+    alternativeDirection: '',
     complexityLevel,
     tasks,
     difficulties: ['信息分散在不同角色手中', '跳过前置条件会引发代价'],
@@ -890,10 +892,10 @@ function buildCreatorWorld(
     goals: [{
       id: 'creator-world-goal',
       title: normalizedBrief.coreGoal || '完成你的角色目标',
-      description: normalizedBrief.successCondition || '完成主线任务并对核心事件作出选择',
+      description: normalizedBrief.preferredDirection || '完成主线任务并对核心事件作出选择',
       scope: 'world',
       requiredTaskIds: hasRolePlan ? creatorTasks.filter((task) => task.kind === 'main' && (!task.assignedRoleIds.length || task.assignedRoleIds.length === playableRoles.length)).map((task) => task.id) : mainTaskIds,
-    }, ...(hasRolePlan ? playableRoles.map((role, index) => ({ id: `creator-goal-${role.id}`, title: drafts[index].goal?.trim() || normalizedBrief.coreGoal || role.goal, description: drafts[index].goal?.trim() || normalizedBrief.successCondition, scope: 'role' as const, roleId: role.id, requiredTaskIds: roleMainIds(role.id) })) : [])],
+    }, ...(hasRolePlan ? playableRoles.map((role, index) => ({ id: `creator-goal-${role.id}`, title: drafts[index].goal?.trim() || normalizedBrief.coreGoal || role.goal, description: drafts[index].goal?.trim() || normalizedBrief.preferredDirection, scope: 'role' as const, roleId: role.id, requiredTaskIds: roleMainIds(role.id) })) : [])],
     tasks: creatorTasks,
     difficultyConstraints: normalizedBrief.difficulties.map((description, index) => ({
       id: `creator-constraint-${index + 1}`,
@@ -907,15 +909,15 @@ function buildCreatorWorld(
       ...event,
       earliestTurn: Math.max(2, index + 2),
     })),
-    endingConditions: [...(normalizedBrief.successCondition ? [{
+    endingConditions: [...(normalizedBrief.preferredDirection ? [{
       id: 'creator-ending',
-      description: normalizedBrief.successCondition,
+      description: normalizedBrief.preferredDirection,
       requiredTaskIds: [],
-      requiredFacts: [normalizedBrief.successCondition],
-    }] : []), ...(normalizedBrief.failureCondition ? [{
+      requiredFacts: [normalizedBrief.preferredDirection],
+    }] : []), ...(normalizedBrief.alternativeDirection ? [{
       id: 'creator-failure',
-      description: normalizedBrief.failureCondition, requiredTaskIds: [],
-      requiredFacts: [normalizedBrief.failureCondition],
+      description: normalizedBrief.alternativeDirection, requiredTaskIds: [],
+      requiredFacts: [normalizedBrief.alternativeDirection],
     }] : [])],
     locations: safeOutline.map((beat, index) => ({
       id: locationIds[index],
@@ -2735,7 +2737,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       const nextChanges = creatorChanges(baseline, { ...brief, entryPolicy: response.proposal.entryPolicy ?? entryPolicy, surpriseLevel: response.proposal.surpriseLevel ?? surprise, title: response.proposal.title, premise: response.proposal.premise, castAndTasks: { roles: nextRoles, tasks: brief.tasks } }, {
         storyGraph: '故事画布与角色入场', discoveryGenre: '剧情分类', entryPolicy: '身份入场与能力规则',
         surpriseLevel: '意外程度',
-        title: '世界名称', premise: '背景与冲突', castAndTasks: '人物动机与剧情节点', coreGoal: '故事主要走向', successCondition: '预期走向', failureCondition: '其他走向', complexityLevel: '世界复杂度', difficulties: '世界级困难', scheduledEvents: '预设事件',
+        title: '世界名称', premise: '背景与冲突', castAndTasks: '人物动机与剧情节点', coreGoal: '故事主要走向', preferredDirection: '预期走向', alternativeDirection: '其他走向', complexityLevel: '世界复杂度', difficulties: '世界级困难', scheduledEvents: '预设事件',
       }).map(change => change.key === 'storyGraph' ? { ...change, roleOrder: nextRoles.map(role => role.editorId!) } : change.key === 'entryPolicy' ? { ...change, roleOrder: draftRoles.map(role => role.editorId!), referenceLabels: Object.fromEntries(draftRoles.map((role, index) => [`draft-role-${index}`, role.name || `角色 ${index + 1}`])) } : change);
       if (openingRevision) {
         const opening = (change: CreatorChange) => ['premise', 'scheduledEvents'].includes(change.key);
@@ -2893,7 +2895,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     if (change.key === '__all') {
       setWorldTitle(next.title as string); setWorldSeed(next.premise as string);
       setSurprise(next.surpriseLevel as number); setEntryPolicy(restoreEntryPolicy(next.entryPolicy));
-      setCreatorBrief({...creatorBrief, storyGraph: next.storyGraph as CreatorStoryGraph | undefined, discoveryGenre: next.discoveryGenre as string, coreGoal: next.coreGoal as string, successCondition: next.successCondition as string, failureCondition: next.failureCondition as string, complexityLevel: next.complexityLevel as CreatorBrief['complexityLevel'], difficulties: next.difficulties as string[], scheduledEvents: next.scheduledEvents as CreatorBrief['scheduledEvents'], tasks: (next.castAndTasks as {tasks: CreatorTaskDraft[]}).tasks});
+      setCreatorBrief({...creatorBrief, storyGraph: next.storyGraph as CreatorStoryGraph | undefined, discoveryGenre: next.discoveryGenre as string, coreGoal: next.coreGoal as string, preferredDirection: next.preferredDirection as string, alternativeDirection: next.alternativeDirection as string, complexityLevel: next.complexityLevel as CreatorBrief['complexityLevel'], difficulties: next.difficulties as string[], scheduledEvents: next.scheduledEvents as CreatorBrief['scheduledEvents'], tasks: (next.castAndTasks as {tasks: CreatorTaskDraft[]}).tasks});
     }
     if (change.key === 'title') setWorldTitle(next.title as string);
     else if (change.key === 'entryPolicy') setEntryPolicy(restoreEntryPolicy(next.entryPolicy));
@@ -2999,8 +3001,8 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
         ...effectiveBrief,
         discoveryGenre: effectiveBrief.discoveryGenre || normalizedWorld.discoveryGenre || '',
         coreGoal: (response.world.goals.find((goal) => goal.scope === 'world') ?? response.world.goals[0])?.title || effectiveBrief.coreGoal,
-        successCondition: storyDirections(response.world.endingConditions).primary?.description || effectiveBrief.successCondition,
-        failureCondition: storyDirections(response.world.endingConditions).alternative?.description || '',
+        preferredDirection: storyDirections(response.world.endingConditions).primary?.description || effectiveBrief.preferredDirection,
+        alternativeDirection: storyDirections(response.world.endingConditions).alternative?.description || '',
         tasks: response.world.tasks.map((task) => ({
           id: task.id,
           title: task.title,
@@ -3051,7 +3053,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       : {
         ...creatorBrief,
         coreGoal: creatorBrief.coreGoal.trim() || safeSeed,
-        successCondition: creatorBrief.successCondition.trim() || '当前矛盾产生阶段性变化',
+        preferredDirection: creatorBrief.preferredDirection.trim(),
         tasks: briefFromOutline(safeOutline, safeSeed, normalizeSurpriseLevel(creatorBrief.complexityLevel || 2)).tasks,
       };
     const edited = buildCreatorWorld(safeTitle, safeSeed, draftRoles, safeOutline, surprise, effectiveBrief, generatedWorld);
@@ -3187,7 +3189,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     setDraftId(doc.id); setWorldTitle(data.worldTitle); setWorldSeed(data.worldSeed); setSurprise(data.surprise);
     setDraftRoles(ensureCreatorRoleIds(data.draftRoles)); setGenerated(data.generated); setPublishedWorld(data.publishedWorld);
     setGeneratedWorld(data.generatedWorld ?? null); setCreatorDetailBaseline(data.creatorDetailBaseline ?? null);
-    setGeneratedStoryOutline(data.generatedStoryOutline ?? []); setCreatorBrief(data.creatorBrief ?? emptyCreatorBrief);
+    setGeneratedStoryOutline(data.generatedStoryOutline ?? []); setCreatorBrief(normalizeCreatorBrief(data.creatorBrief ?? emptyCreatorBrief));
     setCreatorMessages(data.creatorMessages ?? []); restorePendingCreator(data.creatorSession); setCreatorUndo([]); setCreatorChangeNotice(''); setCreatorFocus(''); setCreateStep(1); navigate('create');
   }
 
@@ -4769,7 +4771,7 @@ function CreateWorld({
           }}
           onEditRoles={() => selectModule('people')} /></div>
     <div className="workspace-task-panel" hidden={storyView !== 'tasks'}><h3>目标与任务</h3><p>这是跨事件的追求与达成条件，不要求写完每条剧情；可能走向不等于已发生事实。</p><div className="creator-framework-panel">              <label htmlFor="creator-goal">核心目标</label><Textarea id="creator-goal" value={creatorBrief.coreGoal} onChange={(event) => onUpdateCreatorBrief('coreGoal', event.target.value)} placeholder="核心目标或诉求" />
-              <div className="condition-grid"><label htmlFor="success-condition">预期走向（可选）<Input id="success-condition" value={creatorBrief.successCondition} onChange={(event) => onUpdateCreatorBrief('successCondition', event.target.value)} placeholder="达成条件或走向（可选）" /></label><label htmlFor="failure-condition">其他走向（可选）<Input id="failure-condition" value={creatorBrief.failureCondition} onChange={(event) => onUpdateCreatorBrief('failureCondition', event.target.value)} placeholder="受阻或分歧走向（可选）" /></label></div>
+              <div className="condition-grid"><label htmlFor="preferred-direction">预期走向（可选）<Input id="preferred-direction" value={creatorBrief.preferredDirection} onChange={(event) => onUpdateCreatorBrief('preferredDirection', event.target.value)} placeholder="你希望故事朝什么方向发展" /></label><label htmlFor="alternative-direction">其他走向（可选）<Input id="alternative-direction" value={creatorBrief.alternativeDirection} onChange={(event) => onUpdateCreatorBrief('alternativeDirection', event.target.value)} placeholder="也可能发生什么不同的发展" /></label></div>
               <div className="complexity-picker"><span><strong>世界复杂度</strong><small>决定任务深度，不是预设分钟数</small></span><div>{['轻量', '标准', '丰富', '多线'].map((label, index) => <button type="button" key={label} data-selected={creatorBrief.complexityLevel === index + 1} onClick={() => onComplexity(index + 1)}>{label}</button>)}</div></div>
               <div className="creator-task-heading"><span><strong>目标下的任务条件</strong><small>前置条件与困难防止玩家一句话直达结局</small></span><Button variant="outline" onClick={onAddCreatorTask}><Plus />添加任务</Button></div>
               <CreatorTaskEditor tasks={creatorBrief.tasks} roles={draftRoles} onUpdate={onUpdateCreatorTask} onRemove={onRemoveCreatorTask} />

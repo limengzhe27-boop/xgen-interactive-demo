@@ -337,8 +337,8 @@ export function createFullWorldDraftFromIdea(seed: string, options?: { genre?: s
 
   const creatorBrief: CreatorBrief = {
     coreGoal: matched.coreGoal,
-    successCondition: matched.successCondition,
-    failureCondition: matched.failureCondition,
+    preferredDirection: matched.successCondition,
+    alternativeDirection: matched.failureCondition,
     complexityLevel: 2,
     tasks,
     difficulties: ['关键人证心存顾虑不愿轻易吐露实情', '核心凭证随时可能被暗中销毁'],
@@ -498,7 +498,7 @@ export function buildWorldDefinitionFromDraft(draft: GeneratedWorldDraft): World
   const endingConditions: EndingCondition[] = [
     {
       id: 'ending_success',
-      description: draft.creatorBrief.successCondition,
+      description: draft.creatorBrief.preferredDirection,
       outcome: 'success',
       requiredTaskIds: ['task_resolution'],
       requiredFacts: ['达成具有约束力的协议'],
@@ -506,7 +506,7 @@ export function buildWorldDefinitionFromDraft(draft: GeneratedWorldDraft): World
     },
     {
       id: 'ending_failure',
-      description: draft.creatorBrief.failureCondition,
+      description: draft.creatorBrief.alternativeDirection,
       outcome: 'failure',
       requiredTaskIds: [],
       requiredFacts: ['内部冲突彻底公开或核心秘密外泄'],

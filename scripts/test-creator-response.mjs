@@ -7,7 +7,7 @@ import { creatorStoryIssues } from '../lib/creator-story-graph.ts';
 import { creatorGraphGuidance } from '../lib/creator-guidance.ts';
 
 const input = { characters: [], currentDraft: { title: '原作', premise: '原来的故事', surpriseLevel: 2,
-  brief: { coreGoal: '', successCondition: '', failureCondition: '', complexityLevel: 2, tasks: [], difficulties: [], scheduledEvents: [] } } };
+  brief: { coreGoal: '', preferredDirection: '', alternativeDirection: '', complexityLevel: 2, tasks: [], difficulties: [], scheduledEvents: [] } } };
 
 test('unambiguous local character subset retains untouched cast and omitted fields',()=>{
   const characters=['唐僧','悟空','八戒','沙僧'].map((name,i)=>({name,identity:'身份'+i,persona:'性格'+i,relationship:'关系'+i,appearance:'外貌'+i,goal:'目标'+i}));

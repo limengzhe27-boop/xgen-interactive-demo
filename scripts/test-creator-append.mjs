@@ -40,7 +40,7 @@ test('model-only success claim becomes an honest no-change response',()=>{
   assert.equal(r.discussionOnly,true);assert.match(r.reply,/未改动/);
 });
 test('delegated append on empty canvas establishes initial graph with opening and next event',()=>{
-  const input={userMessage:'请为破庙避雨构思并添加下一个事件',characters:[{name:'悟空',identity:'大圣',persona:'急躁',relationship:'',appearance:'',goal:'守夜'}],currentDraft:{title:'破庙夜话',premise:'荒山破庙避雨',surpriseLevel:2,brief:{coreGoal:'',successCondition:'',failureCondition:'',complexityLevel:2,tasks:[],difficulties:[],scheduledEvents:[]}}};
+  const input={userMessage:'请为破庙避雨构思并添加下一个事件',characters:[{name:'悟空',identity:'大圣',persona:'急躁',relationship:'',appearance:'',goal:'守夜'}],currentDraft:{title:'破庙夜话',premise:'荒山破庙避雨',surpriseLevel:2,brief:{coreGoal:'',preferredDirection:'',alternativeDirection:'',complexityLevel:2,tasks:[],difficulties:[],scheduledEvents:[]}}};
   const initialGraph={startNodeId:'opening',nodes:[{id:'opening',title:'荒山避雨',location:'破庙',scene:'师徒在破庙避雨',worldFacts:[],nextNodeIds:['night_talk']},{id:'night_talk',title:'夜谈分歧',location:'残破佛像旁',scene:'悟空提出守夜并索要文牒',worldFacts:[],nextNodeIds:[]}],entries:[{roleId:'draft-role-0',nodeId:'opening',defaultPath:['opening'],knownFacts:[],beliefs:[],scene:'你站在破庙门边'}]};
   const r=readCreatorResponse({reply:'已为你建立开场并构思新事件',proposal:{brief:{storyGraph:initialGraph}}},input);
   assert.equal(r.discussionOnly,false);

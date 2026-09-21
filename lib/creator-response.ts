@@ -2,6 +2,7 @@ import type { CreatorAgentRequest, CreatorAgentResponse } from './ai-contracts.t
 import { isCreatorAgentResponse } from './ai-validation.ts';
 import { creatorStoryIssues, isCreatorStoryGraph, preserveEventIntent, bindCreatorActors } from './creator-story-graph.ts';
 import { normalizeCreatorProposal } from './creator-normalization.ts';
+import { migrateCreatorDirections } from './creator-directions.ts';
 import { appendCreatorGraph, creatorAppendRequested } from './creator-append.ts';
 
 const record = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
@@ -30,7 +31,7 @@ export function parseCreatorContent(content: string, truncated = false): unknown
 /** Preserve a real model reply without turning malformed suggestions into saved facts. */
 export function creatorDiscussion(reply: string, input: CreatorAgentRequest, proposalIssue?: string): CreatorAgentResponse {
   return { reply, discussionOnly: true, ...(proposalIssue ? { proposalIssue } : {}),
-    proposal: { ...input.currentDraft }, nextQuestions: [], readiness: 'needs_detail' };
+    proposal: { ...input.currentDraft, brief: migrateCreatorDirections(input.currentDraft.brief) }, nextQuestions: [], readiness: 'needs_detail' };
 }
 
 /** Omitted fields mean unchanged, not blank. Supplied invalid fields are never adopted. */
@@ -45,8 +46,8 @@ export function readCreatorResponse(value: unknown, input: CreatorAgentRequest):
   if (!record(value.proposal) || (value.proposal.brief !== undefined && !record(value.proposal.brief))) {
     return creatorDiscussion(value.reply, input, '本轮设定建议未能整理完整，原草稿和待采纳建议保持不变；可以继续讨论。');
   }
-  const pending = input.pendingProposal;
-  const base = pending && isCreatorAgentResponse({ reply: 'pending', proposal: pending, nextQuestions: [], readiness: 'needs_detail' }) ? pending : input.currentDraft;
+  const pending = input.pendingProposal && { ...input.pendingProposal, brief: migrateCreatorDirections(input.pendingProposal.brief) };
+  const base = pending && isCreatorAgentResponse({ reply: 'pending', proposal: pending, nextQuestions: [], readiness: 'needs_detail' }) ? pending : { ...input.currentDraft, brief: migrateCreatorDirections(input.currentDraft.brief) };
   let rawProposal = value.proposal;
   const existing = ('characters' in base ? base.characters : undefined) ?? input.characters ?? [];
   const isPlaceholder = (role: unknown) => record(role) && /^角色\s*\d+$/.test(String(role.name ?? ''))
@@ -141,8 +142,8 @@ export function readCreatorResponse(value: unknown, input: CreatorAgentRequest):
     if (hasCoreContent) {
       const repairedBrief = {
         coreGoal: typeof brief.coreGoal === 'string' ? brief.coreGoal : (base.brief?.coreGoal ?? ''),
-        successCondition: typeof brief.successCondition === 'string' ? brief.successCondition : (base.brief?.successCondition ?? ''),
-        failureCondition: typeof brief.failureCondition === 'string' ? brief.failureCondition : (base.brief?.failureCondition ?? ''),
+        preferredDirection: typeof brief.preferredDirection === 'string' ? brief.preferredDirection : (base.brief?.preferredDirection ?? ''),
+        alternativeDirection: typeof brief.alternativeDirection === 'string' ? brief.alternativeDirection : (base.brief?.alternativeDirection ?? ''),
         complexityLevel: [1, 2, 3, 4].includes(brief.complexityLevel as number) ? (brief.complexityLevel as number) : (base.brief?.complexityLevel ?? 2),
         tasks: Array.isArray(brief.tasks) ? brief.tasks : (base.brief?.tasks ?? []),
         difficulties: Array.isArray(brief.difficulties) && brief.difficulties.every(x => typeof x === 'string') ? brief.difficulties : (base.brief?.difficulties ?? []),

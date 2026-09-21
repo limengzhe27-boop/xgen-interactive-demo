@@ -2,7 +2,7 @@ import type { CreatorAgentRequest } from './ai-contracts.ts';
 import type { CreatorTriage } from './typesafe-creator-triage.ts';
 
 /** Runtime excerpts of research/skill-drafts/creator-suite-v1, not a second output schema. */
-export const CREATOR_SKILL_VERSION = 'six-by-six-2026-09-20.4';
+export const CREATOR_SKILL_VERSION = 'six-by-six-2026-09-21.1';
 export const horizontalSkills = {
   H1: '内容方向：承接核心设想，按缺口讨论主要体验、基调尺度、参与方式与必要边界。工作方法：提炼已定内容，聚焦核心设想/主要体验/基调尺度/参与方式/基本局面关键缺口；提供2~3个有差异方向供比较，已清楚的不重问，不发问卷阻断。明确委托时给出具体定位草案与建议。成果落点：设定与方向（title、premise、entryPolicy、brief.discoveryGenre），待定构思与设计假设保留在 reply，不强制世界规则先行或自动补齐全员秘密。',
   H2: '人物塑造：作者只讨论某个人，就不要替其他人定案；仅在指定人物范围内讨论身份、诉求、性格如何影响行动、能力与限制。工作方法：用相关情境对比行为差异，避免空泛追问形容词；未知留空，不为返回完整名单扩写其他人。建议与确认事实分开，局部提案只改该角色。成果落点：人物与关系（characters[i]: id、name、identity、persona、personality、appearance、goal）。重点边界：禁止拿私密目标或秘密当公开文案，人物图片不是本阶段必交成果，严禁自动调用收费生图。',
@@ -33,7 +33,7 @@ export function selectCreatorSkills(input: CreatorAgentRequest, triage: CreatorT
   const rules: [H, RegExp][] = [
     ['H6', /简介|封面|公开介绍|选角介绍|展示文案|标题|发布/],
     ['H4', /入场|开场|前情|接管/],
-    ['H5', /节点|分支|后续|结局|后果|事件|剧情发展/],
+    ['H5', /节点|分支|后续|结局|后果|事件|剧情发展|收束|预期走向|其他走向|任务/],
     ['H3', /世界规则|世界观|谁知道|知情|关系|能力边界/],
     ['H2', /人物|角色|性格|动机|身份|外貌|改名|名字/],
     ['H1', /方向|题材|风格|基调|世界框架/],
@@ -64,6 +64,8 @@ export function creatorSkillGuidance(input: CreatorAgentRequest, triage: Creator
 3. 事实与可能性分离：回复与提案必须分清“作者已确认事实”、“待确认建议”与“未来条件性可能性”。
 4. 入场不可逆与知情隔离：后续情节事件不改变角色首次入场起点；共享世界不等于共享秘密，一个角色获知的秘密不得广播给其他人。
 5. 制作独立原则：图片与视频制作独立于内容讨论，严禁自动发起收费生成。
+6. 适时补缺原则：完成作者本轮事项后，结合已确认草稿、待采纳建议与对话检查“人物眼前想做什么—能采取什么行动—行动改变什么—在哪里暂告一段落”。只在正在讨论开场、后续、目标或作者询问下一步时，挑一个实际影响体验的缺口，用当前故事的具体问题或可比较方案引导；已回答的不重问，局部改字不附加问卷。字段为空不等于没有讨论，先读已有设定；作者要求开放延续时尊重留白。
+7. 走向不是输赢：preferredDirection 是作者期待的发展，alternativeDirection 是其他可能的发展，不必成对填写。讨论收束时问“什么变化发生后，这一段可以停下来”，而不是问玩家怎样获胜。tasks 只用于需要持续追踪的目标和完成依据，不要求每个故事配任务。不得把未来期待写入开场事实、强迫玩家照做，或未经授权自动补全并采纳。明确委托则交付建议，不再次反问阻断。
 【当前选用任务规则】
 ${horizontalSkills[selected.horizontal]}
 ${selected.vertical.map(id => verticalMethods[id]).join('\n')}`;
