@@ -15,7 +15,7 @@ import { creatorGraphGuidance, CREATOR_FOUNDATION_GUIDANCE } from '@/lib/creator
 import type { CreatorAgentRequest } from '@/lib/ai-contracts';
 import { classifyCreatorTurn, creatorTriageGuidance } from '@/lib/typesafe-creator-triage';
 import { creatorSkillGuidance, CREATOR_SKILL_VERSION } from '@/lib/creator-skill-routing';
-import { migrateCreatorDirections } from '@/lib/creator-directions';
+import { migrateCreatorDirections, creatorResponseForTransport } from '@/lib/creator-directions';
 import { requestAccount } from '@/lib/server-auth';
 import { companionInstructions, makeCompanionInput, restoreCompanionContext } from '@/lib/companion-context';
 import { guardPersonalAction, personalActionInstructions } from '@/lib/personal-recommendations';
@@ -392,7 +392,7 @@ async function handlePost(request: Request) {
             onStreamChunk,
           );
 
-          sendEvent('final', guardedOutput);
+          sendEvent('final', body.operation === 'co-create-world' ? creatorResponseForTransport(guardedOutput) : guardedOutput);
         } catch (error) {
           const code = error instanceof Error && ['invalid_creator_task_graph', 'model_timeout', 'model_output_truncated', 'invalid_model_output', 'model_rate_limited', 'model_access_denied', 'invalid_task_transition', 'premature_ending', 'unauthorized_player_movement', 'repeated_narrative', 'player_perspective_drift', 'chat_target_missing', 'invalid_continuation', 'invalid_prologue_plan', 'invalid_adaptation_suggestion', 'recommendation_outside_catalogue', 'invalid_personal_message'].includes(error.message)
             ? error.message : 'company_gateway_failed';
@@ -424,7 +424,7 @@ async function handlePost(request: Request) {
       prologueInput,
       startedAt,
     );
-    return Response.json(guardedOutput, {
+    return Response.json(body.operation === 'co-create-world' ? creatorResponseForTransport(guardedOutput) : guardedOutput, {
       headers: { 'Cache-Control': 'no-store', 'X-AI-Provider': 'yibu', 'Server-Timing': `ai;dur=${Date.now() - startedAt}` },
     });
   } catch (error) {

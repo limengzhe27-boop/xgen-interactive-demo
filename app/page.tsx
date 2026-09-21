@@ -2663,7 +2663,8 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     const revision = navigationRevision.current;
     const signal = creatorRequest.current.start();
     const userEntry: CreatorChatMessage = { role: 'creator', content: value };
-    const conversation = [...creatorMessages, userEntry].slice(-10);
+    const conversation = [...creatorMessages.filter(message => !message.incomplete), userEntry].slice(-10);
+    let streamedReply = '';
     // Model context is bounded independently of the author's full transcript.
     setCreatorMessages(current => [...current, userEntry]);
     setCreatorMessage('');
@@ -2696,7 +2697,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
         },
       }, signal, (chunk) => {
         if (!creatorRequest.current.current(signal) || revision !== navigationRevision.current) return;
-        if (chunk.text) setCreatorStreamingReply(chunk.text);
+        if (chunk.text) { streamedReply = chunk.text; setCreatorStreamingReply(chunk.text); }
       }), false);
       if (!creatorRequest.current.current(signal) || revision !== navigationRevision.current) return;
       if (creatorAppendRequested(value) && latestCreatorSections.current !== JSON.stringify(baseline)) {
@@ -2756,7 +2757,11 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     } catch (error) {
       if (!creatorRequest.current.current(signal) || revision !== navigationRevision.current) return;
       setCreatorMessage(value);
-      setCreatorMessages((current) => [...current, { role: 'agent', content: error instanceof Error ? error.message : '这轮创作暂时失败，你的内容已保留，请稍后重试。' } satisfies CreatorChatMessage]);
+      const failure = error instanceof Error ? error.message : '这轮创作暂时失败，你的内容已保留，请稍后重试。';
+      setCreatorMessages((current) => [...current, { role: 'agent', incomplete: true,
+        content: streamedReply.trim()
+          ? `【本轮未完成，以下为已收到的回复片段；未写入设定，也不代表已经采纳或发布】\n\n${streamedReply}\n\n${failure}`
+          : failure } satisfies CreatorChatMessage]);
     } finally {
       if (creatorRequest.current.current(signal)) {
         setCreatorStreamingReply('');

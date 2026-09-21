@@ -205,6 +205,7 @@ export type CreatorBrief = {
 export type CreatorChatMessage = {
   role: 'creator' | 'agent';
   content: string;
+  incomplete?: boolean;
 };
 
 export type CreatorAgentRequest = {

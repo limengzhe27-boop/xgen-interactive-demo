@@ -11,6 +11,6 @@ test('creator transcript append and restore paths never truncate visible history
   assert.match(source, /creatorMessages\.map\(/);
 });
 test('model context remains bounded independently of persisted transcript', () => {
-  assert.match(source, /const conversation = \[\.\.\.creatorMessages, userEntry\]\.slice\(-10\)/);
+  assert.match(source, /creatorMessages\.filter\(message => !message.incomplete\), userEntry\]\.slice\(-10\)/);
   assert.match(source, /setCreatorMessages\(data\.creatorMessages \?\? \[\]\)/);
 });

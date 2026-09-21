@@ -15,9 +15,10 @@ import {
   isPersonalAgentResponse,
   isWorldGenerationResponse,
   isWorldTurnResponse,
-} from '@/lib/ai-validation';
+} from './ai-validation.ts';
 
 type AIOperation = 'personal-agent' | 'co-create-world' | 'generate-world' | 'advance-world';
+import { normalizeCreatorTransport } from './creator-directions.ts';
 
 async function callRemote<T>(
   operation: AIOperation,
@@ -75,8 +76,10 @@ async function callRemote<T>(
     try {
       while (true) {
         const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
+        buffer += done ? decoder.decode() : decoder.decode(value, { stream: true });
+        buffer = buffer.replace(/\r\n/g, '\n');
+        // A complete final event can end at EOF without the last blank line.
+        if (done && buffer.trim()) buffer += '\n\n';
 
         let boundaryIndex;
         while ((boundaryIndex = buffer.indexOf('\n\n')) !== -1) {
@@ -117,6 +120,7 @@ async function callRemote<T>(
             }
           }
         }
+        if (done) break;
       }
     } finally {
       reader.releaseLock();
@@ -133,13 +137,18 @@ async function callRemote<T>(
       };
       throw new Error(messages[streamError] || `创作服务暂时不可用：${streamError}`);
     }
-    if (!finalResult || !validate(finalResult)) {
+    if (operation === 'co-create-world') finalResult = normalizeCreatorTransport(finalResult);
+    if (!finalResult) {
+      throw new Error('回复连接提前结束，未收到完整结果。已收到的文字仅供参考，草稿未改动，输入已保留。');
+    }
+    if (!validate(finalResult)) {
       throw new Error('模型回复格式不完整，内容未提交，输入已保留。');
     }
     return finalResult;
   }
 
-  const body: unknown = await response.json();
+  const raw: unknown = await response.json();
+  const body = operation === 'co-create-world' ? normalizeCreatorTransport(raw) : raw;
   if (!validate(body)) throw new Error('模型回复格式不完整，内容未提交，输入已保留。');
   return body;
 }
