@@ -71,6 +71,13 @@ export function readCreatorResponse(value: unknown, input: CreatorAgentRequest):
     }) };
   }
   const { proposal: p, notices } = normalizeCreatorProposal(rawProposal, base.brief?.storyGraph?.nodes.map(n => n.id));
+  // Retired editors remain readable in old drafts, but new proposals cannot revive them.
+  if (record(p.brief)) {
+    delete p.brief.preferredDirection;
+    delete p.brief.alternativeDirection;
+    delete p.brief.successCondition;
+    delete p.brief.failureCondition;
+  }
   if (record(p.brief) && isCreatorStoryGraph(p.brief.storyGraph)) {
     p.brief.storyGraph = preserveEventIntent(p.brief.storyGraph, base.brief?.storyGraph);
     const cast = Array.isArray(p.characters) ? p.characters : ('characters' in base ? base.characters : undefined) ?? input.characters ?? [];

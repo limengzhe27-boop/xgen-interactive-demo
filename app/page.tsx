@@ -3,7 +3,6 @@
 
 import { SyntheticEvent, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
 import { WorldSystemPanel } from '@/components/world-system-panel';
-import { storyDirections } from '@/lib/story-directions';
 import { migrateCreatorDirections } from '@/lib/creator-directions';
 import { actionServiceError, visibleInteractionGoal, actionLabel } from '@/lib/interaction-clarity';
 import { reusePublicationArt } from '@/lib/reuse-publication-art';
@@ -873,9 +872,7 @@ function buildCreatorWorld(
   const locationIds = safeOutline.map((_, index) => `creator-location-${index + 1}`);
   const nextWorld = baseWorld ?? fallbackWorld;
   const normalizedBrief = normalizeCreatorBrief(creatorBrief);
-  const creatorTasks = normalizedBrief.tasks.length > 0
-    ? briefTasksToWorldTasks(normalizedBrief.tasks, playableRoles.map((role) => role.id))
-    : tasksFromStory(fallbackStory, playableRoles.map((role) => role.id));
+  const creatorTasks = briefTasksToWorldTasks(normalizedBrief.tasks, playableRoles.map((role) => role.id));
   const mainTaskIds = creatorTasks.filter((task) => task.kind === 'main').map((task) => task.id);
   const hasRolePlan = drafts.some((role) => role.goal?.trim()) || normalizedBrief.tasks.some((task) => task.assignedRoleIds?.length);
   const roleMainIds = (id: string) => creatorTasks.filter((task) => task.kind === 'main' && (!task.assignedRoleIds.length || task.assignedRoleIds.includes(id))).map((task) => task.id);
@@ -909,16 +906,8 @@ function buildCreatorWorld(
       ...event,
       earliestTurn: Math.max(2, index + 2),
     })),
-    endingConditions: [...(normalizedBrief.preferredDirection ? [{
-      id: 'creator-ending',
-      description: normalizedBrief.preferredDirection,
-      requiredTaskIds: [],
-      requiredFacts: [normalizedBrief.preferredDirection],
-    }] : []), ...(normalizedBrief.alternativeDirection ? [{
-      id: 'creator-failure',
-      description: normalizedBrief.alternativeDirection, requiredTaskIds: [],
-      requiredFacts: [normalizedBrief.alternativeDirection],
-    }] : [])],
+    // Legacy direction notes are not executable ending conditions.
+    endingConditions: baseWorld?.endingConditions ?? [],
     locations: safeOutline.map((beat, index) => ({
       id: locationIds[index],
       name: beat.location.trim() || `场景 ${index + 1}`,
@@ -2977,10 +2966,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     const signal = creatorRequest.current.start();
     setWorldGenerating(true);
     try {
-      const fallbackOutline = generatedStoryOutline.length >= 3 ? generatedStoryOutline : makeEditableOutline(worldSeed, draftRoles);
-      const effectiveBrief = creatorBrief.tasks.length > 0
-        ? normalizeCreatorBrief(creatorBrief)
-        : { ...briefFromOutline(fallbackOutline, worldSeed || '完成所选角色的核心目标', normalizeSurpriseLevel(creatorBrief.complexityLevel || 2)), discoveryGenre: creatorBrief.discoveryGenre };
+      const effectiveBrief = normalizeCreatorBrief(creatorBrief);
       const response = await runAI((adapter) => adapter.generateWorld({
         contractVersion: AI_CONTRACT_VERSION,
         creatorIntent: worldTitle,
@@ -2998,6 +2984,13 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       }, signal));
       if (!creatorRequest.current.current(signal)) return;
       const normalizedWorld = { ...normalizeGeneratedWorld(response.world, draftRoles), storyGraph: effectiveBrief.storyGraph };
+      // Generation is not authorization to introduce a mandatory task system or endings.
+      if (!effectiveBrief.tasks.length) {
+        normalizedWorld.tasks = [];
+        normalizedWorld.goals = normalizedWorld.goals.map(goal => ({ ...goal, requiredTaskIds: [] }));
+        normalizedWorld.difficultyConstraints = normalizedWorld.difficultyConstraints.map(({ blocksTaskId: _task, ...constraint }) => constraint);
+      }
+      normalizedWorld.endingConditions = [];
       const generatedDraftRoles = draftRoles.map((role, index) => ({ ...role, publicIntroduction: role.publicIntroduction ?? normalizedWorld.characters[index]?.publicIntroduction, cardHook: role.cardHook ?? normalizedWorld.characters[index]?.cardHook, goal: role.goal || normalizedWorld.characters[index]?.goal || '', appearance: role.appearance || normalizedWorld.characters[index]?.imagePrompt || '' }));
       setCreatorDetailBaseline({ roles: generatedDraftRoles, outline: response.storyOutline });
       setGeneratedWorld({ ...normalizedWorld, discoveryGenre: effectiveBrief.discoveryGenre || normalizedWorld.discoveryGenre, entryPolicy: restoreEntryPolicy(entryPolicy) });
@@ -3006,9 +2999,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
         ...effectiveBrief,
         discoveryGenre: effectiveBrief.discoveryGenre || normalizedWorld.discoveryGenre || '',
         coreGoal: (response.world.goals.find((goal) => goal.scope === 'world') ?? response.world.goals[0])?.title || effectiveBrief.coreGoal,
-        preferredDirection: storyDirections(response.world.endingConditions).primary?.description || effectiveBrief.preferredDirection,
-        alternativeDirection: storyDirections(response.world.endingConditions).alternative?.description || '',
-        tasks: response.world.tasks.map((task) => ({
+        tasks: normalizedWorld.tasks.map((task) => ({
           id: task.id,
           title: task.title,
           description: task.description,
@@ -3053,14 +3044,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     const safeTitle = worldTitle.trim() || `${draftRoles[0]?.name.trim() || '角色'}的小世界`;
     const safeSeed = worldSeed.trim() || `${draftRoles.map((role) => role.name.trim() || '未命名角色').join('、')}正在面对一件会改变彼此关系的事件。`;
     const safeOutline = outlineInput.length >= 3 ? outlineInput : makeEditableOutline(safeSeed, draftRoles);
-    const effectiveBrief = creatorBrief.tasks.length > 0
-      ? creatorBrief
-      : {
-        ...creatorBrief,
-        coreGoal: creatorBrief.coreGoal.trim() || safeSeed,
-        preferredDirection: creatorBrief.preferredDirection.trim(),
-        tasks: briefFromOutline(safeOutline, safeSeed, normalizeSurpriseLevel(creatorBrief.complexityLevel || 2)).tasks,
-      };
+    const effectiveBrief = { ...creatorBrief, coreGoal: creatorBrief.coreGoal.trim() || safeSeed };
     const edited = buildCreatorWorld(safeTitle, safeSeed, draftRoles, safeOutline, surprise, effectiveBrief, generatedWorld);
     const nextBaseline = { roles: draftRoles, outline: safeOutline };
     const worldDetails = generatedWorld
@@ -4775,13 +4759,13 @@ function CreateWorld({
             }
           }}
           onEditRoles={() => selectModule('people')} /></div>
-    <div className="workspace-task-panel" hidden={storyView !== 'tasks'}><h3>目标与任务</h3><p>这是跨事件的追求与达成条件，不要求写完每条剧情；可能走向不等于已发生事实。</p><div className="creator-framework-panel">              <label htmlFor="creator-goal">核心目标</label><Textarea id="creator-goal" value={creatorBrief.coreGoal} onChange={(event) => onUpdateCreatorBrief('coreGoal', event.target.value)} placeholder="核心目标或诉求" />
-              <div className="condition-grid"><label htmlFor="preferred-direction">预期走向（可选）<Input id="preferred-direction" value={creatorBrief.preferredDirection} onChange={(event) => onUpdateCreatorBrief('preferredDirection', event.target.value)} placeholder="你希望故事朝什么方向发展" /></label><label htmlFor="alternative-direction">其他走向（可选）<Input id="alternative-direction" value={creatorBrief.alternativeDirection} onChange={(event) => onUpdateCreatorBrief('alternativeDirection', event.target.value)} placeholder="也可能发生什么不同的发展" /></label></div>
-              <div className="complexity-picker"><span><strong>世界复杂度</strong><small>决定任务深度，不是预设分钟数</small></span><div>{['轻量', '标准', '丰富', '多线'].map((label, index) => <button type="button" key={label} data-selected={creatorBrief.complexityLevel === index + 1} onClick={() => onComplexity(index + 1)}>{label}</button>)}</div></div>
-              <div className="creator-task-heading"><span><strong>目标下的任务条件</strong><small>前置条件与困难防止玩家一句话直达结局</small></span><Button variant="outline" onClick={onAddCreatorTask}><Plus />添加任务</Button></div>
+    <div className="workspace-task-panel" hidden={storyView !== 'tasks'}><h3>目标与任务</h3><p>任务是可选工具。发展、分支与阶段收束请在故事画布的相关事件中编辑。</p><div className="creator-framework-panel">              <label htmlFor="creator-goal">核心目标</label><Textarea id="creator-goal" value={creatorBrief.coreGoal} onChange={(event) => onUpdateCreatorBrief('coreGoal', event.target.value)} placeholder="核心目标或诉求" />
+              {(creatorBrief.preferredDirection || creatorBrief.alternativeDirection) && <aside><h4>保留的历史构思</h4><p>以下旧内容仅供参考，不自动转换为事件或结局。后续请在故事画布中修改对应事件。</p><p>{creatorBrief.preferredDirection}</p><p>{creatorBrief.alternativeDirection}</p></aside>}
+              <div className="complexity-picker"><span><strong>世界复杂度</strong><small>控制结构复杂程度，不是必填任务数</small></span><div>{['轻量', '标准', '丰富', '多线'].map((label, index) => <button type="button" key={label} data-selected={creatorBrief.complexityLevel === index + 1} onClick={() => onComplexity(index + 1)}>{label}</button>)}</div></div>
+              <div className="creator-task-heading"><span><strong>持续追踪的任务（可选）</strong><small>需要记录调查进度、经营目标时使用，不替代事件与分支</small></span><Button variant="outline" onClick={onAddCreatorTask}><Plus />添加任务</Button></div>
               <CreatorTaskEditor tasks={creatorBrief.tasks} roles={draftRoles} onUpdate={onUpdateCreatorTask} onRemove={onRemoveCreatorTask} />
               {taskIssues.length > 0 && <div className="creator-validation" role="alert"><strong>任务关系需要调整</strong>{taskIssues.map(issue => <p key={issue}>{issue}</p>)}</div>}
-              {creatorBrief.tasks.length === 0 ? <div className="empty-task-state"><Target /><span><strong>还没有任务条件</strong><small>先和 Agent 讨论，或手动添加。直接生成时也会自动补齐。</small></span></div> : null}
+              {creatorBrief.tasks.length === 0 ? <div className="empty-task-state"><Target /><span><strong>暂未设置任务，可以直接继续创作</strong><small>调查、经营等需要持续追踪进展时再添加；剧情发展、分支和收束在故事画布中讨论。</small></span></div> : null}
 </div>          <div className="creation-paths" aria-label="选择世界生成方式">
             <button type="button" onClick={onUseManualStory} disabled={generating || !worldSeed.trim() || taskIssues.length > 0}><Pencil /><span><strong>直接使用我的设定</strong><small>不让 AI 改写，按当前框架建立世界</small></span><ArrowRight /></button>
             <button type="button" onClick={onGenerate} disabled={generating || taskIssues.length > 0}><WandSparkles /><span><strong>{generating ? 'AI 正在补全世界' : '让 AI 补全世界'}</strong><small>保留你的设定，补全角色秘密、场景和推进参考</small></span><ArrowRight /></button>

@@ -17,6 +17,22 @@ test('shared DAG supports branching, merge and later role entry without merging 
   assert.deepEqual(creatorEntryPaths(graph(), 'late'), [['start','left','late'], ['start','right','late']]);
   assert.deepEqual(graph().entries[1].knownFacts, ['听说读书会暂停']);
 });
+test('closure is optional, bounded, and tasks/endings are not publication prerequisites', () => {
+  const g=graph();
+  g.nodes[1].closingCondition=42;
+  assert.equal(isCreatorStoryGraph(g),false);
+  g.nodes[1].closingCondition='x'.repeat(3001);
+  assert.equal(isCreatorStoryGraph(g),false);
+  g.nodes[1].closingCondition='';
+  assert.equal(isCreatorStoryGraph(g),true);
+  const source=JSON.parse(readFileSync(new URL('../scripts/fixtures/creator-story-world.json',import.meta.url),'utf8'));
+  source.tasks=[];source.endingConditions=[];source.difficultyConstraints=[];
+  source.goals=source.goals.map(goal=>({...goal,requiredTaskIds:[]}));
+  const world=publicationWorld(source);
+  assert.deepEqual(world.tasks,[]);
+  assert.deepEqual(world.endingConditions,[]);
+  assert.deepEqual(publicationDraft({id:'test',title:world.title,genre:'',premise:world.premise,cover:'',portraits:{},world}).data.creatorBrief.tasks,[]);
+});
 test('missing/oversized/malformed data is bounded and cannot reach graph rendering', () => {
   for (const bad of [null, {}, { nodes: null }, { ...graph(), nodes: Array(10000).fill({}) }, { ...graph(), entries: [null] }, { ...graph(), nodes: [{ ...graph().nodes[0], nextNodeIds: 'late' }] }]) assert.ok(creatorStoryIssues(bad).length);
   assert.deepEqual(creatorStoryIssues(undefined), []);
@@ -56,11 +72,13 @@ test('publication whitelist retains only graph fields and restore rebases role I
   const source = JSON.parse(readFileSync(new URL('../scripts/fixtures/creator-story-world.json', import.meta.url), 'utf8'));
   const g = graph(); g.entries[0].roleId = 'person-a'; g.entries[1].roleId = 'person-b';
   g.nodes[1].trigger = '有人质疑邀请函';
+  g.nodes[1].closingCondition = '解释已获得双方确认';
   g.nodes[1].eventIntent = 'key_event';
   g.nodes[1].possibilities = [{ actor: '来访者', action: '公开邀请函', consequence: '获得解释，也暴露自己的来意', condition: '来访者愿意公开' }];
   g.privateChat = 'must not be public';
   const world = publicationWorld({ ...source, storyGraph: g });
   assert.equal(world.storyGraph.privateChat, undefined);
+  assert.equal(world.storyGraph.nodes[1].closingCondition, g.nodes[1].closingCondition);
   assert.deepEqual(world.storyGraph.nodes[1].possibilities, g.nodes[1].possibilities);
   const restored = publicationDraft({ id: 'test-world', title: world.title, genre: '', premise: world.premise, cover: '', portraits: {}, world });
   assert.deepEqual(restored.data.creatorBrief.storyGraph.entries.map(e => e.roleId), ['draft-role-0', 'draft-role-1']);

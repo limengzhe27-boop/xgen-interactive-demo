@@ -7,7 +7,7 @@ test('manual creation uses its own brief, not the legacy lighthouse story', asyn
   const source = await readFile(new URL('../app/page.tsx', import.meta.url), 'utf8');
   const materialize = source.slice(source.indexOf('function materializeCreatorWorld'), source.indexOf('function createWorldFromManualStory'));
   assert.match(materialize, /coreGoal: creatorBrief.coreGoal.trim\(\)/);
-  assert.match(materialize, /preferredDirection: creatorBrief.preferredDirection.trim\(\)/);
+  assert.doesNotMatch(materialize, /tasks: briefFromOutline/);
   const ast = ts.createSourceFile('page.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
   const names = ['makePlayableDraftRoles', 'makeEditableOutline', 'tasksFromStory', 'briefTasksToWorldTasks', 'normalizeCreatorBrief', 'buildWorldDefinition', 'buildCreatorWorld'];
   const functions = ast.statements.filter(node => ts.isFunctionDeclaration(node) && names.includes(node.name?.text)).map(node => node.getText(ast)).join('\n');
@@ -32,7 +32,8 @@ test('manual creation uses its own brief, not the legacy lighthouse story', asyn
   assert.deepEqual(roleWorld.goals.find(goal => goal.roleId === 'draft-role-0').requiredTaskIds, ['a']);
   assert.deepEqual(roleWorld.goals.find(goal => goal.roleId === 'draft-role-1').requiredTaskIds, ['b']);
   assert.ok(roleWorld.endingConditions.every(ending => ending.outcome === undefined));
-  assert.deepEqual(roleWorld.endingConditions[0].requiredFacts, ['争夺结束']);
-  assert.deepEqual(roleWorld.endingConditions[0].requiredTaskIds, []);
+  assert.deepEqual(roleWorld.endingConditions, []);
+  assert.deepEqual(world.tasks, []);
+  assert.deepEqual(world.endingConditions, []);
   assert.deepEqual(roleWorld.tasks.find(task => task.id === 'c').assignedRoleIds, ['draft-role-0']);
 });

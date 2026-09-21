@@ -132,7 +132,6 @@ export function isWorldGenerationResponse(value: unknown): value is WorldGenerat
       && (goal.scope === 'world' || goal.scope === 'role')
       && isStringArray(goal.requiredTaskIds))
     && Array.isArray(world.tasks)
-    && world.tasks.length >= 1
     && world.tasks.every((task) => isRecord(task)
       && typeof task.id === 'string'
       && typeof task.title === 'string'

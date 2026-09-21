@@ -59,35 +59,7 @@ function buildCreatorBrief(input: CreatorAgentRequest): CreatorBrief {
   const current = input.currentDraft.brief;
   const names = input.characters.map((character) => character.name || character.identity).filter(Boolean);
   const subject = input.currentDraft.premise.trim() || input.userMessage.trim() || `${names.join('、')}进入同一场冲突`;
-  const existingTasks = current.tasks.length > 0 ? current.tasks : [
-    {
-      id: 'task-establish',
-      title: '确认各方真实诉求',
-      description: '通过观察或对话，找出每个人最想得到与最害怕失去的东西。',
-      kind: 'main' as const,
-      prerequisiteTaskIds: [],
-      successCondition: '至少确认两名角色的真实立场',
-      difficulty: '角色会因自身利益保留关键信息',
-    },
-    {
-      id: 'task-breakthrough',
-      title: '突破关系或现实障碍',
-      description: `找到推动“${subject.slice(0, 42)}”的条件，不能只用一句宣告跳到结果。`,
-      kind: 'main' as const,
-      prerequisiteTaskIds: ['task-establish'],
-      successCondition: '获得至少一个可验证的关键条件',
-      difficulty: '快速捷径会引发代价，需要交换信任、资源或风险',
-    },
-    {
-      id: 'task-final-choice',
-      title: '完成目标并承担代价',
-      description: '在条件具备后作出最终行动，让世界根据之前的事实给出结局。',
-      kind: 'main' as const,
-      prerequisiteTaskIds: ['task-breakthrough'],
-      successCondition: '核心目标达成，且一个关键代价已被确认',
-      difficulty: '不同角色的目标存在冲突，不会所有人同时满意',
-    },
-  ];
+  const existingTasks = current.tasks;
   return {
     coreGoal: current.coreGoal || `推动“${subject.slice(0, 52)}”并让所选角色达成自己的目标`,
     preferredDirection: current.preferredDirection || '',
@@ -124,7 +96,7 @@ class MockAIAdapter implements AIAdapter {
     const title = input.currentDraft.title.trim() || `${input.characters[0]?.name || '主角'}的选择`;
     const premise = input.currentDraft.premise.trim() || input.userMessage.trim();
     return Promise.resolve({
-      reply: `我把你刚才的想法先收敛成“目标—条件—代价”。核心不是预先定好玩多久，而是让玩家必须完成 ${brief.tasks.filter((task) => task.kind === 'main').length} 个主线条件才能抵达结局。你可以先采纳，再继续让我加副线、时限或角色冲突。`,
+      reply: '这是本地演示建议。剧情发展与分支放在故事画布，任务只在需要持续追踪进展时使用，不要求先写好结局。',
       proposal: { title, premise, brief },
       nextQuestions: ['玩家最终获得什么？', '哪个角色最希望阻止他？', '走捷径应该付出什么代价？'],
       readiness: premise ? 'ready' : 'needs_detail',
@@ -152,16 +124,7 @@ class MockAIAdapter implements AIAdapter {
       imagePrompt: `${character.identity || '事件当事人'}，${character.persona || '神情克制而警觉'}，${character.name || `角色 ${index + 1}`}，现代现实主义电影角色立绘，明确年龄、发型、服装和随身物品，半身像，无文字无水印`,
     }));
     const premise = `${seed}\n\n故事从一次无法回避的正面相遇开始。${roleNames.join('、')}都带着各自的目标进入现场：表面上，他们需要一起处理眼前的问题；实际上，每个人都在衡量应该公开多少真相。体验者选择其中任意角色后，都将从这个角色掌握的信息和关系位置出发，经历不同的调查、对话与抉择。`;
-    const draftTasks = input.creatorBrief.tasks.length > 0
-      ? input.creatorBrief.tasks
-      : buildCreatorBrief({
-        contractVersion: AI_CONTRACT_VERSION,
-        userMessage: seed,
-        conversation: [],
-        characters: input.characters,
-        relationshipNotes: input.relationshipNotes,
-        currentDraft: { title, premise: seed, surpriseLevel: input.surpriseLevel, brief: input.creatorBrief },
-      }).tasks;
+    const draftTasks = input.creatorBrief.tasks;
     const tasks = draftTasks.map((task) => ({
       ...task,
       assignedRoleIds: characters.map((character) => character.id),
@@ -212,7 +175,8 @@ class MockAIAdapter implements AIAdapter {
           ...event,
           earliestTurn: Math.max(2, index + 2),
         })),
-        endingConditions: [input.creatorBrief.preferredDirection, input.creatorBrief.alternativeDirection].flatMap((description, index) => description ? [{ id: `core-direction-${index}`, description, requiredTaskIds: [], requiredFacts: [description] }] : []),
+        endingConditions: [],
+        storyGraph: input.creatorBrief.storyGraph,
         openingScene: {
           locationId: 'opening-location',
           narrative: `${premise}\n\n此刻，${leadName}先察觉到现场气氛不对：${counterpartName}的反应与平时不同，而另一名在场者似乎故意把一个重要细节轻描淡写地带过。没有超自然力量替任何人解释动机，也没有凭空出现的答案；能推动故事的，只有体验者接下来选择相信谁、追问什么，以及愿意承担怎样的关系后果。`,

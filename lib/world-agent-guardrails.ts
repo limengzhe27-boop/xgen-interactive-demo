@@ -1,5 +1,6 @@
 import type { WorldTurnRequest, WorldTurnResponse } from '@/lib/ai-contracts';
 import type { ActionValidation } from '@/lib/world-state';
+import { storyNodeClosures } from './creator-story-graph.ts';
 
 function activeTasks(input: WorldTurnRequest, completed: Set<string>, failed: Set<string>) {
   return input.world.tasks.filter((task) => task.kind === 'main'
@@ -85,7 +86,9 @@ export function enforceWorldTurnGuardrails(input: WorldTurnRequest, output: Worl
     ...output.statePatch.committedFacts,
   ]);
   const seen = new Set(input.state.reachedEndingIds ?? []);
-  const eligible = input.world.endingConditions.filter((condition) => {
+  const nodeClosures = storyNodeClosures(input.world.storyGraph);
+  const conditions: typeof input.world.endingConditions = [...input.world.endingConditions, ...nodeClosures];
+  const eligible = conditions.filter((condition) => {
     const failedIds = condition.requiredFailedTaskIds ?? [];
     const hasTrigger = condition.requiredTaskIds.length + failedIds.length + condition.requiredFacts.length > 0;
     return hasTrigger && !seen.has(condition.id)

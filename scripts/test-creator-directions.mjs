@@ -19,15 +19,15 @@ test('legacy directions migrate without mutating source or task completion crite
   assert.deepEqual(migrateCreatorDirections({}),{});
   assert.equal(migrateCreatorDirections({...brief,preferredDirection:''}).preferredDirection,'');
 });
-test('partial model proposals accept old names, retain omissions, and support clearing', () => {
+test('new model proposals cannot revive retired direction fields; legacy notes stay intact', () => {
   const input = {currentDraft:draft,characters:[],userMessage:'改一下走向'};
   const r=readCreatorResponse({reply:'建议',proposal:{brief:{failureCondition:'暂时停战'}}},input);
   assert.equal(r.discussionOnly,false);
   assert.equal(r.proposal.brief.preferredDirection,'合作');
-  assert.equal(r.proposal.brief.alternativeDirection,'暂时停战');
+  assert.equal(r.proposal.brief.alternativeDirection,'各自离开');
   const cleared=readCreatorResponse({reply:'留白',proposal:{brief:{preferredDirection:''}}},{...input,pendingProposal:r.proposal});
-  assert.equal(cleared.proposal.brief.preferredDirection,'');
-  assert.equal(cleared.proposal.brief.alternativeDirection,'暂时停战');
+  assert.equal(cleared.proposal.brief.preferredDirection,'合作');
+  assert.equal(cleared.proposal.brief.alternativeDirection,'各自离开');
 });
 test('saved pending changes migrate and still support guarded adoption and undo', () => {
   const session=restoreCreatorSession({proposal:draft,input:'继续',changes:[{key:'successCondition',label:'预期走向',before:'旧走向',after:'合作'}]});
@@ -43,5 +43,5 @@ test('guidance distinguishes story direction from tasks and preserves author sco
   const input={currentDraft:draft,characters:[],userMessage:'讨论预期走向'};
   assert.equal(selectCreatorSkills(input).horizontal,'H5');
   const prompt=creatorSkillGuidance(input);
-  for(const text of ['适时补缺','字段为空不等于没有讨论','不是输赢','不要求每个故事配任务','局部改字不附加问卷']) assert.ok(prompt.includes(text));
+  for(const text of ['适时补缺','字段为空不等于没有讨论','closingCondition','不要求每部故事配任务','局部改字不附加问卷']) assert.ok(prompt.includes(text));
 });

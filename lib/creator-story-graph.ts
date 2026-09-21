@@ -1,7 +1,7 @@
 /** Authoring data, not a record of events that have happened in a player's save. */
 export type CreatorStoryGraph = {
   startNodeId: string;
-  nodes: { id: string; title: string; location: string; scene: string; worldFacts: string[]; nextNodeIds: string[]; eventIntent?: 'possible' | 'key_event'; trigger?: string; possibilities?: { actor: string; roleId?: string | null; action: string; consequence: string; condition?: string }[] }[];
+  nodes: { id: string; title: string; location: string; scene: string; worldFacts: string[]; nextNodeIds: string[]; eventIntent?: 'possible' | 'key_event'; trigger?: string; closingCondition?: string; possibilities?: { actor: string; roleId?: string | null; action: string; consequence: string; condition?: string }[] }[];
   entries: { roleId: string; nodeId: string; defaultPath: string[]; knownFacts: string[]; beliefs: string[]; scene: string }[];
 };
 
@@ -10,11 +10,22 @@ const text = (v: unknown, max = 3000): v is string => typeof v === 'string' && v
 const id = (v: unknown): v is string => text(v, 100) && /^[a-zA-Z0-9_-]+$/.test(v);
 const list = (v: unknown): v is string[] => Array.isArray(v) && v.length <= 24 && v.every(x => text(x, 1500));
 
+/** Conditions, never entry facts. Both labels require evidence from actual play. */
+export function storyNodeClosures(graph?: CreatorStoryGraph) {
+  return (graph?.nodes ?? []).flatMap(node => node.closingCondition?.trim() ? [{
+    id: `story-closure-${node.id}`,
+    description: node.closingCondition.trim(),
+    requiredTaskIds: [] as string[],
+    requiredFacts: [`story-event:${node.id}:occurred`, node.closingCondition.trim()],
+  }] : []);
+}
+
 export function isCreatorStoryGraph(v: unknown): v is CreatorStoryGraph {
   return record(v) && id(v.startNodeId) && Array.isArray(v.nodes) && v.nodes.length > 0 && v.nodes.length <= 16
     && v.nodes.every(n => record(n) && id(n.id) && text(n.title, 100) && text(n.location, 200) && text(n.scene)
       && list(n.worldFacts) && list(n.nextNodeIds) && n.nextNodeIds.every(id)
       && (n.trigger === undefined || text(n.trigger))
+      && (n.closingCondition === undefined || text(n.closingCondition))
       && (n.eventIntent === undefined || n.eventIntent === 'possible' || n.eventIntent === 'key_event')
       && (n.possibilities === undefined || (Array.isArray(n.possibilities) && n.possibilities.length <= 6
         && n.possibilities.every(p => record(p) && text(p.actor) && (p.roleId === undefined || p.roleId === null || id(p.roleId)) && text(p.action) && text(p.consequence) && (p.condition === undefined || text(p.condition))))))
@@ -136,7 +147,7 @@ export function preserveEventIntent(graph: CreatorStoryGraph, base?: CreatorStor
 
 export const CREATOR_STORY_GRAPH_GUIDANCE = OPEN_STORY_DIRECTIONS + `
 可能行动可用roleId绑定其行动者，使用同一份角色名单的draft-role-N；actor保留可读描述。被提及、受影响或被攻击的人不是行动者。多人、路人或归属不明时roleId=null，不能凭名字子串认领。沿用已有绑定，角色改名不改变身份；返回人物名单时须同步所有角色引用。新增事件不代表所有早入场角色都在场或知情，汇合也不合并互斥前史。
-每个事件节点可选提供 trigger（什么条件下可能发生）和 possibilities（最多6项，每项含 actor 人物称呼、action 可能行动、consequence 可能收益/代价/他人反应，均为字符串）。这些是作者的可能性设计，不是已发生事实、不要求作者填完，也不代表玩家只能选这些行动。actor只是描述，不是角色ID或入场绑定。获得授权构思时主动补充有意义的局面变化，不反复要求用户编写完整剧本；不要把可能后果写入worldFacts。未聊到的部分省略即可。
+每个事件节点可选提供 closingCondition（本事件实际发生后，什么可确认变化使这一段暂告一段落；不要求填写，不能当作已经发生的事实），以及 trigger（什么条件下可能发生）和 possibilities（最多6项，每项含 actor 人物称呼、action 可能行动、consequence 可能收益/代价/他人反应，均为字符串）。这些是作者的可能性设计，不是已发生事实、不要求作者填完，也不代表玩家只能选这些行动。actor只是描述，不是角色ID或入场绑定。获得授权构思时主动补充有意义的局面变化，不反复要求用户编写完整剧本；不要把可能后果写入worldFacts。未聊到的部分省略即可。
 创作画布（co-create-world 新增允许字段 proposal.brief.storyGraph）：有了人物和具体场景，就同时提供可编辑画布；只有抽象想法时先共同构思，不强迫补全。无须用户另填表。沿用 currentDraft.brief.storyGraph 和 pendingSuggestions 中稳定的节点 ID；仅修改用户要求的部分。不要把所有内容都复制成互不相干的角色时间线。开始可以只有1个开场节点，随讨论扩展，最多16个；可分支、汇合，不可循环。支持多分支树状与网状走向：同一个节点可包含多个 nextNodeIds（如 nextNodeIds: ["branch_a", "branch_b"] 分叉为多条互斥或并行走向），不同分支亦可汇合至同一节点（汇合不可成环）。不是固定通关成功/失败路线。
 JSON格式：{"startNodeId":"opening","nodes":[{"id":"opening","title":"共同开场","location":"地点","scene":"当前场景与未决动作","worldFacts":["此刻已成立的客观事实"],"nextNodeIds":["branch_a","branch_b"]},{"id":"branch_a","title":"分支A：正面突破","location":"地点","scene":"采取正面行动的场景","worldFacts":["分支A成立的事实"],"nextNodeIds":[]},{"id":"branch_b","title":"分支B：暗中潜伏","location":"地点","scene":"采取潜伏行动的场景","worldFacts":["分支B成立的事实"],"nextNodeIds":[]}],"entries":[{"roleId":"draft-role-0","nodeId":"opening","defaultPath":["opening"],"knownFacts":["该角色此刻已知的事实"],"beliefs":["尚未证实的怀疑"],"scene":"第一人称可感知的场景、处境与未决问题"},{"roleId":"draft-role-1","nodeId":"branch_a","defaultPath":["opening","branch_a"],"knownFacts":[],"beliefs":[],"scene":"后登场角色看到的当时现场"}]}。
 roleId严格对应此次proposal.characters的数组位置draft-role-0起；未返回characters则沿用输入角色ID。每个角色应有一份entries。晚登场者绑定对应事件节点，不强制同时入场。defaultPath是新存档直接选择该角色的默认前史，含起点和入场节点、沿真实连线；互斥分支只选一条，禁止混合。世界事实一份共享；knownFacts只含该角色有理由知道的，beliefs不可当客观事实。未知的他人秘密不能写进入场scene。共同开场之后的nodes只是作者预期可能性，不代表玩家存档已发生。已有存档换角色不使用defaultPath跳时间。尚不能确定的内容留空并在reply简短说明，不假装作者已确认；所有画布都是待采纳建议。人物信息保持原有characters结构，不在画布中复制人物设定。仅生成画布不得触发生图或视频。`;

@@ -394,6 +394,11 @@ function NodeDetails({ graph, nodeId, roleId, roleName, roles, suggested, busy, 
         <Button type="button" variant="outline" size="sm" disabled={(node.possibilities?.length ?? 0) >= 6} onClick={() => updateNode({ possibilities: [...(node.possibilities ?? []), { actor: '', action: '', consequence: '' }] })}>+ 添加一种可能</Button>
         {(node.possibilities?.length ?? 0) >= 6 && <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginTop: 6 }}>已达上限 6 项。可修改已有可能性；确有不同事件时再新建分支节点。</p>}
       </details>
+      <details className={styles.possibilitiesSection} open={node.closingCondition?.trim() ? true : undefined}>
+        <summary>阶段收束（选填）</summary>
+        <p>只有这个事件实际发生且以下条件成立，这一段才暂告一段落。留空表示继续发展，不要求每条路线都有结局。</p>
+        <Field label="发生什么变化后，这一段可以结束" value={node.closingCondition ?? ''} placeholder="写可确认的变化，不预先替玩家决定行动" onChange={closingCondition => updateNode({ closingCondition })} />
+      </details>
       {notice && <output className={styles.notice}>{notice}</output>}
     </fieldset>
   </form>;

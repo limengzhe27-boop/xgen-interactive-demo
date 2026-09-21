@@ -11,6 +11,28 @@ function response(patch = {}, ending = {}) {
     statePatch: { committedFacts: [], ...patch }, image: { required: false, reason: 'reuse', sceneId: 'now' },
     goalProgress: { activeTaskIds: [], completedTaskIds: [], summary: '' }, ending: { reached: false, canContinue: true, ...ending } };
 }
+test('optional node closure requires both its actual event and its condition; branches cannot substitute', () => {
+  const input = makeEndingFixture();
+  input.world.tasks = [];
+  input.world.endingConditions = [];
+  input.world.storyGraph = { startNodeId: 'opening', entries: [], nodes: [
+    { id:'opening',title:'开场',location:'现场',scene:'未决',worldFacts:[],nextNodeIds:['left','right'] },
+    { id:'left',title:'左路',location:'现场',scene:'未决',worldFacts:[],nextNodeIds:[],closingCondition:'双方确认停战' },
+    { id:'right',title:'右路',location:'现场',scene:'未决',worldFacts:[],nextNodeIds:[] },
+  ] };
+  assert.equal(guard(input,response()).ending.reached,false);
+  for (const committedFacts of [['双方确认停战'],['story-event:left:occurred'],['story-event:right:occurred','双方确认停战']]) {
+    assert.throws(() => guard(input,response({committedFacts},{reached:true,endingId:'story-closure-left'})),/premature_ending/);
+  }
+  const done = guard(input,response({committedFacts:['story-event:left:occurred','双方确认停战']}));
+  assert.equal(done.ending.endingId,'story-closure-left');
+  assert.equal(done.ending.canContinue,true);
+  input.state.reachedEndingIds=['story-closure-left'];
+  assert.equal(guard(input,response({committedFacts:['story-event:left:occurred','双方确认停战']})).ending.reached,false);
+  input.world.storyGraph.nodes[1].closingCondition='';
+  input.state.reachedEndingIds=[];
+  assert.equal(guard(input,response({committedFacts:['story-event:left:occurred','双方确认停战']})).ending.reached,false);
+});
 test('NPC completion unlocks another role task without skipping prerequisites', () => {
   const input=makeEndingFixture();
   const npc=input.world.characters.find(c=>c.id!==input.selectedRoleId).id;
