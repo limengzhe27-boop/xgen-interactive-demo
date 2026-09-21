@@ -3111,7 +3111,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     if (continuation?.proposal) { setCreatorChangeNotice('请先确认或放弃后续提案，再发布。'); return; }
     const world = materializeCreatorWorld();
     const portraits = Object.fromEntries(world.characters.map((role, index) => [role.id, creatorRoleImages[`draft-role-${index}`] || creatorAssets?.portraits[role.id] || '']));
-    setPublicationEntry({ id: draftId, title: world.title, genre: '社区创作', premise: world.premise,
+    setPublicationEntry({ id: draftId, title: world.title, genre: creatorBrief.discoveryGenre?.trim() || '', premise: world.premise,
       cover: creatorAssets?.cover || '', portraits, world });
   }
 

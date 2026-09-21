@@ -3,7 +3,7 @@
 /* eslint-disable @next/next/no-img-element -- Existing local and authenticated asset URLs must retain their original dimensions and browser cookies. */
 
 import { useRef, useState } from 'react';
-import { ArrowLeft, ArrowDown, Play } from 'lucide-react';
+import { ArrowLeft, Play } from 'lucide-react';
 import { characterHook } from '@/lib/character-card';
 import { publicRoleIntroduction } from '@/lib/public-introduction';
 import styles from './world-intro-page.module.css';
@@ -34,15 +34,15 @@ export function WorldIntroPage({ data, onBack, onResumeRun, onStartWorld }: {
   onResumeRun: (runId: string) => void; onStartWorld: (roleId: string) => void;
 }) {
   const restartDialog = useRef<HTMLDialogElement>(null);
-  const roleSection = useRef<HTMLElement>(null);
   const [restartRole, setRestartRole] = useState<WorldIntroCharacter | null>(null);
   const [failedCover, setFailedCover] = useState<string>();
   const title = data.title.trim() || '未命名世界';
   const playableRoles = data.characters.filter(role => role.playable !== false && (!data.fixedRoleId || role.id === data.fixedRoleId));
   const otherRoles = data.characters.filter(role => !playableRoles.some(playable => playable.id === role.id));
-  const single = playableRoles.length === 1 ? playableRoles[0] : null;
   const cover = data.cover && failedCover !== data.cover ? data.cover : undefined;
   const premise = data.premise.trim();
+  const genre = data.genre?.trim();
+  const [expandedRoles, setExpandedRoles] = useState<string[]>([]);
 
   function start(role: WorldIntroCharacter) {
     if (data.existingRun) {
@@ -50,19 +50,17 @@ export function WorldIntroPage({ data, onBack, onResumeRun, onStartWorld }: {
       restartDialog.current?.showModal();
     } else onStartWorld(role.id);
   }
-  function chooseRole() {
-    roleSection.current?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block: 'start' });
-    roleSection.current?.focus({ preventScroll: true });
-  }
   function roleCard(role: WorldIntroCharacter, playable: boolean) {
-    const description = publicDescription(role);
+    const description = publicDescription(role) || role.identity;
+    const expanded = expandedRoles.includes(role.id);
     return <article key={role.id} className={styles.role} data-playable={playable}>
-      <div className={styles.roleHeading}>
-        {role.image ? <img className={styles.portrait} src={role.image} alt={role.name} loading="lazy" /> : <span className={styles.initial} aria-hidden="true">{role.name.slice(0, 1)}</span>}
-        <div><h3>{role.name}</h3>{role.identity && <p className={styles.muted}>{role.identity}</p>}</div>
+      {role.image && <img className={styles.rolePortrait} src={role.image} alt={role.name} loading="lazy" />}
+      <div className={styles.roleCopy}>
+        <h3>{role.name}</h3>
+        {description && <p className={`${styles.roleDescription} ${!expanded && description.length > 100 ? styles.collapsed : ''}`}>{description}</p>}
+        {description.length > 100 && <button type="button" className={styles.more} aria-expanded={expanded} onClick={() => setExpandedRoles(ids => expanded ? ids.filter(id => id !== role.id) : [...ids, role.id])}>{expanded ? '收起介绍' : '展开介绍'}</button>}
+        {playable && <button type="button" className={styles.primary} onClick={() => start(role)}><Play size={15} aria-hidden="true" />{data.existingRun ? `以${role.name}重新开始` : `扮演${role.name}`}</button>}
       </div>
-      {description && <p className={styles.roleDescription}>{description}</p>}
-      {playable && <button type="button" className={styles.secondary} onClick={() => start(role)}><Play size={15} aria-hidden="true" />以{role.name}身份{data.existingRun ? '重新开始' : '开始'}</button>}
     </article>;
   }
 
@@ -76,29 +74,20 @@ export function WorldIntroPage({ data, onBack, onResumeRun, onStartWorld }: {
         <img className={styles.cover} src={cover} alt={`${title}封面`} onError={() => setFailedCover(cover)} />
       </div>}
       <div className={styles.summary}>
-        {data.genre?.trim() && <span className={styles.genre}>{data.genre.trim()}</span>}
+        {genre && genre !== '社区创作' && <span className={styles.genre}>{genre}</span>}
         <h1 id="world-intro-title">{title}</h1>
-        {premise && <p className={styles.description}>{premise}</p>}
-        {single && <div className={styles.identity}>
-          <span className={styles.muted}>你将扮演</span>
-          <div className={styles.roleHeading}>
-            {single.image && <img className={styles.portrait} src={single.image} alt={single.name} loading="lazy" />}
-            <div><strong>{single.name}</strong>{single.identity && <p>{single.identity}</p>}</div>
-          </div>
-          {publicDescription(single) && <p>{publicDescription(single)}</p>}
-        </div>}
+        <p className={styles.description}>{premise || '作者尚未填写公开简介。'}</p>
+        <p className={styles.saved}>选择一个角色，从他的处境开始。</p>
         <div className={styles.actions}>
           {data.existingRun && <button type="button" className={styles.primary} onClick={() => onResumeRun(data.existingRun!.id)}><Play size={17} aria-hidden="true" />继续上次体验</button>}
-          {single ? <button type="button" className={data.existingRun ? styles.secondary : styles.primary} onClick={() => start(single)}><Play size={17} aria-hidden="true" />以{single.name}身份{data.existingRun ? '重新开始' : '开始体验'}</button>
-            : playableRoles.length > 1 ? <button type="button" className={data.existingRun ? styles.secondary : styles.primary} onClick={chooseRole}>选择角色{data.existingRun ? '重新开始' : '开始'}<ArrowDown size={17} aria-hidden="true" /></button>
-            : <p className={styles.muted}>暂未开放体验视角</p>}
+          {!playableRoles.length && <p className={styles.muted}>暂未开放体验视角</p>}
         </div>
         {data.existingRun && <p className={styles.saved}>上次：{data.existingRun.roleName} · 第 {data.existingRun.turn} 轮 · {data.existingRun.location}</p>}
         {data.existingRun?.savedAt && Number.isFinite(data.existingRun.savedAt) ? <p className={styles.saved}>保存于 {new Date(data.existingRun.savedAt).toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</p> : null}
       </div>
     </section>
-    {playableRoles.length > 1 && <section ref={roleSection} className={styles.section} tabIndex={-1} aria-labelledby="playable-roles-title">
-      <h2 id="playable-roles-title">选择你的视角</h2><p className={styles.muted}>同一个世界，从不同人物的处境进入。</p>
+    {playableRoles.length > 0 && <section className={styles.section} aria-labelledby="playable-roles-title">
+      <h2 id="playable-roles-title">{playableRoles.length === 1 ? '你将扮演' : '选择你的角色'}</h2>
       <div className={styles.roles}>{playableRoles.map(role => roleCard(role, true))}</div>
     </section>}
     {otherRoles.length > 0 && <section className={styles.section} aria-labelledby="other-roles-title">
