@@ -117,6 +117,7 @@ import { applyCreatorChange, combineCreatorChanges, creatorConfirmation, creator
 import { DeleteRoleDialog, PortraitBatchDialog, ImagePreviewModal } from '@/components/creator-dialogs';
 import { WorldIntroPage, type WorldIntroData, type WorldIntroCharacter, type WorldIntroSavedRun } from '@/components/world-intro-page';
 import { publicSynopsis, publicRoleIntroduction } from '@/lib/public-introduction';
+import { catalogVersions } from '@/lib/catalog-versions';
 import { creatorAuthorContext } from '@/lib/creator-author-context';
 import { chatRecordSubtitle } from '@/lib/chat-record-label';
 import { CreatorStoryCanvas } from '@/components/creator-story-canvas';
@@ -1209,7 +1210,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       : '暴雨山庄：缺席的继承人';
   const activeSurprise = activeLibrary ? activeLibrary.world.surpriseLevel : activeWorld === 'draft' ? surprise : activeWorld === 'suggestion' ? suggestedPreset?.surpriseLevel ?? 2 : 2;
   const activeWorldDefinition = activeLibrary ? activeLibrary.world : activeWorld === 'draft'
-    ? (generatedWorld?.tasks?.length
+    ? (generatedWorld
       ? { ...generatedWorld, surpriseLevel: normalizeSurpriseLevel(activeSurprise) }
       : buildCreatorWorld(
         worldTitle,
@@ -1217,7 +1218,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
         draftRoles,
         generatedStoryOutline,
         activeSurprise,
-        creatorBrief.tasks.length > 0 ? creatorBrief : briefFromOutline(generatedStoryOutline.length >= 3 ? generatedStoryOutline : makeEditableOutline(worldSeed, draftRoles), worldSeed),
+        creatorBrief,
       ))
     : activeWorld === 'suggestion' && suggestedWorldDefinition
       ? suggestedWorldDefinition
@@ -1227,7 +1228,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     world: { ...doc.data.generatedWorld!, id: doc.id, title: doc.data.worldTitle },
     portraitCacheKeys: Object.fromEntries(doc.data.draftRoles.map((role, index) => [doc.data.generatedWorld!.characters[index]?.id ?? `draft-role-${index}`, portraitCacheKey(role)])),
   }));
-  const availableStudioWorlds = [...studioWorlds, ...userWorlds.map(w=>reconcileLocalArt(w,communityWorlds)), ...communityWorlds];
+  const availableStudioWorlds = catalogVersions(studioWorlds, userWorlds.map(w=>reconcileLocalArt(w,communityWorlds)), communityWorlds);
   const entryLinkOpened = useRef(false);
   const linkedWorldStartPending = useRef(false);
   useEffect(() => {
@@ -2020,7 +2021,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       setActiveWorld('draft');
       setSelectedRole(targetRole);
       setRuntimeBeat(null);
-      const draftWorldDef = (generatedWorld?.tasks?.length
+      const draftWorldDef = (generatedWorld
         ? { ...generatedWorld, surpriseLevel: normalizeSurpriseLevel(surprise) }
         : buildCreatorWorld(
           worldTitle,
@@ -2028,7 +2029,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
           draftRoles,
           generatedStoryOutline,
           surprise,
-          creatorBrief.tasks.length > 0 ? creatorBrief : briefFromOutline(generatedStoryOutline.length >= 3 ? generatedStoryOutline : makeEditableOutline(worldSeed, draftRoles), worldSeed),
+          creatorBrief,
         ));
       const draftStoriesMap = generatedWorld && generatedStoryOutline.length > 0
         ? makeGeneratedDraftStory(playableDraftRoles, draftWorldDef, generatedStoryOutline)
