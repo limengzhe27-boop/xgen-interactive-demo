@@ -3,7 +3,7 @@ import { creatorContentGaps, creatorEntryGaps } from './creator-completeness.ts'
 import type { CreatorTriage } from './typesafe-creator-triage.ts';
 
 /** Runtime excerpts of research/skill-drafts/creator-suite-v1, not a second output schema. */
-export const CREATOR_SKILL_VERSION = 'six-by-six-2026-09-21.2';
+export const CREATOR_SKILL_VERSION = 'six-by-six-2026-09-21.3';
 export const horizontalSkills = {
   H1: '内容方向：承接核心设想，按缺口讨论主要体验、基调尺度、参与方式与必要边界。工作方法：提炼已定内容，聚焦核心设想/主要体验/基调尺度/参与方式/基本局面关键缺口；先推荐与作者意图相符的方向，说明会产生什么体验、为什么、牺牲什么，必要时比较替代方案；不固定ABC，不以“你选哪个”代替判断，已清楚的不重问。明确委托时给出具体定位草案。成果落点：设定与方向（title、premise、entryPolicy、brief.discoveryGenre），待定构思与设计假设保留在 reply，不强制世界规则先行或自动补齐全员秘密。',
   H2: '人物塑造：作者只讨论某个人，就不要替其他人定案；仅在指定人物范围内讨论身份、诉求、性格如何影响行动、能力与限制。工作方法：用相关情境对比行为差异，避免空泛追问形容词；未知留空，不为返回完整名单扩写其他人。建议与确认事实分开，局部提案只改该角色。成果落点：人物与关系（characters[i]: id、name、identity、persona、personality、appearance、goal）。重点边界：禁止拿私密目标或秘密当公开文案，人物图片不是本阶段必交成果，严禁自动调用收费生图。',
@@ -41,19 +41,30 @@ export function selectCreatorSkills(input: CreatorAgentRequest, triage: CreatorT
   ];
   const matchedRule = rules.find(([, pattern]) => pattern.test(text));
   const explicitHorizontal = matchedRule?.[0] ?? (mentionsKnownRole ? 'H2' : undefined);
+  // Only unambiguous continuation borrows a recent author topic. Never interpret
+  // an assistant suggestion or a bare “好” as approval or permission to write.
+  const isContinuation = /^(好[的吧]?[,，、\s]*)?(继续|接着|往下)(吧|说|聊|讨论)?[。！!\s]*$/.test(text.trim());
+  const previousTopic = isContinuation
+    ? [...(input.conversation ?? [])].reverse()
+      .filter(message => message.role === 'creator' && !message.incomplete && message.content !== text)
+      .slice(0, 4)
+      .map(message => ({ text: message.content, horizontal: rules.find(([, pattern]) => pattern.test(message.content))?.[0] }))
+      .find(topic => topic.horizontal)
+    : undefined;
   const hints: Record<CreatorTriage['focus'], H> = { world_foundation: 'H3', character_depth: 'H2', event_evolution: 'H5', story_canvas: 'H5', open_discussion: 'H1' };
   // A validated semantic judgment understands negation/continuation; regex is only fallback.
-  const horizontal = triage?.horizontal ?? explicitHorizontal ?? (triage ? hints[triage.focus] : 'H1');
+  const horizontal = triage?.horizontal ?? explicitHorizontal ?? previousTopic?.horizontal ?? (triage ? hints[triage.focus] : 'H1');
   const methods: [V, RegExp][] = [
     ['V1', /调查|线索|查明|揭示真相|发现真相/], ['V2', /相处|倾听|亲近|陪伴|关系变化/],
     ['V3', /协商|谈判|交换条件|筹码|让步|结盟/], ['V4', /求生|稀缺|资源分配|风险取舍/],
     ['V5', /探索未知|成长|学习能力|突破障碍/], ['V6', /经营|建设|投入产出|采买|管理店/],
   ];
-  const localEdit = /改名|名字改|改成|错别字|删除|删掉/.test(text);
+  const localEdit = /改名|名字改|错别字|删除|删掉/.test(text);
+  const methodText = previousTopic && horizontal === previousTopic.horizontal ? previousTopic.text : text;
   const vertical = localEdit || horizontal === 'H6' ? [] : triage?.vertical
     ? triage.vertical === 'none' ? [] : [triage.vertical]
-    : methods.filter(([, p]) => p.test(text)).slice(0, 2).map(([id]) => id);
-  return { horizontal, vertical, source: triage?.horizontal ? 'semantic-triage' : explicitHorizontal ? 'current-message' : triage ? 'advisory-triage' : 'fallback' };
+    : methods.filter(([, p]) => p.test(methodText)).slice(0, 2).map(([id]) => id);
+  return { horizontal, vertical, source: triage?.horizontal ? 'semantic-triage' : explicitHorizontal ? 'current-message' : previousTopic ? 'author-continuation' : triage ? 'advisory-triage' : 'fallback' };
 }
 
 export function creatorSkillGuidance(input: CreatorAgentRequest, triage: CreatorTriage | null = null) {
@@ -61,7 +72,7 @@ export function creatorSkillGuidance(input: CreatorAgentRequest, triage: Creator
   return `\n【创作能力 ${CREATOR_SKILL_VERSION}；${selected.horizontal}${selected.vertical.length ? '+' + selected.vertical.join('+') : ''}】
 【工作区内容盘点】${creatorContentGaps(input).join('；') || '人物与公开展示的基础文字已有内容，检查质量而不是重复填写'}。
 【体验入口结构】${creatorEntryGaps(input).join('、') || '已有开场与角色入口；这不代表趣味性、全部角色覆盖或运行质量已验证'}。此检查和公开内容盘点分开，readiness=ready仅表示模型判断有可体验起点，不是发布许可。若使用待采纳提案判断，说明“采纳后”，不能把它称为已完成草稿。
-这不是必填清单。先结合全部已确认内容与待采纳建议识别已聊到但尚未落入字段的内容，直接提炼为局部建议；缺少新创作决定才请作者选择。用户说“继续/完善/还有什么/可以发布吗”时，主动推进一个尚未完成的模块，不只围绕剧情节点反复讨论。人物阶段主动覆盖性格、外观、诉求与关系；开场与人物基本成形后主动交付不剧透的作品简介、角色公开介绍和卡片短句，不等作者逐字段点名。作者明确要求整体完善时可以一并交付，不以每轮最多一问为理由只闲聊不产出。非本轮授权的核心新设定先给备选，作者拒绝或选择留白后不反复追问。
+这不是必填清单。先结合全部已确认内容与待采纳建议识别已聊到但尚未落入字段的内容，直接提炼为局部建议；缺少新创作决定才请作者选择。用户说“继续”时先接住正在讨论的事项，不强行跳阶段；说“完善/还有什么/可以发布吗”时检查真正影响体验或展示的缺口，不只围绕剧情节点反复讨论。人物的性格、诉求与关系可在剧情讨论中自然明确并整理，无须逐项问答；外观按当前需要补充。开场与人物基本成形且作者希望继续完善作品时，主动交付不剧透的作品简介、角色公开介绍和卡片短句，不等作者逐字段点名。作者明确要求整体完善时可以一并交付，不以每轮最多一问为理由只闲聊不产出。非本轮授权的核心新设定先给备选，作者拒绝或选择留白后不反复追问。
 “开场能体验”不等于“作品已完整”。发布前分别说明已完成、建议补充、素材未制作三类；公开介绍/外观仍未完善时不能笼统说全部完成。图片制作需单独授权，不要求为发布强制生成图片；发布本身由界面操作，不代称已发布。
 本轮执行规则（严禁违背）：
 1. 局限性修改原则：作者只讨论某个人，就不要替其他人定案；局部提案只返回涉及该角色的字段，不扩写其他人。
@@ -74,5 +85,11 @@ export function creatorSkillGuidance(input: CreatorAgentRequest, triage: Creator
 8. 历史口径校正：旧对话或焦点名称可能出现“成功条件/失败条件”，它们不是当前必须补填的栏目。不要沿用“玩家输了会怎样”的问卷；作者问能否发布时检查已有内容与真实缺口，未设置任务或其他走向本身不是发布阻碍，也不代表已经发布。
 【当前选用任务规则】
 ${horizontalSkills[selected.horizontal]}
+【跨话题沉淀与适度补缺】
+H编号是本轮主要工作，不是隔离的问卷。讨论事件时已经明确的人物行为、诉求或关系，也要整理到对应人物或关系的局部提案中；不要求作者先切换到人物阶段再重答。先完成作者当前请求，不因旁支缺口打断。
+逐项区分：①字段已有且依据清楚，直接沿用；②作者已在对话确认但尚未整理，提炼后提交可审阅的局部建议；③确实未知且会改变当前人物行为或体验，提出具体建议、理由及取舍，必要时只问关键问题；④作者刻意留白或本作不适用，保留；⑤仅Agent提议或假设分支，不当成确认。字段非空不保证充分，字段为空也不证明没聊过。
+性格可以从作者确认的反复行为或明确解释中形成，不必单问“是什么性格”；但一次动作、某条可能路线、玩家的选择不能被擅自升级为稳定性格。证据不足时用“这是否意味着他习惯……”等短句核对，不编造动机。检查的是关键人物的行动有没有依据，不是全员十个字段齐全；外貌只有影响辨识、表达或制作时再补，不强迫现在生图。
+方法的使用要体现在具体帮助中，而不是对作者报Skill编号。关系体验关注需求、边界与回应如何积累；协商体验关注分歧、双方为何仍愿意协商、可行条件与让步代价。只有这些问题影响当前局面时才运用，不因婚礼就强套关系包、不因秘密就强套调查包、不因倒计时就强套求生包；允许拒绝、退出和暂不决定，不预设必须和解。
+当前路由只是建议，结合完整草稿和作者原话判断其是否适用；不为了覆盖六横六纵制造问题。不把可供讨论的让步条件、性格推断或未来反馈自动写成已发生事实，也不为了显得完整而改写未授权的人物。
 ${selected.vertical.map(id => verticalMethods[id]).join('\n')}`;
 }
