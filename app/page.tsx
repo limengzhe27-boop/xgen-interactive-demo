@@ -4790,14 +4790,15 @@ function CreateWorld({
           {storyOutline.length > 0 ? <details className="generated-guide"><summary>查看 AI 给出的推进参考（不决定何时结束）</summary><ol>{storyOutline.map((beat, index) => <li key={beat.id}><span>{String(index + 1).padStart(2, '0')}</span><div className="outline-fields"><label htmlFor={`outline-title-${index}`}><small>节点</small><Input id={`outline-title-${index}`} value={beat.title} onChange={(event) => onUpdateStoryBeat(index, 'title', event.target.value)} /></label><label htmlFor={`outline-location-${index}`}><small>地点</small><Input id={`outline-location-${index}`} value={beat.location} onChange={(event) => onUpdateStoryBeat(index, 'location', event.target.value)} /></label><label className="outline-full" htmlFor={`outline-objective-${index}`}><small>可能目标</small><Textarea id={`outline-objective-${index}`} value={beat.objective} onChange={(event) => onUpdateStoryBeat(index, 'objective', event.target.value)} /></label><label className="outline-full" htmlFor={`outline-turning-${index}`}><small>可能转折</small><Textarea id={`outline-turning-${index}`} value={beat.turningPoint} onChange={(event) => onUpdateStoryBeat(index, 'turningPoint', event.target.value)} /></label></div></li>)}</ol></details> : null}
 </div>
   </>;
-  const presentationPanel = <>
-    <section><h2>作品展示与已有素材</h2><p>只整理可公开的介绍和图片。人物秘密、内部目标不应写入公开文案；图片制作需主动点击。</p>
+  const presentationPanel = <div className="presentation-workspace">
+    <header className="presentation-heading"><div><h2>展示与素材</h2><p>整理体验者会看到的封面和介绍。</p></div><Button variant="outline" disabled={creatorAgentThinking || generating || !worldSeed.trim()} onClick={requestPublicIntroductions}><WandSparkles size={16} />整理公开介绍</Button></header>
+    <section className="presentation-world" aria-label="作品封面与介绍">
       {cover ? (
-        <div className="workspace-cover-wrapper" style={{ position: 'relative' }}>
+        <div className="workspace-cover-wrapper">
           <img className="workspace-cover" src={cover} alt="当前作品封面" />
-          <div style={{ marginTop: 10, display: 'flex', gap: 8 }}>
+          <div className="presentation-image-action">
             <Button variant="outline" size="sm" onClick={handleGenerateCover} disabled={coverGenerating || !worldSeed.trim()}>
-              <WandSparkles size={13} />{coverGenerating ? '正在重新绘制海报...' : '重新生成专属海报'}
+              <WandSparkles size={13} />{coverGenerating ? '正在生成…' : '重新生成封面'}
             </Button>
           </div>
         </div>
@@ -4805,34 +4806,35 @@ function CreateWorld({
         <div className="workspace-cover-empty">
           <ImageIcon size={28} />
           <div>
-            <strong>尚未制作作品封面海报</strong>
-            <p>作品发布或试玩时，将根据你的世界设定自动制作专属封面；也可以现在主动一键生成。</p>
+            <strong>还没有封面</strong>
             <Button size="sm" className="primary-action" style={{ marginTop: 10 }} onClick={handleGenerateCover} disabled={coverGenerating || !worldSeed.trim()}>
-              <WandSparkles size={13} />{coverGenerating ? '正在绘制专属海报...' : '✨ 制作专属作品海报'}
+              <WandSparkles size={13} />{coverGenerating ? '正在生成…' : '生成封面'}
             </Button>
           </div>
         </div>
       )}
-      <div className="workspace-title-row">
+      <div className="presentation-world-copy"><div className="workspace-title-row">
         <h3>{worldTitle || '作品尚未命名'}</h3>
-        <Button variant="ghost" size="sm" onClick={() => selectModule('direction')}><Pencil size={13} />修改名称与方向</Button>
+        <Button variant="ghost" size="sm" onClick={() => selectModule('direction')}><Pencil size={13} />修改名称</Button>
       </div>
-      <div className="workspace-intro-assist"><Button variant="outline" size="sm" disabled={creatorAgentThinking || generating || !worldSeed.trim()} onClick={requestPublicIntroductions}>根据已有设定整理介绍</Button><p>先生成建议，由你采纳；不覆盖已有文案，不生成图片。</p></div>
       <div className="draft-field full-field"><label htmlFor="world-public-synopsis">作品公开简介 · 世界介绍页展示</label><Textarea id="world-public-synopsis" rows={3} maxLength={3000} value={creatorBrief.synopsis ?? ''} onChange={event => onUpdateCreatorBrief('synopsis', event.target.value)} placeholder="向体验者介绍背景、眼前局面和参与方式，不泄露秘密或后续答案" /></div>
       {renderPendingSuggestion(proposalChanges.find(change => change.key === 'synopsis'), true)}
+      <p className="presentation-help">介绍会显示在进入世界前的页面。整理文案会先给出建议，不自动采纳。</p></div>
     </section>
+    <header className="presentation-section-heading"><h3>人物展示</h3><p>公开身份与眼前处境，不透露人物秘密。</p></header>
     <div className="workspace-assets">{draftRoles.map((role, index) => <section className="workspace-asset" key={role.editorId || index}>
       <div className="workspace-asset-heading">
         {roleImages[`draft-role-${index}`] ? <img src={roleImages[`draft-role-${index}`]} alt={`${role.name || '角色'}的形象`} /> : null}
         <div><h3>{role.name || `角色 ${index + 1}`}</h3><Button size="sm" variant="outline" disabled={roleImageStates[`draft-role-${index}`] === 'generating'} onClick={() => onGenerateRoleImage(index)}>{roleImageStates[`draft-role-${index}`] === 'generating' ? '正在生成' : roleImages[`draft-role-${index}`] ? '重新生成形象' : '生成形象'}</Button></div>
       </div>
-      <div className="draft-field full-field"><label htmlFor={`role-hook-${index}`}>卡片标题 · 一句让人想点进来的话</label><Input id={`role-hook-${index}`} maxLength={60} value={role.cardHook ?? ''} onChange={(event) => onUpdateRole(index, 'cardHook', event.target.value)} placeholder="吸引点击的一句话短句" /></div>
+      <div className="presentation-role-copy"><div className="draft-field full-field"><label htmlFor={`role-hook-${index}`}>卡片短句</label><Input id={`role-hook-${index}`} maxLength={60} value={role.cardHook ?? ''} onChange={(event) => onUpdateRole(index, 'cardHook', event.target.value)} placeholder="一句话呈现这个人物" /></div>
       {renderPendingSuggestion(getRoleSuggestion(role.editorId, 'cardHook'))}
       <div className="draft-field full-field"><label htmlFor={`role-public-${index}`}>角色公开介绍 · 介绍页与聊天页展示</label><Textarea id={`role-public-${index}`} rows={3} maxLength={1200} value={role.publicIntroduction ?? ''} onChange={(event) => onUpdateRole(index, 'publicIntroduction', event.target.value)} placeholder="公开可见的身份、性格与眼前处境，不透露秘密（可选）" /></div>
       {renderPendingSuggestion(getRoleSuggestion(role.editorId, 'publicIntroduction'), true)}
       {roleImageStates[`draft-role-${index}`] === 'error' && <p role="alert">形象生成失败，可稍后重试。</p>}
+      </div>
     </section>)}</div>
-  </>;
+  </div>;
   if (settingsOpen) return <WorldIntroPage data={{
     id: 'creator-preview', title: worldTitle, genre: creatorBrief.discoveryGenre,
     premise: creatorBrief.synopsis || worldSeed, cover,
