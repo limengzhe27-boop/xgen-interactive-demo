@@ -5,6 +5,7 @@
 import { useRef, useState } from 'react';
 import { ArrowLeft, ArrowDown, Play } from 'lucide-react';
 import { characterHook } from '@/lib/character-card';
+import { publicRoleIntroduction } from '@/lib/public-introduction';
 import styles from './world-intro-page.module.css';
 
 export type WorldIntroCharacter = {
@@ -25,7 +26,7 @@ export type WorldIntroData = {
 
 // Only explicitly public fields belong on the introduction page.
 function publicDescription(role: WorldIntroCharacter) {
-  return role.publicIntroduction?.trim() || role.publicBackground?.trim() || characterHook(role.cardHook) || '';
+  return publicRoleIntroduction(role.publicIntroduction, role.publicBackground?.trim() || characterHook(role.cardHook) || '');
 }
 
 export function WorldIntroPage({ data, onBack, onResumeRun, onStartWorld }: {

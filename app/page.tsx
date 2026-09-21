@@ -116,6 +116,7 @@ import { preserveCreatorDetails, preserveCreatorFramework } from '@/lib/creator-
 import { applyCreatorChange, combineCreatorChanges, creatorConfirmation, creatorOpeningRevision, creatorChanges, ensureCreatorRoleIds, identifyProposedRoles, type CreatorChange, type CreatorRoleDraft } from '@/lib/creator-changes';
 import { DeleteRoleDialog, PortraitBatchDialog, ImagePreviewModal } from '@/components/creator-dialogs';
 import { WorldIntroPage, type WorldIntroData, type WorldIntroCharacter, type WorldIntroSavedRun } from '@/components/world-intro-page';
+import { publicSynopsis, publicRoleIntroduction } from '@/lib/public-introduction';
 import { chatRecordSubtitle } from '@/lib/chat-record-label';
 import { CreatorStoryCanvas } from '@/components/creator-story-canvas';
 import { CreatorWorkspace, type CreatorWorkspaceModule } from '@/components/creator-workspace';
@@ -1792,7 +1793,6 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       const fixedRoleId = libraryEntry.fixedRoleId;
       const playable = playableCharacters(libraryEntry.world, fixedRoleId);
       const defaultRole = playable[0];
-      const locationName = libraryEntry.world.locations.find(l => l.id === libraryEntry.world.openingScene.locationId)?.name;
 
       const characters: WorldIntroCharacter[] = libraryEntry.world.characters.map((char) => {
         const isPlayable = playable.some((p) => p.id === char.id);
@@ -1801,7 +1801,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
           name: char.name,
           identity: char.identity || '世界人物',
           cardHook: char.cardHook?.trim() || '',
-          publicIntroduction: char.publicIntroduction?.trim() || char.publicBackground?.trim() || '',
+          publicIntroduction: publicRoleIntroduction(char.publicIntroduction ?? (libraryEntry.world.publicSynopsis !== undefined ? '' : undefined), char.publicBackground),
           publicBackground: char.publicBackground?.trim(),
           playable: isPlayable && char.playable !== false,
           isDefault: defaultRole ? char.id === defaultRole.id : false,
@@ -1809,18 +1809,11 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
         };
       });
 
-      const rawNarrative = libraryEntry.world.openingScene?.narrative || '';
-      const isRoleSpecific = /你是|我的|我扮演|我还没|我明明/.test(rawNarrative);
-      const publicScene = isRoleSpecific ? (libraryEntry.premise || libraryEntry.world.premise) : rawNarrative;
-      const publicStoryHook = libraryEntry.world.storyHook || (libraryEntry.world.publicSynopsis ? '' : (isRoleSpecific ? libraryEntry.premise : rawNarrative));
-
       return {
         id: libraryEntry.id,
         title: libraryEntry.title,
         genre: libraryEntry.genre || '互动故事',
-        premise: libraryEntry.world.publicSynopsis || libraryEntry.premise,
-        storyHook: publicStoryHook,
-        openingScene: libraryEntry.world.publicSynopsis ? undefined : { location: locationName, scene: publicScene },
+        premise: publicSynopsis(libraryEntry.world.publicSynopsis, libraryEntry.premise),
         cover: libraryEntry.cover,
         fixedRoleId: libraryEntry.fixedRoleId,
         characters,
@@ -1845,12 +1838,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
         id: 'storm-manor',
         title: '暴雨山庄：缺席的继承人',
         genre: '悬疑推理',
-        premise: '封闭山庄、遗嘱失窃与多角色秘密，适合观察、追问和调查。',
-        storyHook: '暴雨夜封闭的山庄，失踪继承人的遗嘱公布仪式即将开始，律师、管家和失踪者姐姐各怀秘密。',
-        openingScene: {
-          location: '山庄主厅',
-          scene: '风雪撞击着彩绘玻璃窗，壁炉里的火光忽明忽暗。长桌尽头放着未拆封的火漆信封。',
-        },
+        premise: '暴雨夜封闭的山庄，失踪继承人的遗嘱公布仪式即将开始，律师、管家和失踪者姐姐各怀秘密。',
         cover: legacyArt['storm-manor']?.cover,
         characters,
         existingRun,
@@ -1877,11 +1865,6 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
         title: preset.title,
         genre: preset.genre,
         premise: preset.premise,
-        storyHook: preset.premise,
-        openingScene: {
-          location: preset.roles[0]?.name ? `${preset.title}起点` : '开场现场',
-          scene: preset.premise,
-        },
         cover: legacyArt[preset.id]?.cover,
         characters,
         existingRun,
@@ -1896,7 +1879,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
         name: role.name,
         identity: role.identity,
         cardHook: role.cardHook || role.publicStory || '',
-        publicIntroduction: draftRoles[idx]?.publicIntroduction || role.publicStory || '',
+        publicIntroduction: publicRoleIntroduction(draftRoles[idx]?.publicIntroduction ?? ''),
         playable: draftRoles[idx]?.playable !== false,
         isDefault: idx === 0,
         image: creatorAssets?.portraits?.[role.id],
@@ -1906,12 +1889,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
         id: 'creator-world',
         title: worldTitle || '正在创作的世界',
         genre: '创作者草稿',
-        premise: worldSeed || '尚在构思的世界前提。',
-        storyHook: worldSeed,
-        openingScene: {
-          location: '故事起点',
-          scene: worldSeed,
-        },
+        premise: publicSynopsis(creatorBrief.synopsis ?? ''),
         cover: creatorAssets?.cover,
         characters,
         existingRun,
@@ -4837,10 +4815,10 @@ function CreateWorld({
   </div>;
   if (settingsOpen) return <WorldIntroPage data={{
     id: 'creator-preview', title: worldTitle, genre: creatorBrief.discoveryGenre,
-    premise: creatorBrief.synopsis || worldSeed, cover,
+    premise: publicSynopsis(creatorBrief.synopsis ?? ''), cover,
     characters: draftRoles.map((role, index) => ({
       id: `draft-role-${index}`, name: role.name || `角色 ${index + 1}`, identity: role.identity,
-      publicIntroduction: role.publicIntroduction, cardHook: role.cardHook,
+      publicIntroduction: publicRoleIntroduction(role.publicIntroduction ?? ''), cardHook: role.cardHook,
       playable: role.playable !== false, image: roleImages[`draft-role-${index}`],
     })),
   }} onBack={() => setSettingsOpen(false)} onResumeRun={() => {}}
