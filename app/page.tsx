@@ -1348,7 +1348,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
           if (saved.creatorBrief && typeof saved.creatorBrief === 'object') setCreatorBrief(normalizeCreatorBrief(saved.creatorBrief));
           setCompanionContext(restoreCompanionContext(saved.companionContext));
           if (Array.isArray(saved.creatorMessages) && saved.creatorMessages.length > 0) {
-            setCreatorMessages(saved.creatorMessages.filter((item) => item && (item.role === 'creator' || item.role === 'agent') && typeof item.content === 'string').slice(-12));
+            setCreatorMessages(saved.creatorMessages.filter((item) => item && (item.role === 'creator' || item.role === 'agent') && typeof item.content === 'string'));
           }
           if (typeof saved.generated === 'boolean') setGenerated(saved.generated);
           if (typeof saved.publishedWorld === 'boolean') setPublishedWorld(saved.publishedWorld);
@@ -2645,7 +2645,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
         if (confirmation === 'accept') reply = applyAllCreatorProposals(proposalChanges);
         else { setProposalChanges([]); setCreatorProposal(null); reply = '已忽略剩余建议，你的现有设定保持不变。'; }
       }
-      setCreatorMessages(current => [...current, {role: 'creator', content: value}, {role: 'agent', content: reply}].slice(-12) as CreatorChatMessage[]);
+      setCreatorMessages(current => [...current, {role: 'creator', content: value}, {role: 'agent', content: reply}] as CreatorChatMessage[]);
       setCreatorMessage('');
       return;
     }
@@ -2662,7 +2662,8 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     const signal = creatorRequest.current.start();
     const userEntry: CreatorChatMessage = { role: 'creator', content: value };
     const conversation = [...creatorMessages, userEntry].slice(-10);
-    setCreatorMessages(conversation);
+    // Model context is bounded independently of the author's full transcript.
+    setCreatorMessages(current => [...current, userEntry]);
     setCreatorMessage('');
     setCreatorAgentThinking(true);
     try {
@@ -2697,10 +2698,10 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       }), false);
       if (!creatorRequest.current.current(signal) || revision !== navigationRevision.current) return;
       if (creatorAppendRequested(value) && latestCreatorSections.current !== JSON.stringify(baseline)) {
-        setCreatorMessages(current => [...current, { role: 'agent', content: '生成期间设定有新修改，本轮没有覆盖你的手改。请基于当前画布重新追加。' } satisfies CreatorChatMessage].slice(-12));
+        setCreatorMessages(current => [...current, { role: 'agent', content: '生成期间设定有新修改，本轮没有覆盖你的手改。请基于当前画布重新追加。' } satisfies CreatorChatMessage]);
         return;
       }
-      setCreatorMessages((current) => [...current, { role: 'agent', content: response.reply } satisfies CreatorChatMessage].slice(-12));
+      setCreatorMessages((current) => [...current, { role: 'agent', content: response.reply } satisfies CreatorChatMessage]);
       if (response.discussionOnly) {
         setCreatorQuestions(response.nextQuestions.slice(0, 3));
         setCreatorChangeNotice(response.proposalIssue || '');
@@ -2717,7 +2718,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
             // Continue editing the existing private draft; the published world is untouched.
             // Do not leave a stale legacy continuation base after a canvas append/undo.
             if (continuation) setContinuation(undefined);
-            setCreatorMessages(current => [...current, { role: 'agent', content: `已将${result.added!.map(n => `「${n.title}」`).join('、')}写入画布，原节点、角色入场与认知保持不变。可在最近修改中撤销；尚未发布。` } satisfies CreatorChatMessage].slice(-12));
+            setCreatorMessages(current => [...current, { role: 'agent', content: `已将${result.added!.map(n => `「${n.title}」`).join('、')}写入画布，原节点、角色入场与认知保持不变。可在最近修改中撤销；尚未发布。` } satisfies CreatorChatMessage]);
             setCreatorQuestions([]);
             return;
           }
@@ -2742,10 +2743,10 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
         const result = unchanged.length ? applyAllCreatorProposals(unchanged) : '已将其他设定保留。';
         if (result.startsWith('已将')) {
           setProposalChanges(nextChanges.filter(opening)); setCreatorProposal(response.proposal);
-          setCreatorMessages(current => [...current, {role:'agent',content:`${result} 新开场单独留作待确认建议，不会再次要求你采纳其他项目。`}].slice(-12) as CreatorChatMessage[]);
+          setCreatorMessages(current => [...current, {role:'agent',content:`${result} 新开场单独留作待确认建议，不会再次要求你采纳其他项目。`}] as CreatorChatMessage[]);
         } else {
           setCreatorProposal(creatorProposal); setProposalChanges(proposalChanges);
-          setCreatorMessages(current => [...current, {role:'agent',content:result}].slice(-12) as CreatorChatMessage[]);
+          setCreatorMessages(current => [...current, {role:'agent',content:result}] as CreatorChatMessage[]);
         }
       } else setProposalChanges(nextChanges);
       setCreatorChangeNotice(response.proposalIssue || (creatorAppendRequested(value) && proposalChanges.length ? '新事件已整理到建议画布。当前还有未采纳内容，请确认后一起采纳，避免自动写入其他未确认设定。' : ''));
@@ -2753,7 +2754,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     } catch (error) {
       if (!creatorRequest.current.current(signal) || revision !== navigationRevision.current) return;
       setCreatorMessage(value);
-      setCreatorMessages((current) => [...current, { role: 'agent', content: error instanceof Error ? error.message : '这轮创作暂时失败，你的内容已保留，请稍后重试。' } satisfies CreatorChatMessage].slice(-12));
+      setCreatorMessages((current) => [...current, { role: 'agent', content: error instanceof Error ? error.message : '这轮创作暂时失败，你的内容已保留，请稍后重试。' } satisfies CreatorChatMessage]);
     } finally {
       if (creatorRequest.current.current(signal)) {
         setCreatorStreamingReply('');
@@ -2786,7 +2787,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
         storyGraph: mapCreatorStoryRoleIds(base.storyGraph!, id => { const i = base.characters.findIndex(role => role.id === id); return i >= 0 ? `draft-role-${i}` : undefined; })
       }));
     }
-    setCreatorMessages(current => [...current, { role: 'agent', content: '我们接着这个故事写。告诉我后面发生什么，或想加入谁；原人物和已写剧情会保留，新内容先给你确认。' }].slice(-12) as CreatorChatMessage[]);
+    setCreatorMessages(current => [...current, { role: 'agent', content: '我们接着这个故事写。告诉我后面发生什么，或想加入谁；原人物和已写剧情会保留，新内容先给你确认。' }] as CreatorChatMessage[]);
   }
 
   async function discussContinuation(value: string) {
@@ -2801,7 +2802,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     const fingerprint = continuationFingerprint();
     const base = continuation.base;
     setCreatorAgentThinking(true); setCreatorMessage(''); setCreatorChangeNotice('');
-    setCreatorMessages(current => [...current, { role: 'creator', content: value }].slice(-12) as CreatorChatMessage[]);
+    setCreatorMessages(current => [...current, { role: 'creator', content: value }] as CreatorChatMessage[]);
     try {
       const response = await runAI(adapter => adapter.generateWorld({
         contractVersion: AI_CONTRACT_VERSION, continuation: { base, previousProposal: continuation.proposal?.world },
@@ -2812,12 +2813,12 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       if (!response.world.tasks.some(task => !base.tasks.some(old => old.id === task.id))
         && !response.world.characters.some(role => !base.characters.some(old => old.id === role.id))
         && !response.world.storyGraph?.nodes.some(node => !base.storyGraph?.nodes.some(old => old.id === node.id))) {
-        setCreatorMessages(current => [...current, { role: 'agent', content: response.unresolvedQuestions.join('\n') || '你希望后面具体发生什么？补充一句就好。' }].slice(-12) as CreatorChatMessage[]);
+        setCreatorMessages(current => [...current, { role: 'agent', content: response.unresolvedQuestions.join('\n') || '你希望后面具体发生什么？补充一句就好。' }] as CreatorChatMessage[]);
         return;
       }
       const world = appendStory(base, response.world);
       setContinuation({ base, proposal: { ...response, world }, draftFingerprint: fingerprint });
-      setCreatorMessages(current => [...current, { role: 'agent', content: `后续提案已整理好：\n${continuationSummary(base, world).join('\n')}\n可以继续告诉我哪里要改，或确认加入草稿。还没有发布。` }].slice(-12) as CreatorChatMessage[]);
+      setCreatorMessages(current => [...current, { role: 'agent', content: `后续提案已整理好：\n${continuationSummary(base, world).join('\n')}\n可以继续告诉我哪里要改，或确认加入草稿。还没有发布。` }] as CreatorChatMessage[]);
     } catch (error) {
       if (creatorRequest.current.current(signal)) { setCreatorMessage(value); setCreatorChangeNotice(error instanceof Error ? error.message : '后续生成未完成，原故事未改动。'); }
     } finally { if (creatorRequest.current.current(signal)) setCreatorAgentThinking(false); }
@@ -2833,7 +2834,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     setGeneratedWorld(world); setDraftRoles(ensureCreatorRoleIds(data.draftRoles));
     setCreatorBrief(data.creatorBrief); setGeneratedStoryOutline(data.generatedStoryOutline); setCreatorDetailBaseline(data.creatorDetailBaseline);
     setGenerated(true); setContinuation({ base: world });
-    setCreatorMessages(current => [...current, { role: 'agent', content: '后续已加入草稿，原开场、人物和剧情都保留了。可以继续追加，也可以保存试玩或发布。' }].slice(-12) as CreatorChatMessage[]);
+    setCreatorMessages(current => [...current, { role: 'agent', content: '后续已加入草稿，原开场、人物和剧情都保留了。可以继续追加，也可以保存试玩或发布。' }] as CreatorChatMessage[]);
     setCreatorChangeNotice('后续已加入草稿，尚未改变已发布版本。');
   }
 
@@ -3200,7 +3201,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     editCreator(doc);
     setContinuation(restoreCreatorSession(doc.data.creatorSession).continuation??{base:doc.data.generatedWorld??entry.world});
     setCreatorProposal(null);setProposalChanges([]);setCreatorQuestions([]);
-    setCreatorMessages(current=>[...current,{role:'agent',content:'接着这部作品创作。告诉我想追加的剧情或新角色；原内容保留，确认后更新发布，新可体验角色会出现在选角中。'}].slice(-12) as CreatorChatMessage[]);
+    setCreatorMessages(current=>[...current,{role:'agent',content:'接着这部作品创作。告诉我想追加的剧情或新角色；原内容保留，确认后更新发布，新可体验角色会出现在选角中。'}] as CreatorChatMessage[]);
   }
 
   function restoreStoryEdition(edition:StoryEdition) {
