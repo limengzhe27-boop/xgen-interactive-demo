@@ -9,6 +9,14 @@ test('only explicit append requests execute',()=>{
   for(const m of ['请构思并添加下一个事件节点','添加到画布中','请追加后续节点，不要修改原角色']) assert.equal(creatorAppendRequested(m),true,m);
   for(const m of ['先不添加节点','讨论一下后续节点','如何添加节点','可以添加节点吗？','修改角色入场']) assert.equal(creatorAppendRequested(m),false,m);
 });
+test('public introduction instructions do not authorize graph append',()=>{
+  for(const message of [
+    '请整理公开介绍，不新增人物秘密、剧情或外貌，不透露后续转折或结局。',
+    '不新增事件，只补充作品简介',
+    '新增一条人物介绍，后续剧情不要透露',
+  ]) assert.equal(creatorAppendRequested(message),false,message);
+  assert.equal(creatorAppendRequested('请新增后续事件，保留已有简介'),true);
+});
 test('append preserves opening, hand edits and entire entry knowledge',()=>{
   const original=structuredClone(base);
   const r=appendCreatorGraph(base,proposal);
@@ -47,4 +55,3 @@ test('delegated append on empty canvas establishes initial graph with opening an
   assert.equal(r.proposal.brief.storyGraph.nodes.length,2);
   assert.deepEqual(r.proposal.brief.storyGraph.nodes[0].nextNodeIds,['night_talk']);
 });
-

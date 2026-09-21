@@ -3,8 +3,11 @@ import { creatorStoryIssues, isCreatorStoryGraph, type CreatorStoryGraph } from 
 /** Deliberately narrow: discussion, negation and entry edits never authorize an append. */
 export function creatorAppendRequested(message = '') {
   if (/(?:不要|不用|先不|暂不).{0,6}(?:添加|新增|追加|接上|续写)|讨论|能否|是否|吗|[？?]|如何|怎么添加|怎样添加/.test(message)) return false;
-  return /(?:添加|新增|追加|接上|续写|接着写)/.test(message)
-    && /节点|事件|画布|后续|下一场|下一个|分支/.test(message);
+  // Match an affirmative action and its object in the same clause. Words such as
+  // “不新增人物” and “不透露后续转折” elsewhere do not authorize a graph edit.
+  return message.split(/[，,。；;\n]/).some(clause =>
+    !/(?:不|别|禁止|无需|无须|避免).{0,8}(?:添加|新增|追加|接上|续写|接着写)/.test(clause)
+    && /(?:添加|新增|追加|接上|续写|接着写).{0,24}(?:节点|事件|画布|后续|下一场|下一个|分支)/.test(clause));
 }
 
 /** Append is not a world rewrite. Preserve hand edits, edges and first-entry knowledge. */
