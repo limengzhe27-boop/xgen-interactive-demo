@@ -25,7 +25,7 @@ export type WorldIntroData = {
 
 // Only explicitly public fields belong on the introduction page.
 function publicDescription(role: WorldIntroCharacter) {
-  return characterHook(role.cardHook) || role.publicIntroduction?.trim() || role.publicBackground?.trim() || '';
+  return role.publicIntroduction?.trim() || role.publicBackground?.trim() || characterHook(role.cardHook) || '';
 }
 
 export function WorldIntroPage({ data, onBack, onResumeRun, onStartWorld }: {

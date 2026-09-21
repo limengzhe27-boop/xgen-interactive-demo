@@ -3897,6 +3897,11 @@ function CreateWorld({
     }, 2800);
   }
 
+  const needsPublicIntroduction = !creatorBrief.synopsis?.trim() || draftRoles.some(role => role.name.trim() && !role.publicIntroduction?.trim());
+  function requestPublicIntroductions() {
+    if (creatorAgentThinking || generating) return;
+    onSubmitCreatorMessage(undefined, '请根据当前已确认的设定，整理作品公开简介、各角色公开介绍和卡片短句，作为待采纳建议返回并填写对应字段。只补充缺少的公开文案，保留已有文案；不要把未采纳的建议当作事实，不新增人物秘密、剧情或外貌，不改其他设定，不生成图片视频。公开介绍用于世界介绍页和角色聊天页，不透露秘密、后续转折或结局。若依据不足，只问最必要的问题。');
+  }
   function locateChange(change: CreatorChange) {
     if (change.key === 'synopsis' || (change.target?.kind === 'role' && ['publicIntroduction', 'cardHook'].includes(change.target.field))) {
       selectModule('presentation');
@@ -4154,6 +4159,7 @@ function CreateWorld({
       </div>
 
       <div className="creation-compose-area">
+        {needsPublicIntroduction && creatorBrief.storyGraph?.nodes.length && !creatorProposal && !creatorAgentThinking ? <div className="creator-presentation-next">开场已有了，接下来可以整理给体验者看的介绍。<button type="button" disabled={generating} onClick={requestPublicIntroductions}>整理公开介绍</button></div> : null}
         {scriptAdviceOpen && (
           <div className="creator-script-advice-container" role="region" aria-label="智能剧本破局建议">
             <div className="script-advice-header">
@@ -4811,17 +4817,19 @@ function CreateWorld({
         <h3>{worldTitle || '作品尚未命名'}</h3>
         <Button variant="ghost" size="sm" onClick={() => selectModule('direction')}><Pencil size={13} />修改名称与方向</Button>
       </div>
-      <div className="draft-field full-field"><label htmlFor="world-public-synopsis">作品公开简介</label><Textarea id="world-public-synopsis" maxLength={3000} value={creatorBrief.synopsis ?? ''} onChange={event => onUpdateCreatorBrief('synopsis', event.target.value)} placeholder="向体验者介绍背景、眼前局面和参与方式，不泄露秘密或后续答案" /></div>
+      <div className="workspace-intro-assist"><Button variant="outline" size="sm" disabled={creatorAgentThinking || generating || !worldSeed.trim()} onClick={requestPublicIntroductions}>根据已有设定整理介绍</Button><p>先生成建议，由你采纳；不覆盖已有文案，不生成图片。</p></div>
+      <div className="draft-field full-field"><label htmlFor="world-public-synopsis">作品公开简介 · 世界介绍页展示</label><Textarea id="world-public-synopsis" rows={3} maxLength={3000} value={creatorBrief.synopsis ?? ''} onChange={event => onUpdateCreatorBrief('synopsis', event.target.value)} placeholder="向体验者介绍背景、眼前局面和参与方式，不泄露秘密或后续答案" /></div>
       {renderPendingSuggestion(proposalChanges.find(change => change.key === 'synopsis'), true)}
     </section>
     <div className="workspace-assets">{draftRoles.map((role, index) => <section className="workspace-asset" key={role.editorId || index}>
-      {roleImages[`draft-role-${index}`] ? <img src={roleImages[`draft-role-${index}`]} alt={`${role.name || '角色'}的形象`} /> : <p>尚未生成人物形象</p>}
-      <h3>{role.name || `角色 ${index + 1}`}</h3>
+      <div className="workspace-asset-heading">
+        {roleImages[`draft-role-${index}`] ? <img src={roleImages[`draft-role-${index}`]} alt={`${role.name || '角色'}的形象`} /> : null}
+        <div><h3>{role.name || `角色 ${index + 1}`}</h3><Button size="sm" variant="outline" disabled={roleImageStates[`draft-role-${index}`] === 'generating'} onClick={() => onGenerateRoleImage(index)}>{roleImageStates[`draft-role-${index}`] === 'generating' ? '正在生成' : roleImages[`draft-role-${index}`] ? '重新生成形象' : '生成形象'}</Button></div>
+      </div>
       <div className="draft-field full-field"><label htmlFor={`role-hook-${index}`}>卡片标题 · 一句让人想点进来的话</label><Input id={`role-hook-${index}`} maxLength={60} value={role.cardHook ?? ''} onChange={(event) => onUpdateRole(index, 'cardHook', event.target.value)} placeholder="吸引点击的一句话短句" /></div>
       {renderPendingSuggestion(getRoleSuggestion(role.editorId, 'cardHook'))}
-      <div className="draft-field full-field"><label htmlFor={`role-public-${index}`}>公开介绍 · 聊天页展示（可选）</label><Textarea id={`role-public-${index}`} maxLength={1200} value={role.publicIntroduction ?? ''} onChange={(event) => onUpdateRole(index, 'publicIntroduction', event.target.value)} placeholder="公开可见的身份与背景介绍（可选）" /></div>
+      <div className="draft-field full-field"><label htmlFor={`role-public-${index}`}>角色公开介绍 · 介绍页与聊天页展示</label><Textarea id={`role-public-${index}`} rows={3} maxLength={1200} value={role.publicIntroduction ?? ''} onChange={(event) => onUpdateRole(index, 'publicIntroduction', event.target.value)} placeholder="公开可见的身份、性格与眼前处境，不透露秘密（可选）" /></div>
       {renderPendingSuggestion(getRoleSuggestion(role.editorId, 'publicIntroduction'), true)}
-      <Button variant="outline" disabled={roleImageStates[`draft-role-${index}`] === 'generating'} onClick={() => onGenerateRoleImage(index)}>{roleImageStates[`draft-role-${index}`] === 'generating' ? '正在生成' : roleImages[`draft-role-${index}`] ? '重新生成形象' : '生成形象'}</Button>
       {roleImageStates[`draft-role-${index}`] === 'error' && <p role="alert">形象生成失败，可稍后重试。</p>}
     </section>)}</div>
   </>;
