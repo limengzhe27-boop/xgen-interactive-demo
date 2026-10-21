@@ -20,6 +20,9 @@ export function AccountBar({ workspaceControls, onProfile }: { workspaceControls
       const data = await response.json() as Account;
       if (live) {
         setAccount(data);
+        // Let the account boundary adopt the same authenticated scope. Its initial
+        // cookie check can lose a race with this bar after an OAuth redirect.
+        if (data.user) window.dispatchEvent(new Event('xgen-account-refresh'));
         if (new URLSearchParams(window.location.search).get('account') === 'error') setError('登录未完成，请重试。草稿仍保留在本机。');
       }
     }).catch(() => { if (live) setError('账号服务暂不可用，仍可继续游客体验。'); });
@@ -35,7 +38,7 @@ export function AccountBar({ workspaceControls, onProfile }: { workspaceControls
     } catch { setError('退出未完成，请重试。'); } finally { setBusy(false); }
   }
   return <aside className="account-bar" aria-label="账号">
-    <span>{account?.user ? `${account.user.name} · 本机优先，云存档需手动保存` : '游客体验 · 草稿与聊天仅在本机'}</span>
+    <span>{account ? account.user ? `${account.user.name} · 本机优先，云存档需手动保存` : '游客体验 · 草稿与聊天仅在本机' : '正在确认账号…'}</span>
     {onProfile && <Button variant="outline" onClick={onProfile}>我的形象与资料</Button>}
     {account?.user && workspaceControls}
     {account?.user ? <Button variant="outline" disabled={busy} onClick={signOut}><LogOut />退出账号</Button>

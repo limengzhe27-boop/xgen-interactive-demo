@@ -2,15 +2,17 @@
 /* oxlint-disable next/no-img-element -- local portrait preview; never a remote image */
 
 import { useRef, useState } from 'react';
-import { ArrowLeft, ImagePlus, Play, Plus, Save, Sparkles, Trash2, Undo2, Upload, UserRound } from 'lucide-react';
+import { ArrowLeft, ImagePlus, Play, Plus, Save, Trash2, Undo2, Upload, UserRound } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { CharacterAgent } from '@/components/character-agent';
 import { CreateModeSwitch, type CreateMode } from '@/components/create-mode-switch';
 import { readPersonaUpload } from '@/lib/persona-upload';
 import { standalonePortrait, type StandaloneCharacterInput } from '@/lib/standalone-character';
+import type { CharacterDesignDraft } from '@/lib/character-design';
 
-export function CreateCharacter({ value, onChange, onSave, onPublish, onUnpublish, onPreview, onNew, published, onBack, onModeChange, storageNotice, canSave }: {
+export function CreateCharacter({ value, onChange, onSave, onPublish, onUnpublish, onPreview, onNew, published, onBack, onModeChange, storageNotice, canSave, sourceId, accountScope, savedLocally }: {
   value: StandaloneCharacterInput;
   onChange: (value: StandaloneCharacterInput) => void;
   onSave: () => void;
@@ -23,6 +25,9 @@ export function CreateCharacter({ value, onChange, onSave, onPublish, onUnpublis
   onModeChange: (mode: CreateMode) => void;
   storageNotice?: string;
   canSave: boolean;
+  savedLocally: boolean;
+  sourceId: string;
+  accountScope: string;
 }) {
   const [mobilePane, setMobilePane] = useState<'guide' | 'form'>('form');
   const [uploading, setUploading] = useState(false);
@@ -43,7 +48,7 @@ export function CreateCharacter({ value, onChange, onSave, onPublish, onUnpublis
       <button className="flow-control" type="button" onClick={onBack}><ArrowLeft />返回</button>
       <h1>{value.name ? `创作角色 · ${value.name}` : '新建角色'}</h1>
       <div className="workspace-actions">
-        <small className="workspace-save-badge" role={storageNotice ? 'alert' : undefined}>{storageNotice || (published ? '已发布 · 修改后点更新发布' : canSave ? '角色保存在当前浏览器' : '本机存档尚未就绪')}</small>
+        <small className="workspace-save-badge" role={storageNotice ? 'alert' : undefined}>{storageNotice || (published ? '已发布 · 修改后点更新发布' : savedLocally ? '已保存到本机 · 可预演或发布' : canSave ? '角色保存在当前浏览器' : '本机存档尚未就绪')}</small>
         <Button onClick={save} disabled={!canSave || !value.name.trim()}><Save />保存角色</Button>
         {published && <Button variant="outline" onClick={onUnpublish}><Undo2 />撤下</Button>}
         <Button className="primary-action" onClick={onPublish} disabled={!canSave || !value.name.trim() || !value.portrait} title={!value.portrait ? '发布前请先上传角色形象' : undefined}><Upload />{published ? '更新发布' : '发布角色'}</Button>
@@ -51,30 +56,18 @@ export function CreateCharacter({ value, onChange, onSave, onPublish, onUnpublis
     </header>
     <div className="creation-mode-bar"><CreateModeSwitch mode="character" onChange={onModeChange} /><div className="creation-mode-actions"><button type="button" className="studio-text-button" onClick={onPreview} disabled={!value.name.trim()}><Play />预演</button><button type="button" className="studio-text-button" onClick={onNew}><Plus />新建角色</button></div></div>
     <nav className="creation-pane-tabs" aria-label="角色创作视图">
-      <button type="button" aria-pressed={mobilePane === 'guide'} onClick={() => setMobilePane('guide')}>填写提示</button>
+      <button type="button" aria-pressed={mobilePane === 'guide'} onClick={() => setMobilePane('guide')}>与 Agent 讨论</button>
       <button type="button" aria-pressed={mobilePane === 'form'} onClick={() => setMobilePane('form')}>角色设定</button>
     </nav>
     <div className="creation-workbench" data-pane={mobilePane === 'guide' ? 'chat' : 'canvas'}>
-      <section className="creator-agent-panel character-guide" aria-label="角色创作提示">
-        <div className="creator-agent-heading">
-          <span><Sparkles /></span>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <small>角色创作</small>
-            <strong>{value.name || '先给角色一个名字'}</strong>
-          </div>
-        </div>
-        <div className="character-guide-body">
-          <p>右侧直接填写即可；先写你最确定的部分，剩下的可以慢慢补。保存后角色会出现在角色库，可以立即开始对话。</p>
-          <h3>可以这样想</h3>
-          <ul>
-            <li><strong>身份</strong>：他是谁、靠什么生活、和你是什么关系。</li>
-            <li><strong>性格</strong>：用行为描述，比堆形容词更有用，例如“先看证据再信人”。</li>
-            <li><strong>开场白</strong>：他看见你时说的第一句话，会作为这段对话的起点。</li>
-            <li><strong>见面地点</strong>：会显示在对话页顶部。</li>
-          </ul>
-          <p className="character-guide-note">角色只保存在当前浏览器；换账号或换浏览器不会自动带过去。</p>
-        </div>
-      </section>
+      <CharacterAgent key={sourceId} value={value} sourceId={sourceId} accountScope={accountScope} onApply={(proposal) => {
+        const next = { ...value };
+        for (const key of Object.keys(proposal) as (keyof CharacterDesignDraft)[]) {
+          const text = proposal[key];
+          if (typeof text === 'string' && text.trim()) next[key] = text;
+        }
+        onChange(next);
+      }} />
       <aside className="creator-workspace-shell character-workspace" aria-label="角色工作区">
         <nav className="workspace-navigation character-workspace-nav" aria-label="工作区模块">
           <button type="button" aria-pressed="true"><UserRound /><span>角色设定</span></button>

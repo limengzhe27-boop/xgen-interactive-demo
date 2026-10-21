@@ -40,10 +40,12 @@ export function AccountBoundary({ children }: { children: (scope: string) => Rea
     // Revalidate quietly; actual hidden tabs and account-change events remain blocking.
     const focus = () => { if (!document.hidden) void check(false); };
     const changed = (event: StorageEvent) => { if (event.key === 'xgen-account-change') void check(); };
+    const refresh = () => { void check(false); };
     void check();
     window.addEventListener('focus', focus);
+    window.addEventListener('xgen-account-refresh', refresh);
     document.addEventListener('visibilitychange', visibility); window.addEventListener('storage', changed);
-    return () => { live = false; revision++; window.removeEventListener('focus', focus); document.removeEventListener('visibilitychange', visibility); window.removeEventListener('storage', changed); };
+    return () => { live = false; revision++; window.removeEventListener('focus', focus); window.removeEventListener('xgen-account-refresh', refresh); document.removeEventListener('visibilitychange', visibility); window.removeEventListener('storage', changed); };
   }, []);
   function continueAsGuest() {
     // Never unlock the last signed-in workspace on an account-check failure.

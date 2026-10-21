@@ -44,19 +44,24 @@ function Artwork({ src, alt, recent = false }: { src: string; alt: string; recen
 }
 
 export type PublishedCharacterCard = { id: string; sourceId?: string; name: string; identity: string; image: string; updatedAt: string };
+export type LocalCharacterCard = { id: string; name: string; identity: string; image: string };
 
-export function StudioHome({ section, worlds, characters, recent, publishedCharacters, onCreate, onOpenWorld, onChat, onPersonal, onLibrary, onOpenRecord, onEditPublished, onUnpublishPublished, initialBrowse, returnPosition, onBrowseChange }: {
+export function StudioHome({ section, worlds, characters, recent, localCharacters, publishedCharacters, onCreate, onOpenWorld, onChat, onPersonal, onLibrary, onOpenRecord, onEditLocal, onDeleteLocal, onEditPublished, onUnpublishPublished, initialBrowse, returnPosition, onBrowseChange }: {
   initialBrowse?: GalleryBrowseState; returnPosition?: GalleryPosition; onBrowseChange?: (state: GalleryBrowseState) => void;
   section: StudioSection; worlds: WorldCard[]; characters: CharacterCard[]; recent: RecentCard[];
+  localCharacters: LocalCharacterCard[];
   publishedCharacters: PublishedCharacterCard[];
   onCreate: (seed?: string) => void; onOpenWorld: (id: string) => void;
   onChat: (worldId: string, characterId: string) => void; onPersonal: () => void; onLibrary: () => void;
   onOpenRecord: (id: string) => void;
+  onEditLocal: (item: LocalCharacterCard) => void;
+  onDeleteLocal: (item: LocalCharacterCard) => void;
   onEditPublished: (item: PublishedCharacterCard) => void;
   onUnpublishPublished: (item: PublishedCharacterCard) => void | Promise<void>;
 }) {
   const counts = usePlayCounts();
   const [unpublishingId, setUnpublishingId] = useState('');
+  const [confirmingLocalId, setConfirmingLocalId] = useState('');
   const [seed, setSeed] = useState(initialBrowse?.seed ?? '');
   const [genre, setGenre] = useState<string>(DISCOVERY_CHANNELS.some(channel => channel === initialBrowse?.genre) ? initialBrowse!.genre : '全部');
   const [query, setQuery] = useState(initialBrowse?.query ?? '');
@@ -169,6 +174,28 @@ export function StudioHome({ section, worlds, characters, recent, publishedChara
       <div className="gallery-recents">{(section === 'library' ? recent : recent.slice(0, 3)).map(item => <button className="gallery-recent-item" type="button" key={item.id} onClick={() => onOpenRecord(item.id)}><Artwork src={item.cover} alt="" recent /><span><small>{item.label}</small><strong>{item.title}</strong><span>{item.subtitle}</span></span><ArrowRight /></button>)}</div>
       {!recent.length && <div className="gallery-library-empty"><Compass /><h3>暂无作品或记录</h3><p>创作草稿、世界探索和角色对话会显示在这里。</p><Button className="studio-button studio-solid" onClick={() => onCreate()}>创建故事<Plus /></Button></div>}
     </GalleryReveal>}
+
+    {section === 'characters' && localCharacters.length > 0 && <section className="character-publications" aria-labelledby="local-characters-title">
+      <div className="studio-heading"><h2 id="local-characters-title">我保存的角色</h2><span className="studio-wordmark">仅本机 · 可编辑或删除</span></div>
+      <div className="character-publication-list">
+        {localCharacters.map(item => <article className="character-publication" key={item.id}>
+          <img src={item.image} alt="" loading="lazy" />
+          <div className="character-publication-copy">
+            <strong>{item.name}</strong>
+            <span>{item.identity || '未填写身份'}</span>
+            <small>仅本机 · 可在工作台继续编辑</small>
+          </div>
+          <div className="character-publication-actions">
+            <button type="button" className="studio-button" onClick={() => onEditLocal(item)}>编辑</button>
+            <button type="button" className="studio-button" onClick={() => {
+              if (confirmingLocalId === item.id) { setConfirmingLocalId(''); onDeleteLocal(item); return; }
+              setConfirmingLocalId(item.id);
+              window.setTimeout(() => setConfirmingLocalId(current => current === item.id ? '' : current), 4000);
+            }}>{confirmingLocalId === item.id ? '确认删除' : '删除'}</button>
+          </div>
+        </article>)}
+      </div>
+    </section>}
 
     {section === 'characters' && publishedCharacters.length > 0 && <section className="character-publications" aria-labelledby="published-characters-title">
       <div className="studio-heading"><h2 id="published-characters-title">我发布的角色</h2><span className="studio-wordmark">公开中 · 可编辑或撤下</span></div>
