@@ -1116,6 +1116,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
   const [libraryRoleImages, setLibraryRoleImages] = useState<Record<string, string>>({});
   const [chatEntry, setChatEntry] = useState<{ entry: StudioWorld; targetId: string } | null>(null);
   const [activeChat, setActiveChat] = useState<ChatSession | null>(null);
+  const [chatPreview, setChatPreview] = useState(false);
   const [storageError, setStorageError] = useState('');
   const [activeWorld, setActiveWorld] = useState<WorldKind>('storm');
   const [suggestedPreset, setSuggestedPreset] = useState<PresetWorld | null>(null);
@@ -3220,6 +3221,15 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     setPublicationEntry(standaloneCharacterToWorld(character));
   }
 
+  function previewCharacter() {
+    if (!characterDraft.name.trim()) { setStorageError('请先填写角色名字，再预演。'); return; }
+    let character: StandaloneCharacter;
+    try { character = makeStandaloneCharacter(characterDraft, `preview-${crypto.randomUUID()}`); }
+    catch { setStorageError('角色名字不能为空。'); return; }
+    setChatPreview(true);
+    setChatEntry({ entry: standaloneCharacterToWorld(character), targetId: 'lead' });
+  }
+
   function acceptPublicCharacter(entry: StudioWorld) {
     const wasPublished = characterPublished;
     setCommunityWorlds(current => upsertById(current, entry));
@@ -3421,7 +3431,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     const run = savedRuns.find((item) => `run-${item.id}` === id);
     if (run) { resumeSavedWorld(run); return; }
     const chat = chatSessions.find((item) => `chat-${item.id}` === id);
-    if (chat) { setActiveChat(chat); navigate('chat'); }
+    if (chat) { setChatPreview(false); setActiveChat(chat); navigate('chat'); }
   }
 
   const identityControl = <PersonaControl value={playerPersona} accountScope={accountScope} onSave={(value) => {
@@ -3454,7 +3464,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       }
     }} onStartWorld={(roleId) => { startWorldFromIntro(roleId); }} />;
     if (view === 'prologue' && activeLibrary && !preferText && selectableRoles.some(role=>rolePrologue(activeLibrary.id,role.id,activeLibrary.premise,activeLibrary.cover).video)) return <VideoExplorer key={`${accountScope}:${activeLibrary.id}:${videoFreshRun || 'resume'}`} entry={activeLibrary} initialRoleId={selectedRole.id} startFresh={Boolean(videoFreshRun)} resumeSessionId={videoResumeId} onBack={returnToCatalog} onText={roleId => { setPreferText(true); if (roleId || singleRole) beginWorld(undefined,roleId); else navigate('roles'); }} />;
-    if (view === 'chat' && activeChat) return <CharacterChat key={`${accountScope}:${activeChat.id}`} accountScope={accountScope} initial={activeChat} onSave={saveChat} onBack={returnToCatalog} />;
+    if (view === 'chat' && activeChat) return <CharacterChat key={`${accountScope}:${activeChat.id}`} accountScope={accountScope} initial={activeChat} onSave={chatPreview ? () => {} : saveChat} onBack={chatPreview ? () => { setChatPreview(false); setCreateMode('character'); navigate('create'); } : returnToCatalog} preview={chatPreview} />;
     if (view === 'home' || view === 'library' || view === 'characters') return <StudioHome key={`${accountScope}:${view}`}
       initialBrowse={galleryRestore.browse} returnPosition={galleryRestore.position}
       onBrowseChange={browse => { galleryMemory.current[`${accountScope}:${view}`] = { ...galleryMemory.current[`${accountScope}:${view}`], browse }; }}
@@ -3467,7 +3477,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
         ...savedRuns.map((run) => ({ id: `run-${run.id}`, savedAt: run.savedAt, title: run.worldTitle, subtitle: `${run.worldSnapshot?.world.characters.find((role) => role.id === run.roleId)?.name ?? run.roleId} · ${run.worldState.location}`, label: run.id.includes('-before-update-') ? '接续前备份' : run.status === 'ending' ? '当前剧情' : '探索记录', cover: run.worldSnapshot?.cover || legacyArt['storm-manor'].cover })),
         ...chatSessions.map((chat) => ({ id: `chat-${chat.id}`, savedAt: chat.savedAt, title: `与 ${chat.entry.world.characters.find((role) => role.id === chat.targetCharacterId)?.name || '角色'} 的对话`, subtitle: chatRecordSubtitle(chat.entry.world.characters.find((role) => role.id === chat.playerRoleId)?.name, chat.entry.title), label: '角色对话', cover: chat.entry.portraits[chat.targetCharacterId] || chat.entry.cover })),
       ].sort((a, b) => b.savedAt - a.savedAt)}
-      onCreate={newCreator} onOpenWorld={openCatalogWorld} onChat={(worldId, targetId) => { const entry = availableStudioWorlds.find((item) => item.id === worldId); if (entry) setChatEntry({ entry, targetId }); }} onPersonal={() => navigate('personal')} onLibrary={() => navigate('library')} onOpenRecord={openRecord}
+      onCreate={newCreator} onOpenWorld={openCatalogWorld} onChat={(worldId, targetId) => { const entry = availableStudioWorlds.find((item) => item.id === worldId); if (entry) { setChatPreview(false); setChatEntry({ entry, targetId }); } }} onPersonal={() => navigate('personal')} onLibrary={() => navigate('library')} onOpenRecord={openRecord}
       publishedCharacters={publishedCharacters} onEditPublished={editPublishedCharacter} onUnpublishPublished={unpublishPublishedCharacter}
     />;
     if (view === 'roles' || (view === 'prologue' && !singleRole)) return <RoleSelection storyHook={activeWorldDefinition.storyHook || activeWorldTitle} identityControl={identityControl} worldTitle={activeWorldTitle} artNote={activeLibrary?.artNote} availableRoles={selectableRoles} selected={selectedRole} onSelect={setSelectedRole} onBack={returnToCatalog} onStart={() => beginWorld()} personaEntry={activeLibrary && restoreEntryPolicy(activeLibrary.world.entryPolicy).allowPersona ? <PersonaAdmission key={activeLibrary.id} entry={activeLibrary} roleId="persona-visitor" persona={playerPersona} onEnter={beginWorld} /> : undefined} />;
@@ -3523,6 +3533,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
         onChange={setCharacterDraft}
         onSave={() => createCharacter(characterDraft)}
         onPublish={publishCharacter}
+        onPreview={previewCharacter}
         onUnpublish={() => void unpublishPublishedCharacter({ id: characterCommunityId || '', sourceId: `character-${characterSourceId}`, name: characterDraft.name, identity: characterDraft.identity, image: characterDraft.portrait, updatedAt: characterUpdatedAt || new Date().toISOString() })}
         onNew={resetCharacterDraft}
         published={characterPublished}
@@ -3663,7 +3674,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       {screen}
       {publicationNotice && <p className="account-bar" role="status">{publicationNotice}</p>}
       {publicationEntry && <PublishWorldDialog key={`${accountScope}:${publicationEntry.id}`} accountScope={accountScope} entry={publicationEntry} characterOnly={publicationCharacterOnly} localPortrait={publicationLocalPortrait} onClose={() => { setPublicationEntry(null); setPublicationCharacterOnly(false); setPublicationLocalPortrait(''); }} onImagesPrepared={rememberPublicationImages} onPublished={publicationCharacterOnly ? acceptPublicCharacter : acceptPublicEdition} />}
-      {chatEntry && <CharacterEntry key={`${chatEntry.entry.id}:${chatEntry.targetId}`} entry={chatEntry.entry} identityControl={identityControl} targetId={chatEntry.targetId} persona={playerPersona} onClose={() => setChatEntry(null)} onStart={(session) => { saveChat(session); setActiveChat(session); setChatEntry(null); navigate('chat'); }} />}
+      {chatEntry && <CharacterEntry key={`${chatEntry.entry.id}:${chatEntry.targetId}`} entry={chatEntry.entry} identityControl={identityControl} targetId={chatEntry.targetId} persona={playerPersona} onClose={() => { setChatEntry(null); setChatPreview(false); }} onStart={(session) => { if (!chatPreview) saveChat(session); setActiveChat(session); setChatEntry(null); navigate('chat'); }} />}
     </main>
   );
 }

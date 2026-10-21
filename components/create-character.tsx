@@ -2,7 +2,7 @@
 /* oxlint-disable next/no-img-element -- local portrait preview; never a remote image */
 
 import { useRef, useState } from 'react';
-import { ArrowLeft, ImagePlus, Plus, Save, Sparkles, Trash2, Undo2, Upload, UserRound } from 'lucide-react';
+import { ArrowLeft, ImagePlus, Play, Plus, Save, Sparkles, Trash2, Undo2, Upload, UserRound } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -10,12 +10,13 @@ import { CreateModeSwitch, type CreateMode } from '@/components/create-mode-swit
 import { readPersonaUpload } from '@/lib/persona-upload';
 import { standalonePortrait, type StandaloneCharacterInput } from '@/lib/standalone-character';
 
-export function CreateCharacter({ value, onChange, onSave, onPublish, onUnpublish, onNew, published, onBack, onModeChange, storageNotice, canSave }: {
+export function CreateCharacter({ value, onChange, onSave, onPublish, onUnpublish, onPreview, onNew, published, onBack, onModeChange, storageNotice, canSave }: {
   value: StandaloneCharacterInput;
   onChange: (value: StandaloneCharacterInput) => void;
   onSave: () => void;
   onPublish: () => void;
   onUnpublish: () => void;
+  onPreview: () => void;
   onNew: () => void;
   published: boolean;
   onBack: () => void;
@@ -48,7 +49,7 @@ export function CreateCharacter({ value, onChange, onSave, onPublish, onUnpublis
         <Button className="primary-action" onClick={onPublish} disabled={!canSave || !value.name.trim() || !value.portrait} title={!value.portrait ? '发布前请先上传角色形象' : undefined}><Upload />{published ? '更新发布' : '发布角色'}</Button>
       </div>
     </header>
-    <div className="creation-mode-bar"><CreateModeSwitch mode="character" onChange={onModeChange} /><button type="button" className="studio-text-button" onClick={onNew}><Plus />新建角色</button></div>
+    <div className="creation-mode-bar"><CreateModeSwitch mode="character" onChange={onModeChange} /><div className="creation-mode-actions"><button type="button" className="studio-text-button" onClick={onPreview} disabled={!value.name.trim()}><Play />预演</button><button type="button" className="studio-text-button" onClick={onNew}><Plus />新建角色</button></div></div>
     <nav className="creation-pane-tabs" aria-label="角色创作视图">
       <button type="button" aria-pressed={mobilePane === 'guide'} onClick={() => setMobilePane('guide')}>填写提示</button>
       <button type="button" aria-pressed={mobilePane === 'form'} onClick={() => setMobilePane('form')}>角色设定</button>

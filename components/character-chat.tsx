@@ -40,10 +40,10 @@ export function CharacterEntry({ entry, targetId, onStart }: { identityControl?:
   return <output>正在打开对话…</output>;
 }
 
-export function CharacterChat({ initial, accountScope, onSave, onBack }: { initial: ChatSession; accountScope: string; onSave: (session: ChatSession) => void; onBack: () => void }) {
+export function CharacterChat({ initial, accountScope, onSave, onBack, preview = false }: { initial: ChatSession; accountScope: string; onSave: (session: ChatSession) => void; onBack: () => void; preview?: boolean }) {
   const remoteAIAdapter = useMemo(() => createRemoteAIAdapter(accountScope), [accountScope]);
   const [session, setSession] = useState(() => restoreConversationOpening(initial));
-  useRecordPlay(session.turns.length ? `character:${session.entry.id}:${session.targetCharacterId}` : null, accountScope);
+  useRecordPlay(!preview && session.turns.length ? `character:${session.entry.id}:${session.targetCharacterId}` : null, accountScope);
   const [input, setInput] = useState(initial.draftInput ?? '');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
