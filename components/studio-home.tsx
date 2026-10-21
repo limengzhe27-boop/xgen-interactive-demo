@@ -15,13 +15,23 @@ import { DISCOVERY_CHANNELS, matchesDiscovery } from '@/lib/discovery-category';
 import { restoreGalleryPosition, type GalleryBrowseState, type GalleryPosition } from '@/lib/gallery-memory';
 
 export type StudioSection = 'home' | 'library' | 'characters' | 'personal' | 'profile';
-export type WorldCard = { id: string; title: string; originalTitle?: string; genre: string; premise: string; cover: string; roleCount: number; artNote?: string; featured?: boolean; fixedRoleId?: string };
+export type WorldCard = { id: string; title: string; originalTitle?: string; genre: string; premise: string; cover: string; roleCount: number; artNote?: string; featured?: boolean; fixedRoleId?: string; characterOnly?: boolean };
 export type CharacterCard = { id: string; worldId: string; worldTitle: string; name: string; identity: string; persona: string; image: string; cardHook?: string };
 export type RecentCard = { id: string; title: string; subtitle: string; label: string; cover: string };
 type GalleryItem = { kind: 'world'; value: WorldCard } | { kind: 'character'; value: CharacterCard };
 
-export function StudioNav({ section, onNavigate, onCreate }: { section: string; onNavigate: (section: StudioSection) => void; onCreate: () => void }) {
+export function StudioNav({ section, onNavigate, onCreate, onCreateCharacter }: { section: string; onNavigate: (section: StudioSection) => void; onCreate: () => void; onCreateCharacter: () => void }) {
   const nav = useRef<HTMLElement>(null);
+  const [createMenuOpen, setCreateMenuOpen] = useState(false);
+  const createMenuRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!createMenuOpen) return;
+    const closeOnPointer = (event: PointerEvent) => { if (!createMenuRef.current?.contains(event.target as Node)) setCreateMenuOpen(false); };
+    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === 'Escape') setCreateMenuOpen(false); };
+    document.addEventListener('pointerdown', closeOnPointer);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => { document.removeEventListener('pointerdown', closeOnPointer); document.removeEventListener('keydown', closeOnEscape); };
+  }, [createMenuOpen]);
   useEffect(() => {
     let frame = 0;
     const update = () => { frame = 0; if (nav.current) nav.current.dataset.scrolled = String(scrollY > 24); };
@@ -31,7 +41,13 @@ export function StudioNav({ section, onNavigate, onCreate }: { section: string; 
   }, []);
   return <nav ref={nav} className="studio-nav" aria-label="主导航">
     <span className="studio-nav-brand" aria-hidden="true"><Sparkles /></span>
-    <button className="studio-nav-button studio-new" onClick={() => onCreate()} type="button"><Plus /><span>新建</span></button>
+    <div className="studio-new-wrap" ref={createMenuRef}>
+      <button className="studio-nav-button studio-new" aria-haspopup="menu" aria-expanded={createMenuOpen} onClick={() => setCreateMenuOpen(open => !open)} type="button"><Plus /><span>新建</span></button>
+      {createMenuOpen && <div className="studio-new-menu" role="menu" aria-label="新建">
+        <button type="button" role="menuitem" onClick={() => { setCreateMenuOpen(false); onCreate(); }}><BookOpen /><span><strong>新建世界</strong><small>从一个故事想法开始创作</small></span></button>
+        <button type="button" role="menuitem" onClick={() => { setCreateMenuOpen(false); onCreateCharacter(); }}><UserRound /><span><strong>新建角色</strong><small>创建一个可独立对话的角色</small></span></button>
+      </div>}
+    </div>
     {([{ id: 'home', label: '首页', icon: House }, { id: 'library', label: '我的世界', icon: Compass }, { id: 'characters', label: '角色库', icon: UsersRound }, { id: 'personal', label: '个人 Agent', icon: MessageCircleMore }, { id: 'profile', label: '我的', icon: UserRound }] as const).map(({ id, label, icon: Icon }) =>
       <button key={id} className="studio-nav-button" aria-current={section === id ? 'page' : undefined} onClick={() => onNavigate(id)} type="button"><Icon /><span>{label}</span></button>)}
     <span className="studio-nav-foot" aria-hidden="true">XGEN</span>
@@ -125,8 +141,8 @@ export function StudioHome({ section, worlds, characters, recent, onCreate, onOp
   const genres = DISCOVERY_CHANNELS;
   const matches = (text: string) => text.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase());
   const grouped: GalleryItem[] = [];
-  orderedWorlds.filter(world => matchesDiscovery(world, genre)).forEach(world => {
-    if (kind !== 'character' && matches(world.title + ' ' + (world.originalTitle ?? '') + ' ' + (editorialCopy('world:' + world.id)?.title ?? '') + ' ' + world.genre + ' ' + world.premise)) grouped.push({ kind: 'world', value: world });
+  orderedWorlds.filter(world => (world.characterOnly && section === 'characters') || matchesDiscovery(world, genre)).forEach(world => {
+    if (!world.characterOnly && kind !== 'character' && matches(world.title + ' ' + (world.originalTitle ?? '') + ' ' + (editorialCopy('world:' + world.id)?.title ?? '') + ' ' + world.genre + ' ' + world.premise)) grouped.push({ kind: 'world', value: world });
     if (kind !== 'world') characters.filter(character => character.worldId === world.id && matches(characterSearchText(character, editorialCopy('character:' + character.worldId + ':' + character.id)?.tagline, editorialCopy('world:' + character.worldId)?.title))).forEach(character => grouped.push({ kind: 'character', value: character }));
   });
   const itemKey = (item: GalleryItem) => item.kind + ':' + (item.kind === 'world' ? item.value.id : item.value.worldId + ':' + item.value.id);
@@ -136,6 +152,12 @@ export function StudioHome({ section, worlds, characters, recent, onCreate, onOp
   const notFresh=featured.filter(item=>!freshKeys.has(itemKey(item)));
   const lead=notFresh.slice(0,24),rest=notFresh.slice(24);
   const items = isHome && genre === '全部' && kind === 'all' && !query.trim() ? [...lead,...featured.filter(item=>freshKeys.has(itemKey(item))),...rest] : mixed;
+  // Newly created standalone characters are the reader's own work; surface them
+  // first in 角色库 instead of leaving them to the deterministic gallery mix.
+  const standaloneCharacterItem = (item: GalleryItem) => item.kind === 'character' && item.value.worldId.startsWith('character-');
+  const displayed = section === 'characters'
+    ? [...items.filter(standaloneCharacterItem).reverse(), ...items.filter(item => !standaloneCharacterItem(item))]
+    : items;
   const start = () => onCreate(seed);
 
   return <div className="studio-home">
@@ -161,7 +183,7 @@ export function StudioHome({ section, worlds, characters, recent, onCreate, onOp
       <GalleryReveal className="gallery-discover-heading"><div><h2 id="discover-title">{section === 'characters' ? '角色' : '发现故事'}</h2><span>{section === 'characters' ? '选择角色开始聊天。' : '选择世界进入故事，或选择角色开始聊天。'}</span></div><button className="studio-agent-entry" onClick={onPersonal} type="button"><Sparkles />帮我推荐<ArrowRight /></button></GalleryReveal>
       <div className="gallery-toolbar"><div className="gallery-kind" aria-label="内容类型">{([{ id: 'all', label: '全部' }, { id: 'world', label: '世界' }, { id: 'character', label: '角色' }] as const).map(tab => <button key={tab.id} type="button" aria-pressed={kind === tab.id} onClick={() => setKind(tab.id)}>{tab.label}</button>)}</div><div className="gallery-search"><Search /><input aria-label="搜索世界或角色" placeholder="搜索世界或角色" value={query} onChange={event => setQuery(event.target.value)} />{query && <button type="button" onClick={() => setQuery('')} aria-label="清除搜索"><X /></button>}</div></div>
       <div className="gallery-filters" aria-label="筛选题材">{genres.map(item => <button key={item} type="button" aria-pressed={genre === item} onClick={() => setGenre(item)}>{item}</button>)}</div>
-      <GalleryMasonry layoutKey={kind + ':' + genre + ':' + query + ':' + items.length}>{items.map((item, index) => {
+      <GalleryMasonry layoutKey={kind + ':' + genre + ':' + query + ':' + displayed.length}>{displayed.map((item, index) => {
         const world = item.kind === 'world' ? item.value : undefined;
         const character = item.kind === 'character' ? item.value : undefined;
         const id = world?.id || character!.worldId + ':' + character!.id;
@@ -173,7 +195,7 @@ export function StudioHome({ section, worlds, characters, recent, onCreate, onOp
           <div className="gallery-card-copy">{title && <h3>{title}</h3>}{counts[itemKey(item)] !== undefined && <span className="gallery-play-count" title="启用统计后实际开始体验的登录账号数，同一账号不重复计数">{counts[itemKey(item)].toLocaleString('zh-CN')} 人玩过</span>}</div>
         </article></GalleryReveal></div>;
       })}</GalleryMasonry>
-      {!items.length && <div className="gallery-no-results" aria-live="polite"><Search /><h3>暂时没有找到</h3><p>换一个词，或者和 Agent 一起创造它。</p><button className="studio-button" type="button" onClick={() => { setQuery(''); setGenre('全部'); setKind('all'); }}>清除筛选</button></div>}
+      {!displayed.length && <div className="gallery-no-results" aria-live="polite"><Search /><h3>暂时没有找到</h3><p>换一个词，或者和 Agent 一起创造它。</p><button className="studio-button" type="button" onClick={() => { setQuery(''); setGenre('全部'); setKind('all'); }}>清除筛选</button></div>}
     </section>}
     <p className="studio-local-note">设定来自创作者，后续故事由 AI 实时演绎。草稿与互动记录保存在当前浏览器。</p>
   </div>;

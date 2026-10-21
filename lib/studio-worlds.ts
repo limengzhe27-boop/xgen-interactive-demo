@@ -13,6 +13,8 @@ import { legacyArt } from './legacy-art.ts';
 
 export type StudioWorld = {
   edition?: { id: string; number: number; savedAt?: number };
+  /** A standalone character stored as a one-role entry; never listed as a world. */
+  characterOnly?: boolean;
   id: string;
   title: string;
   originalTitle?: string;

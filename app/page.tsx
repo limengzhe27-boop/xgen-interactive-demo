@@ -92,6 +92,8 @@ import { legacyArt } from '@/lib/legacy-art';
 import type { StudioWorld } from '@/lib/studio-worlds';
 import { upsertById } from '@/lib/studio-session';
 import type { ChatSession } from '@/lib/studio-session';
+import { CharacterCreator } from '@/components/character-creator';
+import { makeStandaloneCharacter, readStandaloneCharacters, standaloneCharacterToWorld, type StandaloneCharacter, type StandaloneCharacterInput } from '@/lib/standalone-character';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
@@ -1112,6 +1114,8 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     { editorId: 'initial-role-1', name: '陆沉', identity: '守塔人', personality: '寡言、谨慎、极度守时', relationship: '受上一任守塔人委托保护许知遥，却不愿说明原因', appearance: '三十一岁，黑色短发，深蓝守塔人工作服，左腕佩戴旧机械表' },
   ]);
   const [storageReady, setStorageReady] = useState(false);
+  const [standaloneCharacters, setStandaloneCharacters] = useState<StandaloneCharacter[]>([]);
+  const [characterCreatorOpen, setCharacterCreatorOpen] = useState(false);
   const responseTimerRef = useRef<number | null>(null);
   const streamTimerRef = useRef<number | null>(null);
   const generationControllerRef = useRef<AbortController | null>(null);
@@ -1228,7 +1232,8 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     world: { ...doc.data.generatedWorld!, id: doc.id, title: doc.data.worldTitle },
     portraitCacheKeys: Object.fromEntries(doc.data.draftRoles.map((role, index) => [doc.data.generatedWorld!.characters[index]?.id ?? `draft-role-${index}`, portraitCacheKey(role)])),
   }));
-  const availableStudioWorlds = catalogVersions(studioWorlds, userWorlds.map(w=>reconcileLocalArt(w,communityWorlds)), communityWorlds);
+  const standaloneWorlds = standaloneCharacters.map(standaloneCharacterToWorld);
+  const availableStudioWorlds = catalogVersions(studioWorlds, [...userWorlds.map(w=>reconcileLocalArt(w,communityWorlds)), ...standaloneWorlds], communityWorlds);
   const entryLinkOpened = useRef(false);
   const linkedWorldStartPending = useRef(false);
   useEffect(() => {
@@ -1264,7 +1269,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     }).catch(() => {}).finally(()=>{if(live)setCommunityLoaded(true);});
     return () => { live = false; };
   }, [catalogRevision]);
-  const personalCatalog = [...worldCatalog, ...availableStudioWorlds.map((entry) => ({ id: entry.id, title: entry.title, genre: entry.genre, premise: entry.premise, surpriseLevel: entry.world.surpriseLevel }))];
+  const personalCatalog = [...worldCatalog, ...availableStudioWorlds.filter((entry) => !entry.characterOnly).map((entry) => ({ id: entry.id, title: entry.title, genre: entry.genre, premise: entry.premise, surpriseLevel: entry.world.surpriseLevel }))];
   // Also hydrate an already-open / locally restored editor, not just the public-list entry point.
   const restoreEditorArt = useEffectEvent((entries: (StudioWorld & { sourceId?: string })[]) => {
     const published = entries.find(entry => entry.sourceId === draftId || entry.id === draftId);
@@ -1414,6 +1419,14 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     }, 0);
     return () => window.clearTimeout(timer);
   }, []);
+
+  useEffect(() => {
+    if (!storageReady || accountScope === 'pending') return;
+    try {
+      const raw = window.localStorage.getItem(accountStorageKey('xgen-standalone-characters-v1', accountScope));
+      setStandaloneCharacters(readStandaloneCharacters(raw ? JSON.parse(raw) : []));
+    } catch { setStandaloneCharacters([]); }
+  }, [accountScope, storageReady]);
 
   useEffect(() => {
     if (!storageReady || storageReadFailed.current) return;
@@ -3151,6 +3164,26 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     setRoleImages({}); setCreateStep(1); navigate('create');
   }
 
+  function createCharacter(input: StandaloneCharacterInput) {
+    if (!storageReady || storageReadFailed.current || accountScope === 'pending') {
+      setStorageError('本机存档尚未就绪，请稍后再试。');
+      return;
+    }
+    let character: StandaloneCharacter;
+    try { character = makeStandaloneCharacter(input); }
+    catch { setStorageError('角色名字不能为空。'); return; }
+    const next = [...standaloneCharacters, character];
+    try {
+      window.localStorage.setItem(accountStorageKey('xgen-standalone-characters-v1', accountScope), JSON.stringify(next));
+    } catch {
+      setStorageError('角色保存失败：浏览器存储空间不足或已被禁用。');
+      return;
+    }
+    setStandaloneCharacters(next);
+    setCharacterCreatorOpen(false);
+    navigate('characters');
+  }
+
   function editCreator(doc: CreatorDocument) {
     let history:StoryEdition[];
     try{history=readStoryEditions(doc.data.releaseHistory,doc.id);}catch(error){setStorageError(error instanceof Error?error.message:'版本记录无法读取');return;}
@@ -3407,7 +3440,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
         onBack={() => navigate('home')}
         profile={userProfile} persona={playerPersona} onProfile={() => navigate('profile')}
         worlds={[
-          ...availableStudioWorlds.map((entry) => ({ ...entry, roleCount: entry.fixedRoleId ? 1 : entry.world.characters.length })),
+          ...availableStudioWorlds.filter((entry) => !entry.characterOnly).map((entry) => ({ ...entry, roleCount: entry.fixedRoleId ? 1 : entry.world.characters.length })),
           ...worldCatalog.map((world) => ({ ...world, roleCount: world.id === 'storm-manor' ? roles.length : presetWorlds.find((preset) => preset.id === world.id)?.roles.length ?? 0, cover: world.id === 'storm-manor' ? legacyArt['storm-manor'].cover : world.id === 'sea-train' ? legacyArt['sea-train'].cover : legacyArt['sixth-roommate'].cover })),
         ]}
         message={message}
@@ -3450,7 +3483,8 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
 
   return (
     <main className="studio-frame" data-focused-flow={view === 'prologue' || view === 'roles' || view === 'play' || view === 'personal' || view === 'create' || view === 'chat' || view === 'world-intro'}>
-      <StudioNav section={view} onNavigate={navigate} onCreate={newCreator} />
+      <StudioNav section={view} onNavigate={navigate} onCreate={newCreator} onCreateCharacter={() => setCharacterCreatorOpen(true)} />
+      <CharacterCreator open={characterCreatorOpen} onOpenChange={setCharacterCreatorOpen} onCreate={createCharacter} disabled={!storageReady || storageReadFailed.current || accountScope === 'pending'} />
       {view === 'play' && <RecordPlay target={`world:${activeLibrary?.id ?? activeWorld}`} accountScope={accountScope} />}
       {view !== 'prologue' && view !== 'world-intro' && <AccountBar onProfile={['home', 'library', 'characters', 'personal'].includes(view) ? () => navigate('profile') : undefined} workspaceControls={['home', 'library', 'personal', 'profile', 'characters'].includes(view) && <CloudWorkspace accountScope={accountScope} disabled={!storageReady || storageReadFailed.current || agentThinking || creatorAgentThinking || worldGenerating} />} />}
       {companionHandoff && <CompanionHandoff seed={companionHandoff.seed} conversation={agentConversation} memoryCount={memories.length} onClose={() => setCompanionHandoff(null)} onConfirm={(seed, context) => {
