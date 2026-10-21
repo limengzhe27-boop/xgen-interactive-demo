@@ -45,7 +45,7 @@ export function AccountBar({ workspaceControls, onProfile }: { workspaceControls
   </aside>;
 }
 
-export function PublishWorldDialog({ entry, accountScope, onClose, onPublished, onImagesPrepared }: { entry: StudioWorld; accountScope: string; onClose: () => void; onPublished: (entry: StudioWorld) => void; onImagesPrepared: (entry: StudioWorld) => void }) {
+export function PublishWorldDialog({ entry, accountScope, onClose, onPublished, onImagesPrepared, characterOnly = false, localPortrait = '' }: { entry: StudioWorld; accountScope: string; onClose: () => void; onPublished: (entry: StudioWorld) => void; onImagesPrepared: (entry: StudioWorld) => void; characterOnly?: boolean; localPortrait?: string }) {
   const [account, setAccount] = useState<Account | null>(null);
   const [consent, setConsent] = useState(false);
   const prepared = useRef(entry);
@@ -81,6 +81,20 @@ export function PublishWorldDialog({ entry, accountScope, onClose, onPublished, 
     if (!consent || !account?.user || !account.canPublish || !versionReady || busy) return;
     setBusy(true); setError('');
     try {
+      if (characterOnly) {
+        if (!localPortrait) throw new Error('请先在右侧上传角色形象，再发布。');
+        let portraitUrl = localPortrait;
+        if (!/^https:\/\//.test(localPortrait)) {
+          setProgress('正在上传角色形象');
+          const uploadResponse = await fetch('/api/image/upload', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-xgen-account': accountScope }, body: JSON.stringify({ dataUrl: localPortrait }) });
+          const uploadData = await uploadResponse.json() as { url?: string; message?: string };
+          if (!uploadResponse.ok || !uploadData.url) throw new Error(uploadData.message || '角色形象上传失败，请稍后重试。');
+          portraitUrl = uploadData.url;
+        }
+        const leadId = prepared.current.world.characters[0]?.id;
+        prepared.current = { ...prepared.current, cover: portraitUrl, portraits: leadId ? { ...prepared.current.portraits, [leadId]: portraitUrl } : prepared.current.portraits };
+        onImagesPrepared(prepared.current);
+      }
       const ready=await preparePublicationImages(prepared.current,accountScope,(next,label)=>{
         if(!alive.current)throw Error('页面已离开，本次发布已停止。');
         prepared.current=next;onImagesPrepared(next);setProgress(label);
@@ -88,7 +102,7 @@ export function PublishWorldDialog({ entry, accountScope, onClose, onPublished, 
       if(!alive.current)return;
       setProgress('正在发布');
       const response = await fetch('/api/worlds', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-xgen-account': accountScope }, body: JSON.stringify({
-        consent: 'publish-world-and-selected-images-v1', sourceId: entry.id, world: entry.world, expectedUpdatedAt,
+        consent: 'publish-world-and-selected-images-v1', sourceId: entry.id, world: prepared.current.world, expectedUpdatedAt, characterOnly,
         cover: ready.cover, portraits: ready.portraits,
       }) });
       const data = await response.json() as { world?: StudioWorld; message?: string };
@@ -98,16 +112,17 @@ export function PublishWorldDialog({ entry, accountScope, onClose, onPublished, 
     finally { setBusy(false); }
   }
   return <Dialog open onOpenChange={(open) => { if (!open && !busy) onClose(); }}><DialogContent className="publication-dialog" showCloseButton={!busy}>
-    <DialogTitle>公开发布《{entry.title}》</DialogTitle>
-    <DialogDescription>发布后，其他访客可以看到这个世界，并选择角色探索或对话。</DialogDescription>
-    <div className="publication-scope"><strong>将公开</strong><p>剧情、全部虚构角色设定、关系、规则、任务与结局框架。完整剧本中可能包含角色秘密。</p><strong>不会上传</strong><p>个人 Agent 的记忆与对话、创作讨论记录、私人游玩记录。</p></div>
-    <p>封面与角色图会一起公开。缺少的图片会自动生成并使用生图额度，已有图片复用；失败时保留已生成图片，重试不会重做成功项。</p>
+    <DialogTitle>{characterOnly ? `发布角色《${entry.title}》` : `公开发布《${entry.title}》`}</DialogTitle>
+    <DialogDescription>{characterOnly ? '发布后，其他访客可以在角色库看到这个角色，并直接开始对话。' : '发布后，其他访客可以看到这个世界，并选择角色探索或对话。'}</DialogDescription>
+    <div className="publication-scope"><strong>将公开</strong><p>{characterOnly ? '角色名字、身份、性格、外观、开场白和角色形象。' : '剧情、全部虚构角色设定、关系、规则、任务与结局框架。完整剧本中可能包含角色秘密。'}</p><strong>不会上传</strong><p>个人 Agent 的记忆与对话、创作讨论记录、私人游玩记录。</p></div>
+    <p>{characterOnly ? '角色形象会一起公开；发布不会再自动生成新图。' : '封面与角色图会一起公开。缺少的图片会自动生成并使用生图额度，已有图片复用；失败时保留已生成图片，重试不会重做成功项。'}</p>
     <label className="publication-check"><input type="checkbox" checked={consent} onChange={e => setConsent(e.target.checked)} disabled={busy} />我确认这些内容可以公开，且不包含未经许可的真实个人信息或公司资料。</label>
+    {characterOnly && !localPortrait && <p className="publication-error" role="alert">请先在右侧上传角色形象，再发布。</p>}
     {!account?.user && <p>{account?.configured ? '先登录账号，才能以自己的身份发布。登录不会自动上传本机资料。' : '账号登录正在配置中，现在仍可保存并试玩；暂不能公开发布。'}</p>}
     {account?.user && !account.canPublish && <p>账号已登录；公开发布仍在验收中，现在可以保存并试玩。</p>}
     {error && <p className="publication-error" role="alert">{error}</p>}
     <div className="publication-actions"><Button variant="outline" disabled={busy} onClick={onClose}>返回创作</Button>
-      {!account?.user && account?.configured ? <a className="studio-button" href="/auth/login"><LogIn />登录账号</a> : <Button className="primary-action" disabled={!consent || !account?.user || !account.canPublish || !versionReady || busy} onClick={publish}>{busy ? <LoaderCircle className="is-spinning" /> : <Upload />}{busy ? progress || '准备发布' : expectedUpdatedAt ? '更新发布' : '发布'}</Button>}
+      {!account?.user && account?.configured ? <a className="studio-button" href="/auth/login"><LogIn />登录账号</a> : <Button className="primary-action" disabled={!consent || !account?.user || !account.canPublish || !versionReady || busy || (characterOnly && !localPortrait)} onClick={publish}>{busy ? <LoaderCircle className="is-spinning" /> : <Upload />}{busy ? progress || '准备发布' : expectedUpdatedAt ? '更新发布' : '发布'}</Button>}
     </div>
   </DialogContent></Dialog>;
 }

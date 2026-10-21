@@ -16,22 +16,12 @@ import { restoreGalleryPosition, type GalleryBrowseState, type GalleryPosition }
 
 export type StudioSection = 'home' | 'library' | 'characters' | 'personal' | 'profile';
 export type WorldCard = { id: string; title: string; originalTitle?: string; genre: string; premise: string; cover: string; roleCount: number; artNote?: string; featured?: boolean; fixedRoleId?: string; characterOnly?: boolean };
-export type CharacterCard = { id: string; worldId: string; worldTitle: string; name: string; identity: string; persona: string; image: string; cardHook?: string };
+export type CharacterCard = { id: string; worldId: string; worldTitle: string; name: string; identity: string; persona: string; image: string; cardHook?: string; characterCreatedAt?: number; characterOnly?: boolean };
 export type RecentCard = { id: string; title: string; subtitle: string; label: string; cover: string };
 type GalleryItem = { kind: 'world'; value: WorldCard } | { kind: 'character'; value: CharacterCard };
 
-export function StudioNav({ section, onNavigate, onCreate, onCreateCharacter }: { section: string; onNavigate: (section: StudioSection) => void; onCreate: () => void; onCreateCharacter: () => void }) {
+export function StudioNav({ section, onNavigate, onCreate }: { section: string; onNavigate: (section: StudioSection) => void; onCreate: () => void }) {
   const nav = useRef<HTMLElement>(null);
-  const [createMenuOpen, setCreateMenuOpen] = useState(false);
-  const createMenuRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!createMenuOpen) return;
-    const closeOnPointer = (event: PointerEvent) => { if (!createMenuRef.current?.contains(event.target as Node)) setCreateMenuOpen(false); };
-    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === 'Escape') setCreateMenuOpen(false); };
-    document.addEventListener('pointerdown', closeOnPointer);
-    document.addEventListener('keydown', closeOnEscape);
-    return () => { document.removeEventListener('pointerdown', closeOnPointer); document.removeEventListener('keydown', closeOnEscape); };
-  }, [createMenuOpen]);
   useEffect(() => {
     let frame = 0;
     const update = () => { frame = 0; if (nav.current) nav.current.dataset.scrolled = String(scrollY > 24); };
@@ -41,13 +31,7 @@ export function StudioNav({ section, onNavigate, onCreate, onCreateCharacter }: 
   }, []);
   return <nav ref={nav} className="studio-nav" aria-label="主导航">
     <span className="studio-nav-brand" aria-hidden="true"><Sparkles /></span>
-    <div className="studio-new-wrap" ref={createMenuRef}>
-      <button className="studio-nav-button studio-new" aria-haspopup="menu" aria-expanded={createMenuOpen} onClick={() => setCreateMenuOpen(open => !open)} type="button"><Plus /><span>新建</span></button>
-      {createMenuOpen && <div className="studio-new-menu" role="menu" aria-label="新建">
-        <button type="button" role="menuitem" onClick={() => { setCreateMenuOpen(false); onCreate(); }}><BookOpen /><span><strong>新建世界</strong><small>从一个故事想法开始创作</small></span></button>
-        <button type="button" role="menuitem" onClick={() => { setCreateMenuOpen(false); onCreateCharacter(); }}><UserRound /><span><strong>新建角色</strong><small>创建一个可独立对话的角色</small></span></button>
-      </div>}
-    </div>
+    <button className="studio-nav-button studio-new" onClick={() => onCreate()} type="button"><Plus /><span>新建</span></button>
     {([{ id: 'home', label: '首页', icon: House }, { id: 'library', label: '我的世界', icon: Compass }, { id: 'characters', label: '角色库', icon: UsersRound }, { id: 'personal', label: '个人 Agent', icon: MessageCircleMore }, { id: 'profile', label: '我的', icon: UserRound }] as const).map(({ id, label, icon: Icon }) =>
       <button key={id} className="studio-nav-button" aria-current={section === id ? 'page' : undefined} onClick={() => onNavigate(id)} type="button"><Icon /><span>{label}</span></button>)}
     <span className="studio-nav-foot" aria-hidden="true">XGEN</span>
@@ -59,14 +43,20 @@ function Artwork({ src, alt, recent = false }: { src: string; alt: string; recen
   return src && failedSrc !== src ? <img src={src} alt={alt} loading="lazy" decoding="async" onError={() => setFailedSrc(src)} /> : <div className="gallery-art-unavailable"><BookOpen /><span>{recent ? '暂无封面' : '封面暂不可用'}</span></div>;
 }
 
-export function StudioHome({ section, worlds, characters, recent, onCreate, onOpenWorld, onChat, onPersonal, onLibrary, onOpenRecord, initialBrowse, returnPosition, onBrowseChange }: {
+export type PublishedCharacterCard = { id: string; sourceId?: string; name: string; identity: string; image: string; updatedAt: string };
+
+export function StudioHome({ section, worlds, characters, recent, publishedCharacters, onCreate, onOpenWorld, onChat, onPersonal, onLibrary, onOpenRecord, onEditPublished, onUnpublishPublished, initialBrowse, returnPosition, onBrowseChange }: {
   initialBrowse?: GalleryBrowseState; returnPosition?: GalleryPosition; onBrowseChange?: (state: GalleryBrowseState) => void;
   section: StudioSection; worlds: WorldCard[]; characters: CharacterCard[]; recent: RecentCard[];
+  publishedCharacters: PublishedCharacterCard[];
   onCreate: (seed?: string) => void; onOpenWorld: (id: string) => void;
   onChat: (worldId: string, characterId: string) => void; onPersonal: () => void; onLibrary: () => void;
   onOpenRecord: (id: string) => void;
+  onEditPublished: (item: PublishedCharacterCard) => void;
+  onUnpublishPublished: (item: PublishedCharacterCard) => void | Promise<void>;
 }) {
   const counts = usePlayCounts();
+  const [unpublishingId, setUnpublishingId] = useState('');
   const [seed, setSeed] = useState(initialBrowse?.seed ?? '');
   const [genre, setGenre] = useState<string>(DISCOVERY_CHANNELS.some(channel => channel === initialBrowse?.genre) ? initialBrowse!.genre : '全部');
   const [query, setQuery] = useState(initialBrowse?.query ?? '');
@@ -154,9 +144,10 @@ export function StudioHome({ section, worlds, characters, recent, onCreate, onOp
   const items = isHome && genre === '全部' && kind === 'all' && !query.trim() ? [...lead,...featured.filter(item=>freshKeys.has(itemKey(item))),...rest] : mixed;
   // Newly created standalone characters are the reader's own work; surface them
   // first in 角色库 instead of leaving them to the deterministic gallery mix.
-  const standaloneCharacterItem = (item: GalleryItem) => item.kind === 'character' && item.value.worldId.startsWith('character-');
+  const standaloneCharacterItem = (item: GalleryItem) => item.kind === 'character' && (item.value.characterOnly === true || item.value.worldId.startsWith('character-'));
+  const standaloneCharacterTime = (item: GalleryItem) => item.kind === 'character' ? (item.value.characterCreatedAt ?? 0) : 0;
   const displayed = section === 'characters'
-    ? [...items.filter(standaloneCharacterItem).reverse(), ...items.filter(item => !standaloneCharacterItem(item))]
+    ? [...items.filter(standaloneCharacterItem).sort((a, b) => standaloneCharacterTime(b) - standaloneCharacterTime(a)), ...items.filter(item => !standaloneCharacterItem(item))]
     : items;
   const start = () => onCreate(seed);
 
@@ -178,6 +169,24 @@ export function StudioHome({ section, worlds, characters, recent, onCreate, onOp
       <div className="gallery-recents">{(section === 'library' ? recent : recent.slice(0, 3)).map(item => <button className="gallery-recent-item" type="button" key={item.id} onClick={() => onOpenRecord(item.id)}><Artwork src={item.cover} alt="" recent /><span><small>{item.label}</small><strong>{item.title}</strong><span>{item.subtitle}</span></span><ArrowRight /></button>)}</div>
       {!recent.length && <div className="gallery-library-empty"><Compass /><h3>暂无作品或记录</h3><p>创作草稿、世界探索和角色对话会显示在这里。</p><Button className="studio-button studio-solid" onClick={() => onCreate()}>创建故事<Plus /></Button></div>}
     </GalleryReveal>}
+
+    {section === 'characters' && publishedCharacters.length > 0 && <section className="character-publications" aria-labelledby="published-characters-title">
+      <div className="studio-heading"><h2 id="published-characters-title">我发布的角色</h2><span className="studio-wordmark">公开中 · 可编辑或撤下</span></div>
+      <div className="character-publication-list">
+        {publishedCharacters.map(item => <article className="character-publication" key={item.id}>
+          <img src={item.image} alt="" loading="lazy" />
+          <div className="character-publication-copy">
+            <strong>{item.name}</strong>
+            <span>{item.identity || '未填写身份'}</span>
+            <small>公开中 · {item.updatedAt.slice(0, 10)} 更新</small>
+          </div>
+          <div className="character-publication-actions">
+            <button type="button" className="studio-button" onClick={() => onEditPublished(item)}>编辑</button>
+            <button type="button" className="studio-button" disabled={unpublishingId === item.id} onClick={async () => { setUnpublishingId(item.id); try { await onUnpublishPublished(item); } finally { setUnpublishingId(''); } }}>{unpublishingId === item.id ? '撤下中…' : '撤下'}</button>
+          </div>
+        </article>)}
+      </div>
+    </section>}
 
     {section !== 'library' && <section className="gallery-discover" aria-labelledby="discover-title">
       <GalleryReveal className="gallery-discover-heading"><div><h2 id="discover-title">{section === 'characters' ? '角色' : '发现故事'}</h2><span>{section === 'characters' ? '选择角色开始聊天。' : '选择世界进入故事，或选择角色开始聊天。'}</span></div><button className="studio-agent-entry" onClick={onPersonal} type="button"><Sparkles />帮我推荐<ArrowRight /></button></GalleryReveal>

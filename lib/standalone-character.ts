@@ -1,5 +1,6 @@
 import type { WorldDefinition } from './ai-contracts';
 import type { StudioWorld } from './studio-worlds';
+import { localPortrait } from './persona-upload';
 
 /**
  * A character created outside any world. It is stored on its own and converted
@@ -14,10 +15,21 @@ export type StandaloneCharacter = {
   appearance: string;
   opening: string;
   sceneName: string;
+  portrait: string;
   createdAt: number;
 };
 
 export type StandaloneCharacterInput = Omit<StandaloneCharacter, 'id' | 'createdAt'>;
+
+export const EMPTY_STANDALONE_CHARACTER: StandaloneCharacterInput = {
+  name: '',
+  identity: '',
+  personality: '',
+  appearance: '',
+  opening: '',
+  sceneName: '',
+  portrait: '',
+};
 
 const LIMITS = {
   name: 24,
@@ -30,6 +42,38 @@ const LIMITS = {
 
 function text(value: unknown, max: number): string {
   return typeof value === 'string' ? value.trim().slice(0, max) : '';
+}
+
+const PUBLIC_PORTRAIT = /^https:\/\/[a-z0-9.-]+\.supabase\.co\/storage\/v1\/object\/public\/world-public\/[a-f0-9]{64}\.webp$/i;
+
+/** A locally compressed portrait or an already-published public image URL. */
+export function validCharacterPortrait(value: unknown): value is string {
+  return localPortrait(value) || (typeof value === 'string' && PUBLIC_PORTRAIT.test(value));
+}
+
+export function readStandaloneCharacterInput(value: unknown): StandaloneCharacterInput | null {
+  if (!value || typeof value !== 'object') return null;
+  const record = value as Record<string, unknown>;
+  const draft: StandaloneCharacterInput = {
+    name: text(record.name, LIMITS.name),
+    identity: text(record.identity, LIMITS.identity),
+    personality: text(record.personality, LIMITS.personality),
+    appearance: text(record.appearance, LIMITS.appearance),
+    opening: text(record.opening, LIMITS.opening),
+    sceneName: text(record.sceneName, LIMITS.sceneName),
+    portrait: validCharacterPortrait(record.portrait) ? record.portrait : '',
+  };
+  return Object.values(draft).some(Boolean) ? draft : null;
+}
+
+export type CharacterDraftState = { sourceId: string; draft: StandaloneCharacterInput };
+
+export function readCharacterDraft(value: unknown): CharacterDraftState | null {
+  if (!value || typeof value !== 'object') return null;
+  const record = value as Record<string, unknown>;
+  const sourceId = typeof record.sourceId === 'string' && /^[A-Za-z0-9-]{8,80}$/.test(record.sourceId) ? record.sourceId : '';
+  const draft = readStandaloneCharacterInput(record.draft);
+  return sourceId && draft ? { sourceId, draft } : null;
 }
 
 export function readStandaloneCharacters(value: unknown): StandaloneCharacter[] {
@@ -49,6 +93,7 @@ export function readStandaloneCharacters(value: unknown): StandaloneCharacter[] 
       appearance: text(record.appearance, LIMITS.appearance),
       opening: text(record.opening, LIMITS.opening),
       sceneName: text(record.sceneName, LIMITS.sceneName),
+      portrait: validCharacterPortrait(record.portrait) ? record.portrait : '',
       createdAt: typeof record.createdAt === 'number' && Number.isFinite(record.createdAt) ? record.createdAt : Date.now(),
     });
     if (characters.length >= 200) break;
@@ -56,17 +101,18 @@ export function readStandaloneCharacters(value: unknown): StandaloneCharacter[] 
   return characters;
 }
 
-export function makeStandaloneCharacter(input: StandaloneCharacterInput): StandaloneCharacter {
+export function makeStandaloneCharacter(input: StandaloneCharacterInput, id = crypto.randomUUID()): StandaloneCharacter {
   const name = text(input.name, LIMITS.name);
   if (!name) throw new Error('character_name_required');
   return {
-    id: crypto.randomUUID(),
+    id,
     name,
     identity: text(input.identity, LIMITS.identity),
     personality: text(input.personality, LIMITS.personality),
     appearance: text(input.appearance, LIMITS.appearance),
     opening: text(input.opening, LIMITS.opening),
     sceneName: text(input.sceneName, LIMITS.sceneName),
+    portrait: validCharacterPortrait(input.portrait) ? input.portrait : '',
     createdAt: Date.now(),
   };
 }
@@ -81,7 +127,8 @@ function hueFor(value: string): number {
  * An inline cover that gives every custom character a distinct card without a
  * generation call. Stored as a data URI so it survives reloads and exports.
  */
-export function standalonePortrait(character: Pick<StandaloneCharacter, 'name'>): string {
+export function standalonePortrait(character: Pick<StandaloneCharacter, 'name' | 'portrait'>): string {
+  if (character.portrait) return character.portrait;
   const initial = character.name.trim().charAt(0) || '角';
   const escaped = initial.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   const hue = hueFor(character.name);
@@ -125,7 +172,7 @@ export function standaloneCharacterToWorld(character: StandaloneCharacter): Stud
     rules: [],
     coreEvent: '与角色自由交谈',
     surpriseLevel: 1,
-    goals: [],
+    goals: [{ id: 'free-conversation', title: '自由交流', description: '与角色自在交谈，不要求完成主线。', scope: 'world', requiredTaskIds: [] }],
     tasks: [],
     difficultyConstraints: [],
     scheduledEvents: [],
@@ -141,6 +188,7 @@ export function standaloneCharacterToWorld(character: StandaloneCharacter): Stud
     cover: portrait,
     portraits: { [roleId]: portrait },
     characterOnly: true,
+    characterCreatedAt: character.createdAt,
     world,
   };
 }

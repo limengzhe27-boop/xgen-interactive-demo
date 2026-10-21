@@ -1018,8 +1018,9 @@
 @media (max-width: 760px) {
   .creator-workspace-shell { flex: 1; border-radius: 12px 12px 0 0; }
   .creation-flow .flow-toolbar { flex-wrap: wrap; gap: 6px; }
-  .creation-flow .flow-toolbar > h1 { flex: 1; }
+  .creation-flow .flow-toolbar > h1, .creation-flow .flow-toolbar > .creation-title { flex: 1; }
   .workspace-actions { width: 100%; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .character-creation-flow .workspace-actions { grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); }
   .workspace-actions button { padding-inline: 5px; font-size: 12px; min-height: 44px; }
   .workspace-save-note:not([role=alert]) { display: none; }
   .workspace-heading { padding: 14px 16px 10px; }

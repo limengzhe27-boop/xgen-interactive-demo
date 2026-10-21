@@ -96,6 +96,7 @@ export async function POST(request: Request) {
     if (text.length > 150000) return reply({ error: 'world_too_large' }, 413);
     const body = JSON.parse(text);
     if (body.consent !== 'publish-world-and-selected-images-v1' || typeof body.sourceId !== 'string' || !body.sourceId || body.sourceId.length > 120) return reply({ error: 'publication_consent_required' }, 400);
+    if (body.characterOnly !== undefined && typeof body.characterOnly !== 'boolean') return reply({ error: 'invalid_request' }, 400);
     const world = publicationWorld(body.world);
     const restoredId = /^community-([a-f0-9]{64})$/.exec(body.sourceId)?.[1];
     const id = restoredId || imageId(['publication', user.id, body.sourceId]);
@@ -107,7 +108,7 @@ export async function POST(request: Request) {
     // Images may become public only after the caller explicitly acknowledges the scope.
     for (const role of world.characters) portraits[role.id] = await publishImage(body.portraits?.[role.id], request, user.id);
     const cover = await publishImage(body.cover, request, user.id);
-    const document = { id: `community-${id}`, sourceId: body.sourceId, title: world.title, premise: world.premise, genre: '社区创作', cover, portraits, world: { ...world, id: `community-${id}` } };
+    const document = { id: `community-${id}`, sourceId: body.sourceId, title: world.title, premise: world.premise, genre: '社区创作', characterOnly: body.characterOnly === true, cover, portraits, world: { ...world, id: `community-${id}` } };
     if (existing) {
       const updated = await storageFetch(`/rest/v1/demo_world_publications?id=eq.${id}&owner_id=eq.${encodeURIComponent(user.id)}&updated_at=eq.${encodeURIComponent(existing.updated_at)}`, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json', Prefer: 'return=representation' }, body: JSON.stringify({ document, published: true, updated_at: new Date().toISOString() }),
@@ -127,4 +128,29 @@ export async function POST(request: Request) {
     if (imageErrors[code]) return reply({ error: code, message: imageErrors[code] }, 409);
     return reply({ error: 'publication_failed', message: '发布未完成。请检查角色、地点、任务及图片是否有效；原草稿不会被删除。' }, 400);
   }
+}
+
+export async function DELETE(request: Request) {
+  if (!sameOrigin(request)) return Response.json({ error: 'invalid_origin' }, { status: 403, headers: noStore });
+  if (!authConfigured()) return Response.json({ error: 'login_not_configured' }, { status: 503, headers: noStore });
+  const auth = authContext(request);
+  const reply = (body: unknown, status = 200) => auth.finish(Response.json(body, { status }));
+  try {
+    const { data: { user }, error } = await auth.client.auth.getUser();
+    if (error || !user) return reply({ error: 'login_required' }, 401);
+    if (request.headers.get('x-xgen-account') !== user.id) return reply({ error: 'account_changed' }, 409);
+    let body: { sourceId?: unknown };
+    try { body = await request.json() as { sourceId?: unknown }; } catch { return reply({ error: 'invalid_json' }, 400); }
+    if (typeof body.sourceId !== 'string' || !body.sourceId || body.sourceId.length > 120) return reply({ error: 'invalid_request' }, 400);
+    const id = imageId(['publication', user.id, body.sourceId]);
+    const existingResponse = await storageFetch(`/rest/v1/demo_world_publications?id=eq.${id}&owner_id=eq.${encodeURIComponent(user.id)}&select=id,updated_at`);
+    const existing = (await existingResponse.json() as { id: string; updated_at: string }[])[0];
+    if (!existing) return reply({ error: 'publication_not_found' }, 404);
+    const updated = await storageFetch(`/rest/v1/demo_world_publications?id=eq.${id}&owner_id=eq.${encodeURIComponent(user.id)}&updated_at=eq.${encodeURIComponent(existing.updated_at)}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json', Prefer: 'return=representation' },
+      body: JSON.stringify({ published: false, updated_at: new Date().toISOString() }),
+    });
+    if (!(await updated.json() as unknown[]).length) return reply({ error: 'publication_changed', message: '作品已在别处变化，请刷新后再撤下。' }, 409);
+    return reply({ ok: true });
+  } catch { return reply({ error: 'publication_update_failed' }, 503); }
 }

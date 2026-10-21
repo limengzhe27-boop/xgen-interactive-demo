@@ -54,7 +54,7 @@ import {
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
-import { StudioHome, StudioNav } from '@/components/studio-home';
+import { StudioHome, StudioNav, type PublishedCharacterCard } from '@/components/studio-home';
 import { captureGalleryPosition, type GalleryBrowseState, type GalleryPosition } from '@/lib/gallery-memory';
 import { AccountBar, PublishWorldDialog } from '@/components/account-publication';
 import { MyPublications } from '@/components/my-publications';
@@ -92,8 +92,9 @@ import { legacyArt } from '@/lib/legacy-art';
 import type { StudioWorld } from '@/lib/studio-worlds';
 import { upsertById } from '@/lib/studio-session';
 import type { ChatSession } from '@/lib/studio-session';
-import { CharacterCreator } from '@/components/character-creator';
-import { makeStandaloneCharacter, readStandaloneCharacters, standaloneCharacterToWorld, type StandaloneCharacter, type StandaloneCharacterInput } from '@/lib/standalone-character';
+import { CreateCharacter } from '@/components/create-character';
+import { CreateModeSwitch, type CreateMode } from '@/components/create-mode-switch';
+import { EMPTY_STANDALONE_CHARACTER, makeStandaloneCharacter, readCharacterDraft, readStandaloneCharacters, standaloneCharacterToWorld, type StandaloneCharacter, type StandaloneCharacterInput } from '@/lib/standalone-character';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
@@ -228,6 +229,13 @@ type PresetWorld = {
   surpriseLevel: 1 | 2 | 3 | 4;
   roles: DraftRole[];
   outline: StoryOutlineBeat[];
+};
+
+type CharacterPublicationRow = {
+  id: string;
+  updated_at: string;
+  published?: boolean;
+  document: StudioWorld & { sourceId?: string };
 };
 
 type PersistedDemoState = {
@@ -1092,6 +1100,8 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
   const [communityLoaded,setCommunityLoaded]=useState(false);
   const [catalogRevision, setCatalogRevision] = useState(0);
   const [publicationEntry, setPublicationEntry] = useState<StudioWorld | null>(null);
+  const [publicationCharacterOnly, setPublicationCharacterOnly] = useState(false);
+  const [publicationLocalPortrait, setPublicationLocalPortrait] = useState('');
   const [publicationNotice, setPublicationNotice] = useState('');
   const [savedRun, setSavedRun] = useState<SavedRun | null>(null);
   const [savedRuns, setSavedRuns] = useState<(SavedRun & { id: string })[]>([]);
@@ -1115,7 +1125,15 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
   ]);
   const [storageReady, setStorageReady] = useState(false);
   const [standaloneCharacters, setStandaloneCharacters] = useState<StandaloneCharacter[]>([]);
-  const [characterCreatorOpen, setCharacterCreatorOpen] = useState(false);
+  const [createMode, setCreateMode] = useState<CreateMode>('world');
+  const [characterDraft, setCharacterDraft] = useState<StandaloneCharacterInput>(EMPTY_STANDALONE_CHARACTER);
+  const [characterSourceId, setCharacterSourceId] = useState('');
+  const [characterDraftLoaded, setCharacterDraftLoaded] = useState(false);
+  const [characterPublished, setCharacterPublished] = useState(false);
+  const [characterCommunityId, setCharacterCommunityId] = useState<string | null>(null);
+  const [characterUpdatedAt, setCharacterUpdatedAt] = useState<string | null>(null);
+  const [myCharacterPublications, setMyCharacterPublications] = useState<CharacterPublicationRow[]>([]);
+  const [myPublicationsLoaded, setMyPublicationsLoaded] = useState(false);
   const responseTimerRef = useRef<number | null>(null);
   const streamTimerRef = useRef<number | null>(null);
   const generationControllerRef = useRef<AbortController | null>(null);
@@ -1270,6 +1288,18 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     return () => { live = false; };
   }, [catalogRevision]);
   const personalCatalog = [...worldCatalog, ...availableStudioWorlds.filter((entry) => !entry.characterOnly).map((entry) => ({ id: entry.id, title: entry.title, genre: entry.genre, premise: entry.premise, surpriseLevel: entry.world.surpriseLevel }))];
+  const publishedCharacters: PublishedCharacterCard[] = myCharacterPublications.map(row => {
+    const document = row.document;
+    const role = document.world.characters[0];
+    return {
+      id: document.id,
+      sourceId: document.sourceId,
+      name: role?.name || document.title,
+      identity: role?.identity || document.premise,
+      image: document.cover || (role ? document.portraits[role.id] : '') || '',
+      updatedAt: row.updated_at,
+    };
+  });
   // Also hydrate an already-open / locally restored editor, not just the public-list entry point.
   const restoreEditorArt = useEffectEvent((entries: (StudioWorld & { sourceId?: string })[]) => {
     const published = entries.find(entry => entry.sourceId === draftId || entry.id === draftId);
@@ -1427,6 +1457,52 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       setStandaloneCharacters(readStandaloneCharacters(raw ? JSON.parse(raw) : []));
     } catch { setStandaloneCharacters([]); }
   }, [accountScope, storageReady]);
+
+  useEffect(() => {
+    if (!storageReady) return;
+    try {
+      const raw = window.localStorage.getItem('xgen-character-draft-v1');
+      const saved = raw ? readCharacterDraft(JSON.parse(raw)) : null;
+      if (saved) { setCharacterSourceId(saved.sourceId); setCharacterDraft(saved.draft); }
+      else setCharacterSourceId(crypto.randomUUID());
+    } catch { setCharacterSourceId(crypto.randomUUID()); }
+    setCharacterDraftLoaded(true);
+  }, [storageReady]);
+
+  useEffect(() => {
+    if (!characterDraftLoaded || !storageReady || !characterSourceId) return;
+    const timer = window.setTimeout(() => {
+      try { window.localStorage.setItem('xgen-character-draft-v1', JSON.stringify({ sourceId: characterSourceId, draft: characterDraft })); } catch { /* Storage full must not break editing. */ }
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [characterDraft, characterSourceId, characterDraftLoaded, storageReady]);
+
+  useEffect(() => {
+    if (!storageReady || accountScope === 'guest' || accountScope === 'pending') {
+      setMyCharacterPublications([]); setMyPublicationsLoaded(true); return;
+    }
+    let live = true;
+    setMyPublicationsLoaded(false);
+    void fetch('/api/worlds?mine=true', { cache: 'no-store', headers: { 'x-xgen-account': accountScope } })
+      .then(async response => {
+        if (!response.ok) throw new Error();
+        const data = await response.json() as { publications?: CharacterPublicationRow[] };
+        if (!live) return;
+        setMyCharacterPublications((data.publications ?? []).filter(row => row.published !== false && row.document?.characterOnly === true));
+        setMyPublicationsLoaded(true);
+      })
+      .catch(() => { if (live) { setMyCharacterPublications([]); setMyPublicationsLoaded(true); } });
+    return () => { live = false; };
+  }, [accountScope, storageReady, catalogRevision]);
+
+  useEffect(() => {
+    if (!myPublicationsLoaded) return;
+    const sourceId = characterSourceId ? `character-${characterSourceId}` : '';
+    const match = sourceId ? myCharacterPublications.find(row => row.document.sourceId === sourceId) : undefined;
+    setCharacterPublished(Boolean(match));
+    setCharacterCommunityId(match?.document.id ?? null);
+    setCharacterUpdatedAt(match?.updated_at ?? null);
+  }, [myPublicationsLoaded, myCharacterPublications, characterSourceId]);
 
   useEffect(() => {
     if (!storageReady || storageReadFailed.current) return;
@@ -3125,11 +3201,83 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     if (continuation?.proposal) { setCreatorChangeNotice('请先确认或放弃后续提案，再发布。'); return; }
     const world = materializeCreatorWorld();
     const portraits = Object.fromEntries(world.characters.map((role, index) => [role.id, creatorRoleImages[`draft-role-${index}`] || creatorAssets?.portraits[role.id] || '']));
+    setPublicationCharacterOnly(false); setPublicationLocalPortrait('');
     setPublicationEntry({ id: draftId, title: world.title, genre: creatorBrief.discoveryGenre?.trim() || '', premise: world.premise,
       cover: creatorAssets?.cover || '', portraits, world });
   }
 
+  function publishCharacter() {
+    if (!storageReady || storageReadFailed.current || accountScope === 'pending') { setStorageError('本机存档尚未就绪，请稍后再试。'); return; }
+    if (!characterDraft.name.trim()) { setStorageError('请先填写角色名字。'); return; }
+    if (!characterDraft.portrait) { setStorageError('发布前请先在右侧上传角色形象。'); return; }
+    const sourceId = characterSourceId || crypto.randomUUID();
+    if (!characterSourceId) setCharacterSourceId(sourceId);
+    let character: StandaloneCharacter;
+    try { character = makeStandaloneCharacter(characterDraft, sourceId); }
+    catch { setStorageError('角色名字不能为空。'); return; }
+    setPublicationCharacterOnly(true);
+    setPublicationLocalPortrait(character.portrait);
+    setPublicationEntry(standaloneCharacterToWorld(character));
+  }
+
+  function acceptPublicCharacter(entry: StudioWorld) {
+    const wasPublished = characterPublished;
+    setCommunityWorlds(current => upsertById(current, entry));
+    setPublicationEntry(null); setPublicationCharacterOnly(false); setPublicationLocalPortrait('');
+    setCharacterPublished(true);
+    setCharacterCommunityId(entry.id);
+    setCharacterUpdatedAt(new Date().toISOString());
+    setPublicationNotice(wasPublished ? '角色更新已公开发布，其他访客会看到新版本。' : '角色已公开发布，其他访客可以在角色库看到并直接对话。');
+    setCatalogRevision(value => value + 1);
+  }
+
+  function resetCharacterDraft() {
+    setCharacterSourceId(crypto.randomUUID());
+    setCharacterDraft({ ...EMPTY_STANDALONE_CHARACTER });
+    setCharacterPublished(false); setCharacterCommunityId(null); setCharacterUpdatedAt(null);
+    try { window.localStorage.removeItem('xgen-character-draft-v1'); } catch { /* A blocked store must not stop a new draft. */ }
+  }
+
+  async function unpublishPublishedCharacter(item: PublishedCharacterCard) {
+    if (accountScope === 'guest' || accountScope === 'pending' || !item.sourceId) return;
+    try {
+      const response = await fetch('/api/worlds', { method: 'DELETE', headers: { 'Content-Type': 'application/json', 'x-xgen-account': accountScope }, body: JSON.stringify({ sourceId: item.sourceId }) });
+      const data = await response.json().catch(() => ({})) as { message?: string };
+      if (!response.ok) throw new Error(data.message || '撤下未完成，请稍后重试。');
+      setCommunityWorlds(current => current.filter(entry => entry.id !== item.id));
+      setMyCharacterPublications(current => current.filter(row => row.document.id !== item.id));
+      if (item.sourceId === `character-${characterSourceId}`) { setCharacterPublished(false); setCharacterCommunityId(null); setCharacterUpdatedAt(null); }
+      setPublicationNotice('角色已撤下，公开目录不再展示。');
+      setCatalogRevision(value => value + 1);
+    } catch (error) { setStorageError(error instanceof Error ? error.message : '撤下未完成，请稍后重试。'); }
+  }
+
+  function editPublishedCharacter(item: PublishedCharacterCard) {
+    const row = myCharacterPublications.find(entry => entry.document.id === item.id);
+    if (!row) return;
+    const document = row.document;
+    const role = document.world.characters[0];
+    const sourceId = document.sourceId?.startsWith('character-') ? document.sourceId.slice('character-'.length) : '';
+    if (!sourceId) { setStorageError('这条发布记录缺少可编辑的草稿标识。'); return; }
+    setCharacterSourceId(sourceId);
+    setCharacterDraft({
+      name: role?.name || document.title,
+      identity: role?.identity || '',
+      personality: role?.persona || '',
+      appearance: role?.imagePrompt || '',
+      opening: role?.chatOpening?.text || document.world.openingScene.narrative || '',
+      sceneName: document.world.locations[0]?.name || '',
+      portrait: document.cover || (role ? document.portraits[role.id] : '') || '',
+    });
+    setCharacterPublished(true);
+    setCharacterCommunityId(document.id);
+    setCharacterUpdatedAt(row.updated_at);
+    setCreateMode('character');
+    navigate('create');
+  }
+
   function rememberPublicationImages(entry: StudioWorld) {
+    if (entry.characterOnly) return;
     if(entry.id!==draftId)throw Error('创作已切换，本次发布已停止。');
     const assets={cover:entry.cover,portraits:{...entry.portraits}};
     const data={...JSON.parse(creatorDocumentJSON),creatorAssets:assets} as CreatorDocument['data'];
@@ -3141,6 +3289,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
   }
 
   function newCreator(seed = '', context?: CompanionContext, preserveCurrent = true) {
+    setCreateMode('world');
     cancelCreatorRequest();
     setProposalChanges([]); setCreatorUndo([]); setCreatorChangeNotice(''); setCreatorFocus('');
     const data = JSON.parse(creatorDocumentJSON) as CreatorDocument['data'];
@@ -3180,7 +3329,10 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       return;
     }
     setStandaloneCharacters(next);
-    setCharacterCreatorOpen(false);
+    setCharacterDraft({ ...EMPTY_STANDALONE_CHARACTER });
+    setCharacterSourceId(crypto.randomUUID());
+    setCharacterPublished(false); setCharacterCommunityId(null); setCharacterUpdatedAt(null);
+    try { window.localStorage.removeItem('xgen-character-draft-v1'); } catch { /* ignore */ }
     navigate('characters');
   }
 
@@ -3309,13 +3461,14 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       section={view} worlds={[
         ...availableStudioWorlds.map((entry) => ({ ...entry, roleCount: entry.fixedRoleId ? 1 : entry.world.characters.length })),
         ...worldCatalog.map((world) => ({ ...world, roleCount: world.id === 'storm-manor' ? roles.length : presetWorlds.find((preset) => preset.id === world.id)?.roles.length ?? 0, cover: world.id === 'storm-manor' ? legacyArt['storm-manor'].cover : world.id === 'sea-train' ? legacyArt['sea-train'].cover : legacyArt['sixth-roommate'].cover }))]}
-      characters={availableStudioWorlds.filter(entry=>!entry.fixedRoleId).flatMap((entry) => entry.world.characters.map((role) => ({ id: role.id, worldId: entry.id, worldTitle: entry.title, name: role.name, cardHook: role.cardHook, identity: role.identity, persona: role.persona, image: entry.portraits[role.id] || entry.cover })))}
+      characters={availableStudioWorlds.filter(entry=>!entry.fixedRoleId).flatMap((entry) => entry.world.characters.map((role) => ({ id: role.id, worldId: entry.id, worldTitle: entry.title, name: role.name, cardHook: role.cardHook, identity: role.identity, persona: role.persona, image: entry.portraits[role.id] || entry.cover, characterCreatedAt: entry.characterCreatedAt, characterOnly: entry.characterOnly })))}
       recent={[
         ...creatorDocuments.map((doc) => ({ id: `doc-${doc.id}`, savedAt: doc.savedAt, title: doc.data.worldTitle || '未命名世界', subtitle: '继续编辑', label: doc.data.publishedWorld ? '可试玩 · 本机作品' : '创作草稿', cover: doc.data.creatorAssets?.cover || '' })),
         ...savedRuns.map((run) => ({ id: `run-${run.id}`, savedAt: run.savedAt, title: run.worldTitle, subtitle: `${run.worldSnapshot?.world.characters.find((role) => role.id === run.roleId)?.name ?? run.roleId} · ${run.worldState.location}`, label: run.id.includes('-before-update-') ? '接续前备份' : run.status === 'ending' ? '当前剧情' : '探索记录', cover: run.worldSnapshot?.cover || legacyArt['storm-manor'].cover })),
         ...chatSessions.map((chat) => ({ id: `chat-${chat.id}`, savedAt: chat.savedAt, title: `与 ${chat.entry.world.characters.find((role) => role.id === chat.targetCharacterId)?.name || '角色'} 的对话`, subtitle: chatRecordSubtitle(chat.entry.world.characters.find((role) => role.id === chat.playerRoleId)?.name, chat.entry.title), label: '角色对话', cover: chat.entry.portraits[chat.targetCharacterId] || chat.entry.cover })),
       ].sort((a, b) => b.savedAt - a.savedAt)}
       onCreate={newCreator} onOpenWorld={openCatalogWorld} onChat={(worldId, targetId) => { const entry = availableStudioWorlds.find((item) => item.id === worldId); if (entry) setChatEntry({ entry, targetId }); }} onPersonal={() => navigate('personal')} onLibrary={() => navigate('library')} onOpenRecord={openRecord}
+      publishedCharacters={publishedCharacters} onEditPublished={editPublishedCharacter} onUnpublishPublished={unpublishPublishedCharacter}
     />;
     if (view === 'roles' || (view === 'prologue' && !singleRole)) return <RoleSelection storyHook={activeWorldDefinition.storyHook || activeWorldTitle} identityControl={identityControl} worldTitle={activeWorldTitle} artNote={activeLibrary?.artNote} availableRoles={selectableRoles} selected={selectedRole} onSelect={setSelectedRole} onBack={returnToCatalog} onStart={() => beginWorld()} personaEntry={activeLibrary && restoreEntryPolicy(activeLibrary.world.entryPolicy).allowPersona ? <PersonaAdmission key={activeLibrary.id} entry={activeLibrary} roleId="persona-visitor" persona={playerPersona} onEnter={beginWorld} /> : undefined} />;
     if (view === 'prologue') return <WorldProloguePlayer key={activeWorldDefinition.id} title={activeWorldTitle} fixedIdentity={selectedRole.name} prologue={{ shots: [{ caption: activeWorldDefinition.storyHook || activeWorldTitle, poster: activeLibrary?.cover || creatorAssets?.cover || legacyArt['storm-manor'].cover, seconds: 0 }], handoff: '接下来，由你决定。' }} onBack={returnToCatalog} onContinue={() => beginWorld()} />;
@@ -3365,6 +3518,19 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       );
     }
     if (view === 'create') {
+      if (createMode === 'character') return <CreateCharacter
+        value={characterDraft}
+        onChange={setCharacterDraft}
+        onSave={() => createCharacter(characterDraft)}
+        onPublish={publishCharacter}
+        onUnpublish={() => void unpublishPublishedCharacter({ id: characterCommunityId || '', sourceId: `character-${characterSourceId}`, name: characterDraft.name, identity: characterDraft.identity, image: characterDraft.portrait, updatedAt: characterUpdatedAt || new Date().toISOString() })}
+        onNew={resetCharacterDraft}
+        published={characterPublished}
+        onBack={() => navigate('home')}
+        onModeChange={setCreateMode}
+        storageNotice={storageError}
+        canSave={storageReady && !storageReadFailed.current && accountScope !== 'pending'}
+      />;
       return (
         <CreateWorld
           cover={creatorAssets?.cover}
@@ -3423,6 +3589,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
           onGenerateRoleImage={async (index) => { await generateRoleImage(index); }}
           onGenerateAllRoleImages={async () => { await generateAllRoleImages(); }}
           onBack={() => navigate(creatorReturnView.current)}
+          onModeChange={setCreateMode}
           onPublish={publishCreatorWorld}
           onGenerateCover={generateCreatorCover}
           onShare={preparePublicWorld}
@@ -3483,8 +3650,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
 
   return (
     <main className="studio-frame" data-focused-flow={view === 'prologue' || view === 'roles' || view === 'play' || view === 'personal' || view === 'create' || view === 'chat' || view === 'world-intro'}>
-      <StudioNav section={view} onNavigate={navigate} onCreate={newCreator} onCreateCharacter={() => setCharacterCreatorOpen(true)} />
-      <CharacterCreator open={characterCreatorOpen} onOpenChange={setCharacterCreatorOpen} onCreate={createCharacter} disabled={!storageReady || storageReadFailed.current || accountScope === 'pending'} />
+      <StudioNav section={view} onNavigate={navigate} onCreate={newCreator} />
       {view === 'play' && <RecordPlay target={`world:${activeLibrary?.id ?? activeWorld}`} accountScope={accountScope} />}
       {view !== 'prologue' && view !== 'world-intro' && <AccountBar onProfile={['home', 'library', 'characters', 'personal'].includes(view) ? () => navigate('profile') : undefined} workspaceControls={['home', 'library', 'personal', 'profile', 'characters'].includes(view) && <CloudWorkspace accountScope={accountScope} disabled={!storageReady || storageReadFailed.current || agentThinking || creatorAgentThinking || worldGenerating} />} />}
       {companionHandoff && <CompanionHandoff seed={companionHandoff.seed} conversation={agentConversation} memoryCount={memories.length} onClose={() => setCompanionHandoff(null)} onConfirm={(seed, context) => {
@@ -3496,7 +3662,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       {view === 'library' && <MyPublications key={accountScope} accountScope={accountScope} drafts={creatorDocuments.map(doc => ({ id: doc.id, title: doc.data.worldTitle }))} onDelete={deleteCreator} onEdit={id => { const doc = creatorDocuments.find(item => item.id === id); if (doc) editCreator(doc); }} onRestore={continuePublished} onRestoreEdition={restorePublishedEdition} onChanged={() => setCatalogRevision(value => value + 1)} />}
       {screen}
       {publicationNotice && <p className="account-bar" role="status">{publicationNotice}</p>}
-      {publicationEntry && <PublishWorldDialog key={`${accountScope}:${publicationEntry.id}`} accountScope={accountScope} entry={publicationEntry} onClose={() => setPublicationEntry(null)} onImagesPrepared={rememberPublicationImages} onPublished={acceptPublicEdition} />}
+      {publicationEntry && <PublishWorldDialog key={`${accountScope}:${publicationEntry.id}`} accountScope={accountScope} entry={publicationEntry} characterOnly={publicationCharacterOnly} localPortrait={publicationLocalPortrait} onClose={() => { setPublicationEntry(null); setPublicationCharacterOnly(false); setPublicationLocalPortrait(''); }} onImagesPrepared={rememberPublicationImages} onPublished={publicationCharacterOnly ? acceptPublicCharacter : acceptPublicEdition} />}
       {chatEntry && <CharacterEntry key={`${chatEntry.entry.id}:${chatEntry.targetId}`} entry={chatEntry.entry} identityControl={identityControl} targetId={chatEntry.targetId} persona={playerPersona} onClose={() => setChatEntry(null)} onStart={(session) => { saveChat(session); setActiveChat(session); setChatEntry(null); navigate('chat'); }} />}
     </main>
   );
@@ -3732,6 +3898,7 @@ function CreateWorld({
   onGenerateRoleImage,
   onGenerateAllRoleImages,
   onBack,
+  onModeChange,
   onPublish,
   onGenerateCover,
   onShare,
@@ -3798,6 +3965,7 @@ function CreateWorld({
   onGenerateRoleImage: (index: number) => Promise<void> | void;
   onGenerateAllRoleImages: () => Promise<void> | void;
   onBack: () => void;
+  onModeChange: (mode: CreateMode) => void;
   onPublish: (targetRoleIndex?: number) => void;
   onGenerateCover?: () => Promise<void> | void;
   onShare: () => void;
@@ -4877,6 +5045,7 @@ function CreateWorld({
           <Button disabled={!canPublish || !worldSeed.trim() || taskIssues.length > 0 || creatorAgentThinking || generating} onClick={onShare} title={!canPublish ? '当前账号暂不可公开发布' : '检查并确认发布'}>发布</Button>
         </div>
       </header>
+      <div className="creation-mode-bar"><CreateModeSwitch mode="world" onChange={onModeChange} /></div>
       <nav className="creation-pane-tabs" aria-label="创作视图"><button type="button" aria-pressed={mobilePane === 'chat'} onClick={() => setMobilePane('chat')}>与 Agent 讨论</button><button type="button" aria-pressed={mobilePane === 'canvas'} onClick={() => setMobilePane('canvas')}>作品工作区{hasSuggestion ? ' · 待确认建议' : ''}</button></nav>
       <div className="creation-workbench" data-pane={mobilePane} data-agent-collapsed={agentCollapsed}>
         {discussionPanel}
