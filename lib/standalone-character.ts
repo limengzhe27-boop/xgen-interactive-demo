@@ -93,7 +93,7 @@ export function readStandaloneCharacterInput(value: unknown): StandaloneCharacte
     profile,
   };
   const hasCardText = [draft.name, draft.identity, draft.agentTask, draft.basicInfo, draft.keyPlotNodes, draft.outputRules,
-    draft.personality, draft.appearance, draft.opening, draft.sceneName].some(Boolean);
+    draft.personality, draft.appearance, draft.opening, draft.sceneName, draft.worldBackground].some(Boolean);
   return hasCardText || !characterProfileIsEmpty(profile) ? draft : null;
 }
 
