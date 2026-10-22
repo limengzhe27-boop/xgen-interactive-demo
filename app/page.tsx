@@ -3306,6 +3306,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       appearance: role?.imagePrompt || '',
       opening: role?.chatOpening?.text || document.world.openingScene.narrative || '',
       sceneName: document.world.locations[0]?.name || '',
+      worldBackground: document.world.worldBackground || '',
       portrait: document.cover || (role ? document.portraits[role.id] : '') || '',
       profile: readCharacterProfile(role?.characterProfile),
     });
@@ -3327,6 +3328,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       appearance: character.appearance,
       opening: character.opening,
       sceneName: character.sceneName,
+      worldBackground: character.worldBackground,
       portrait: character.portrait,
       profile: character.profile,
     });

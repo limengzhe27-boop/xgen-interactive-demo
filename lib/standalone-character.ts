@@ -16,6 +16,7 @@ export type StandaloneCharacter = {
   appearance: string;
   opening: string;
   sceneName: string;
+  worldBackground: string;
   portrait: string;
   /** L1-L5 character bible; optional for characters created before this field. */
   profile: CharacterProfile;
@@ -31,6 +32,7 @@ export const EMPTY_STANDALONE_CHARACTER: StandaloneCharacterInput = {
   appearance: '',
   opening: '',
   sceneName: '',
+  worldBackground: '',
   portrait: '',
   profile: { ...EMPTY_CHARACTER_PROFILE },
 };
@@ -42,6 +44,7 @@ const LIMITS = {
   appearance: 300,
   opening: 600,
   sceneName: 60,
+  worldBackground: 3000,
 } as const;
 
 function text(value: unknown, max: number): string {
@@ -66,10 +69,11 @@ export function readStandaloneCharacterInput(value: unknown): StandaloneCharacte
     appearance: text(record.appearance, LIMITS.appearance),
     opening: text(record.opening, LIMITS.opening),
     sceneName: text(record.sceneName, LIMITS.sceneName),
+    worldBackground: text(record.worldBackground, LIMITS.worldBackground),
     portrait: validCharacterPortrait(record.portrait) ? record.portrait : '',
     profile,
   };
-  const hasCardText = [draft.name, draft.identity, draft.personality, draft.appearance, draft.opening, draft.sceneName].some(Boolean);
+  const hasCardText = [draft.name, draft.identity, draft.personality, draft.appearance, draft.opening, draft.sceneName, draft.worldBackground].some(Boolean);
   return hasCardText || !characterProfileIsEmpty(profile) ? draft : null;
 }
 
@@ -100,6 +104,7 @@ export function readStandaloneCharacters(value: unknown): StandaloneCharacter[] 
       appearance: text(record.appearance, LIMITS.appearance),
       opening: text(record.opening, LIMITS.opening),
       sceneName: text(record.sceneName, LIMITS.sceneName),
+      worldBackground: text(record.worldBackground, LIMITS.worldBackground),
       portrait: validCharacterPortrait(record.portrait) ? record.portrait : '',
       profile: readCharacterProfile(record.profile),
       createdAt: typeof record.createdAt === 'number' && Number.isFinite(record.createdAt) ? record.createdAt : Date.now(),
@@ -119,6 +124,7 @@ export function makeStandaloneCharacter(input: StandaloneCharacterInput, id = cr
     appearance: text(input.appearance, LIMITS.appearance),
     opening: text(input.opening, LIMITS.opening),
     sceneName: text(input.sceneName, LIMITS.sceneName),
+    worldBackground: text(input.worldBackground, LIMITS.worldBackground),
     portrait: validCharacterPortrait(input.portrait) ? input.portrait : '',
     profile: readCharacterProfile(input.profile),
     createdAt: Date.now(),
@@ -154,11 +160,13 @@ export function standaloneCharacterToWorld(character: StandaloneCharacter): Stud
   const portrait = standalonePortrait(character);
   const cardHook = character.identity ? `${character.name}｜${character.identity}`.slice(0, 60) : character.name;
   const sceneLine = character.identity ? `${character.name}就在你面前。${character.identity}` : `${character.name}就在你面前。`;
+  const worldBackground = character.worldBackground.trim();
 
   const world: WorldDefinition = {
     id: worldId,
     title: character.name,
     premise: character.identity || opening,
+    ...(worldBackground ? { worldBackground } : {}),
     timeSetting: '此刻',
     locations: [{ id: locationId, name: sceneName, description: `${sceneName}，${character.name}在这里。`, connectedLocationIds: [] }],
     characters: [{

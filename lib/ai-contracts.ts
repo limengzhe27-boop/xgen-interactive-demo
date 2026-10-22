@@ -154,6 +154,8 @@ export type WorldDefinition = {
   id: string;
   title: string;
   premise: string;
+  /** Optional background for a standalone character's surrounding world. */
+  worldBackground?: string;
   timeSetting: string;
   locations: { id: string; name: string; description: string; connectedLocationIds: string[] }[];
   characters: CharacterDefinition[];

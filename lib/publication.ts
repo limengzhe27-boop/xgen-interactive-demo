@@ -14,7 +14,7 @@ const schema: Shape = {
   'storyHook?': 'string',
   'publicSynopsis?': 'string',
   'discoveryGenre?': 'string',
-  id: 'string', title: 'string', premise: 'string', timeSetting: 'string', coreEvent: 'string', surpriseLevel: 'number',
+  id: 'string', title: 'string', premise: 'string', 'worldBackground?': 'string', timeSetting: 'string', coreEvent: 'string', surpriseLevel: 'number',
   'system?': { name: 'string', premise: 'string', entries: [{ id: 'string', title: 'string', description: 'string', roleIds: texts, requiredTaskIds: texts, action: 'string' }] },
   'entryPolicy?': { allowPersona: 'boolean', allowedRoleIds: texts, abilityMode: 'string', abilities: texts, 'visitorGoal?': 'string' },
   locations: [{ id: 'string', name: 'string', description: 'string', connectedLocationIds: texts }],

@@ -25,6 +25,7 @@ function buildPortraitPrompt(value: StandaloneCharacterInput): string {
     '画面中不要出现文字、水印、logo、边框、UI、多人或画中画；不要生成真实明星或公众人物。',
     `角色名：${value.name.trim() || '未命名角色'}`,
     value.identity.trim() ? `身份：${value.identity.trim()}` : '',
+    value.worldBackground.trim() ? `世界背景与时代感：${value.worldBackground.trim().slice(0, 500)}` : '',
     appearance.trim() ? `固定外观：${appearance}` : '',
     traits.trim() ? `性格与气质：${traits}` : '',
     life.trim() ? `人生背景与时代感：${life}` : '',
@@ -159,6 +160,11 @@ export function CreateCharacter({ value, onChange, onSave, onPublish, onUnpublis
               <div className="draft-field">
                 <label htmlFor="character-identity">身份 / 一句话设定</label>
                 <Input id="character-identity" value={value.identity} maxLength={120} placeholder="例如：嘴硬心软的成年游侠，靠替人找东西过活" onChange={event => update('identity', event.target.value)} />
+              </div>
+              <div className="draft-field">
+                <label htmlFor="character-world-background">角色所在的世界背景 <em>选填</em></label>
+                <Textarea id="character-world-background" value={value.worldBackground} maxLength={3000} rows={4} placeholder="她所在的时代、城市、家庭与社会关系、当前局势、世界规则；留空则只有见面场景" onChange={event => update('worldBackground', event.target.value)} />
+                <small>独立角色聊天时会把它作为角色所处世界的背景，不会替代她的 L1-L5 人格档案。</small>
               </div>
               <div className="character-form-pair">
                 <div className="draft-field">
