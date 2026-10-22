@@ -1,6 +1,6 @@
 // Server configuration only. No direct-provider fallback and no client-selected models.
 export const COMPANY_MODELS = {
-  text: ['deepseek-v4.1-flash', 'deepseek-v4-flash', 'deepseek-v3.2', 'grok-4.7'],
+  text: ['deepseek-v4.1-flash', 'deepseek-v4-flash', 'deepseek-v3.2', 'grok-4.7', 'grok-4.6', 'grok-4.3'],
   image: ['doubao-seedream-4-0-250828', 'doubao-seedream-4-5-251128'],
   video: ['kling-video-o1'],
   speech: ['doubao-tts'],
