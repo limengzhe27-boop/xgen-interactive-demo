@@ -63,7 +63,7 @@ async function handlePost(request: Request, accountId: string | null) {
     const signal = AbortSignal.timeout(90000);
     const response = await companyFetch('/images/generations', {
       model, prompt: body.prompt.trim(), size, seed: seed % 2147483647, n: 1,
-      sequential_image_generation: 'disabled', response_format: 'url', stream: false, watermark: true,
+      sequential_image_generation: 'disabled', response_format: 'url', stream: false, watermark: false,
     }, 90000);
     if (!response.ok) return reply({ error: 'company_image_failed' }, 502);
     const result = await response.json() as { data?: { url: string }[] };
