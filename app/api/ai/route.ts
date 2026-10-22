@@ -178,7 +178,7 @@ async function callCompany(
   const isChat = operation === 'advance-world' && isWorldTurnRequest(input) && input.interaction?.mode === 'character-chat';
   const configuredChatModel = process.env.YIBU_CHAT_MODEL?.trim();
   const chatModel = isChat
-    ? (configuredChatModel && (COMPANY_MODELS.text as readonly string[]).includes(configuredChatModel) ? configuredChatModel : 'deepseek-v4.1-flash')
+    ? (configuredChatModel && (COMPANY_MODELS.text as readonly string[]).includes(configuredChatModel) ? configuredChatModel : provider.model)
     : null;
   const runtimeInput = operation === 'advance-world' && isWorldTurnRequest(input)
     ? isChat
@@ -289,7 +289,7 @@ async function callCompany(
 export async function GET() {
   const configured = Boolean(getCompanyProvider());
   const configuredChatModel = process.env.YIBU_CHAT_MODEL?.trim();
-  const chatModel = configuredChatModel && (COMPANY_MODELS.text as readonly string[]).includes(configuredChatModel) ? configuredChatModel : 'deepseek-v4.1-flash';
+  const chatModel = configuredChatModel && (COMPANY_MODELS.text as readonly string[]).includes(configuredChatModel) ? configuredChatModel : companyModel('text');
   return Response.json({ configured, providers: configured ? ['yibu'] : [], model: companyModel('text'), chatModel, creatorSkillVersion: CREATOR_SKILL_VERSION }, {
     headers: { 'Cache-Control': 'no-store' },
   });
