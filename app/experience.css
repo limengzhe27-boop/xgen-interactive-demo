@@ -893,5 +893,9 @@
   .character-profile-level summary small { flex-basis: 100%; white-space: normal; }
   .character-profile-progress { margin-left: 0; }
 }
+.character-portrait-ai { border-color: rgba(var(--color-primary-rgb), .35); color: var(--color-primary); background: var(--color-agent-soft); }
+.character-portrait-ai:disabled { opacity: .55; }
+.character-portrait-hint { color: var(--color-text-muted); font-size: 11px; line-height: 1.6; }
+.character-portrait-notice { display: block; margin: 0; color: var(--color-primary); font-size: 12px; line-height: 1.6; }
 
 

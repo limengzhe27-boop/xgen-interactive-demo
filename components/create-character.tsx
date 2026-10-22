@@ -1,22 +1,41 @@
 'use client';
 /* oxlint-disable next/no-img-element -- local portrait preview; never a remote image */
 
-import { useRef, useState } from 'react';
-import { ArrowLeft, Check, ImagePlus, Play, Plus, Save, Trash2, Undo2, Upload, UserRound } from 'lucide-react';
+import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
+import { ArrowLeft, Check, ImagePlus, LoaderCircle, Play, Plus, Save, Sparkles, Trash2, Undo2, Upload, UserRound } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { CharacterAgent } from '@/components/character-agent';
 import { CreateModeSwitch, type CreateMode } from '@/components/create-mode-switch';
 import { readPersonaUpload } from '@/lib/persona-upload';
+import { generateSceneImage } from '@/lib/remote-image-service';
 import { standalonePortrait, type StandaloneCharacterInput } from '@/lib/standalone-character';
 import { CHARACTER_PROFILE_LIMIT, CHARACTER_PROFILE_LEVELS, characterProfileFilled, type CharacterProfileKey } from '@/lib/character-profile';
 import { LIN_BAIYU_SAMPLE } from '@/lib/sample-character';
 import type { CharacterDesignDraft } from '@/lib/character-design';
 
+function buildPortraitPrompt(value: StandaloneCharacterInput): string {
+  const profile = value.profile;
+  const appearance = value.appearance.trim() || profile.lifeContext.slice(0, 900);
+  const traits = [value.personality, profile.traits].filter(Boolean).join('\n').slice(0, 900);
+  const life = profile.lifeContext.slice(0, 900);
+  return [
+    '虚构角色的角色卡立绘，竖版，单人，半身到七分身，干净简洁的背景，电影感柔光，写实插画质感，东方审美。',
+    '画面中不要出现文字、水印、logo、边框、UI、多人或画中画；不要生成真实明星或公众人物。',
+    `角色名：${value.name.trim()}`,
+    value.identity.trim() ? `身份：${value.identity.trim()}` : '',
+    appearance.trim() ? `固定外观：${appearance}` : '',
+    traits.trim() ? `性格与气质：${traits}` : '',
+    life.trim() ? `人生背景与时代感：${life}` : '',
+    '要求：年龄、发型、服装、体态与设定保持一致；表情克制自然；构图适合作为角色对话头像和角色卡。',
+  ].filter(Boolean).join('\n').slice(0, 4000);
+}
+
+
 export function CreateCharacter({ value, onChange, onSave, onPublish, onUnpublish, onPreview, onNew, published, onBack, onModeChange, storageNotice, canSave, sourceId, accountScope, savedLocally }: {
   value: StandaloneCharacterInput;
-  onChange: (value: StandaloneCharacterInput) => void;
+  onChange: Dispatch<SetStateAction<StandaloneCharacterInput>>;
   onSave: () => void;
   onPublish: () => void;
   onUnpublish: () => void;
@@ -35,7 +54,11 @@ export function CreateCharacter({ value, onChange, onSave, onPublish, onUnpublis
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState('');
   const [sampleConfirm, setSampleConfirm] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [portraitNotice, setPortraitNotice] = useState('');
   const fileInput = useRef<HTMLInputElement>(null);
+  const portraitController = useRef<AbortController | null>(null);
+  useEffect(() => () => { portraitController.current?.abort(); }, []);
   const update = (key: keyof StandaloneCharacterInput, next: string) => onChange({ ...value, [key]: next });
   const updateProfile = (key: CharacterProfileKey, next: string) => onChange({ ...value, profile: { ...value.profile, [key]: next } });
   const save = () => { if (canSave && value.name.trim()) onSave(); };
@@ -45,6 +68,37 @@ export function CreateCharacter({ value, onChange, onSave, onPublish, onUnpublis
     try { onChange({ ...value, portrait: await readPersonaUpload(file) }); }
     catch (error) { setUploadError(error instanceof Error ? error.message : '图片处理失败，请重试。'); }
     finally { setUploading(false); if (fileInput.current) fileInput.current.value = ''; }
+  };
+  const generatePortrait = async () => {
+    if (generating || uploading) return;
+    if (accountScope === 'guest' || accountScope === 'pending') { setPortraitNotice('登录后才能使用 AI 生成形象。'); return; }
+    if (!value.name.trim()) { setPortraitNotice('请先填写角色名字。'); return; }
+    portraitController.current?.abort();
+    const controller = new AbortController();
+    portraitController.current = controller;
+    setGenerating(true); setUploadError(''); setPortraitNotice('正在根据人格档案生成形象，通常需要几十秒…');
+    try {
+      const result = await generateSceneImage({
+        purpose: 'portrait',
+        requestId: Date.now(),
+        sceneId: `character-${sourceId || 'draft'}`,
+        seed: Math.floor(Math.random() * 1_000_000_000),
+        prompt: buildPortraitPrompt(value),
+      }, controller.signal, accountScope);
+      if (controller.signal.aborted) return;
+      const response = await fetch(result.assetUrl, { cache: 'no-store', signal: controller.signal });
+      if (!response.ok) throw new Error('生成结果读取失败，请重试。');
+      const blob = await response.blob();
+      const portrait = await readPersonaUpload(new File([blob], 'character-portrait.webp', { type: blob.type || 'image/webp' }));
+      if (controller.signal.aborted) return;
+      onChange(current => ({ ...current, portrait }));
+      setPortraitNotice('形象已生成，可继续重新生成或上传替换。');
+    } catch (error) {
+      if (!controller.signal.aborted) setPortraitNotice(error instanceof Error ? error.message : '形象生成失败，请稍后重试。');
+    } finally {
+      if (portraitController.current === controller) portraitController.current = null;
+      if (!controller.signal.aborted) setGenerating(false);
+    }
   };
 
   return <div className="flow-page creation-flow character-creation-flow">
@@ -86,12 +140,17 @@ export function CreateCharacter({ value, onChange, onSave, onPublish, onUnpublis
               <img className="character-portrait-preview" src={standalonePortrait(value)} alt={value.name ? `${value.name}的形象预览` : '角色形象预览'} />
               <div className="character-portrait-copy">
                 <strong>角色形象</strong>
-                <p>上传 JPG、PNG 或 WebP 作为角色卡和对话头像；只在本机处理，不会上传给模型。</p>
+                <p>上传 JPG、PNG 或 WebP 作为角色卡和对话头像；上传只在本机处理。也可以让 AI 根据名字、身份和 L1/L2 档案生成形象，生成会调用生图服务并消耗一次额度。</p>
                 <div className="character-portrait-actions">
-                  <button type="button" className="studio-button" onClick={() => fileInput.current?.click()} disabled={uploading}><ImagePlus />{uploading ? '处理中…' : value.portrait ? '更换图片' : '上传图片'}</button>
-                  {value.portrait && <button type="button" className="studio-button" onClick={() => onChange({ ...value, portrait: '' })} disabled={uploading}><Trash2 />移除</button>}
+                  <button type="button" className="studio-button character-portrait-ai" onClick={() => void generatePortrait()} disabled={uploading || generating || !value.name.trim() || accountScope === 'guest' || accountScope === 'pending'} title={accountScope === 'guest' ? '登录后才能使用 AI 生成形象' : !value.name.trim() ? '请先填写角色名字' : undefined}>
+                    {generating ? <LoaderCircle className="is-spinning" /> : <Sparkles />}{generating ? '生成中…' : value.portrait ? 'AI 重新生成' : 'AI 生成形象'}
+                  </button>
+                  <button type="button" className="studio-button" onClick={() => fileInput.current?.click()} disabled={uploading || generating}><ImagePlus />{uploading ? '处理中…' : value.portrait ? '更换图片' : '上传图片'}</button>
+                  {value.portrait && <button type="button" className="studio-button" onClick={() => onChange({ ...value, portrait: '' })} disabled={uploading || generating}><Trash2 />移除</button>}
                   <input ref={fileInput} type="file" accept="image/jpeg,image/png,image/webp" hidden onChange={event => void upload(event.target.files?.[0])} />
                 </div>
+                {accountScope === 'guest' || accountScope === 'pending' ? <small className="character-portrait-hint">登录后可使用 AI 生图；上传图片仍可正常使用。</small> : null}
+                {portraitNotice && <output className="character-portrait-notice">{portraitNotice}</output>}
                 {uploadError && <p className="character-portrait-error" role="alert">{uploadError}</p>}
               </div>
             </div>
