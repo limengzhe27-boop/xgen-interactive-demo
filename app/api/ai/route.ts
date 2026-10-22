@@ -474,9 +474,10 @@ async function processAIOperation(
   const isCharacterChat = body.operation === 'advance-world'
     && isWorldTurnRequest(body.input)
     && body.input.interaction?.mode === 'character-chat';
-  // Character output is reviewed in a second model pass. Do not stream the
-  // unreviewed draft to the user; only the final reviewed response is emitted.
-  let output = await callCompany(provider, body.operation, body.input, timeoutMs, isCharacterChat ? undefined : onStreamChunk);
+  // The second review pass doubles latency. Keep it opt-in for exceptional
+  // characters; ordinary chat streams the first validated pass directly.
+  const characterReviewEnabled = process.env.CHARACTER_OUTPUT_REVIEW === '1';
+  let output = await callCompany(provider, body.operation, body.input, timeoutMs, isCharacterChat && characterReviewEnabled ? undefined : onStreamChunk);
   if (body.operation === 'co-create-world') {
     output = readCreatorResponse(output, body.input as CreatorAgentRequest);
   }
@@ -570,7 +571,7 @@ async function processAIOperation(
       if (!isWorldTurnResponse(repaired)) throw new Error('invalid_model_output');
       guardedOutput = enforceWorldTurnGuardrails(body.input, repaired);
     }
-    if (body.input.interaction?.mode === 'character-chat') {
+    if (body.input.interaction?.mode === 'character-chat' && characterReviewEnabled) {
       const remainingMs = Math.min(35_000, (isStreaming ? 105_000 : 90_000) - (Date.now() - startedAt));
       if (remainingMs < 3000) throw new Error('model_timeout');
       const reviewed = await callCompany(

@@ -8,6 +8,7 @@ export function characterAgentContext(input: WorldTurnRequest): string | null {
     role.agentTask ? `【人设任务总述】\n${role.agentTask}` : '',
     role.basicInfo ? `【人设基本信息】\n${role.basicInfo}` : '',
     role.keyPlotNodes ? `【关键剧情节点（可能走向，非既成事实）】\n${role.keyPlotNodes}` : '',
+    role.outputRules ? `【输出规则】\n${role.outputRules}` : '',
   ].filter(Boolean).join('\n\n') || null;
 }
 
