@@ -40,7 +40,7 @@ import { characterAgentContext, characterOutputReviewInput, characterOutputRevie
 import type { WorldTurnResponse } from '@/lib/ai-contracts';
 
 type Operation = 'personal-agent' | 'co-create-world' | 'generate-world' | 'advance-world' | 'adapt-persona' | 'design-persona' | 'design-character' | 'plan-prologue';
-import { companyGateway, companyModel } from '@/lib/company-gateway';
+import { companyGateway, companyModel, COMPANY_MODELS } from '@/lib/company-gateway';
 type CompanyProvider = { apiKey: string; endpoint: string; model: string };
 export const maxDuration = 120;
 
@@ -176,6 +176,10 @@ async function callCompany(
   // must never alter the existing creator behavior.
   const creatorTriage = operation === 'co-create-world' ? await classifyCreatorTurn(input) : null;
   const isChat = operation === 'advance-world' && isWorldTurnRequest(input) && input.interaction?.mode === 'character-chat';
+  const configuredChatModel = process.env.YIBU_CHAT_MODEL?.trim();
+  const chatModel = isChat
+    ? (configuredChatModel && (COMPANY_MODELS.text as readonly string[]).includes(configuredChatModel) ? configuredChatModel : 'deepseek-v4.1-flash')
+    : null;
   const runtimeInput = operation === 'advance-world' && isWorldTurnRequest(input)
     ? isChat
       ? compactCharacterChatInput(input)
@@ -193,7 +197,7 @@ async function callCompany(
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: provider.model,
+        model: chatModel ?? provider.model,
         messages: systemOverride ? [
           { role: 'system', content: systemOverride },
           { role: 'user', content: `请审查并定稿以下角色回复数据，只返回完整JSON：\n${JSON.stringify(runtimeInput)}` },
@@ -284,7 +288,9 @@ async function callCompany(
 
 export async function GET() {
   const configured = Boolean(getCompanyProvider());
-  return Response.json({ configured, providers: configured ? ['yibu'] : [], model: companyModel('text'), creatorSkillVersion: CREATOR_SKILL_VERSION }, {
+  const configuredChatModel = process.env.YIBU_CHAT_MODEL?.trim();
+  const chatModel = configuredChatModel && (COMPANY_MODELS.text as readonly string[]).includes(configuredChatModel) ? configuredChatModel : 'deepseek-v4.1-flash';
+  return Response.json({ configured, providers: configured ? ['yibu'] : [], model: companyModel('text'), chatModel, creatorSkillVersion: CREATOR_SKILL_VERSION }, {
     headers: { 'Cache-Control': 'no-store' },
   });
 }
