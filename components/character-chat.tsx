@@ -85,7 +85,7 @@ export function CharacterChat({ initial, accountScope, onSave, onBack, preview =
   const profile = <><h2>{target.name}</h2><p className="conversation-identity">{identity}</p>
     {background && <section><h3>他是谁</h3><p>{background}</p></section>}
     <section><h3>初见时的场景 · {place?.name}</h3><p>{place?.description || '你们在这里开始交谈。'}</p></section>
-    <section><h3>这段对话</h3><p>你正在与{target.name}交谈，不是扮演{target.name}。可以说话、描述动作，也可以慢慢观察；不要求完成世界任务。</p></section>
+    <section><h3>这段对话</h3><p>你正在与{target.name}交谈，不是扮演{target.name}。你发送的是对话，不需要先声明要做什么；不会触发世界行动判定。</p></section>
     <section><h3>角色照片</h3><p>{target.name}偶尔会主动发来一张自己的照片；照片由 AI 生成，会消耗生图额度。</p></section>
     </>;
   function editInput(value: string) {
@@ -177,7 +177,6 @@ export function CharacterChat({ initial, accountScope, onSave, onBack, preview =
     try {
       const response = await remoteAIAdapter.advanceWorld(chatRequest(sessionRef.current, action.trim()), aborter.signal);
       if (aborter.signal.aborted) return;
-      if (!response.actionDecision.allowed) { setError(response.actionDecision.reason || '这次行动没有发生，请换一种表达。'); return; }
       const patch = response.statePatch;
       const world = session.entry.world;
       const state = commitTurn(sessionRef.current.state, { ...patch, action: action.trim(), result: turnMemoryText(response, world, session.playerRoleId), clue: '',
@@ -220,8 +219,8 @@ export function CharacterChat({ initial, accountScope, onSave, onBack, preview =
         {unread && <button type="button" className="flow-control" onClick={() => { followLatest.current = true; setUnread(false); endRef.current?.scrollIntoView({ block: 'nearest' }); }}>查看新回复 ↓</button>}
         {!session.turns.length && initialConversationSuggestions(session.greeting).length > 0 && <section className="conversation-ideas" aria-label="初次回应建议"><small>不知道怎么接？可以借用一句，也可以自己写。点击后仍可修改。</small><div className="studio-chat-suggestions">{initialConversationSuggestions(session.greeting).map(label => <button className="studio-filter" key={label} type="button" disabled={busy} onClick={() => { editInput(label); document.getElementById('chat-input')?.focus(); }}>{label}</button>)}</div></section>}
         {!!session.turns.at(-1)?.response.nextChoices.length && <details className="conversation-ideas"><summary>接下来怎么回应？</summary><div className="studio-chat-suggestions">{session.turns.at(-1)?.response.nextChoices.map((choice) => <button className="studio-filter" key={choice.id} type="button" disabled={busy} onClick={() => { editInput(choice.label); document.getElementById('chat-input')?.focus(); }}>{choice.label}</button>)}</div></details>}
-        <label className="sr-only" htmlFor="chat-input">说一句话，或描述你的动作</label>
-        <div className="conversation-input"><MessageTextarea id="chat-input" value={input} onChange={(event) => editInput(event.target.value)} placeholder={`对${target.name}说一句话，或描述你的动作…`} disabled={busy} maxLength={3000} /><Button className="studio-button" type="submit" aria-label={busy ? '正在回应' : '发送'} disabled={busy || !input.trim()}>{busy ? <LoaderCircle className="spin" /> : <Send />}</Button></div>
+        <label className="sr-only" htmlFor="chat-input">对角色说一句话</label>
+        <div className="conversation-input"><MessageTextarea id="chat-input" value={input} onChange={(event) => editInput(event.target.value)} placeholder={`对${target.name}说一句话…`} disabled={busy} maxLength={3000} /><Button className="studio-button" type="submit" aria-label={busy ? '正在回应' : '发送'} disabled={busy || !input.trim()}>{busy ? <LoaderCircle className="spin" /> : <Send />}</Button></div>
         {error && <p role="alert">{error}</p>}
         <small className="conversation-input-hint">Enter 发送 · Shift + Enter 换行</small>
       </form>

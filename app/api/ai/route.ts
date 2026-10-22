@@ -354,11 +354,14 @@ async function handlePost(request: Request) {
     if (!isWorldTurnRequest(body.input)) return Response.json({ error: 'invalid_world_turn_request' }, { status: 400 });
     // Other viewpoints remain in the saved game, never in this actor's prompt.
     delete body.input.state.rolePerspectives;
-    const validation = validateAction(body.input.userAction, body.input.state, body.input.currentScene.choices.map((choice) => choice.label), body.input.world);
-    if (!validation.allowed) {
-      return Response.json(makeRejectedWorldTurn(body.input, validation), {
-        headers: { 'Cache-Control': 'no-store', 'X-AI-Provider': 'rules' },
-      });
+    // Character conversations are dialogue, not world actions that need an intent check.
+    if (body.input.interaction?.mode !== 'character-chat') {
+      const validation = validateAction(body.input.userAction, body.input.state, body.input.currentScene.choices.map((choice) => choice.label), body.input.world);
+      if (!validation.allowed) {
+        return Response.json(makeRejectedWorldTurn(body.input, validation), {
+          headers: { 'Cache-Control': 'no-store', 'X-AI-Provider': 'rules' },
+        });
+      }
     }
   }
 

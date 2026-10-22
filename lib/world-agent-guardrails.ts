@@ -36,6 +36,19 @@ export function makeRejectedWorldTurn(input: WorldTurnRequest, validation: Actio
 }
 
 export function enforceWorldTurnGuardrails(input: WorldTurnRequest, output: WorldTurnResponse): WorldTurnResponse {
+  const interaction = input.interaction;
+  if (interaction?.mode === 'character-chat') {
+    // Pure dialogue: never turn a conversational message into an illegal action.
+    if (!output.actionDecision.allowed) output = { ...output, actionDecision: { allowed: true } };
+    const targetLocation = input.state.characterStates[interaction.targetCharacterId]?.locationId;
+    const targetPresent = targetLocation === input.state.location
+      || input.world.locations.some((place) => place.id === targetLocation && place.name === input.state.location);
+    if (targetPresent && !output.dialogue.some((line) => line.characterId === interaction.targetCharacterId
+      && line.visibleToRoleIds.includes(input.selectedRoleId) && line.text.trim())) {
+      throw new Error('chat_target_missing');
+    }
+    return { ...output, actionDecision: { allowed: true } };
+  }
   if (!output.actionDecision.allowed) {
     // Even a model's rejection reason can accidentally disclose hidden facts.
     return makeRejectedWorldTurn(input, { allowed: false,
