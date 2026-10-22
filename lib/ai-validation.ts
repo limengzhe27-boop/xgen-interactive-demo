@@ -185,7 +185,7 @@ export function isWorldTurnResponse(value: unknown): value is WorldTurnResponse 
     && isStringArray(value.statePatch.committedFacts)
     && ['completeTaskIds', 'failTaskIds', 'addClues', 'addKnownSecrets', 'addInventory', 'removeInventory'].every((key) => value.statePatch && isRecord(value.statePatch) && (value.statePatch[key] === undefined || isStringArray(value.statePatch[key])))
     && typeof value.image.required === 'boolean'
-    && ['opening', 'location_changed', 'character_changed', 'major_event', 'reuse'].includes(value.image.reason as string)
+    && ['opening', 'location_changed', 'character_changed', 'major_event', 'character_photo', 'reuse'].includes(value.image.reason as string)
     && typeof value.image.sceneId === 'string'
     && isRecord(value.goalProgress)
     && isStringArray(value.goalProgress.activeTaskIds)

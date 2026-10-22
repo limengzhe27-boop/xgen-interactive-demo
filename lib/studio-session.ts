@@ -10,6 +10,8 @@ export function upsertById<T extends { id: string }>(records: T[], next: T): T[]
   return [next, ...records.filter((record) => record.id !== next.id)];
 }
 
+export type ChatTurnImage = { url: string; kind: 'character' | 'scene'; prompt?: string };
+
 export type ChatSession = {
   id: string;
   entry: StudioWorld;
@@ -17,7 +19,7 @@ export type ChatSession = {
   targetCharacterId: string;
   state: WorldState;
   narrative: string;
-  turns: { action: string; response: WorldTurnResponse }[];
+  turns: { action: string; response: WorldTurnResponse; image?: ChatTurnImage }[];
   savedAt: number;
   imageCacheKey?: string;
   greeting?: CharacterGreeting;

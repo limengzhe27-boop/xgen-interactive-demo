@@ -19,6 +19,22 @@ import { characterGreeting } from '@/lib/character-greeting';
 import { characterPublicIntroduction, initialConversationSuggestions } from '@/lib/character-presentation';
 import { useRecordPlay } from '@/components/play-counts';
 
+function characterPhotoPrompt(requested: string | undefined, target: { name: string; imagePrompt: string; persona: string; characterProfile?: { lifeContext: string; traits: string } }, worldBackground?: string): string {
+  const profile = target.characterProfile;
+  const profileHint = profile ? [profile.lifeContext, profile.traits].filter(Boolean).join('；').slice(0, 700) : '';
+  return [
+    '虚构角色主动发来的一张自拍/生活照片，单人，半身或近景，自然光，写实摄影，真实皮肤纹理，干净构图。',
+    '画面中不要出现文字、水印、logo、边框、多人；不要生成用户、其他角色或真实公众人物。',
+    `角色：${target.name}`,
+    target.imagePrompt.trim() ? `固定外观：${target.imagePrompt}` : '',
+    target.persona.trim() ? `性格与气质：${target.persona}` : '',
+    profileHint ? `角色背景参考：${profileHint}` : '',
+    worldBackground?.trim() ? `所处世界：${worldBackground.trim().slice(0, 500)}` : '',
+    requested?.trim() ? `这次照片的内容：${requested.trim()}` : '',
+    '只画这个角色本人，构图和动作自然，像角色主动拍下或发来的照片。',
+  ].filter(Boolean).join('\n').slice(0, 4000);
+}
+
 export function CharacterEntry({ entry, targetId, onStart }: { identityControl?: import('react').ReactNode; entry: StudioWorld; targetId: string; persona?: PlayerPersona | null; onClose: () => void; onStart: (session: ChatSession) => void }) {
   const started = useRef(false);
   useEffect(() => {
@@ -51,6 +67,8 @@ export function CharacterChat({ initial, accountScope, onSave, onBack, preview =
   const [imageState, setImageState] = useState('');
   const controller = useRef<AbortController | null>(null);
   const imageController = useRef<AbortController | null>(null);
+  const turnImageController = useRef<AbortController | null>(null);
+  const [turnImageStates, setTurnImageStates] = useState<Record<number, 'generating' | 'error'>>({});
   const sessionRef = useRef(session);
   const saveRef = useRef(onSave);
   useEffect(() => { saveRef.current = onSave; }, [onSave]);
@@ -67,6 +85,7 @@ export function CharacterChat({ initial, accountScope, onSave, onBack, preview =
     {background && <section><h3>他是谁</h3><p>{background}</p></section>}
     <section><h3>初见时的场景 · {place?.name}</h3><p>{place?.description || '你们在这里开始交谈。'}</p></section>
     <section><h3>这段对话</h3><p>你正在与{target.name}交谈，不是扮演{target.name}。可以说话、描述动作，也可以慢慢观察；不要求完成世界任务。</p></section>
+    <section><h3>角色照片</h3><p>{target.name}偶尔会主动发来一张自己的照片；照片由 AI 生成，会消耗生图额度。</p></section>
     </>;
   function editInput(value: string) {
     setInput(value);
@@ -78,7 +97,7 @@ export function CharacterChat({ initial, accountScope, onSave, onBack, preview =
   useEffect(() => {
     let live = true;
     if (initial.imageCacheKey) void getCachedSceneImage(initial.imageCacheKey, accountScope).then((url) => { if (live && url) setImage(url); }).catch(() => {});
-    return () => { live = false; controller.current?.abort(); imageController.current?.abort(); };
+    return () => { live = false; controller.current?.abort(); imageController.current?.abort(); turnImageController.current?.abort(); };
   }, [initial.id, initial.imageCacheKey, accountScope]);
   useEffect(() => {
     if (!session.turns.length) return;
@@ -111,6 +130,40 @@ export function CharacterChat({ initial, accountScope, onSave, onBack, preview =
     } catch { if (!aborter.signal.aborted) setImageState('场景图生成失败，保留上一张图片，可重试'); }
   }
 
+  async function makeTurnImage(requested: string, current: ChatSession, index: number) {
+    const photoTarget = current.entry.world.characters.find(role => role.id === current.targetCharacterId);
+    if (!photoTarget) return;
+    const prompt = characterPhotoPrompt(requested, photoTarget, current.entry.world.worldBackground);
+    turnImageController.current?.abort();
+    const aborter = new AbortController(); turnImageController.current = aborter;
+    setTurnImageStates(previous => ({ ...previous, [index]: 'generating' }));
+    const key = makeContentImageKey('portrait', current.entry.world, current.playerRoleId, current.targetCharacterId, prompt);
+    try {
+      let url = await getCachedSceneImage(key, accountScope).catch(() => null);
+      if (aborter.signal.aborted) return;
+      if (!url) {
+        const result = await generateSceneImage({
+          purpose: 'portrait', requestId: current.state.turn, sceneId: `chat-character-photo-${index}`,
+          prompt, seed: Math.floor(Math.random() * 1_000_000_000),
+        }, aborter.signal, accountScope);
+        if (aborter.signal.aborted) return;
+        url = result.assetUrl;
+        await cacheSceneImage(key, url, accountScope).catch(() => false);
+      }
+      if (aborter.signal.aborted) return;
+      setSession(currentSession => {
+        const turns = currentSession.turns.map((turn, turnIndex) => turnIndex === index ? { ...turn, image: { url: url!, kind: 'character' as const, prompt } } : turn);
+        const next = { ...currentSession, turns };
+        sessionRef.current = next; saveRef.current(next); return next;
+      });
+      setTurnImageStates(previous => { const next = { ...previous }; delete next[index]; return next; });
+    } catch {
+      if (!aborter.signal.aborted) setTurnImageStates(previous => ({ ...previous, [index]: 'error' }));
+    } finally {
+      if (turnImageController.current === aborter) turnImageController.current = null;
+    }
+  }
+
   async function send(action = input) {
     if (!action.trim() || busy || controller.current) return;
     setBusy(true); setError('');
@@ -126,7 +179,11 @@ export function CharacterChat({ initial, accountScope, onSave, onBack, preview =
         relationshipDelta: patch.relationshipDeltas?.[target.id] ?? 0, reachedEndingId: response.ending.reached ? response.ending.endingId : undefined });
       const next = { ...sessionRef.current, state, draftInput: '', narrative: response.narrative, turns: [...sessionRef.current.turns, { action: action.trim(), response }], savedAt: Date.now() };
       sessionRef.current = next; setSession(next); onSave(next); setInput('');
-      // Media creation remains an explicit user action, not a side effect of talking.
+      // The model may ask to share a photo of the character; scene art stays manual.
+      if (response.image.required && response.image.reason === 'character_photo') {
+        const previous = sessionRef.current.turns.at(-2);
+        if (previous?.image?.kind !== 'character') void makeTurnImage(response.image.prompt ?? '', next, next.turns.length - 1);
+      }
     } catch (cause) { if (!aborter.signal.aborted) setError(cause instanceof Error ? cause.message : '网络连接失败，你的输入和进度已保留，可以重试。'); }
     finally { if (!aborter.signal.aborted) { setBusy(false); controller.current = null; } }
   }
@@ -143,6 +200,9 @@ export function CharacterChat({ initial, accountScope, onSave, onBack, preview =
         <div className="conversation-response">
         {turn.response.narrative.trim() && <div className="conversation-narrative">{turn.response.narrative.split(/\n\s*\n/).filter(part => part.trim()).map((part, paragraph) => <p key={paragraph}>{part}</p>)}</div>}
         {turn.response.dialogue.filter((line) => line.visibleToRoleIds.includes(player.id) && line.characterId !== player.id).map((line, i) => <div className="conversation-line" key={i}><img src={session.entry.portraits[line.characterId] || session.entry.cover} alt="" /><div><strong>{session.entry.world.characters.find((role) => role.id === line.characterId)?.name || '角色'}</strong><p>{line.text}</p></div></div>)}
+        {turn.image && <figure className="conversation-character-photo"><img src={turn.image.url} alt={`${target.name}发来的照片`} /><figcaption>{target.name}发来一张照片 · AI 生成</figcaption></figure>}
+        {!turn.image && turnImageStates[index] === 'generating' && <output className="conversation-photo-status"><LoaderCircle className="is-spinning" />{target.name}正在准备一张照片…</output>}
+        {!turn.image && turnImageStates[index] === 'error' && <div className="conversation-photo-status"><span>照片生成失败，文字回复已保留。</span><button type="button" className="flow-control" onClick={() => void makeTurnImage(turn.response.image.prompt ?? '', sessionRef.current, index)}>重新生成照片</button></div>}
         <SpeechSequence accountScope={accountScope} segments={speechSegments(turn.response.narrative, turn.response.dialogue.filter(line => line.visibleToRoleIds.includes(player.id) && line.characterId !== player.id))} />
         </div>
         {turn.response.ending.reached && <p className="studio-chat-ending">已抵达阶段结局。可以返回结束，也可以继续聊，已有事实不会重置。</p>}

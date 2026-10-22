@@ -287,7 +287,7 @@ export type StatePatch = {
 
 export type ImageDirective = {
   required: boolean;
-  reason: 'opening' | 'location_changed' | 'character_changed' | 'major_event' | 'reuse';
+  reason: 'opening' | 'location_changed' | 'character_changed' | 'major_event' | 'character_photo' | 'reuse';
   sceneId: string;
   prompt?: string;
   reuseAssetId?: string;
