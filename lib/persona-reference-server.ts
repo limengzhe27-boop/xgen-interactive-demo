@@ -11,7 +11,7 @@ export function plainReferenceText(html: string) {
 }
 async function publicText(url: string) {
   // URLs are constructed here, never supplied by a browser or model; never follow redirects or forward credentials.
-  const response = await fetch(url, { headers: { 'User-Agent': 'XgenCharacterReference/1.0 (https://xgen-interactive-demo.vercel.app)' }, redirect: 'error', signal: AbortSignal.timeout(16_000), cache: 'no-store' });
+  const response = await fetch(url, { headers: { 'User-Agent': 'XgenCharacterReference/1.0 (https://xgen-roplay.vercel.app)' }, redirect: 'error', signal: AbortSignal.timeout(16_000), cache: 'no-store' });
   if (!response.ok) throw Error('reference_unavailable');
   const reader = response.body?.getReader(); if (!reader) throw Error('reference_unavailable');
   const chunks: Uint8Array[] = []; let size = 0;

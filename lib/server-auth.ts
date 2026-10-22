@@ -1,9 +1,10 @@
 import { createServerClient, parseCookieHeader, serializeCookieHeader } from '@supabase/ssr';
 
-const PRODUCTION_ORIGIN = 'https://xgen-interactive-demo.vercel.app';
+const PRODUCTION_ORIGINS = ['https://xgen-interactive-demo.vercel.app', 'https://xgen-roplay.vercel.app'];
 export function appOrigin(request: Request) {
   const host = request.headers.get('host') ?? new URL(request.url).host;
-  if (host === new URL(PRODUCTION_ORIGIN).host) return PRODUCTION_ORIGIN;
+  const production = PRODUCTION_ORIGINS.find(origin => host === new URL(origin).host);
+  if (production) return production;
   if (process.env.VERCEL_URL && host === process.env.VERCEL_URL) return `https://${host}`;
   if (!process.env.VERCEL && /^(localhost|127\.0\.0\.1|\[::1\]):(3000|3001|3002|3102)$/.test(host)) return `http://${host}`;
   throw new Error('invalid_app_origin');
