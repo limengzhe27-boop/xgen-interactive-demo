@@ -5,10 +5,10 @@ export function characterAgentContext(input: WorldTurnRequest): string | null {
   const role = input.world.characters.find(character => character.id === input.interaction?.targetCharacterId);
   if (!role) return null;
   return [
-    role.agentTask ? `【人设任务总述】\n${role.agentTask}` : '',
-    role.basicInfo ? `【人设基本信息】\n${role.basicInfo}` : '',
-    role.keyPlotNodes ? `【关键剧情节点（可能走向，非既成事实）】\n${role.keyPlotNodes}` : '',
-    role.outputRules ? `【输出规则】\n${role.outputRules}` : '',
+    role.agentTask ? `【人设任务总述】\n${role.agentTask.slice(0, 1500)}` : '',
+    role.basicInfo ? `【人设基本信息】\n${role.basicInfo.slice(0, 1200)}` : '',
+    role.keyPlotNodes ? `【关键剧情节点（可能走向，非既成事实）】\n${role.keyPlotNodes.slice(0, 1500)}` : '',
+    role.outputRules ? `【输出规则】\n${role.outputRules.slice(0, 1200)}` : '',
   ].filter(Boolean).join('\n\n') || null;
 }
 

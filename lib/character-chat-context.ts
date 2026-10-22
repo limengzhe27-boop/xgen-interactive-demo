@@ -1,3 +1,6 @@
+const clip = (value: string | undefined, max: number) => value ? value.slice(0, max) : value;
+const clipList = (values: string[], count: number, max: number) => values.slice(0, count).map(value => value.slice(0, max));
+
 import type { WorldDefinition, WorldTurnRequest } from './ai-contracts';
 
 /**
@@ -17,7 +20,24 @@ export function compactCharacterChatInput(input: WorldTurnRequest): WorldTurnReq
     location.id === input.state.location || location.name === input.state.location);
   const characters = input.world.characters
     .filter(character => presentIds.has(character.id))
-    .map(character => character.id === targetId ? character : {
+    .map(character => character.id === targetId ? {
+      ...character,
+      persona: character.persona.slice(0, 900),
+      publicBackground: character.publicBackground.slice(0, 1200),
+      agentTask: clip(character.agentTask, 1500),
+      basicInfo: clip(character.basicInfo, 1200),
+      keyPlotNodes: clip(character.keyPlotNodes, 1500),
+      outputRules: clip(character.outputRules, 1200),
+      characterProfile: character.characterProfile ? {
+        lifeContext: clip(character.characterProfile.lifeContext, 1200) ?? '',
+        traits: clip(character.characterProfile.traits, 1200) ?? '',
+        drives: clip(character.characterProfile.drives, 1000) ?? '',
+        behavior: clip(character.characterProfile.behavior, 1000) ?? '',
+        relationships: clip(character.characterProfile.relationships, 1000) ?? '',
+      } : undefined,
+      secrets: clipList(character.secrets, 4, 800),
+      privateKnowledge: clipList(character.privateKnowledge, 4, 800),
+    } : {
       ...character,
       privateKnowledge: [],
       secrets: [],
@@ -40,6 +60,7 @@ export function compactCharacterChatInput(input: WorldTurnRequest): WorldTurnReq
     difficultyConstraints: [],
     scheduledEvents: [],
     endingConditions: [],
+    worldBackground: clip(input.world.worldBackground, 2000),
     openingScene: {
       ...input.world.openingScene,
       presentCharacterIds: [...presentIds],
@@ -58,6 +79,6 @@ export function compactCharacterChatInput(input: WorldTurnRequest): WorldTurnReq
       clues: input.state.clues.slice(-8),
       knownSecrets: input.state.knownSecrets.slice(-8),
     },
-    recentTurns: input.recentTurns.slice(-4),
+    recentTurns: input.recentTurns.slice(-3).map(turn => ({ action: clip(turn.action, 600) ?? '', result: clip(turn.result, 1200) ?? '' })),
   };
 }
