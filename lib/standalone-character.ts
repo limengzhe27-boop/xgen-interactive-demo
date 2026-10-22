@@ -110,8 +110,7 @@ export function readStandaloneCharacters(value: unknown): StandaloneCharacter[] 
 }
 
 export function makeStandaloneCharacter(input: StandaloneCharacterInput, id = crypto.randomUUID()): StandaloneCharacter {
-  const name = text(input.name, LIMITS.name);
-  if (!name) throw new Error('character_name_required');
+  const name = text(input.name, LIMITS.name) || '未命名角色';
   return {
     id,
     name,

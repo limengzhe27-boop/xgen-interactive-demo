@@ -95,7 +95,9 @@ import type { ChatSession } from '@/lib/studio-session';
 import { CreateCharacter } from '@/components/create-character';
 import { CreateModeSwitch, type CreateMode } from '@/components/create-mode-switch';
 import { EMPTY_STANDALONE_CHARACTER, makeStandaloneCharacter, readCharacterDraft, readStandaloneCharacters, standaloneCharacterToWorld, standalonePortrait, type StandaloneCharacter, type StandaloneCharacterInput } from '@/lib/standalone-character';
-import { readCharacterProfile } from '@/lib/character-profile';
+import { CharacterProfileEditor } from '@/components/character-profile-editor';
+import { EMPTY_CHARACTER_PROFILE, characterProfileIsEmpty, readCharacterProfile, type CharacterProfile } from '@/lib/character-profile';
+import { LIN_BAIYU_SAMPLE } from '@/lib/sample-character';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
@@ -198,6 +200,8 @@ type DraftRole = {
   relationship: string;
   appearance: string;
   playable?: boolean;
+  /** L1-L5 character bible; optional for older drafts and preset roles. */
+  profile?: CharacterProfile;
 };
 
 type SavedRun = {
@@ -634,6 +638,7 @@ function normalizeGeneratedWorld(world: WorldDefinition, drafts: DraftRole[]): W
       identity: drafts[index]?.identity.trim() || character.identity,
       persona: drafts[index]?.personality.trim() || character.persona,
       goal: drafts[index]?.goal?.trim() || character.goal,
+      characterProfile: drafts[index]?.profile && !characterProfileIsEmpty(drafts[index].profile) ? drafts[index].profile : character.characterProfile,
       imagePrompt: drafts[index]?.appearance.trim() || character.imagePrompt,
     })),
     relationships: world.relationships.map((relationship) => ({
@@ -945,6 +950,7 @@ function buildCreatorWorld(
         secrets: existing?.secrets ?? [role.secret],
         goal: drafts[index].goal?.trim() || existing?.goal || normalizedBrief.coreGoal || role.goal,
         startLocationId: locationIds[0],
+        ...(drafts[index]?.profile && !characterProfileIsEmpty(drafts[index].profile) ? { characterProfile: drafts[index].profile } : {}),
         imagePrompt: role.visualAnchor,
         playable: drafts[index]?.playable !== false,
       };
@@ -3229,23 +3235,21 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
 
   function publishCharacter() {
     if (!storageReady || storageReadFailed.current || accountScope === 'pending') { setStorageError('本机存档尚未就绪，请稍后再试。'); return; }
-    if (!characterDraft.name.trim()) { setStorageError('请先填写角色名字。'); return; }
-    if (!characterDraft.portrait) { setStorageError('发布前请先在右侧上传角色形象。'); return; }
+    if (!characterDraft.portrait) { setStorageError('发布前请先上传或生成角色形象。'); return; }
     const sourceId = characterSourceId || crypto.randomUUID();
     if (!characterSourceId) setCharacterSourceId(sourceId);
     let character: StandaloneCharacter;
     try { character = makeStandaloneCharacter(characterDraft, sourceId); }
-    catch { setStorageError('角色名字不能为空。'); return; }
+    catch { setStorageError('角色草稿暂时无法发布。'); return; }
     setPublicationCharacterOnly(true);
     setPublicationLocalPortrait(character.portrait);
     setPublicationEntry(standaloneCharacterToWorld(character));
   }
 
   function previewCharacter() {
-    if (!characterDraft.name.trim()) { setStorageError('请先填写角色名字，再预演。'); return; }
     let character: StandaloneCharacter;
     try { character = makeStandaloneCharacter(characterDraft, `preview-${crypto.randomUUID()}`); }
-    catch { setStorageError('角色名字不能为空。'); return; }
+    catch { setStorageError('角色草稿暂时无法预演。'); return; }
     setChatPreview(true);
     setChatFromCreation(false);
     setChatEntry({ entry: standaloneCharacterToWorld(character), targetId: 'lead' });
@@ -3385,7 +3389,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     if (!characterSourceId) setCharacterSourceId(id);
     let character: StandaloneCharacter;
     try { character = makeStandaloneCharacter(input, id); }
-    catch { setStorageError('角色名字不能为空。'); return; }
+    catch { setStorageError('角色草稿暂时无法保存。'); return; }
     const exists = standaloneCharacters.some(item => item.id === character.id);
     const next = exists ? standaloneCharacters.map(item => item.id === character.id ? character : item) : [...standaloneCharacters, character];
     try {
@@ -4643,11 +4647,11 @@ function CreateWorld({
                 disabled={roleImageStates[`draft-role-${curRoleIndex}`] === 'generating'}
               >
                 {roleImageStates[`draft-role-${curRoleIndex}`] === 'generating' ? (
-                  <><LoaderCircle className="is-spinning" />正在制作</>
+                  <><LoaderCircle className="is-spinning" />生成中…</>
                 ) : roleImages[`draft-role-${curRoleIndex}`] ? (
-                  <><RefreshCw />重新制作</>
+                  <><RefreshCw />AI 重新生成</>
                 ) : (
-                  <><WandSparkles />制作形象</>
+                  <><WandSparkles />AI 生成形象</>
                 )}
               </button>
               {roleImageStates[`draft-role-${curRoleIndex}`] === 'error' ? (
@@ -4758,6 +4762,13 @@ function CreateWorld({
               />
               {renderPendingSuggestion(goalSug, true)}
             </div>
+            <CharacterProfileEditor
+              key={`role-profile-${curRoleIndex}`}
+              value={activeRole.profile ?? EMPTY_CHARACTER_PROFILE}
+              idPrefix={`role-profile-${curRoleIndex}`}
+              onChange={profile => onUpdateRole(curRoleIndex, 'profile', profile)}
+              onSample={() => onUpdateRole(curRoleIndex, 'profile', { ...LIN_BAIYU_SAMPLE.profile })}
+            />
           </div>
 
           {roleEntryNode && (
