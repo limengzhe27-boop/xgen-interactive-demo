@@ -199,6 +199,8 @@ type DraftRole = {
   personality: string;
   relationship: string;
   appearance: string;
+  sceneName?: string;
+  opening?: string;
   playable?: boolean;
   /** L1-L5 character bible; optional for older drafts and preset roles. */
   profile?: CharacterProfile;
@@ -639,6 +641,7 @@ function normalizeGeneratedWorld(world: WorldDefinition, drafts: DraftRole[]): W
       persona: drafts[index]?.personality.trim() || character.persona,
       goal: drafts[index]?.goal?.trim() || character.goal,
       characterProfile: drafts[index]?.profile && !characterProfileIsEmpty(drafts[index].profile) ? drafts[index].profile : character.characterProfile,
+      chatOpening: drafts[index]?.sceneName?.trim() || drafts[index]?.opening?.trim() ? { scene: drafts[index]?.sceneName?.trim() || '', text: drafts[index]?.opening?.trim() || '' } : character.chatOpening,
       imagePrompt: drafts[index]?.appearance.trim() || character.imagePrompt,
     })),
     relationships: world.relationships.map((relationship) => ({
@@ -951,6 +954,7 @@ function buildCreatorWorld(
         goal: drafts[index].goal?.trim() || existing?.goal || normalizedBrief.coreGoal || role.goal,
         startLocationId: locationIds[0],
         ...(drafts[index]?.profile && !characterProfileIsEmpty(drafts[index].profile) ? { characterProfile: drafts[index].profile } : {}),
+        ...(drafts[index]?.sceneName?.trim() || drafts[index]?.opening?.trim() ? { chatOpening: { scene: drafts[index]?.sceneName?.trim() || '', text: drafts[index]?.opening?.trim() || '' } } : existing?.chatOpening ? { chatOpening: existing.chatOpening } : {}),
         imagePrompt: role.visualAnchor,
         playable: drafts[index]?.playable !== false,
       };
@@ -4707,6 +4711,26 @@ function CreateWorld({
                   placeholder="如：齐肩黑发、墨绿外套"
                 />
                 {renderPendingSuggestion(appearanceSug)}
+              </div>
+              <div className="draft-field">
+                <label htmlFor={`role-scene-${curRoleIndex}`}>见面地点（选填）</label>
+                <Input
+                  id={`role-scene-${curRoleIndex}`}
+                  value={activeRole.sceneName || ''}
+                  onChange={(event) => onUpdateRole(curRoleIndex, 'sceneName', event.target.value)}
+                  placeholder="如：雨夜旧书铺；留空则使用世界开场地点"
+                />
+              </div>
+              <div className="draft-field">
+                <label htmlFor={`role-opening-${curRoleIndex}`}>开场白（选填）</label>
+                <Textarea
+                  id={`role-opening-${curRoleIndex}`}
+                  value={activeRole.opening || ''}
+                  onChange={(event) => onUpdateRole(curRoleIndex, 'opening', event.target.value)}
+                  rows={3}
+                  maxLength={600}
+                  placeholder="角色看到体验者时说的第一句话；留空则使用世界开场"
+                />
               </div>
             </div>
           </div>
