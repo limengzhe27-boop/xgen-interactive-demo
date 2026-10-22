@@ -902,6 +902,9 @@
 .conversation-character-photo figcaption { padding: 8px 12px; color: var(--color-text-muted); font-size: 12px; }
 .conversation-photo-status { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 10px 0 18px; color: var(--color-text-muted); font-size: 13px; }
 .conversation-photo-status button { min-height: 36px; padding: 4px 8px; font-size: 12px; }
+.conversation-stream { margin: 6px 0 20px; padding: 12px 16px; border-left: 2px solid var(--color-border-soft); color: var(--color-text-secondary); font-size: 15px; line-height: 1.9; }
+.conversation-stream p { margin: 0; white-space: pre-wrap; }
+.conversation-stream small { display: block; margin-top: 8px; color: var(--color-text-muted); font-size: 12px; }
 @media (max-width: 600px) { .conversation-character-photo { max-width: 100%; } }
 
 

@@ -62,6 +62,7 @@ export function CharacterChat({ initial, accountScope, onSave, onBack, preview =
   useRecordPlay(!preview && session.turns.length ? `character:${session.entry.id}:${session.targetCharacterId}` : null, accountScope);
   const [input, setInput] = useState(initial.draftInput ?? '');
   const [busy, setBusy] = useState(false);
+  const [streamText, setStreamText] = useState('');
   const [error, setError] = useState('');
   const [image, setImage] = useState(initial.entry.cover);
   const [imageState, setImageState] = useState('');
@@ -175,7 +176,10 @@ export function CharacterChat({ initial, accountScope, onSave, onBack, preview =
     setBusy(true); setError('');
     const aborter = new AbortController(); controller.current = aborter;
     try {
-      const response = await remoteAIAdapter.advanceWorld(chatRequest(sessionRef.current, action.trim()), aborter.signal);
+      setStreamText('');
+      const response = await remoteAIAdapter.advanceWorld(chatRequest(sessionRef.current, action.trim()), aborter.signal, chunk => {
+        if (chunk.text?.trim()) setStreamText(chunk.text);
+      });
       if (aborter.signal.aborted) return;
       const patch = response.statePatch;
       const world = session.entry.world;
@@ -183,6 +187,7 @@ export function CharacterChat({ initial, accountScope, onSave, onBack, preview =
         nextLocation: world.locations.find((place) => place.id === patch.locationId)?.name || sessionRef.current.state.location,
         relationshipDelta: patch.relationshipDeltas?.[target.id] ?? 0, reachedEndingId: response.ending.reached ? response.ending.endingId : undefined });
       const next = { ...sessionRef.current, state, draftInput: '', narrative: response.narrative, turns: [...sessionRef.current.turns, { action: action.trim(), response }], savedAt: Date.now() };
+      setStreamText('');
       sessionRef.current = next; setSession(next); onSave(next); setInput('');
       // The model may ask to share a photo of the character; scene art stays manual.
       if (response.image.required && response.image.reason === 'character_photo') {
@@ -190,7 +195,7 @@ export function CharacterChat({ initial, accountScope, onSave, onBack, preview =
         if (previous?.image?.kind !== 'character') void makeTurnImage(response.image.prompt ?? '', next, next.turns.length - 1);
       }
     } catch (cause) { if (!aborter.signal.aborted) setError(cause instanceof Error ? cause.message : '网络连接失败，你的输入和进度已保留，可以重试。'); }
-    finally { if (!aborter.signal.aborted) { setBusy(false); controller.current = null; } }
+    finally { setStreamText(''); if (!aborter.signal.aborted) { setBusy(false); controller.current = null; } }
   }
 
   const sceneTools = <section className="conversation-scene-tools">{image !== session.entry.cover && <img src={image} alt="生成的场景插图" />}<button className="flow-control" type="button" onClick={() => void makeImage(`${session.entry.world.title}。${session.narrative}。${target.imagePrompt}。电影感场景，无文字，无水印。`, session)} disabled={busy || imageState.startsWith('正在')}><RefreshCw />{imageState.includes('失败') ? '重试场景图' : '生成场景图'}</button>{imageState && <small role="status">{imageState}</small>}</section>;
@@ -212,7 +217,8 @@ export function CharacterChat({ initial, accountScope, onSave, onBack, preview =
         </div>
         {turn.response.ending.reached && <p className="studio-chat-ending">已抵达阶段结局。可以返回结束，也可以继续聊，已有事实不会重置。</p>}
       </article>)}
-      {busy && <p className="conversation-wait" role="status"><LoaderCircle className="spin" />{target.name}正在回应…</p>}
+      {busy && streamText.trim() && <article className="conversation-stream" aria-live="polite"><p>{streamText.trim()}</p><small>{target.name}正在继续…</small></article>}
+      {busy && <p className="conversation-wait"><LoaderCircle className="spin" />{streamText.trim() ? `${target.name}正在继续…` : `${target.name}正在回应…`}</p>}
       <div ref={endRef} />
     </section>
       <form className="conversation-composer" onSubmit={(event) => { event.preventDefault(); void send(); }}>
