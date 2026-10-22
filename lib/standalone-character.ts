@@ -1,6 +1,7 @@
 import type { WorldDefinition } from './ai-contracts';
 import type { StudioWorld } from './studio-worlds';
 import { localPortrait } from './persona-upload';
+import { EMPTY_CHARACTER_PROFILE, characterProfileIsEmpty, readCharacterProfile, type CharacterProfile } from './character-profile';
 
 /**
  * A character created outside any world. It is stored on its own and converted
@@ -16,6 +17,8 @@ export type StandaloneCharacter = {
   opening: string;
   sceneName: string;
   portrait: string;
+  /** L1-L5 character bible; optional for characters created before this field. */
+  profile: CharacterProfile;
   createdAt: number;
 };
 
@@ -29,6 +32,7 @@ export const EMPTY_STANDALONE_CHARACTER: StandaloneCharacterInput = {
   opening: '',
   sceneName: '',
   portrait: '',
+  profile: { ...EMPTY_CHARACTER_PROFILE },
 };
 
 const LIMITS = {
@@ -54,6 +58,7 @@ export function validCharacterPortrait(value: unknown): value is string {
 export function readStandaloneCharacterInput(value: unknown): StandaloneCharacterInput | null {
   if (!value || typeof value !== 'object') return null;
   const record = value as Record<string, unknown>;
+  const profile = readCharacterProfile(record.profile);
   const draft: StandaloneCharacterInput = {
     name: text(record.name, LIMITS.name),
     identity: text(record.identity, LIMITS.identity),
@@ -62,8 +67,10 @@ export function readStandaloneCharacterInput(value: unknown): StandaloneCharacte
     opening: text(record.opening, LIMITS.opening),
     sceneName: text(record.sceneName, LIMITS.sceneName),
     portrait: validCharacterPortrait(record.portrait) ? record.portrait : '',
+    profile,
   };
-  return Object.values(draft).some(Boolean) ? draft : null;
+  const hasCardText = [draft.name, draft.identity, draft.personality, draft.appearance, draft.opening, draft.sceneName].some(Boolean);
+  return hasCardText || !characterProfileIsEmpty(profile) ? draft : null;
 }
 
 export type CharacterDraftState = { sourceId: string; draft: StandaloneCharacterInput };
@@ -94,6 +101,7 @@ export function readStandaloneCharacters(value: unknown): StandaloneCharacter[] 
       opening: text(record.opening, LIMITS.opening),
       sceneName: text(record.sceneName, LIMITS.sceneName),
       portrait: validCharacterPortrait(record.portrait) ? record.portrait : '',
+      profile: readCharacterProfile(record.profile),
       createdAt: typeof record.createdAt === 'number' && Number.isFinite(record.createdAt) ? record.createdAt : Date.now(),
     });
     if (characters.length >= 200) break;
@@ -113,6 +121,7 @@ export function makeStandaloneCharacter(input: StandaloneCharacterInput, id = cr
     opening: text(input.opening, LIMITS.opening),
     sceneName: text(input.sceneName, LIMITS.sceneName),
     portrait: validCharacterPortrait(input.portrait) ? input.portrait : '',
+    profile: readCharacterProfile(input.profile),
     createdAt: Date.now(),
   };
 }
@@ -158,6 +167,7 @@ export function standaloneCharacterToWorld(character: StandaloneCharacter): Stud
       name: character.name,
       identity,
       persona: character.personality || '性格会在对话中逐渐显露。',
+      ...(characterProfileIsEmpty(character.profile) ? {} : { characterProfile: character.profile }),
       publicBackground: character.identity || '',
       privateKnowledge: [],
       secrets: [],

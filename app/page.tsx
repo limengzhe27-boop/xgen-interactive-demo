@@ -95,6 +95,7 @@ import type { ChatSession } from '@/lib/studio-session';
 import { CreateCharacter } from '@/components/create-character';
 import { CreateModeSwitch, type CreateMode } from '@/components/create-mode-switch';
 import { EMPTY_STANDALONE_CHARACTER, makeStandaloneCharacter, readCharacterDraft, readStandaloneCharacters, standaloneCharacterToWorld, standalonePortrait, type StandaloneCharacter, type StandaloneCharacterInput } from '@/lib/standalone-character';
+import { readCharacterProfile } from '@/lib/character-profile';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
@@ -3298,6 +3299,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       opening: role?.chatOpening?.text || document.world.openingScene.narrative || '',
       sceneName: document.world.locations[0]?.name || '',
       portrait: document.cover || (role ? document.portraits[role.id] : '') || '',
+      profile: readCharacterProfile(role?.characterProfile),
     });
     setCharacterPublished(true);
     setCharacterCommunityId(document.id);
@@ -3318,6 +3320,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       opening: character.opening,
       sceneName: character.sceneName,
       portrait: character.portrait,
+      profile: character.profile,
     });
     setCharacterPublished(false); setCharacterCommunityId(null); setCharacterUpdatedAt(null);
     setCreateMode('character');

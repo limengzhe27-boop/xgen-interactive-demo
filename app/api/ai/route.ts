@@ -1,7 +1,7 @@
 import { AI_CONTRACT_VERSION } from '@/lib/ai-contracts';
 import { STORY_PROGRESSION_GUIDANCE } from '@/lib/story-progression-guidance';
 import { INTERACTION_CLARITY_GUIDANCE } from '@/lib/interaction-clarity';
-import { characterChatGuidance, characterChatContract } from '@/lib/character-chat-guidance';
+import { characterChatGuidance, characterChatContract, characterProfileGuidance } from '@/lib/character-chat-guidance';
 import { exactChatRecall } from '@/lib/chat-memory';
 import { creativeGuidance } from '@/lib/creative-guidance';
 import { creatorStoryIssues, OPEN_STORY_DIRECTIONS } from '@/lib/creator-story-graph';
@@ -196,6 +196,7 @@ async function callCompany(
           ...(operation === 'advance-world' && isWorldTurnRequest(input) && input.presentation?.medium === 'native-video' ? [{role:'system',content:'视频接口精简输出：不需要静态生图，image只返回required=false、reason="reuse"、sceneId=currentScene.id，不写生图prompt。statePatch保留committedFacts，只输出本轮实际改变的其他字段，不复述未变角色状态、旧事实和已完成任务。保留完整的必要剧情、对白、三个nextChoices、goalProgress与ending判断，不输出解释或重复资料。'}] : []),
           ...(operation === 'advance-world' ? [{ role: 'system', content: '角色会面中，如果所选参与者身份为自由对话用户，直接回应用户，不要求先选角，不把对方当成世界里的已有角色，不编造其家庭、性格、旧关系或秘密，不强迫完成主线；用户未表达的身份保持未知。原剧情人物的背景只用于演绎该人物。' }] : []),
           ...(operation === 'advance-world' && isWorldTurnRequest(input) && input.interaction?.mode === 'character-chat' ? [{ role: 'system', content: characterChatGuidance }] : []),
+          ...(operation === 'advance-world' && isWorldTurnRequest(input) && input.interaction?.mode === 'character-chat' ? [{ role: 'system', content: characterProfileGuidance }] : []),
           ...(operation === 'personal-agent' ? [{ role: 'system', content: personalActionInstructions + ' 用户当前填写的资料优先于旧聊天和旧记忆；有冲突时询问，不擅自覆盖。不从虚构角色设定推断真人性格，不把临时情绪当成长期性格。' }] : []),
           ...(operation === 'personal-agent' ? [{ role: 'system', content: '你也可以调用创作能力：用户明确要求把想法做成世界或开始创作时，action={"type":"create-world","seed":"本次虚构创作方向，最多2000字"}。这只提出一个待用户确认的创作入口，不代表完成创作；不要把真实私人资料写进seed。只是闲聊构思时继续讨论，不必调用。activeCreation提供当前作品标题与步骤，用户要求继续且它存在时可用action={"type":"resume-creation"}。你与创作界面是同一个助手的不同工作模式。' }] : []),
           ...(operation === 'co-create-world' ? [{ role: 'system', content: companionInstructions }] : []),

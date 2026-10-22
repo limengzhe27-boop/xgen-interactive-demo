@@ -117,8 +117,8 @@ export function PublishWorldDialog({ entry, accountScope, onClose, onPublished, 
   return <Dialog open onOpenChange={(open) => { if (!open && !busy) onClose(); }}><DialogContent className="publication-dialog" showCloseButton={!busy}>
     <DialogTitle>{characterOnly ? `发布角色《${entry.title}》` : `公开发布《${entry.title}》`}</DialogTitle>
     <DialogDescription>{characterOnly ? '发布后，其他访客可以在角色库看到这个角色，并直接开始对话。' : '发布后，其他访客可以看到这个世界，并选择角色探索或对话。'}</DialogDescription>
-    <div className="publication-scope"><strong>将公开</strong><p>{characterOnly ? '角色名字、身份、性格、外观、开场白和角色形象。' : '剧情、全部虚构角色设定、关系、规则、任务与结局框架。完整剧本中可能包含角色秘密。'}</p><strong>不会上传</strong><p>个人 Agent 的记忆与对话、创作讨论记录、私人游玩记录。</p></div>
-    <p>{characterOnly ? '角色形象会一起公开；发布不会再自动生成新图。' : '封面与角色图会一起公开。缺少的图片会自动生成并使用生图额度，已有图片复用；失败时保留已生成图片，重试不会重做成功项。'}</p>
+    <div className="publication-scope"><strong>将公开</strong><p>{characterOnly ? '角色名字、身份、性格、外观、开场白、角色形象，以及用于角色对话的 L1-L5 人格档案。' : '剧情、全部虚构角色设定、关系、规则、任务与结局框架。完整剧本中可能包含角色秘密。'}</p><strong>不会上传</strong><p>个人 Agent 的记忆与对话、创作讨论记录、私人游玩记录。</p></div>
+    <p>{characterOnly ? '角色形象和人格档案会一起公开给访客用于对话；不要在档案里写真实个人隐私。发布不会再自动生成新图。' : '封面与角色图会一起公开。缺少的图片会自动生成并使用生图额度，已有图片复用；失败时保留已生成图片，重试不会重做成功项。'}</p>
     <label className="publication-check"><input type="checkbox" checked={consent} onChange={e => setConsent(e.target.checked)} disabled={busy} />我确认这些内容可以公开，且不包含未经许可的真实个人信息或公司资料。</label>
     {characterOnly && !localPortrait && <p className="publication-error" role="alert">请先在右侧上传角色形象，再发布。</p>}
     {!account?.user && <p>{account?.configured ? '先登录账号，才能以自己的身份发布。登录不会自动上传本机资料。' : '账号登录正在配置中，现在仍可保存并试玩；暂不能公开发布。'}</p>}

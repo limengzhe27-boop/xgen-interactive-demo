@@ -2,7 +2,7 @@
 /* oxlint-disable next/no-img-element -- local portrait preview; never a remote image */
 
 import { useRef, useState } from 'react';
-import { ArrowLeft, ImagePlus, Play, Plus, Save, Trash2, Undo2, Upload, UserRound } from 'lucide-react';
+import { ArrowLeft, Check, ImagePlus, Play, Plus, Save, Trash2, Undo2, Upload, UserRound } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -10,6 +10,8 @@ import { CharacterAgent } from '@/components/character-agent';
 import { CreateModeSwitch, type CreateMode } from '@/components/create-mode-switch';
 import { readPersonaUpload } from '@/lib/persona-upload';
 import { standalonePortrait, type StandaloneCharacterInput } from '@/lib/standalone-character';
+import { CHARACTER_PROFILE_LIMIT, CHARACTER_PROFILE_LEVELS, characterProfileFilled, type CharacterProfileKey } from '@/lib/character-profile';
+import { LIN_BAIYU_SAMPLE } from '@/lib/sample-character';
 import type { CharacterDesignDraft } from '@/lib/character-design';
 
 export function CreateCharacter({ value, onChange, onSave, onPublish, onUnpublish, onPreview, onNew, published, onBack, onModeChange, storageNotice, canSave, sourceId, accountScope, savedLocally }: {
@@ -32,8 +34,10 @@ export function CreateCharacter({ value, onChange, onSave, onPublish, onUnpublis
   const [mobilePane, setMobilePane] = useState<'guide' | 'form'>('form');
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState('');
+  const [sampleConfirm, setSampleConfirm] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const update = (key: keyof StandaloneCharacterInput, next: string) => onChange({ ...value, [key]: next });
+  const updateProfile = (key: CharacterProfileKey, next: string) => onChange({ ...value, profile: { ...value.profile, [key]: next } });
   const save = () => { if (canSave && value.name.trim()) onSave(); };
   const upload = async (file?: File) => {
     if (!file || uploading) return;
@@ -102,11 +106,11 @@ export function CreateCharacter({ value, onChange, onSave, onPublish, onUnpublis
               </div>
               <div className="character-form-pair">
                 <div className="draft-field">
-                  <label htmlFor="character-personality">性格</label>
-                  <Textarea id="character-personality" value={value.personality} maxLength={300} rows={3} placeholder="说话方式、在意什么、遇到冲突时的反应" onChange={event => update('personality', event.target.value)} />
+                  <label htmlFor="character-personality">性格速览</label>
+                  <Textarea id="character-personality" value={value.personality} maxLength={300} rows={3} placeholder="说话方式、在意什么、遇到冲突时的反应；完整设定写在下方 L2" onChange={event => update('personality', event.target.value)} />
                 </div>
                 <div className="draft-field">
-                  <label htmlFor="character-appearance">外观</label>
+                  <label htmlFor="character-appearance">外观速览</label>
                   <Textarea id="character-appearance" value={value.appearance} maxLength={300} rows={3} placeholder="年龄、衣着、标志性特征" onChange={event => update('appearance', event.target.value)} />
                 </div>
               </div>
@@ -119,6 +123,46 @@ export function CreateCharacter({ value, onChange, onSave, onPublish, onUnpublis
                 <Textarea id="character-opening" value={value.opening} maxLength={600} rows={4} placeholder="角色看到你时说的第一句话，也是这段对话的起点" onChange={event => update('opening', event.target.value)} />
                 <small>会作为对话的第一条消息，可在进入对话后继续修改。</small>
               </div>
+              <section className="character-profile-editor" aria-labelledby="character-profile-title">
+                <div className="character-profile-heading">
+                  <div>
+                    <h3 id="character-profile-title">人格档案 · L1-L5</h3>
+                    <p>这五层是角色的隐藏设定，会作为对话模型的角色圣经；角色卡只展示名字、身份、外观和开场。</p>
+                  </div>
+                  <span className="character-profile-progress">{characterProfileFilled(value.profile)}/5 层已填写</span>
+                </div>
+                <div className="character-profile-levels">
+                  {CHARACTER_PROFILE_LEVELS.map(level => {
+                    const content = value.profile[level.key];
+                    return <details className="character-profile-level" key={level.key}>
+                      <summary>
+                        <span className="character-profile-level-tag">{level.level}</span>
+                        <strong>{level.title}</strong>
+                        <small>{level.summary}</small>
+                        {content.trim() ? <Check className="character-profile-check" aria-hidden="true" /> : null}
+                      </summary>
+                      <div className="character-profile-body">
+                        <p>{level.hint}</p>
+                        <Textarea id={`character-profile-${level.key}`} value={content} maxLength={CHARACTER_PROFILE_LIMIT} rows={7} placeholder={level.placeholder} onChange={event => updateProfile(level.key, event.target.value)} />
+                        <div className="character-profile-meta"><span>{content.length} / {CHARACTER_PROFILE_LIMIT}</span><span>会注入角色对话提示词</span></div>
+                      </div>
+                    </details>;
+                  })}
+                </div>
+                <div className="character-profile-sample">
+                  <button type="button" className="studio-button" onClick={() => {
+                    if (!sampleConfirm) {
+                      setSampleConfirm(true);
+                      window.setTimeout(() => setSampleConfirm(current => current ? false : current), 4000);
+                      return;
+                    }
+                    setSampleConfirm(false);
+                    onNew();
+                    onChange({ ...LIN_BAIYU_SAMPLE, profile: { ...LIN_BAIYU_SAMPLE.profile } });
+                  }}>{sampleConfirm ? '确认载入示例（覆盖当前表单）' : '载入示例：林白语'}</button>
+                  <small>会用林白语的 L1-L5 档案覆盖当前角色表单</small>
+                </div>
+              </section>
               <div className="character-form-actions">
                 <Button type="submit" disabled={!canSave || !value.name.trim()}><Save />保存角色</Button>
               </div>

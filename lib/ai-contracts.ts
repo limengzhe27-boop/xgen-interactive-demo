@@ -1,3 +1,4 @@
+import type { CharacterProfile } from '@/lib/character-profile';
 import type { WorldIncident, WorldState } from '@/lib/world-state';
 
 export const AI_CONTRACT_VERSION = '2026-09-04.v2';
@@ -52,6 +53,8 @@ export type PersonalAgentResponse = {
 export type CharacterDefinition = {
   /** Public display copy, never a projection of private persona or secrets. */
   publicIntroduction?: string;
+  /** The L1-L5 character bible used by the chat model, not displayed as card copy. */
+  characterProfile?: CharacterProfile;
   chatOpening?: { scene: string; text: string; suggestions?: string[] };
   playable?: boolean;
   isDefault?: boolean;

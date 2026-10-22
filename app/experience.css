@@ -867,5 +867,31 @@
 .character-agent-proposal-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 4px; }
 .character-agent-error { padding: 8px 14px; color: var(--color-danger); font-size: 12px; line-height: 1.6; }
 .character-agent-panel .creator-conversation > p[data-role='user'] { margin-left: auto; background: var(--color-agent-soft); border-color: rgba(var(--color-primary-rgb), .2); border-radius: 14px 14px 4px 14px; }
+.character-profile-editor { display: grid; gap: 14px; padding-top: 18px; border-top: 1px solid var(--color-border-soft); }
+.character-profile-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.character-profile-heading h3 { margin: 0 0 4px; font: 600 15px/1.5 var(--font-ui); }
+.character-profile-heading p { margin: 0; color: var(--color-text-secondary); font-size: 12px; line-height: 1.7; }
+.character-profile-progress { flex-shrink: 0; padding: 4px 9px; border: 1px solid var(--color-border-soft); border-radius: 999px; color: var(--color-text-muted); font-size: 11px; white-space: nowrap; }
+.character-profile-levels { display: grid; gap: 8px; }
+.character-profile-level { border: 1px solid var(--color-border-soft); border-radius: 12px; background: var(--color-bg-elevated); overflow: hidden; }
+.character-profile-level summary { display: flex; align-items: center; gap: 8px; min-height: 46px; padding: 8px 12px; cursor: pointer; list-style: none; }
+.character-profile-level summary::-webkit-details-marker { display: none; }
+.character-profile-level summary::after { content: '+'; margin-left: 2px; color: var(--color-text-muted); }
+.character-profile-level[open] summary::after { content: '−'; }
+.character-profile-level-tag { flex-shrink: 0; padding: 2px 6px; border-radius: 5px; background: var(--color-agent-soft); color: var(--color-primary); font: 600 11px/1.5 var(--font-ui); }
+.character-profile-level summary strong { font: 600 13px/1.5 var(--font-ui); }
+.character-profile-level summary small { flex: 1; min-width: 0; color: var(--color-text-muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.character-profile-check { width: 15px; height: 15px; flex-shrink: 0; color: var(--color-primary); }
+.character-profile-body { display: grid; gap: 8px; padding: 0 12px 12px; border-top: 1px solid var(--color-border-soft); }
+.character-profile-body > p { margin: 10px 0 0; color: var(--color-text-secondary); font-size: 12px; line-height: 1.7; }
+.character-profile-body textarea { width: 100%; min-height: 150px; resize: vertical; }
+.character-profile-meta { display: flex; justify-content: space-between; gap: 8px; color: var(--color-text-muted); font-size: 11px; }
+.character-profile-sample { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding-top: 2px; }
+.character-profile-sample small { color: var(--color-text-muted); font-size: 11px; }
+@media (max-width: 600px) {
+  .character-profile-level summary { align-items: flex-start; flex-wrap: wrap; }
+  .character-profile-level summary small { flex-basis: 100%; white-space: normal; }
+  .character-profile-progress { margin-left: 0; }
+}
 
 
