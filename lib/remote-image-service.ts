@@ -38,6 +38,8 @@ export async function generateSceneImage(
       image_generation_or_storage_failed: '图片服务暂时不可用，已有图片已保留。本次发布未完成。',
       image_model_not_configured: '图片服务暂不可用，无法补齐缺少的图片。',
       image_storage_not_configured: '图片存储暂不可用，已有图片不会重做。',
+      image_daily_limit: '今日生图额度已用完，照片没有生成；文字回复已保留。',
+      image_daily_limit_device: '这台设备的今日生图额度已用完，照片没有生成；文字回复已保留。',
     };
     throw new Error(messages[data.error || ''] || (response.status === 409
       ? '图片请求已有记录或账号状态变化，请稍后查看。已有图片已保留。'

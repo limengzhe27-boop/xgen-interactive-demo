@@ -69,6 +69,7 @@ export function CharacterChat({ initial, accountScope, onSave, onBack, preview =
   const imageController = useRef<AbortController | null>(null);
   const turnImageController = useRef<AbortController | null>(null);
   const [turnImageStates, setTurnImageStates] = useState<Record<number, 'generating' | 'error'>>({});
+  const [turnImageErrors, setTurnImageErrors] = useState<Record<number, string>>({});
   const sessionRef = useRef(session);
   const saveRef = useRef(onSave);
   useEffect(() => { saveRef.current = onSave; }, [onSave]);
@@ -137,6 +138,7 @@ export function CharacterChat({ initial, accountScope, onSave, onBack, preview =
     turnImageController.current?.abort();
     const aborter = new AbortController(); turnImageController.current = aborter;
     setTurnImageStates(previous => ({ ...previous, [index]: 'generating' }));
+    setTurnImageErrors(previous => { const next = { ...previous }; delete next[index]; return next; });
     const key = makeContentImageKey('portrait', current.entry.world, current.playerRoleId, current.targetCharacterId, prompt);
     try {
       let url = await getCachedSceneImage(key, accountScope).catch(() => null);
@@ -157,8 +159,12 @@ export function CharacterChat({ initial, accountScope, onSave, onBack, preview =
         sessionRef.current = next; saveRef.current(next); return next;
       });
       setTurnImageStates(previous => { const next = { ...previous }; delete next[index]; return next; });
-    } catch {
-      if (!aborter.signal.aborted) setTurnImageStates(previous => ({ ...previous, [index]: 'error' }));
+      setTurnImageErrors(previous => { const next = { ...previous }; delete next[index]; return next; });
+    } catch (cause) {
+      if (!aborter.signal.aborted) {
+        setTurnImageStates(previous => ({ ...previous, [index]: 'error' }));
+        setTurnImageErrors(previous => ({ ...previous, [index]: cause instanceof Error && cause.message ? cause.message : '照片生成失败，文字回复已保留。' }));
+      }
     } finally {
       if (turnImageController.current === aborter) turnImageController.current = null;
     }
@@ -202,7 +208,7 @@ export function CharacterChat({ initial, accountScope, onSave, onBack, preview =
         {turn.response.dialogue.filter((line) => line.visibleToRoleIds.includes(player.id) && line.characterId !== player.id).map((line, i) => <div className="conversation-line" key={i}><img src={session.entry.portraits[line.characterId] || session.entry.cover} alt="" /><div><strong>{session.entry.world.characters.find((role) => role.id === line.characterId)?.name || '角色'}</strong><p>{line.text}</p></div></div>)}
         {turn.image && <figure className="conversation-character-photo"><img src={turn.image.url} alt={`${target.name}发来的照片`} /><figcaption>{target.name}发来一张照片 · AI 生成</figcaption></figure>}
         {!turn.image && turnImageStates[index] === 'generating' && <output className="conversation-photo-status"><LoaderCircle className="is-spinning" />{target.name}正在准备一张照片…</output>}
-        {!turn.image && turnImageStates[index] === 'error' && <div className="conversation-photo-status"><span>照片生成失败，文字回复已保留。</span><button type="button" className="flow-control" onClick={() => void makeTurnImage(turn.response.image.prompt ?? '', sessionRef.current, index)}>重新生成照片</button></div>}
+        {!turn.image && turnImageStates[index] === 'error' && <div className="conversation-photo-status"><span>{turnImageErrors[index] || '照片生成失败，文字回复已保留。'}</span><button type="button" className="flow-control" onClick={() => void makeTurnImage(turn.response.image.prompt ?? '', sessionRef.current, index)}>重新生成照片</button></div>}
         <SpeechSequence accountScope={accountScope} segments={speechSegments(turn.response.narrative, turn.response.dialogue.filter(line => line.visibleToRoleIds.includes(player.id) && line.characterId !== player.id))} />
         </div>
         {turn.response.ending.reached && <p className="studio-chat-ending">已抵达阶段结局。可以返回结束，也可以继续聊，已有事实不会重置。</p>}
