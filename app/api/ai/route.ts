@@ -35,6 +35,7 @@ import { compactVideoScriptInput } from '@/lib/video-script-input';
 import { personaAdaptationInstructions, readPersonaAdaptationRequest, readPersonaAdaptationSuggestion } from '@/lib/persona-adaptation';
 import { personaDesignInstructions, readPersonaDesignInput, readPersonaDesignReply } from '@/lib/persona-design';
 import { characterDesignInstructions, readCharacterDesignInput, readCharacterDesignReply } from '@/lib/character-design';
+import { compactCharacterChatInput } from '@/lib/character-chat-context';
 import { characterAgentContext, characterOutputReviewInput, characterOutputReviewPrompt } from '@/lib/character-output-review';
 import type { WorldTurnResponse } from '@/lib/ai-contracts';
 
@@ -176,7 +177,9 @@ async function callCompany(
   const creatorTriage = operation === 'co-create-world' ? await classifyCreatorTurn(input) : null;
   const isChat = operation === 'advance-world' && isWorldTurnRequest(input) && input.interaction?.mode === 'character-chat';
   const runtimeInput = operation === 'advance-world' && isWorldTurnRequest(input)
-    ? { ...(input.presentation?.medium === 'native-video' ? compactVideoScriptInput(input) : { ...input, world: { ...input.world, characters: input.world.characters.map(({ cardHook: _cardHook, ...character }) => character) } }), progression: worldProgression(input), systemView: visibleSystem(input.world, input.selectedRoleId, input.state.completedTaskIds) }
+    ? isChat
+      ? compactCharacterChatInput(input)
+      : { ...(input.presentation?.medium === 'native-video' ? compactVideoScriptInput(input) : { ...input, world: { ...input.world, characters: input.world.characters.map(({ cardHook: _cardHook, ...character }) => character) } }), progression: worldProgression(input), systemView: visibleSystem(input.world, input.selectedRoleId, input.state.completedTaskIds) }
     : input;
   const isStreaming = Boolean(onStreamChunk);
   const controller = new AbortController();
