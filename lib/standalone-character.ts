@@ -12,6 +12,10 @@ export type StandaloneCharacter = {
   id: string;
   name: string;
   identity: string;
+  agentTask: string;
+  basicInfo: string;
+  keyPlotNodes: string;
+  outputRules: string;
   personality: string;
   appearance: string;
   opening: string;
@@ -28,6 +32,10 @@ export type StandaloneCharacterInput = Omit<StandaloneCharacter, 'id' | 'created
 export const EMPTY_STANDALONE_CHARACTER: StandaloneCharacterInput = {
   name: '',
   identity: '',
+  agentTask: '',
+  basicInfo: '',
+  keyPlotNodes: '',
+  outputRules: '',
   personality: '',
   appearance: '',
   opening: '',
@@ -40,6 +48,10 @@ export const EMPTY_STANDALONE_CHARACTER: StandaloneCharacterInput = {
 const LIMITS = {
   name: 24,
   identity: 120,
+  agentTask: 4000,
+  basicInfo: 5000,
+  keyPlotNodes: 5000,
+  outputRules: 4000,
   personality: 300,
   appearance: 300,
   opening: 600,
@@ -62,9 +74,16 @@ export function readStandaloneCharacterInput(value: unknown): StandaloneCharacte
   if (!value || typeof value !== 'object') return null;
   const record = value as Record<string, unknown>;
   const profile = readCharacterProfile(record.profile);
+  const legacyBasicInfo = [record.personality, record.appearance, profile.lifeContext, profile.traits]
+    .filter((item): item is string => typeof item === 'string' && Boolean(item.trim()))
+    .join('\n\n');
   const draft: StandaloneCharacterInput = {
     name: text(record.name, LIMITS.name),
     identity: text(record.identity, LIMITS.identity),
+    agentTask: text(record.agentTask, LIMITS.agentTask),
+    basicInfo: text(record.basicInfo, LIMITS.basicInfo) || text(legacyBasicInfo, LIMITS.basicInfo),
+    keyPlotNodes: text(record.keyPlotNodes, LIMITS.keyPlotNodes),
+    outputRules: text(record.outputRules, LIMITS.outputRules),
     personality: text(record.personality, LIMITS.personality),
     appearance: text(record.appearance, LIMITS.appearance),
     opening: text(record.opening, LIMITS.opening),
@@ -73,7 +92,8 @@ export function readStandaloneCharacterInput(value: unknown): StandaloneCharacte
     portrait: validCharacterPortrait(record.portrait) ? record.portrait : '',
     profile,
   };
-  const hasCardText = [draft.name, draft.identity, draft.personality, draft.appearance, draft.opening, draft.sceneName, draft.worldBackground].some(Boolean);
+  const hasCardText = [draft.name, draft.identity, draft.agentTask, draft.basicInfo, draft.keyPlotNodes, draft.outputRules,
+    draft.personality, draft.appearance, draft.opening, draft.sceneName].some(Boolean);
   return hasCardText || !characterProfileIsEmpty(profile) ? draft : null;
 }
 
@@ -96,17 +116,25 @@ export function readStandaloneCharacters(value: unknown): StandaloneCharacter[] 
     const id = text(record.id, 80);
     const name = text(record.name, LIMITS.name);
     if (!id || !name) continue;
+    const profile = readCharacterProfile(record.profile);
+    const legacyBasicInfo = [record.personality, record.appearance, profile.lifeContext, profile.traits]
+      .filter((item): item is string => typeof item === 'string' && Boolean(item.trim()))
+      .join('\n\n');
     characters.push({
       id,
       name,
       identity: text(record.identity, LIMITS.identity),
+      agentTask: text(record.agentTask, LIMITS.agentTask),
+      basicInfo: text(record.basicInfo, LIMITS.basicInfo) || text(legacyBasicInfo, LIMITS.basicInfo),
+      keyPlotNodes: text(record.keyPlotNodes, LIMITS.keyPlotNodes),
+      outputRules: text(record.outputRules, LIMITS.outputRules),
       personality: text(record.personality, LIMITS.personality),
       appearance: text(record.appearance, LIMITS.appearance),
       opening: text(record.opening, LIMITS.opening),
       sceneName: text(record.sceneName, LIMITS.sceneName),
       worldBackground: text(record.worldBackground, LIMITS.worldBackground),
       portrait: validCharacterPortrait(record.portrait) ? record.portrait : '',
-      profile: readCharacterProfile(record.profile),
+      profile,
       createdAt: typeof record.createdAt === 'number' && Number.isFinite(record.createdAt) ? record.createdAt : Date.now(),
     });
     if (characters.length >= 200) break;
@@ -120,6 +148,10 @@ export function makeStandaloneCharacter(input: StandaloneCharacterInput, id = cr
     id,
     name,
     identity: text(input.identity, LIMITS.identity),
+    agentTask: text(input.agentTask, LIMITS.agentTask),
+    basicInfo: text(input.basicInfo, LIMITS.basicInfo),
+    keyPlotNodes: text(input.keyPlotNodes, LIMITS.keyPlotNodes),
+    outputRules: text(input.outputRules, LIMITS.outputRules),
     personality: text(input.personality, LIMITS.personality),
     appearance: text(input.appearance, LIMITS.appearance),
     opening: text(input.opening, LIMITS.opening),
@@ -174,6 +206,10 @@ export function standaloneCharacterToWorld(character: StandaloneCharacter): Stud
       name: character.name,
       identity,
       persona: character.personality || '性格会在对话中逐渐显露。',
+      ...(character.agentTask ? { agentTask: character.agentTask } : {}),
+      ...(character.basicInfo ? { basicInfo: character.basicInfo } : {}),
+      ...(character.keyPlotNodes ? { keyPlotNodes: character.keyPlotNodes } : {}),
+      ...(character.outputRules ? { outputRules: character.outputRules } : {}),
       ...(characterProfileIsEmpty(character.profile) ? {} : { characterProfile: character.profile }),
       publicBackground: character.identity || '',
       privateKnowledge: [],
@@ -181,7 +217,7 @@ export function standaloneCharacterToWorld(character: StandaloneCharacter): Stud
       goal: '自由交流',
       startLocationId: locationId,
       imagePrompt: character.appearance || '',
-      publicIntroduction: character.identity || character.personality || '',
+      publicIntroduction: character.identity || '',
       cardHook,
       chatOpening: { scene: sceneLine, text: opening },
     }],

@@ -3302,11 +3302,15 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     setCharacterDraft({
       name: role?.name || document.title,
       identity: role?.identity || '',
+      agentTask: role?.agentTask || '',
+      basicInfo: role?.basicInfo || [role?.persona, role?.publicBackground, role?.imagePrompt].filter(Boolean).join('\n'),
+      keyPlotNodes: role?.keyPlotNodes || '',
+      outputRules: role?.outputRules || '',
       personality: role?.persona || '',
       appearance: role?.imagePrompt || '',
       opening: role?.chatOpening?.text || document.world.openingScene.narrative || '',
-      sceneName: document.world.locations[0]?.name || '',
-      worldBackground: document.world.worldBackground || '',
+      sceneName: document.world.locations[0]?.name || '相遇之处',
+      worldBackground: '',
       portrait: document.cover || (role ? document.portraits[role.id] : '') || '',
       profile: readCharacterProfile(role?.characterProfile),
     });
@@ -3324,6 +3328,10 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     setCharacterDraft({
       name: character.name,
       identity: character.identity,
+      agentTask: character.agentTask,
+      basicInfo: character.basicInfo,
+      keyPlotNodes: character.keyPlotNodes,
+      outputRules: character.outputRules,
       personality: character.personality,
       appearance: character.appearance,
       opening: character.opening,

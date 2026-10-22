@@ -53,6 +53,14 @@ export type PersonalAgentResponse = {
 export type CharacterDefinition = {
   /** Public display copy, never a projection of private persona or secrets. */
   publicIntroduction?: string;
+  /** High-level instruction applied to every response for this character. */
+  agentTask?: string;
+  /** Author-provided runtime facts used with conversation memory. */
+  basicInfo?: string;
+  /** Author-provided possible beats; not facts until the conversation makes them happen. */
+  keyPlotNodes?: string;
+  /** Final response review constraints for this character. */
+  outputRules?: string;
   /** The L1-L5 character bible used by the chat model, not displayed as card copy. */
   characterProfile?: CharacterProfile;
   chatOpening?: { scene: string; text: string; suggestions?: string[] };

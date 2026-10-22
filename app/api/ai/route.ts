@@ -35,6 +35,8 @@ import { compactVideoScriptInput } from '@/lib/video-script-input';
 import { personaAdaptationInstructions, readPersonaAdaptationRequest, readPersonaAdaptationSuggestion } from '@/lib/persona-adaptation';
 import { personaDesignInstructions, readPersonaDesignInput, readPersonaDesignReply } from '@/lib/persona-design';
 import { characterDesignInstructions, readCharacterDesignInput, readCharacterDesignReply } from '@/lib/character-design';
+import { characterAgentContext, characterOutputReviewInput, characterOutputReviewPrompt } from '@/lib/character-output-review';
+import type { WorldTurnResponse } from '@/lib/ai-contracts';
 
 type Operation = 'personal-agent' | 'co-create-world' | 'generate-world' | 'advance-world' | 'adapt-persona' | 'design-persona' | 'design-character' | 'plan-prologue';
 import { companyGateway, companyModel } from '@/lib/company-gateway';
@@ -57,6 +59,7 @@ const operationInstructions: Record<Operation, string> = {
 // Shared by text and video, before the video contract is captured.
 for (const op of ['generate-world','advance-world'] as const) operationInstructions[op] += STORY_PROGRESSION_GUIDANCE;
 operationInstructions['advance-world'] += INTERACTION_CLARITY_GUIDANCE;
+operationInstructions['advance-world'] += '\n体验以情感陪伴和角色关系为主、剧情推进为辅。任何非空userAction都必须进入演绎，不得因太短、模糊、非动作表达或违背规则而返回allowed=false；问号、语气词、闲聊、情绪表达和愿望都是有效互动。先回应用户话语的情绪和关系含义，再结合场景自然续接；从用户明确表达中提取本轮可确认的信息，按事实谨慎更新线索、关系和记忆，不将推测写成事实。用户提出不可能或尚无条件的行动时，仍演绎尝试及其符合世界规则的失败、部分结果、代价或替代回应，不把用户发言本身判为非法，也不把愿望直接记成已实现事实。剧情按对话节奏自然推进，不强迫每轮制造冲突或完成任务。';
 for (const op of ['co-create-world', 'generate-world', 'advance-world'] as const) operationInstructions[op] += OPEN_STORY_DIRECTIONS;
 // Video has its own 15-second direction below; do not also ask for long illustrated prose.
 operationInstructions['advance-world'] += '\n同一存档可切换角色。以 state.clock/location/characterStates 为当前时刻与位置，不重新应用角色 entry，不把切换视为行动或新开局。state.inventory/clues/knownSecrets/eventLedger 只属于当前角色；全局 committedFacts/taskNotes/任务进度是世界真相，不等于角色已知。没有获知途径不得在对白或画面泄露。';
@@ -166,6 +169,7 @@ async function callCompany(
   input: unknown,
   timeoutMs?: number,
   onStreamChunk?: (delta: string, accumulated: string) => void,
+  systemOverride?: string,
 ): Promise<unknown> {
   // This is advisory and fail-closed: an unavailable/uncertain TypeSafe result
   // must never alter the existing creator behavior.
@@ -187,7 +191,10 @@ async function callCompany(
       },
       body: JSON.stringify({
         model: provider.model,
-        messages: [
+        messages: systemOverride ? [
+          { role: 'system', content: systemOverride },
+          { role: 'user', content: `请审查并定稿以下角色回复数据，只返回完整JSON：\n${JSON.stringify(runtimeInput)}` },
+        ] : [
           ...(operation === 'plan-prologue' ? [{role:'system',content:cinematicGuidance(readPrologueAgentInput(input)?.perspective === 'first-person' ? 'first-person' : 'external')}] : []),
           ...(operation === 'advance-world' && isWorldTurnRequest(input) && input.presentation?.medium === 'native-video' ? [{role:'system',content:cinematicGuidance('first-person')}] : []),
           ...(operation === 'advance-world' && !isChat ? [{role:'system',content:PROGRESSION_GUIDANCE}] : []),
@@ -196,6 +203,7 @@ async function callCompany(
           ...(operation === 'advance-world' && isWorldTurnRequest(input) && input.presentation?.medium === 'native-video' ? [{role:'system',content:'视频接口精简输出：不需要静态生图，image只返回required=false、reason="reuse"、sceneId=currentScene.id，不写生图prompt。statePatch保留committedFacts，只输出本轮实际改变的其他字段，不复述未变角色状态、旧事实和已完成任务。保留完整的必要剧情、对白、三个nextChoices、goalProgress与ending判断，不输出解释或重复资料。'}] : []),
           ...(operation === 'advance-world' ? [{ role: 'system', content: '角色会面中，如果所选参与者身份为自由对话用户，直接回应用户，不要求先选角，不把对方当成世界里的已有角色，不编造其家庭、性格、旧关系或秘密，不强迫完成主线；用户未表达的身份保持未知。原剧情人物的背景只用于演绎该人物。' }] : []),
           ...(operation === 'advance-world' && isWorldTurnRequest(input) && input.interaction?.mode === 'character-chat' ? [{ role: 'system', content: characterChatGuidance }] : []),
+          ...(operation === 'advance-world' && isWorldTurnRequest(input) && characterAgentContext(input) ? [{ role: 'system', content: characterAgentContext(input)! }] : []),
           ...(operation === 'advance-world' && isWorldTurnRequest(input) && input.world.characters.some(character => character.characterProfile) ? [{ role: 'system', content: characterProfileGuidance }] : []),
           ...(operation === 'advance-world' && isWorldTurnRequest(input) && input.world.worldBackground ? [{ role: 'system', content: worldBackgroundGuidance }] : []),
           ...(operation === 'personal-agent' ? [{ role: 'system', content: personalActionInstructions + ' 用户当前填写的资料优先于旧聊天和旧记忆；有冲突时询问，不擅自覆盖。不从虚构角色设定推断真人性格，不把临时情绪当成长期性格。' }] : []),
@@ -208,7 +216,7 @@ async function callCompany(
         thinking: { type: 'disabled' },
         stream: isStreaming,
         temperature: operation === 'advance-world' || operation === 'co-create-world' ? 0.7 : 0.5,
-        max_tokens: operation === 'plan-prologue' ? 10000 : operation === 'adapt-persona' ? 900 : operation === 'generate-world' ? 5600 : operation === 'co-create-world' ? 6000 : 2800,
+        max_tokens: systemOverride ? 5200 : operation === 'plan-prologue' ? 10000 : operation === 'adapt-persona' ? 900 : operation === 'generate-world' ? 5600 : operation === 'co-create-world' ? 6000 : 2800,
       }),
       signal: controller.signal,
       redirect: 'error',
@@ -463,7 +471,12 @@ async function processAIOperation(
     ? (body.operation === 'advance-world' || body.operation === 'co-create-world' ? 70_000 : 75_000)
     : (body.operation === 'advance-world' ? 35_000 : body.operation === 'adapt-persona' || body.operation === 'design-persona' || body.operation === 'design-character' ? 25_000 : body.operation === 'co-create-world' ? 30_000 : undefined);
 
-  let output = await callCompany(provider, body.operation, body.input, timeoutMs, onStreamChunk);
+  const isCharacterChat = body.operation === 'advance-world'
+    && isWorldTurnRequest(body.input)
+    && body.input.interaction?.mode === 'character-chat';
+  // Character output is reviewed in a second model pass. Do not stream the
+  // unreviewed draft to the user; only the final reviewed response is emitted.
+  let output = await callCompany(provider, body.operation, body.input, timeoutMs, isCharacterChat ? undefined : onStreamChunk);
   if (body.operation === 'co-create-world') {
     output = readCreatorResponse(output, body.input as CreatorAgentRequest);
   }
@@ -556,6 +569,20 @@ async function processAIOperation(
       }, remainingMs);
       if (!isWorldTurnResponse(repaired)) throw new Error('invalid_model_output');
       guardedOutput = enforceWorldTurnGuardrails(body.input, repaired);
+    }
+    if (body.input.interaction?.mode === 'character-chat') {
+      const remainingMs = Math.min(35_000, (isStreaming ? 105_000 : 90_000) - (Date.now() - startedAt));
+      if (remainingMs < 3000) throw new Error('model_timeout');
+      const reviewed = await callCompany(
+        provider,
+        'advance-world',
+        characterOutputReviewInput(body.input, guardedOutput as WorldTurnResponse),
+        remainingMs,
+        undefined,
+        characterOutputReviewPrompt(body.input, guardedOutput as WorldTurnResponse),
+      );
+      if (!isWorldTurnResponse(reviewed)) throw new Error('invalid_model_output');
+      guardedOutput = enforceWorldTurnGuardrails(body.input, reviewed);
     }
   }
   return guardedOutput;

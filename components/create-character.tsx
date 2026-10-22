@@ -7,28 +7,21 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { CharacterAgent } from '@/components/character-agent';
-import { CharacterProfileEditor } from '@/components/character-profile-editor';
 import { CreateModeSwitch, type CreateMode } from '@/components/create-mode-switch';
 import { readPersonaUpload } from '@/lib/persona-upload';
 import { generateSceneImage } from '@/lib/remote-image-service';
 import { standalonePortrait, type StandaloneCharacterInput } from '@/lib/standalone-character';
-import { LIN_BAIYU_SAMPLE } from '@/lib/sample-character';
 import type { CharacterDesignDraft } from '@/lib/character-design';
 
 function buildPortraitPrompt(value: StandaloneCharacterInput): string {
   const profile = value.profile;
-  const appearance = value.appearance.trim() || profile.lifeContext.slice(0, 900);
-  const traits = [value.personality, profile.traits].filter(Boolean).join('\n').slice(0, 900);
-  const life = profile.lifeContext.slice(0, 900);
+  const basicInfo = [value.basicInfo, profile.lifeContext, profile.traits].filter(Boolean).join('\n').slice(0, 1400);
   return [
     '虚构角色的角色卡立绘，竖版，单人，半身到七分身，干净简洁的背景，电影感柔光，写实插画质感，东方审美。',
     '画面中不要出现文字、水印、logo、边框、UI、多人或画中画；不要生成真实明星或公众人物。',
     `角色名：${value.name.trim() || '未命名角色'}`,
     value.identity.trim() ? `身份：${value.identity.trim()}` : '',
-    value.worldBackground.trim() ? `世界背景与时代感：${value.worldBackground.trim().slice(0, 500)}` : '',
-    appearance.trim() ? `固定外观：${appearance}` : '',
-    traits.trim() ? `性格与气质：${traits}` : '',
-    life.trim() ? `人生背景与时代感：${life}` : '',
+    basicInfo.trim() ? `人设基本信息：${basicInfo}` : '',
     '要求：年龄、发型、服装、体态与设定保持一致；表情克制自然；构图适合作为角色对话头像和角色卡。',
   ].filter(Boolean).join('\n').slice(0, 4000);
 }
@@ -158,39 +151,31 @@ export function CreateCharacter({ value, onChange, onSave, onPublish, onUnpublis
                 <Input id="character-name" value={value.name} maxLength={24} placeholder="例如：沈砚" onChange={event => update('name', event.target.value)} />
               </div>
               <div className="draft-field">
-                <label htmlFor="character-identity">身份 / 一句话设定</label>
-                <Input id="character-identity" value={value.identity} maxLength={120} placeholder="例如：嘴硬心软的成年游侠，靠替人找东西过活" onChange={event => update('identity', event.target.value)} />
+                <label htmlFor="character-identity">身份设定 <em>固定显示在用户栏</em></label>
+                <Input id="character-identity" value={value.identity} maxLength={120} placeholder="例如：南洋顾氏集团顶梁柱" onChange={event => update('identity', event.target.value)} />
               </div>
               <div className="draft-field">
-                <label htmlFor="character-world-background">角色所在的世界背景 <em>选填</em></label>
-                <Textarea id="character-world-background" value={value.worldBackground} maxLength={3000} rows={4} placeholder="她所在的时代、城市、家庭与社会关系、当前局势、世界规则；留空则只有见面场景" onChange={event => update('worldBackground', event.target.value)} />
-                <small>独立角色聊天时会把它作为角色所处世界的背景，不会替代她的 L1-L5 人格档案。</small>
-              </div>
-              <div className="character-form-pair">
-                <div className="draft-field">
-                  <label htmlFor="character-personality">性格速览</label>
-                  <Textarea id="character-personality" value={value.personality} maxLength={300} rows={3} placeholder="说话方式、在意什么、遇到冲突时的反应；完整设定写在下方 L2" onChange={event => update('personality', event.target.value)} />
-                </div>
-                <div className="draft-field">
-                  <label htmlFor="character-appearance">外观速览</label>
-                  <Textarea id="character-appearance" value={value.appearance} maxLength={300} rows={3} placeholder="年龄、衣着、标志性特征" onChange={event => update('appearance', event.target.value)} />
-                </div>
+                <label htmlFor="character-agent-task">人设任务总述 <em>总 Agent 约束</em></label>
+                <Textarea id="character-agent-task" value={value.agentTask} maxLength={4000} rows={5} placeholder="定义这个角色每轮要完成的核心任务：如何陪伴、理解和回应用户，以及哪些目标必须持续贯彻。" onChange={event => update('agentTask', event.target.value)} />
+                <small>先由人设任务结合基本信息、关键节点和用户实时 memory 生成，再交给输出规则审查。</small>
               </div>
               <div className="draft-field">
-                <label htmlFor="character-scene">你们在哪里见面</label>
-                <Input id="character-scene" value={value.sceneName} maxLength={60} placeholder="例如：雨夜的旧书铺" onChange={event => update('sceneName', event.target.value)} />
+                <label htmlFor="character-basic-info">人设基本信息</label>
+                <Textarea id="character-basic-info" value={value.basicInfo} maxLength={5000} rows={7} placeholder="角色的背景、性格、能力、关系、边界、表达习惯，以及模型必须长期记住的事实。" onChange={event => update('basicInfo', event.target.value)} />
               </div>
               <div className="draft-field">
-                <label htmlFor="character-opening">开场白</label>
-                <Textarea id="character-opening" value={value.opening} maxLength={600} rows={4} placeholder="角色看到你时说的第一句话，也是这段对话的起点" onChange={event => update('opening', event.target.value)} />
-                <small>会作为对话的第一条消息，可在进入对话后继续修改。</small>
+                <label htmlFor="character-key-plot-nodes">关键剧情节点</label>
+                <Textarea id="character-key-plot-nodes" value={value.keyPlotNodes} maxLength={5000} rows={7} placeholder="写可能发生的关键节点、触发条件和关系变化。它们是推进参考，不是已经发生的事实。" onChange={event => update('keyPlotNodes', event.target.value)} />
               </div>
-              <CharacterProfileEditor
-                value={value.profile}
-                idPrefix="character-profile"
-                onChange={profile => onChange({ ...value, profile })}
-                onSample={() => { onNew(); onChange({ ...LIN_BAIYU_SAMPLE, profile: { ...LIN_BAIYU_SAMPLE.profile } }); }}
-              />
+              <div className="draft-field">
+                <label htmlFor="character-opening">开场白 <em>固定发出的第一条信息</em></label>
+                <Textarea id="character-opening" value={value.opening} maxLength={600} rows={4} placeholder="角色进入对话时固定发出的第一条消息，不替用户说话。" onChange={event => update('opening', event.target.value)} />
+              </div>
+              <div className="draft-field">
+                <label htmlFor="character-output-rules">输出规则</label>
+                <Textarea id="character-output-rules" value={value.outputRules} maxLength={4000} rows={6} placeholder="审查最终回复：语气、长度、禁用内容、事实边界、是否必须推进关系或剧情等。" onChange={event => update('outputRules', event.target.value)} />
+                <small>生成内容完成后会交给这里的规则审查，再把最终回复发给用户。</small>
+              </div>
               <div className="character-form-actions">
                 <Button type="submit" disabled={!canSave}><Save />保存角色</Button>
               </div>

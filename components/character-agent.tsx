@@ -12,11 +12,13 @@ type AgentMessage = { role: 'user' | 'assistant'; content: string };
 const GREETING: AgentMessage = { role: 'assistant', content: '我是你的角色 Agent。先说一句你想要的角色，或者直接告诉我他看见你时会说什么；我会把建议放进右侧表单，等你采用。' };
 const LABELS: Record<keyof CharacterDesignDraft, string> = {
   name: '名字',
-  identity: '身份 / 一句话设定',
-  personality: '性格',
-  appearance: '外观',
-  sceneName: '见面地点',
+  identity: '身份设定',
+  worldBackground: '角色所在的世界背景',
+  agentTask: '人设任务总述',
+  basicInfo: '人设基本信息',
+  keyPlotNodes: '关键剧情节点',
   opening: '开场白',
+  outputRules: '输出规则',
 };
 
 function readStored(value: unknown): { messages: AgentMessage[]; proposal: Partial<CharacterDesignDraft> } | null {
@@ -80,8 +82,9 @@ export function CharacterAgent({ value, sourceId, accountScope, onApply }: {
             contractVersion: AI_CONTRACT_VERSION,
             message,
             draft: {
-              name: value.name, identity: value.identity, personality: value.personality,
-              appearance: value.appearance, sceneName: value.sceneName, opening: value.opening,
+              name: value.name, identity: value.identity, worldBackground: value.worldBackground, agentTask: value.agentTask,
+              basicInfo: value.basicInfo, keyPlotNodes: value.keyPlotNodes,
+              opening: value.opening, outputRules: value.outputRules,
             },
             conversation,
           },
@@ -130,7 +133,7 @@ export function CharacterAgent({ value, sourceId, accountScope, onApply }: {
     <div className="creation-compose-area">
       <form className="creator-composer" onSubmit={event => { event.preventDefault(); void send(); }}>
         <label className="sr-only" htmlFor="character-agent-message">和角色 Agent 讨论</label>
-        <MessageTextarea id="character-agent-message" rows={1} maxLength={2000} value={input} onChange={event => setInput(event.target.value)} placeholder="告诉我你想要的角色，或他看见你时会说什么…" disabled={busy} />
+        <MessageTextarea id="character-agent-message" rows={1} maxLength={2000} value={input} onChange={event => setInput(event.target.value)} placeholder="描述角色、故事世界、关键剧情，或希望角色如何回应…" disabled={busy} />
         <Button className="agent-send" type="submit" aria-label="发送给角色 Agent" disabled={!input.trim() || busy}>{busy ? <LoaderCircle className="is-spinning" /> : <Send />}</Button>
       </form>
       <small className="conversation-input-hint">Enter 发送 · Shift + Enter 换行</small>

@@ -86,13 +86,13 @@ test('requested background, abilities, account and unrelated memories are not se
   assert.equal(validPersonaAdmission(adapted.world,'su'),false);
 });
 
-test('fixed creator abilities are explicit; normal world guardrails still reject instant solutions',()=>{
+test('fixed creator abilities are explicit; replies reach the world agent for outcome adjudication',()=>{
   const base=structuredClone(source);base.world.entryPolicy.abilityMode='fixed';base.world.entryPolicy.abilities=['善于谈判，但不能替别人作出同意'];
   const adapted=admitPersona(base,'su',persona);
   assert.deepEqual(adapted.world.entryAdmission.grantedAbilities,base.world.entryPolicy.abilities);
   const state=createInitialWorldState('draft','su','','客厅');
-  assert.equal(validateAction('直接读取他的秘密',state,[]).allowed,false);
-  assert.equal(validateAction('宣布已经完成全部任务',state,[]).allowed,false);
+  assert.equal(validateAction('直接读取他的秘密',state,[]).allowed,true);
+  assert.equal(validateAction('宣布已经完成全部任务',state,[]).allowed,true);
 });
 
 test('personal portraits never reuse the replaced character artwork and changed appearances split scene cache',()=>{

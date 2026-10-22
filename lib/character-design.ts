@@ -1,10 +1,12 @@
 export type CharacterDesignDraft = {
   name: string;
   identity: string;
-  personality: string;
-  appearance: string;
-  sceneName: string;
+  worldBackground: string;
+  agentTask: string;
+  basicInfo: string;
+  keyPlotNodes: string;
   opening: string;
+  outputRules: string;
 };
 
 export type CharacterDesignReply = {
@@ -22,10 +24,12 @@ export type CharacterDesignInput = {
 const LIMITS: Record<keyof CharacterDesignDraft, number> = {
   name: 24,
   identity: 120,
-  personality: 300,
-  appearance: 300,
-  sceneName: 60,
+  worldBackground: 3000,
+  agentTask: 4000,
+  basicInfo: 5000,
+  keyPlotNodes: 5000,
   opening: 600,
+  outputRules: 4000,
 };
 
 const FIELDS = Object.keys(LIMITS) as (keyof CharacterDesignDraft)[];
@@ -59,8 +63,7 @@ export function readCharacterDesignReply(value: unknown): CharacterDesignReply |
 
 export const characterDesignInstructions = `你是角色创作 Agent，和作者一起设计一个可以被其他用户对话的虚构角色。你不是世界剧情生成器，也不是扮演这个角色的演员。
 只使用 message、draft 和本次角色讨论 conversation；不读取个人记忆、真实聊天或其他资料。保留作者没有要求改变的已有字段，可以提出明确标为建议的虚构补充。先回应用户这次的要求，最多追问一个关键问题；不要机械列清单。
-角色需要能被陌生人第一次见面就进入对话：名字、身份、性格、外观、见面地点和开场白。开场白是角色看见来访者时说的第一句话，不替来访者说话，不预设关系、成功或用户身份。
+表单字段固定为：name、identity、worldBackground、agentTask、basicInfo、keyPlotNodes、opening、outputRules。worldBackground描述故事发生的世界，不替代人设。身份设定用于角色栏展示；agentTask是统领角色扮演的总约束；basicInfo与keyPlotNodes在结合本次和历史用户回复后驱动内容生成；outputRules是生成后的审查标准。opening是角色发出的固定第一条消息，不得替用户发言或预设用户身份、关系与成功结果。不要再建议拆分的性格、外观、见面地点或L1-L5字段；这些资料如有需要归入basicInfo。
 输出 JSON：
-{"reply":"自然、具体的中文回复和至多一个关键追问","proposal":{"name":"","identity":"","personality":"","appearance":"","sceneName":"","opening":""}}
-proposal 只返回本轮明确建议新增或修改的字段，没有建议的字段不要返回，不要用空字符串占位。name 最多24字，identity 最多120字，personality 最多300字，appearance 最多300字，sceneName 最多60字，opening 最多600字。
-不要生成图片链接，不要声称已保存、已发布或已邀请用户进入，不要写世界任务、胜负或多角色关系网。`;
+{"reply":"自然、具体的中文回复和至多一个关键追问","proposal":{"name":"","identity":"","worldBackground":"","agentTask":"","basicInfo":"","keyPlotNodes":"","opening":"","outputRules":""}}
+proposal 只返回本轮明确建议新增或修改的字段，没有建议的字段不要返回，不要用空字符串占位。各字段必须遵守输入草稿对应长度上限。不要生成图片链接，不要声称已保存、已发布或已邀请用户进入。`;

@@ -50,9 +50,9 @@ export function enforceWorldTurnGuardrails(input: WorldTurnRequest, output: Worl
     return { ...output, actionDecision: { allowed: true } };
   }
   if (!output.actionDecision.allowed) {
-    // Even a model's rejection reason can accidentally disclose hidden facts.
-    return makeRejectedWorldTurn(input, { allowed: false,
-      reason: '当前条件不足以执行这个行动。', suggestion: '尝试观察现场、询问在场人物或先取得所需条件。' });
+    // A reply is always valid input. The model can narrate limits or consequences,
+    // but must not turn a user's message into a rejected turn.
+    output = { ...output, actionDecision: { allowed: true } };
   }
   const role = input.world.characters.find((character) => character.id === input.selectedRoleId);
   if (role && ['听到你的话', '听了你的话', '听到你这么说', '听你这么说'].some((phrase) => output.narrative.includes(`${role.name}${phrase}`))) {

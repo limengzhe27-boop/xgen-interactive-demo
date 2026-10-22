@@ -146,38 +146,12 @@ export function createInitialWorldState(
 }
 
 export function validateAction(action: string, state: WorldState, listedChoices: string[], world?: Pick<WorldDefinition, 'rules'>): ActionValidation {
-  const normalized = action.trim();
-  if (normalized.length < 2) return { allowed: false, reason: '行动太模糊，世界无法判定你想做什么。', suggestion: '说明你想观察、询问或操作什么。' };
-
-  const impossiblePattern = /(瞬移|穿墙|凭空变出|时间倒流|召唤飞船|飞到楼顶)/;
-  // A fictional premise delegates capability/range/cost adjudication to the world Agent.
-  // It is not automatic action success, and does not bypass secrets or task guards.
-  const fictionalPhysics = Array.isArray(world?.rules) && world.rules.some(r => r?.id === 'fantasy-physics' && r.kind === 'physical' && r.immutable === true);
-  if (impossiblePattern.test(normalized) && !fictionalPhysics) {
-    return { allowed: false, reason: '这个行动违反了当前世界的物理规则。', suggestion: '可以尝试寻找通道、工具或请求其他角色帮助。' };
-  }
-
-  const secretPattern = /(读取|查看|直接知道).{0,6}(内心|记忆|秘密)/;
-  if (secretPattern.test(normalized)) {
-    return { allowed: false, reason: '你不能无依据获得其他角色的私密信息。', suggestion: '可以询问对方、查找证据，或先提高对方对你的信任。' };
-  }
-
-  const shortcutPattern = /(直接进入|现在直接|立刻进入).{0,8}(结局|终局)|宣布.{0,18}(已经|全部).{0,12}(解决|完成|达成)|不需要.{0,10}(证据|条件|前置)|没有任何证据就宣布/;
-  if (shortcutPattern.test(normalized)) {
-    return { allowed: false, reason: '你描述的是尚未发生的结果，不能用宣告跳过任务条件。', suggestion: '说明你准备采取的具体行动，世界会根据证据、关系和前置条件判断结果。' };
-  }
-  if (listedChoices.includes(normalized)) return { allowed: true };
-
-  const requiredItems = [
-    { pattern: /(用|拿出).{0,4}铜钥匙/, item: '铜钥匙' },
-    { pattern: /(播放|查看).{0,5}弟弟.{0,3}录音/, item: '弟弟留下的录音' },
-    { pattern: /(出示|打开|检查).{0,5}真遗嘱/, item: '真遗嘱原件' },
-  ];
-  const missing = requiredItems.find(({ pattern, item }) => pattern.test(normalized) && !state.inventory.includes(item));
-  if (missing) {
-    return { allowed: false, reason: `你当前没有“${missing.item}”，不能直接执行这个行动。`, suggestion: '先在场景中寻找它，或向持有它的角色索要。' };
-  }
-
+  // This validates whether a turn may be sent, not whether the requested outcome succeeds.
+  // The world Agent handles consequences while every non-empty user reply remains playable.
+  void action;
+  void state;
+  void listedChoices;
+  void world;
   return { allowed: true };
 }
 
