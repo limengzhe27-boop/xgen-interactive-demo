@@ -1,3 +1,4 @@
+import { randomId } from './random-id.ts';
 import { storyDirections } from './story-directions.ts';
 import type { CreatorBrief, CreatorChatMessage, StoryOutlineBeat } from './ai-contracts';
 import type { StudioWorld } from './studio-worlds';
@@ -6,7 +7,7 @@ import { mapCreatorStoryRoleIds, bindCreatorActors } from './creator-story-graph
 
 // A historical revision becomes an independent draft, never an implicit rollback
 // or a replacement for the author's current work. Do not retain sourceId.
-export function historicalPublicationDraft(entry: StudioWorld, edition: number, id = crypto.randomUUID()) {
+export function historicalPublicationDraft(entry: StudioWorld, edition: number, id = randomId()) {
   const copy = structuredClone(entry);
   const draft = publicationDraft({ ...copy, sourceId: undefined, id, edition: undefined, world: { ...copy.world, id } });
   return { ...draft, data: { ...draft.data, publishedWorld: false, releasedEntry: undefined, releaseHistory: [],

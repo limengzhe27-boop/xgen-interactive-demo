@@ -1,4 +1,5 @@
 'use client';
+import { randomId } from '@/lib/random-id';
 
 import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
@@ -69,7 +70,7 @@ function NodeDetails({ graph, nodeId, roleId, roleName, roles, suggested, busy, 
   };
 
   const handleAddNextNode = () => {
-    const id = `node-${crypto.randomUUID().slice(0, 8)}`;
+    const id = `node-${randomId().slice(0, 8)}`;
     const next = { ...edited, nodes: [...edited.nodes.map(n => n.id === nodeId ? { ...n, nextNodeIds: [...n.nextNodeIds, id] } : n), { id, title: '新的可能走向', location: '', scene: '', worldFacts: [], nextNodeIds: [] }] };
     const issue = creatorStoryIssues(next)[0];
     if (issue) { setNotice(issue); return; }

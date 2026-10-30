@@ -1,3 +1,4 @@
+import { randomId } from './random-id.ts';
 import type { CreatorStoryGraph } from './creator-story-graph';
 import type {
   CreatorBrief,
@@ -230,12 +231,12 @@ export function createFullWorldDraftFromIdea(seed: string, options?: { genre?: s
   const cleanSeed = seed.trim();
   const matched = archetypes.find((a) => a.match.test(cleanSeed)) || archetypes[archetypes.length - 1];
 
-  const worldId = `draft-${crypto.randomUUID().slice(0, 8)}`;
+  const worldId = `draft-${randomId().slice(0, 8)}`;
   const title = options?.title?.trim() || (cleanSeed.length <= 16 && cleanSeed.length >= 2 ? cleanSeed : matched.defaultTitle);
   const premise = cleanSeed.length >= 200 ? cleanSeed : `${cleanSeed ? `${cleanSeed}。\n\n` : ''}${matched.premise}`;
 
   const draftRoles: GeneratedDraftRole[] = matched.roles.map((r, index) => ({
-    editorId: `role-${crypto.randomUUID().slice(0, 8)}`,
+    editorId: `role-${randomId().slice(0, 8)}`,
     name: r.name,
     identity: r.identity,
     personality: r.personality,

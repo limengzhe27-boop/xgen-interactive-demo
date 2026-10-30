@@ -1,3 +1,4 @@
+import { randomId } from './random-id.ts';
 export type TimingRow={id:string;batch?:string;group:string;label:string;stage:string;started:number;ended?:number;ms?:number;status:string};
 export type ServerVideoTiming={submittedAt?:number;observedCompleteAt?:number;downloadMs?:number;storeMs?:number};
 export function readVideoTiming(value:unknown):ServerVideoTiming{
@@ -11,7 +12,7 @@ export class VideoTimingLog{
   rows:TimingRow[]=[];private storageKey='';private listeners=new Set<()=>void>();
   activeBatch='历史记录';
   get batches(){return [...new Set([this.activeBatch,...this.rows.map(r=>r.batch||'历史记录')])];}
-  startBatch(){this.activeBatch=`测试 ${new Date().toLocaleString()} · ${crypto.randomUUID().slice(0,8)}`;this.changed();return this.activeBatch;}
+  startBatch(){this.activeBatch=`测试 ${new Date().toLocaleString()} · ${randomId().slice(0,8)}`;this.changed();return this.activeBatch;}
   private batchFor(group:string){return this.rows.find(r=>r.group===group)?.batch|| (this.rows.some(r=>r.group===group)?'历史记录':this.activeBatch);}
   subscribe(fn:()=>void){this.listeners.add(fn);return()=>{this.listeners.delete(fn);};}
   scope(scope:string){
@@ -25,14 +26,14 @@ export class VideoTimingLog{
   }
   private changed(){try{if(this.storageKey){localStorage.setItem(this.storageKey,JSON.stringify(this.rows));localStorage.setItem(this.storageKey+':batch',this.activeBatch);}}catch{}for(const fn of this.listeners)fn();}
   begin(group:string,label:string,stage:string){
-    const row:TimingRow={id:crypto.randomUUID(),batch:this.batchFor(group),group,label,stage,started:Date.now(),status:'进行中'};
+    const row:TimingRow={id:randomId(),batch:this.batchFor(group),group,label,stage,started:Date.now(),status:'进行中'};
     const clock=performance.now();this.rows=[...this.rows,row].slice(-300);this.changed();let done=false;
     return(status='完成')=>{if(done)return;done=true;if(!this.rows.includes(row))return;row.ended=Date.now();row.ms=Math.max(0,performance.now()-clock);row.status=status;this.changed();};
   }
   metric(group:string,label:string,stage:string,ms:number){
     if(!Number.isFinite(ms)||ms<0)return;
     if(this.rows.some(r=>r.group===group&&r.stage===stage))return;
-    const now=Date.now();this.rows=[...this.rows,{id:crypto.randomUUID(),batch:this.batchFor(group),group,label,stage,started:now-ms,ended:now,ms,status:'完成'}].slice(-300);this.changed();
+    const now=Date.now();this.rows=[...this.rows,{id:randomId(),batch:this.batchFor(group),group,label,stage,started:now-ms,ended:now,ms,status:'完成'}].slice(-300);this.changed();
   }
   server(group:string,label:string,value:unknown){
     const t=readVideoTiming(value);

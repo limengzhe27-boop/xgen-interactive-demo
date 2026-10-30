@@ -1,3 +1,4 @@
+import { randomId } from './random-id.ts';
 // Compare-and-swap applies and undoes only the chosen section. A later manual
 // edit wins over an old model response or an old undo record.
 import type { CreatorTaskDraft } from '@/lib/ai-contracts';
@@ -16,7 +17,7 @@ export type CreatorChange = {
 export function ensureCreatorRoleIds(roles: CreatorRoleDraft[]): CreatorRoleDraft[] {
   const used = new Set<string>();
   return roles.map((role) => {
-    const editorId = role.editorId && !used.has(role.editorId) ? role.editorId : crypto.randomUUID();
+    const editorId = role.editorId && !used.has(role.editorId) ? role.editorId : randomId();
     used.add(editorId); return { ...role, editorId };
   });
 }

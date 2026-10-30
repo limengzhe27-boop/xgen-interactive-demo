@@ -1,4 +1,5 @@
 'use client';
+import { randomId } from '@/lib/random-id';
 import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import { Cloud, Download, Upload, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -48,7 +49,7 @@ function WorkspaceDialog({ accountScope, onClose }: { accountScope: string; onCl
     if (!cloud || !consent || busy) return;
     setBusy(true); setError(''); setNotice('');
     try {
-      if (!pending.current) pending.current = { snapshot: readLocalWorkspace(localStorage, accountScope, await exportCloudImageReferences(accountScope)), revision: cloud.revision, requestId: crypto.randomUUID() };
+      if (!pending.current) pending.current = { snapshot: readLocalWorkspace(localStorage, accountScope, await exportCloudImageReferences(accountScope)), revision: cloud.revision, requestId: randomId() };
       const sent = pending.current;
       const data = await call('PUT', { ...sent, consent: 'save-private-workspace-v1' });
       if (live.current) { setCloud({ ...data, snapshot: sent.snapshot }); pending.current = null; setConsent(false); setNotice('已保存到你的私人云存档。其他用户无法通过应用读取，作品没有公开发布。'); }
@@ -78,7 +79,7 @@ function WorkspaceDialog({ accountScope, onClose }: { accountScope: string; onCl
   async function remove() {
     if (!cloud || !restoreConsent || busy) return;
     setBusy(true); setError('');
-    try { const data = await call('DELETE', { consent: 'delete-private-workspace-v1', revision: cloud.revision, requestId: crypto.randomUUID() }); if (live.current) { setCloud({ ...data, snapshot: null }); setRestoreConsent(false); setNotice('云端快照已删除。本机资料和图片文件保留；托管方备份按其保留政策处理。'); } }
+    try { const data = await call('DELETE', { consent: 'delete-private-workspace-v1', revision: cloud.revision, requestId: randomId() }); if (live.current) { setCloud({ ...data, snapshot: null }); setRestoreConsent(false); setNotice('云端快照已删除。本机资料和图片文件保留；托管方备份按其保留政策处理。'); } }
     catch (e) { if (live.current) setError(e instanceof Error ? e.message : '删除未完成'); }
     finally { if (live.current) setBusy(false); }
   }

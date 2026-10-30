@@ -1,4 +1,5 @@
 'use client';
+import { randomId } from '@/lib/random-id';
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -345,7 +346,7 @@ export function VideoExplorer({entry:latestEntry,onBack,onText,initialRoleId,sta
           const fresh: Session = {
             ...current.current,
             ...initial,
-            id: crypto.randomUUID(),
+            id: randomId(),
             roleId: roleToUse,
             clip: openingClip || current.current.clip,
             rounds: 0,

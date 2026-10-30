@@ -1,3 +1,4 @@
+import { randomId } from './random-id.ts';
 import type { WorldDefinition } from './ai-contracts';
 import type { StudioWorld } from './studio-worlds';
 import { localPortrait } from './persona-upload';
@@ -142,7 +143,7 @@ export function readStandaloneCharacters(value: unknown): StandaloneCharacter[] 
   return characters;
 }
 
-export function makeStandaloneCharacter(input: StandaloneCharacterInput, id = crypto.randomUUID()): StandaloneCharacter {
+export function makeStandaloneCharacter(input: StandaloneCharacterInput, id = randomId()): StandaloneCharacter {
   const name = text(input.name, LIMITS.name) || '未命名角色';
   return {
     id,

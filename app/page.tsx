@@ -1,4 +1,5 @@
 'use client';
+import { randomId } from '@/lib/random-id';
 /* oxlint-disable next/no-img-element -- local prototype assets avoid vinext/next-image runtime duplication */
 
 import { SyntheticEvent, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
@@ -1485,8 +1486,8 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       const raw = window.localStorage.getItem('xgen-character-draft-v1');
       const saved = raw ? readCharacterDraft(JSON.parse(raw)) : null;
       if (saved) { setCharacterSourceId(saved.sourceId); setCharacterDraft(saved.draft); }
-      else setCharacterSourceId(crypto.randomUUID());
-    } catch { setCharacterSourceId(crypto.randomUUID()); }
+      else setCharacterSourceId(randomId());
+    } catch { setCharacterSourceId(randomId()); }
     setCharacterDraftLoaded(true);
   }, [storageReady]);
 
@@ -2048,7 +2049,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
           setVideoFreshRun(null);
           setVideoResumeId(options.resumeSessionId);
         } else {
-          setVideoFreshRun(crypto.randomUUID());
+          setVideoFreshRun(randomId());
           setVideoResumeId(undefined);
         }
         navigate('prologue');
@@ -2338,7 +2339,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     if (adapted) { setActiveLibrary(adapted); setSelectedRole(startingRole); }
     stopActiveGeneration();
     lastImageAttemptTurnRef.current = 0;
-    setRunId(crypto.randomUUID());
+    setRunId(randomId());
     const openingBeat = startingStory[0];
     setTurn(0);
     setRuntimeBeat(openingBeat);
@@ -3240,7 +3241,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
   function publishCharacter() {
     if (!storageReady || storageReadFailed.current || accountScope === 'pending') { setStorageError('本机存档尚未就绪，请稍后再试。'); return; }
     if (!characterDraft.portrait) { setStorageError('发布前请先上传或生成角色形象。'); return; }
-    const sourceId = characterSourceId || crypto.randomUUID();
+    const sourceId = characterSourceId || randomId();
     if (!characterSourceId) setCharacterSourceId(sourceId);
     let character: StandaloneCharacter;
     try { character = makeStandaloneCharacter(characterDraft, sourceId); }
@@ -3252,7 +3253,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
 
   function previewCharacter() {
     let character: StandaloneCharacter;
-    try { character = makeStandaloneCharacter(characterDraft, `preview-${crypto.randomUUID()}`); }
+    try { character = makeStandaloneCharacter(characterDraft, `preview-${randomId()}`); }
     catch { setStorageError('角色草稿暂时无法预演。'); return; }
     setChatPreview(true);
     setChatFromCreation(false);
@@ -3271,7 +3272,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
   }
 
   function resetCharacterDraft() {
-    setCharacterSourceId(crypto.randomUUID());
+    setCharacterSourceId(randomId());
     setCharacterDraft({ ...EMPTY_STANDALONE_CHARACTER });
     setCharacterPublished(false); setCharacterCommunityId(null); setCharacterUpdatedAt(null);
     try { window.localStorage.removeItem('xgen-character-draft-v1'); } catch { /* A blocked store must not stop a new draft. */ }
@@ -3377,7 +3378,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     if (preserveCurrent && hasCreation && !deletedDraftIds.current.has(draftId)) setCreatorDocuments((current) => upsertById(current, { id: draftId, savedAt: Date.now(), data }));
     setCompanionContext(restoreCompanionContext(context));
     setActiveLibrary(null); setActiveWorld('storm'); setSelectedRole(roles[0]); setRuntimeBeat(null);
-    setDraftId(crypto.randomUUID());
+    setDraftId(randomId());
     setCreatorAssets(undefined);
     setReleasedEntry(undefined); setReleaseHistory([]); setContinuation(undefined);
     setEntryPolicy(restoreEntryPolicy(undefined));
@@ -3399,7 +3400,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       setStorageError('本机存档尚未就绪，请稍后再试。');
       return;
     }
-    const id = characterSourceId || crypto.randomUUID();
+    const id = characterSourceId || randomId();
     if (!characterSourceId) setCharacterSourceId(id);
     let character: StandaloneCharacter;
     try { character = makeStandaloneCharacter(input, id); }
@@ -3456,7 +3457,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
   function restoreStoryEdition(edition:StoryEdition) {
     if(creatorAgentThinking || worldGenerating)return;
     try {
-    const id=crypto.randomUUID();
+    const id=randomId();
     const entry={...structuredClone(edition.entry),id,edition:undefined,world:{...structuredClone(edition.entry.world),id}};
     const restored=publicationDraft(entry);
     const doc:CreatorDocument={...restored,data:{...restored.data,publishedWorld:false,releasedEntry:undefined,releaseHistory:[],creatorMessages:[{role:'agent',content:`已将保存版 ${edition.number} 另存为新草稿，原作品与现有存档没有改变。`}]}};

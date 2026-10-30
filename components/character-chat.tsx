@@ -1,4 +1,5 @@
 'use client';
+import { randomId } from '@/lib/random-id';
 /* oxlint-disable next/no-img-element -- generated portrait and scene assets */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, LoaderCircle, RefreshCw, Send } from 'lucide-react';
@@ -50,7 +51,7 @@ export function CharacterEntry({ entry, targetId, onStart }: { identityControl?:
       roleKnowledge: [], characterIds: meeting.world.characters.map(role => role.id),
       openingLocationId: location.id, characterLocations: Object.fromEntries(meeting.world.characters.map(role => [role.id, role.startLocationId])),
     });
-    onStart({ id: crypto.randomUUID(), entry: meeting, playerRoleId: playerId, targetCharacterId: targetId,
+    onStart({ id: randomId(), entry: meeting, playerRoleId: playerId, targetCharacterId: targetId,
       state, narrative: meeting.world.openingScene.narrative, greeting, turns: [], savedAt: Date.now() });
   }, [entry, targetId, onStart]);
   return <output>正在打开对话…</output>;

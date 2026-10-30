@@ -1,3 +1,4 @@
+import { randomId } from './random-id.ts';
 import type { StudioWorld } from './studio-worlds';
 import { publicationWorld } from './publication.ts';
 
@@ -30,7 +31,7 @@ export function readStoryEditions(value: unknown, worldId: string): StoryEdition
 export function recordStoryEdition(history: StoryEdition[], entry: StudioWorld, previous?: StudioWorld, now=Date.now()): { history: StoryEdition[]; entry: StudioWorld } {
   const next=readStoryEditions(history,entry.id);
   const add=(source:StudioWorld,savedAt?:number)=>{
-    const edition={id:crypto.randomUUID(),number:next.length+1,savedAt};
+    const edition={id:randomId(),number:next.length+1,savedAt};
     next.push({...edition,entry:{...snapshot(source),edition}});
   };
   // Preserve the known pre-feature edition without inventing its original save date.
