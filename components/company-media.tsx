@@ -1,4 +1,5 @@
 'use client';
+import { sha256Digest } from '@/lib/sha256';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Film, Volume2, LoaderCircle, Pause } from 'lucide-react';
 import { SPEECH_MAX_CHARS, SPEECH_VOICES, type MediaKind } from '@/lib/media-policy';
@@ -27,7 +28,7 @@ function MediaRequest({kind,text,accountScope,voice}:MediaProps & {voice:string}
   useEffect(() => {
     const version = ++generation.current;
     const pending=requests.current;
-    void crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify([kind,text,voice]))).then(hash => {
+    void sha256Digest(new TextEncoder().encode(JSON.stringify([kind,text,voice]))).then(hash => {
       if (version !== generation.current) return;
       const cacheKey = `xgen-media-v1:${accountScope}:${Array.from(new Uint8Array(hash),n=>n.toString(16).padStart(2,'0')).join('')}`;
       setKey(cacheKey);

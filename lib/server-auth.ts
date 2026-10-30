@@ -7,6 +7,11 @@ export function appOrigin(request: Request) {
   if (production) return production;
   if (process.env.VERCEL_URL && host === process.env.VERCEL_URL) return `https://${host}`;
   if (!process.env.VERCEL && /^(localhost|127\.0\.0\.1|\[::1\]):(3000|3001|3002|3102)$/.test(host)) return `http://${host}`;
+  // Explicit opt-in for local demonstrations; never enable extra origins on Vercel.
+  if (!process.env.VERCEL && process.env.XGEN_LOCAL_ORIGIN) {
+    const local = new URL(process.env.XGEN_LOCAL_ORIGIN);
+    if (local.protocol === 'http:' && local.host === host) return local.origin;
+  }
   throw new Error('invalid_app_origin');
 }
 export function sameOrigin(request: Request) {

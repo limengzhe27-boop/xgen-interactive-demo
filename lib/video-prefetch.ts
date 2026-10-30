@@ -1,7 +1,8 @@
+import { sha256Digest } from './sha256.ts';
 // One stable billing key per session, scene and action; never an array index.
 export async function videoBranchTurnKey(sessionId:string, sceneKey:string, action:string) {
   const bytes=new TextEncoder().encode(JSON.stringify(['video-branch-v1',sessionId,sceneKey,action]));
-  const hash=await crypto.subtle.digest('SHA-256',bytes);
+  const hash=await sha256Digest(bytes);
   return `branch:${Array.from(new Uint8Array(hash),b=>b.toString(16).padStart(2,'0')).join('')}`;
 }
 

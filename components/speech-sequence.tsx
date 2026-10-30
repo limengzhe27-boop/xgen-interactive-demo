@@ -1,4 +1,5 @@
 'use client';
+import { sha256Digest } from '@/lib/sha256';
 import {useEffect,useRef,useState} from 'react';
 import {Volume2,Pause,LoaderCircle} from 'lucide-react';
 import {SPEECH_VOICES} from '@/lib/media-policy';
@@ -29,7 +30,7 @@ function Sequence({segments,accountScope}:{segments:SpeechSegment[];accountScope
         const segment=segments[part];
         const hash=Array.from(segment.speaker).reduce((n,c)=>(n*31+c.charCodeAt(0))>>>0,0);
         const voice=SPEECH_VOICES[hash%SPEECH_VOICES.length].id;
-        const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify(['speech',segment.text,voice])));
+        const digest=await sha256Digest(new TextEncoder().encode(JSON.stringify(['speech',segment.text,voice])));
         const key=`xgen-media-v1:${accountScope}:${Array.from(new Uint8Array(digest),n=>n.toString(16).padStart(2,'0')).join('')}`;
         let id='';try{const saved=JSON.parse(localStorage.getItem(key)||'null');if(/^[a-f0-9]{64}$/.test(saved?.id))id=saved.id;}catch{/* optional index */}
         if(version!==epoch.current)return;
