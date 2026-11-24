@@ -46,7 +46,8 @@ function Artwork({ src, alt, recent = false }: { src: string; alt: string; recen
 export type PublishedCharacterCard = { id: string; sourceId?: string; name: string; identity: string; image: string; updatedAt: string };
 export type LocalCharacterCard = { id: string; name: string; identity: string; image: string };
 
-export function StudioHome({ section, worlds, characters, recent, localCharacters, publishedCharacters, onCreate, onOpenWorld, onChat, onPersonal, onLibrary, onOpenRecord, onEditLocal, onDeleteLocal, onEditPublished, onUnpublishPublished, initialBrowse, returnPosition, onBrowseChange }: {
+export function StudioHome({ onRetryCatalog, section, worlds, characters, recent, localCharacters, publishedCharacters, onCreate, onOpenWorld, onChat, onPersonal, onLibrary, onOpenRecord, onEditLocal, onDeleteLocal, onEditPublished, onUnpublishPublished, initialBrowse, returnPosition, onBrowseChange }: {
+  onRetryCatalog?: () => void;
   initialBrowse?: GalleryBrowseState; returnPosition?: GalleryPosition; onBrowseChange?: (state: GalleryBrowseState) => void;
   section: StudioSection; worlds: WorldCard[]; characters: CharacterCard[]; recent: RecentCard[];
   localCharacters: LocalCharacterCard[];
@@ -216,6 +217,7 @@ export function StudioHome({ section, worlds, characters, recent, localCharacter
     </section>}
 
     {section !== 'library' && <section className="gallery-discover" aria-labelledby="discover-title">
+      {onRetryCatalog && <div role="status">线上作品列表暂时无法更新。你可以继续浏览已有作品。 <button className="flow-control" type="button" onClick={onRetryCatalog}>重新加载</button></div>}
       <GalleryReveal className="gallery-discover-heading"><div><h2 id="discover-title">{section === 'characters' ? '角色' : '发现故事'}</h2><span>{section === 'characters' ? '选择角色开始聊天。' : '选择世界进入故事，或选择角色开始聊天。'}</span></div><button className="studio-agent-entry" onClick={onPersonal} type="button"><Sparkles />帮我推荐<ArrowRight /></button></GalleryReveal>
       <div className="gallery-toolbar"><div className="gallery-kind" aria-label="内容类型">{([{ id: 'all', label: '全部' }, { id: 'world', label: '世界' }, { id: 'character', label: '角色' }] as const).map(tab => <button key={tab.id} type="button" aria-pressed={kind === tab.id} onClick={() => setKind(tab.id)}>{tab.label}</button>)}</div><div className="gallery-search"><Search /><input aria-label="搜索世界或角色" placeholder="搜索世界或角色" value={query} onChange={event => setQuery(event.target.value)} />{query && <button type="button" onClick={() => setQuery('')} aria-label="清除搜索"><X /></button>}</div></div>
       <div className="gallery-filters" aria-label="筛选题材">{genres.map(item => <button key={item} type="button" aria-pressed={genre === item} onClick={() => setGenre(item)}>{item}</button>)}</div>

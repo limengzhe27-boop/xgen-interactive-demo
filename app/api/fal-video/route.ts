@@ -1,4 +1,3 @@
-import sharp from 'sharp/lib/index.js';
 import {after} from 'next/server.js';
 import {readVideoTiming} from '@/lib/video-timing';
 import { requestAccount, sameOrigin } from '@/lib/server-auth';
@@ -40,7 +39,8 @@ export async function POST(request:Request){
     if(!input)return account.finish(Response.json({error:'invalid_request'},{status:400,headers}));
     let frame:string|undefined;
     if(input.frame){
-      try{const normalized=await sharp(Buffer.from(input.frame.split(',')[1],'base64'),{limitInputPixels:8_000_000}).resize({width:1280,height:1280,fit:'inside',withoutEnlargement:true}).jpeg({quality:85}).toBuffer();frame=`data:image/jpeg;base64,${normalized.toString('base64')}`;}
+      try{const { default: sharp } = await import('sharp/lib/index.js');
+        const normalized=await sharp(Buffer.from(input.frame.split(',')[1],'base64'),{limitInputPixels:8_000_000}).resize({width:1280,height:1280,fit:'inside',withoutEnlargement:true}).jpeg({quality:85}).toBuffer();frame=`data:image/jpeg;base64,${normalized.toString('base64')}`;}
       catch{return account.finish(Response.json({error:'invalid_frame'},{status:400,headers}));}
     }
     // Stable per owner/turn: edited text cannot repurchase an uncertain submission.

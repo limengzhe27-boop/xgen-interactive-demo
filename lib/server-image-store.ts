@@ -1,6 +1,5 @@
 import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 // Explicit entry avoids the legacy Sites/Vinext ambient `sharp: unknown` stub.
-import sharp from 'sharp/lib/index.js';
 
 export const IMAGE_COOKIE = 'xgen-image-owner';
 export function storageConfigured() {
@@ -55,6 +54,7 @@ export async function completeImage(id: string, bytes: number) {
 }
 export async function compressImage(buffer: Buffer) {
   if (!buffer.length || buffer.length > 8_000_000) throw new Error('image_too_large');
+  const { default: sharp } = await import('sharp/lib/index.js');
   const result = await sharp(buffer, { limitInputPixels: 16_000_000, animated: false })
     .rotate().resize({ width: 1280, height: 1280, fit: 'inside', withoutEnlargement: true }).webp({ quality: 80 }).toBuffer();
   if (result.length > 2_000_000) throw new Error('image_too_large');

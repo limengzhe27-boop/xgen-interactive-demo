@@ -48,7 +48,7 @@ export async function GET(request: Request) {
     } catch { return reply({ error: 'publications_unavailable' }, 503); }
   }
   try {
-    const response = await storageFetch('/rest/v1/demo_world_publications?published=eq.true&select=document&order=updated_at.desc&limit=200');
+    const response = await storageFetch('/rest/v1/demo_world_publications?published=eq.true&select=document&order=updated_at.desc&limit=200', { signal: AbortSignal.timeout(8000) });
     const rows = await response.json() as { document: Record<string, unknown> }[];
     return Response.json({ worlds: rows.map(row => {
       const { sourceId: _privateDraftId, ...document } = row.document;

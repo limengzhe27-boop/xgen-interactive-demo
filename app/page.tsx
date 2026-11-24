@@ -1111,6 +1111,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
   const [continuation, setContinuation] = useState<ContinuationDraft | undefined>();
   const [communityWorlds, setCommunityWorlds] = useState<StudioWorld[]>([]);
   const [communityLoaded,setCommunityLoaded]=useState(false);
+  const [catalogUnavailable, setCatalogUnavailable] = useState(false);
   const [catalogRevision, setCatalogRevision] = useState(0);
   const [publicationEntry, setPublicationEntry] = useState<StudioWorld | null>(null);
   const [publicationCharacterOnly, setPublicationCharacterOnly] = useState(false);
@@ -1275,7 +1276,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
   useEffect(() => {
     if (!storageReady || entryLinkOpened.current) return;
     const requestedId=new URLSearchParams(window.location.search).get('world');
-    if(requestedId?.startsWith('community-')&&!communityLoaded)return;
+    if(requestedId?.startsWith('community-')&&(!communityLoaded || catalogUnavailable))return;
     entryLinkOpened.current = true;
     if (activeChat&&!requestedId) return;
     // Explicit work links select a work, never submit a model request.
@@ -1288,7 +1289,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
       setSelectedRole(entryRoles(entry).find(role => role.id === entry.fixedRoleId) || entryRoles(entry)[0]);
       setRuntimeBeat(null); setView('prologue');
     }
-  }, [storageReady,communityLoaded]);
+  }, [storageReady,communityLoaded,catalogUnavailable]);
   const startLinkedWorld = useEffectEvent(() => beginWorld());
   useEffect(() => {
     if (linkedWorldStartPending.current && activeLibrary?.fixedRoleId === selectedRole.id && storageReady) {
@@ -1297,13 +1298,21 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     }
   }, [activeLibrary, selectedRole.id, storageReady]);
   useEffect(() => {
-    let live = true;
-    void fetch('/api/worlds', { cache: 'no-store' }).then(async r => {
-      if (!r.ok) return;
-      const data = await r.json() as { worlds?: StudioWorld[] };
-      if (live && Array.isArray(data.worlds)) setCommunityWorlds(data.worlds);
-    }).catch(() => {}).finally(()=>{if(live)setCommunityLoaded(true);});
-    return () => { live = false; };
+    const controller = new AbortController();
+    const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(10000)]);
+    void fetch('/api/worlds', { cache: 'no-store', signal }).then(async response => {
+      if (!response.ok) throw new Error('catalog_unavailable');
+      const data = await response.json() as { worlds?: StudioWorld[] } | null;
+      if (!Array.isArray(data?.worlds)) throw new Error('invalid_catalog');
+      if (controller.signal.aborted) return;
+      setCommunityWorlds(data.worlds);
+      setCatalogUnavailable(false);
+    }).catch(() => {
+      if (!controller.signal.aborted) setCatalogUnavailable(true);
+    }).finally(() => {
+      if (!controller.signal.aborted) setCommunityLoaded(true);
+    });
+    return () => controller.abort();
   }, [catalogRevision]);
   const personalCatalog = [...worldCatalog, ...availableStudioWorlds.filter((entry) => !entry.characterOnly).map((entry) => ({ id: entry.id, title: entry.title, genre: entry.genre, premise: entry.premise, surpriseLevel: entry.world.surpriseLevel }))];
   const publishedCharacters: PublishedCharacterCard[] = myCharacterPublications.map(row => {
@@ -3540,6 +3549,7 @@ function WorldStudio({ accountScope }: { accountScope: string }) {
     if (view === 'prologue' && activeLibrary && !preferText && selectableRoles.some(role=>rolePrologue(activeLibrary.id,role.id,activeLibrary.premise,activeLibrary.cover).video)) return <VideoExplorer key={`${accountScope}:${activeLibrary.id}:${videoFreshRun || 'resume'}`} entry={activeLibrary} initialRoleId={selectedRole.id} startFresh={Boolean(videoFreshRun)} resumeSessionId={videoResumeId} onBack={returnToCatalog} onText={roleId => { setPreferText(true); if (roleId || singleRole) beginWorld(undefined,roleId); else navigate('roles'); }} />;
     if (view === 'chat' && activeChat) return <CharacterChat key={`${accountScope}:${activeChat.id}`} accountScope={accountScope} initial={activeChat} onSave={chatPreview ? () => {} : saveChat} onBack={chatPreview || chatFromCreation ? () => { setChatPreview(false); setChatFromCreation(false); setCreateMode('character'); navigate('create'); } : returnToCatalog} preview={chatPreview} />;
     if (view === 'home' || view === 'library' || view === 'characters') return <StudioHome key={`${accountScope}:${view}`}
+      onRetryCatalog={catalogUnavailable ? () => setCatalogRevision(value => value + 1) : undefined}
       initialBrowse={galleryRestore.browse} returnPosition={galleryRestore.position}
       onBrowseChange={browse => { galleryMemory.current[`${accountScope}:${view}`] = { ...galleryMemory.current[`${accountScope}:${view}`], browse }; }}
       section={view} worlds={[
