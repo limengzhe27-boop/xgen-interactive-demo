@@ -24,18 +24,19 @@ test('attach preserves player facts, possessions, role memories, time and previo
  const old=base(),latest=extend(old),state=createInitialWorldState('draft',old.world.characters[0].id,'旧秘密','大厅');
  state.turn=9;state.clock='12:10';state.completedTaskIds=old.world.tasks.map(t=>t.id);state.committedFacts=['玩家自己走出的事实'];
  const success=old.world.endingConditions.find(e=>(e.outcome??'success')==='success');
- state.reachedEndingIds=[success.id];state.rolePerspectives={a:{inventory:['甲的物品'],clues:[],knownSecrets:['甲的秘密'],relationshipTrust:42,eventLedger:[]}};
+ state.reachedEndingIds=[success.id];state.rolePerspectives={a:{inventory:['甲的物品'],clues:[],knownSecrets:['甲的秘密'],relationshipTrust:42,relationshipChanges:{},eventLedger:[]}};
  const before=structuredClone(state),next=applyStoryUpgrade(old,latest,state);
  assert.deepEqual(state,before);
  for(const key of ['turn','clock','location','inventory','knownSecrets','completedTaskIds','failedTaskIds','committedFacts','rolePerspectives','eventLedger'])assert.deepEqual(next[key],before[key]);
- assert.ok(next.archivedEndingIds.includes(success.id));assert.ok(!next.reachedEndingIds.includes(success.id));
+ assert.deepEqual(next.archivedEndingIds,before.archivedEndingIds??[]);
+ assert.ok(next.reachedEndingIds.includes(success.id), "unchanged endings keep their achievement after an append-only upgrade");
  assert.equal(next.characterStates['new-person'].status,'尚未相遇');assert.ok(!next.knownSecrets.includes('新人物的秘密'));
  assert.equal(storyUpgrade(latest,JSON.parse(JSON.stringify(latest))),null);
 });
 test('video save holds its world edition and switching does not demand an absent old frame',()=>{
  const source=readFileSync(new URL('../components/video-explorer.tsx',import.meta.url),'utf8');
  assert.ok(source.includes('worldSnapshot:input.worldSnapshot??entry'));
- assert.ok(source.includes('s.clip&&(s.rounds>0||entry.fixedRoleId)'));
+ assert.ok(source.includes('s.clip&&!frame.current'));
  assert.ok(source.includes('sessionStorage.setItem(`${storageKey}:before-update`'));
- assert.ok(source.includes('当前剧情已体验完'));
+ assert.ok(source.includes('继续探索'));
 });

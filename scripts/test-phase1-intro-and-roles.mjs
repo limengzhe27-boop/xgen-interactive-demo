@@ -36,10 +36,10 @@ test('world intro page data strips creation parameters and separates playable vs
   assert.ok(!introSource.includes('coverDialog'));
   assert.ok(!introSource.includes('查看大图'));
   assert.ok(introSource.includes('<div className={styles.coverFrame}>'));
-  assert.ok(introSource.includes('src={single.image}'));
-  assert.ok(introSource.includes('single.identity && <p>{single.identity}</p>'));
+  assert.ok(introSource.includes('src={role.image}'));
+  assert.ok(introSource.includes('publicDescription(role) || role.identity'));
   assert.ok(introSource.includes('保存于'));
-  assert.ok(introSource.includes('选择角色'));
+  assert.ok(introSource.includes('选择你的角色'));
   assert.ok(css.includes('@media (max-width: 760px)'));
 });
 

@@ -11,6 +11,7 @@ console.log('--- Testing Phase 2: Personal Agent World Generation Quality & Brid
 // 1. Test triagePersonalAgentMessage
 console.log('1. Testing triagePersonalAgentMessage intent & readiness...');
 
+delete process.env.TYPESAFE_API_KEY; // Exercise the deterministic offline path.
 const chatTriage = await triagePersonalAgentMessage({
   userMessage: '今天有点累，先陪我聊聊，别急着给建议。',
 });

@@ -20,12 +20,14 @@ export function companyGateway(env: Record<string, string | undefined> = process
 export async function companyFetch(path: string, body?: unknown, timeoutMs = 60000) {
   const gateway = companyGateway();
   if (!gateway || !/^\/(chat\/completions|images\/generations|audio\/speech|videos(?:\/[A-Za-z0-9_-]+)?)$/.test(path)) throw new Error('company_gateway_not_configured');
-  return fetch(gateway.endpoint + path, {
+  const response = await fetch(gateway.endpoint + path, {
     method: body === undefined ? 'GET' : 'POST',
     headers: { Authorization: `Bearer ${gateway.apiKey}`, 'Content-Type': 'application/json' },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-    redirect: 'error', cache: 'no-store', signal: AbortSignal.timeout(timeoutMs),
+    redirect: 'manual', cache: 'no-store', signal: AbortSignal.timeout(timeoutMs),
   });
+  if (response.status >= 300 && response.status < 400) throw new Error('company_gateway_redirect');
+  return response;
 }
 export function companyAssetUrl(value: unknown) {
   if (typeof value !== 'string') throw new Error('invalid_company_asset');

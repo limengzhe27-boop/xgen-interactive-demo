@@ -63,8 +63,8 @@ test('single-role intro initializes before playback while preparation and countd
  const hydration=ui.slice(ui.indexOf('const a=await fetch'),ui.indexOf('function selectRole'));
  assert.match(ui,/const enabled=!loading&&configured/);
  assert.ok(!ui.includes('setEnabled')&&!ui.includes('开启探索'));
- assert.match(hydration,/roles.length===1\?initialVideoRole\(entry,roles\[0\].id\)/);
- assert.match(hydration,/current.current=fresh;setSession\(fresh\)/);
+ assert.match(hydration,/roles\.length\s*===\s*1\s*\?\s*roles\[0\]\.id/);
+ assert.match(hydration,/current\.current\s*=\s*fresh;\s*setSession\(fresh\)/);
  assert.match(ui,/if\(!scope\|\|!online\|\|!preparationSource/);
  assert.match(ui,/if\(!enabled\|\|!scope\|\|!online\|\|!visible\|\|drawerOpen\|\|session.pending/);
  assert.match(ui,/phase==='choices'&&cachedPlans.some/);

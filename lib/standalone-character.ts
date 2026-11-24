@@ -2,7 +2,7 @@ import { randomId } from './random-id.ts';
 import type { WorldDefinition } from './ai-contracts';
 import type { StudioWorld } from './studio-worlds';
 import { localPortrait } from './persona-upload';
-import { EMPTY_CHARACTER_PROFILE, characterProfileIsEmpty, readCharacterProfile, type CharacterProfile } from './character-profile';
+import { EMPTY_CHARACTER_PROFILE, characterProfileIsEmpty, readCharacterProfile, type CharacterProfile } from './character-profile.ts';
 
 /**
  * A character created outside any world. It is stored on its own and converted

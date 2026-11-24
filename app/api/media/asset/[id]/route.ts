@@ -14,7 +14,7 @@ export async function GET(request:Request, context:{ params:Promise<{id:string}>
     const range = request.headers.get('range');
     if (range && !/^bytes=\d*-\d*$/.test(range)) return account.finish(new Response(null,{status:416}));
     if(provisional)after(async()=>{try{const latest=await findMedia(asset.id);if(latest)await refreshFalVideo(latest);}catch{console.warn('fal_archive_retry_pending',{id:asset.id});}});
-    const response = provisional?await fetch(provisional,{headers:range?{Range:range}:{},redirect:'error',cache:'no-store',signal:AbortSignal.timeout(60000)}):await storageFetch(mediaPath(asset.id,asset.kind),{headers:range?{Range:range}:{}});
+    const response = provisional?await fetch(provisional,{headers:range?{Range:range}:{},redirect:'manual',cache:'no-store',signal:AbortSignal.timeout(60000)}):await storageFetch(mediaPath(asset.id,asset.kind),{headers:range?{Range:range}:{}});
     const headers = new Headers({'Content-Type':asset.kind==='speech'?'audio/mpeg':'video/mp4','X-Content-Type-Options':'nosniff','Cache-Control':'private, no-store','Vary':'Cookie','Accept-Ranges':'bytes'});
     for (const name of ['content-length','content-range']) { const value=response.headers.get(name);if(value)headers.set(name,value); }
     return account.finish(new Response(response.body,{status:response.status,headers}));

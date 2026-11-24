@@ -36,7 +36,7 @@ test('video status supports documented variants and never invents a completed re
 });
 test('gateway fetch refuses redirects and only accepts reviewed endpoints',async()=>{
   const original=globalThis.fetch, key=process.env.YIBU_API_KEY;process.env.YIBU_API_KEY='synthetic';let called=0;
-  globalThis.fetch=async(url,init)=>{called++;assert.equal(url,'https://yibuapi.com/v1/audio/speech');assert.equal(init.redirect,'error');assert.equal(init.headers.Authorization,'Bearer synthetic');return new Response('ok');};
-  try { await companyFetch('/audio/speech',{});await assert.rejects(()=>companyFetch('/videos/../../keys'));assert.equal(called,1); }
+  globalThis.fetch=async(url,init)=>{called++;assert.equal(url,'https://yibuapi.com/v1/audio/speech');assert.equal(init.redirect,'manual');assert.equal(init.headers.Authorization,'Bearer synthetic');return new Response(null,{status:302,headers:{Location:'https://example.org/'}});};
+  try { await assert.rejects(()=>companyFetch('/audio/speech',{}),/company_gateway_redirect/);await assert.rejects(()=>companyFetch('/videos/../../keys'));assert.equal(called,1); }
   finally { globalThis.fetch=original;if(key===undefined)delete process.env.YIBU_API_KEY;else process.env.YIBU_API_KEY=key; }
 });

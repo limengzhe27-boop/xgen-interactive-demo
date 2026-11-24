@@ -226,7 +226,7 @@ async function callCompany(
         max_tokens: systemOverride ? 5200 : operation === 'plan-prologue' ? 10000 : operation === 'adapt-persona' ? 900 : operation === 'generate-world' ? 5600 : operation === 'co-create-world' ? 6000 : 2800,
       }),
       signal: controller.signal,
-      redirect: 'error',
+      redirect: 'manual',
     });
     if (!response.ok) throw new Error(response.status === 429 ? 'model_rate_limited' : [401, 403].includes(response.status) ? 'model_access_denied' : 'company_gateway_failed');
 

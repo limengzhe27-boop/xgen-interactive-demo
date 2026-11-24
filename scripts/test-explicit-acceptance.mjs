@@ -1,9 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {combineCreatorChanges,applyCreatorChange,rebaseCreatorAcceptance} from '../lib/creator-changes.ts';
-test('explicit acceptance uses edited proposal despite changed baseline, undo restores actual current text',()=>{
+test('explicit acceptance protects intervening edits and supports undo on a matching baseline',()=>{
  const current={title:'另一台恢复的标题',premise:'保持'};
  const change={key:'title',label:'标题',before:'旧标题',after:'用户编辑后的建议'};
+ assert.equal(combineCreatorChanges(current,[change],true),null);
+ assert.equal(applyCreatorChange(current,rebaseCreatorAcceptance(current,change)),null);
+ change.before=current.title;
  const combined=combineCreatorChanges(current,[change],true);
  assert.equal(combined.after.title,change.after);assert.equal(combined.after.premise,'保持');
  assert.deepEqual(applyCreatorChange(combined.after,combined,true),current);

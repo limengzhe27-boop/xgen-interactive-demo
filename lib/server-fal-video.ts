@@ -10,7 +10,7 @@ const saving=new Map<string,Promise<void>>();
 // A complete moov/audio handler near the start lets playback begin without
 // downloading mdat first. Unknown layouts fall back to the existing full check.
 export async function probeFalAudio(url:string):Promise<{audio:boolean;buffer?:Buffer}>{
-  const r=await fetch(falAssetUrl(url),{headers:{Range:'bytes=0-262143'},redirect:'error',signal:AbortSignal.timeout(10000)});
+  const r=await fetch(falAssetUrl(url),{headers:{Range:'bytes=0-262143'},redirect:'manual',signal:AbortSignal.timeout(10000)});
   if(r.status===200){const buffer=await boundedMedia(r,'video');return {audio:mp4HasAudio(buffer),buffer};}
   const range=/^bytes 0-(\d+)\/(\d+)$/.exec(r.headers.get('content-range')||'');
   if(r.status!==206||!range||Number(range[2])>mediaLimit('video')||Number(range[1])>=Number(range[2])){await r.body?.cancel();return {audio:false};}
@@ -24,7 +24,7 @@ export async function falFetch(url: string | URL, body?: unknown) {
   const key=process.env.FAL_KEY?.trim();
   if(!key)throw new Error('fal_not_configured');
   return fetch(url,{method:body?'POST':'GET',headers:{Authorization:`Key ${key}`,...(body?{'Content-Type':'application/json'}:{})},
-    ...(body?{body:JSON.stringify(body)}:{}),redirect:'error',signal:AbortSignal.timeout(body?45000:20000),cache:'no-store'});
+    ...(body?{body:JSON.stringify(body)}:{}),redirect:'manual',signal:AbortSignal.timeout(body?45000:20000),cache:'no-store'});
 }
 export async function refreshFalVideo(asset:MediaAsset,defer?:(work:()=>Promise<void>)=>void|Promise<void>):Promise<MediaAsset> {
   if(!isFalVideoModel(asset.model)||asset.status!=='queued'||!asset.task_id)return asset;
@@ -59,7 +59,7 @@ export async function refreshFalVideo(asset:MediaAsset,defer?:(work:()=>Promise<
       return playable;
     }
   }
-  if(!buffer){const download=await fetch(falAssetUrl(outputUrl),{redirect:'error',signal:AbortSignal.timeout(60000)});buffer=await boundedMedia(download,'video');}
+  if(!buffer){const download=await fetch(falAssetUrl(outputUrl),{redirect:'manual',signal:AbortSignal.timeout(60000)});buffer=await boundedMedia(download,'video');}
   timing.downloadMs=Date.now()-downloadStart;
   if(!mp4HasAudio(buffer))return fail('fal_missing_native_audio');
   if(defer){

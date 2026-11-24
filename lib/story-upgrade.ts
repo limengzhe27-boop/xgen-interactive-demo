@@ -1,7 +1,7 @@
 import type { StudioWorld } from './studio-worlds';
 import type { WorldState } from './world-state';
 import { appendStory } from './story-continuation.ts';
-import { migrateWorldState } from './world-state-migration';
+import { migrateWorldState } from './world-state-migration.ts';
 
 function canonical(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;

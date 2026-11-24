@@ -1,4 +1,4 @@
-import { characterProfileIsEmpty, characterProfileText, type CharacterProfile } from './character-profile';
+import { characterProfileIsEmpty, characterProfileText, type CharacterProfile } from './character-profile.ts';
 
 // One shared direction for creator portraits and automatically prepared publication art.
 // Prompt constraints reduce drift; they are not proof of the generated image's style.

@@ -34,7 +34,7 @@ export async function refreshVideo(asset: MediaAsset) {
   if (result.status === 'failed') { await updateMedia(asset.id, { status:'failed' }); return { ...asset, status:'failed' }; }
   if (result.status === 'ready') {
     // No credentials sent to the output CDN, redirects are forbidden.
-    const download = await fetch(companyAssetUrl(result.url), { signal:AbortSignal.timeout(60000), redirect:'error' });
+    const download = await fetch(companyAssetUrl(result.url), { signal:AbortSignal.timeout(60000), redirect:'manual' });
     await saveMedia(asset, await boundedMedia(download,'video'));
     return { ...asset, status:'ready' };
   }

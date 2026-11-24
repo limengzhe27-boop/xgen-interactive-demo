@@ -147,7 +147,7 @@ test('recommendations exclude unknown IDs, empty reasons and duplicates, and cap
   const row = (worldId, reason = '符合本次偏好') => ({ worldId, reason, matchedMemoryIds: [] });
   assert.deepEqual(knownRecommendations([row('missing'), row('a', ''), row('a'), row('a'), row('b'), row('c')], ['a', 'b', 'c']).map((item) => item.worldId), ['a', 'b']);
 });
-const homeProps = { section: 'home', worlds, characters: [], recent: [], onCreate: noop, onOpenWorld: noop, onChat: noop, onPersonal: noop, onLibrary: noop, onOpenRecord: noop };
+const homeProps = { section: 'home', worlds, characters: [], recent: [], localCharacters: [], publishedCharacters: [], onCreate: noop, onOpenWorld: noop, onChat: noop, onPersonal: noop, onLibrary: noop, onOpenRecord: noop };
 test('gallery renders each real world once, with one headline and no metadata or synopsis actions', () => {
   const html = renderToStaticMarkup(React.createElement(StudioHome, homeProps));
   assert.equal((html.match(/class="gallery-card"/g) || []).length, worlds.length);
@@ -157,7 +157,7 @@ test('gallery renders each real world once, with one headline and no metadata or
   assert.ok(!html.includes('gallery-type') && !html.includes('gallery-card-actions'));
   assert.ok(!html.includes('可选身份') && !html.includes('固定身份体验'));
   assert.ok(html.includes('搜索世界或角色'));
-  assert.ok(html.includes('你想创造怎样的世界') && html.includes('<textarea'));
+  assert.ok(html.includes('写下你的故事想法') && html.includes('<textarea'));
   const css = readFileSync(new URL('../app/gallery.css', import.meta.url), 'utf8');
   assert.match(css, /\.gallery-feed[^}]*align-items: start/);
   assert.match(css, /prefers-reduced-motion/);
@@ -355,5 +355,5 @@ test('personal instructions support everyday conversation; creation discussion i
   assert.ok(!page.includes('<aside className="creator-discussion-column">'));
   assert.ok(page.indexOf('{discussionPanel}') < page.indexOf('<SheetContent className="flow-drawer creator-settings-drawer"'));
   assert.equal(page.split('{discussionPanel}').length - 1, 1, 'one persistent composer across every step');
-  assert.ok(page.includes('setCreatorMessage(seed)'));
+  assert.ok(page.includes('setWorldSeed(trimmedSeed)'));
 });

@@ -7,7 +7,8 @@ import { generateSceneImage } from '../lib/remote-image-service.ts';
 void test('account-scoped text and image clients send immutable identity headers, including guests', async () => {
   const moduleURL = text => `data:text/javascript;base64,${Buffer.from(text).toString('base64')}`;
   let source = await readFile(new URL('../lib/remote-ai-adapter.ts', import.meta.url), 'utf8');
-  source = source.replace('@/lib/ai-validation', moduleURL('export const isCreatorAgentResponse=()=>true,isPersonalAgentResponse=()=>true,isWorldGenerationResponse=()=>true,isWorldTurnResponse=()=>true;'));
+  source = source.replace('./ai-validation.ts', moduleURL('export const isCreatorAgentResponse=()=>true,isPersonalAgentResponse=()=>true,isWorldGenerationResponse=()=>true,isWorldTurnResponse=()=>true;'));
+  source = source.replace('./creator-directions.ts',new URL('../lib/creator-directions.ts', import.meta.url).href);
   const { createRemoteAIAdapter } = await import(moduleURL(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } }).outputText));
   const realFetch = globalThis.fetch; const calls = [];
   globalThis.fetch = async (url, init = {}) => {

@@ -36,24 +36,12 @@ export function makeRejectedWorldTurn(input: WorldTurnRequest, validation: Actio
 }
 
 export function enforceWorldTurnGuardrails(input: WorldTurnRequest, output: WorldTurnResponse): WorldTurnResponse {
-  const interaction = input.interaction;
-  if (interaction?.mode === 'character-chat') {
-    // Pure dialogue: never turn a conversational message into an illegal action.
-    if (!output.actionDecision.allowed) output = { ...output, actionDecision: { allowed: true } };
-    const targetLocation = input.state.characterStates[interaction.targetCharacterId]?.locationId;
-    const targetPresent = targetLocation === input.state.location
-      || input.world.locations.some((place) => place.id === targetLocation && place.name === input.state.location);
-    if (targetPresent && !output.dialogue.some((line) => line.characterId === interaction.targetCharacterId
-      && line.visibleToRoleIds.includes(input.selectedRoleId) && line.text.trim())) {
-      throw new Error('chat_target_missing');
-    }
-    return { ...output, actionDecision: { allowed: true } };
-  }
-  if (!output.actionDecision.allowed) {
-    // A reply is always valid input. The model can narrate limits or consequences,
-    // but must not turn a user's message into a rejected turn.
-    output = { ...output, actionDecision: { allowed: true } };
-  }
+  // Keep the conversational reply, but a declined action cannot mutate the world.
+  const declined = !output.actionDecision.allowed;
+  if (declined) output = {
+    ...output, actionDecision: { allowed: true }, statePatch: { committedFacts: [] },
+    ending: { reached: false, canContinue: true },
+  };
   const role = input.world.characters.find((character) => character.id === input.selectedRoleId);
   if (role && ['听到你的话', '听了你的话', '听到你这么说', '听你这么说'].some((phrase) => output.narrative.includes(`${role.name}${phrase}`))) {
     throw new Error('player_perspective_drift');
@@ -134,7 +122,7 @@ export function enforceWorldTurnGuardrails(input: WorldTurnRequest, output: Worl
     dialogue: output.dialogue.filter((line) => line.visibleToRoleIds.includes(input.selectedRoleId)),
     nextChoices,
     statePatch: { ...output.statePatch, completeTaskIds: completions, failTaskIds: failures,
-      relationshipDeltas: Object.fromEntries(Object.entries(output.statePatch.relationshipDeltas ?? {}).filter(([id, value]) =>
+      relationshipDeltas: declined ? undefined : Object.fromEntries(Object.entries(output.statePatch.relationshipDeltas ?? {}).filter(([id, value]) =>
         Number.isFinite(value) && (id === 'world' || (id !== input.selectedRoleId && input.world.characters.some(character => character.id === id))))
         .map(([id, value]) => [id, Math.max(-10, Math.min(10, value))])),
     },

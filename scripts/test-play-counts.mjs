@@ -18,7 +18,7 @@ test('no fabricated fallback and all experience paths are connected', () => {
   const home = read('components/studio-home.tsx');
   assert.ok(!home.includes('demoPlayCount'));
   assert.match(home, /counts\[itemKey\(item\)\] !== undefined/);
-  assert.match(read('components/character-chat.tsx'), /useRecordPlay\(session.turns.length/);
+  assert.match(read('components/character-chat.tsx'), /useRecordPlay\(!preview && session.turns.length/);
   assert.match(read('components/video-explorer.tsx'), /useRecordPlay\(session.rounds > 0/);
   assert.match(read('app/page.tsx'), /view === 'play' && <RecordPlay/);
 });

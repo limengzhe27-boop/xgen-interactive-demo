@@ -1,6 +1,6 @@
 import type { WorldDefinition } from './ai-contracts';
 import type { WorldState } from './world-state';
-import { migrateWorldState } from './world-state-migration';
+import { migrateWorldState } from './world-state-migration.ts';
 
 /** Switch a viewpoint, never apply an authored entry anchor to a running save. */
 export function switchRole(world: WorldDefinition, state: WorldState, fromId: string, toId: string, fixedRoleId?: string) {

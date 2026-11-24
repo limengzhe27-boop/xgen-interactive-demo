@@ -29,7 +29,7 @@ export async function storageFetch(path: string, init: RequestInit = {}) {
   headers.set('apikey', process.env.SUPABASE_SECRET_KEY!);
   headers.set('Authorization', `Bearer ${process.env.SUPABASE_SECRET_KEY!}`);
   const response = await fetch(`${process.env.SUPABASE_URL}${path}`, {
-    ...init, headers, cache: 'no-store', signal: init.signal ?? AbortSignal.timeout(15000), redirect: 'error',
+    ...init, headers, cache: 'no-store', signal: init.signal ?? AbortSignal.timeout(15000), redirect: 'manual',
   });
   if (!response.ok) throw new Error('image_storage_unavailable');
   return response;
@@ -68,7 +68,7 @@ export async function saveImage(id: string, buffer: Buffer, bucket = 'world-priv
   await completeImage(id, buffer.length);
 }
 export async function boundedImageDownload(url: string, signal: AbortSignal) {
-  const response = await fetch(url, { signal, redirect: 'error' });
+  const response = await fetch(url, { signal, redirect: 'manual' });
   if (!response.ok || !response.body || Number(response.headers.get('content-length')) > 8_000_000) throw new Error('image_download_failed');
   const reader = response.body.getReader();
   const chunks: Uint8Array[] = []; let total = 0;
