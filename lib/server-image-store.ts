@@ -25,10 +25,17 @@ export function imageId(parts: unknown[]) {
 }
 export async function storageFetch(path: string, init: RequestInit = {}) {
   if (!storageConfigured()) throw new Error('image_storage_not_configured');
+  return databaseFetch(path, init);
+}
+
+export async function databaseFetch(path: string, init: RequestInit = {}) {
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SECRET_KEY;
+  if (!url || !key) throw new Error('database_not_configured');
   const headers = new Headers(init.headers);
-  headers.set('apikey', process.env.SUPABASE_SECRET_KEY!);
-  headers.set('Authorization', `Bearer ${process.env.SUPABASE_SECRET_KEY!}`);
-  const response = await fetch(`${process.env.SUPABASE_URL}${path}`, {
+  headers.set('apikey', key);
+  headers.set('Authorization', `Bearer ${key}`);
+  const response = await fetch(`${url}${path}`, {
     ...init, headers, cache: 'no-store', signal: init.signal ?? AbortSignal.timeout(15000), redirect: 'manual',
   });
   if (!response.ok) throw new Error('image_storage_unavailable');

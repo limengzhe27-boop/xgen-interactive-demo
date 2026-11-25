@@ -1,5 +1,5 @@
 import { authConfigured, authContext, sameOrigin } from '@/lib/server-auth';
-import { claimImage, findImage, imageId, imageOwner, saveImage, storageFetch } from '@/lib/server-image-store';
+import { databaseFetch, claimImage, findImage, imageId, imageOwner, saveImage, storageFetch } from '@/lib/server-image-store';
 import { publicationWorld } from '@/lib/publication';
 import { publicationArt, publicationArtPaths } from '@/lib/publication-art';
 import publicImages from '@/lib/public-image-manifest.json';
@@ -48,7 +48,7 @@ export async function GET(request: Request) {
     } catch { return reply({ error: 'publications_unavailable' }, 503); }
   }
   try {
-    const response = await storageFetch('/rest/v1/demo_world_publications?published=eq.true&select=document&order=updated_at.desc&limit=200', { signal: AbortSignal.timeout(8000) });
+    const response = await databaseFetch('/rest/v1/demo_world_publications?published=eq.true&select=document&order=updated_at.desc&limit=200', { signal: AbortSignal.timeout(8000) });
     const rows = await response.json() as { document: Record<string, unknown> }[];
     return Response.json({ worlds: rows.map(row => {
       const { sourceId: _privateDraftId, ...document } = row.document;
